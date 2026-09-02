@@ -2,7 +2,7 @@
 schema_version = 1
 
 [editor]
-default_mode = "rich"
+last_mode = "rich"
 autosave_delay_ms = 500
 source_split_view = false
 

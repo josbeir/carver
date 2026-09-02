@@ -8,7 +8,10 @@ use libadwaita as adw;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
 use crate::{
-    controller::AppState, editor::build_editor, sidebar::sidebar_toggle_button, trash::build_trash,
+    controller::AppState,
+    editor::build_editor,
+    sidebar::{refresh_sidebar, sidebar_toggle_button},
+    trash::build_trash,
 };
 
 /// Builds the browser and editor stack for the content pane.
@@ -42,7 +45,6 @@ pub(crate) fn build_browser(
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
-    header.pack_end(&new_note);
     let menu = gtk::gio::Menu::new();
     menu.append(Some("Preferences"), Some("win.preferences"));
     menu.append(Some("About Carver"), Some("win.about"));
@@ -52,6 +54,7 @@ pub(crate) fn build_browser(
     app_menu.set_tooltip_text(Some("Main Menu"));
     app_menu.set_menu_model(Some(&menu));
     header.pack_end(&app_menu);
+    header.pack_end(&new_note);
     let toggle_sidebar = sidebar_toggle_button(split_view, "toggle-categories-button");
     header.pack_start(&toggle_sidebar);
     view.add_top_bar(&header);
@@ -78,13 +81,35 @@ pub(crate) fn build_browser(
     clamp.set_maximum_size(720);
     clamp.set_tightening_threshold(520);
     clamp.set_child(Some(&content));
-    view.set_content(Some(&clamp));
+    let pages = gtk::Stack::new();
+    pages.set_widget_name("browser-content-pages");
+    pages.add_named(&clamp, Some("contents"));
+    let status = adw::StatusPage::builder()
+        .title("No notes yet")
+        .description("Create a note to get started.")
+        .icon_name("document-new-symbolic")
+        .build();
+    status.set_widget_name("browser-empty-status");
+    let empty_new_note = gtk::Button::with_label("New Note");
+    empty_new_note.set_widget_name("browser-empty-new-note-button");
+    empty_new_note.add_css_class("suggested-action");
+    let empty_action = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    empty_action.set_halign(gtk::Align::Center);
+    empty_action.append(&empty_new_note);
+    status.set_child(Some(&empty_action));
+    pages.add_named(&status, Some("empty"));
+    view.set_content(Some(&pages));
 
     state.browser_list.replace(Some(list.clone()));
     state.browser_stack.replace(Some(stack.clone()));
     state.browser_title.replace(Some(title));
+    state.browser_content_stack.replace(Some(pages));
+    state.browser_status.replace(Some(status));
+    state
+        .browser_empty_new_note_button
+        .replace(Some(empty_new_note.clone()));
     refresh_browser(state);
-    connect_browser_actions(state, &search, &new_note, &list, stack);
+    connect_browser_actions(state, &search, &new_note, &empty_new_note, &list, stack);
     view.upcast()
 }
 
@@ -92,6 +117,7 @@ fn connect_browser_actions(
     state: &Rc<AppState>,
     search: &gtk::SearchEntry,
     new_note: &gtk::Button,
+    empty_new_note: &gtk::Button,
     list: &gtk::ListBox,
     stack: &gtk::Stack,
 ) {
@@ -102,31 +128,8 @@ fn connect_browser_actions(
             .replace(entry.text().to_string());
         refresh_browser(&state_for_search);
     });
-    let state_for_new = Rc::clone(state);
-    let stack_for_new = stack.clone();
-    new_note.connect_clicked(move |_| {
-        let state = Rc::clone(&state_for_new);
-        let stack = stack_for_new.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            let category_id = match state.selected_category.get() {
-                Some(category_id) => Some(category_id),
-                None => client
-                    .categories_async()
-                    .await
-                    .ok()
-                    .and_then(|categories| categories.first().map(|category| category.id)),
-            };
-            let Some(category_id) = category_id else {
-                return;
-            };
-            if let Ok(note) = client.create_note_async(category_id).await {
-                state.current_note.replace(Some(note));
-                refresh_browser(&state);
-                stack.set_visible_child_name("editor");
-            }
-        });
-    });
+    connect_new_note_action(state, stack, new_note);
+    connect_new_note_action(state, stack, empty_new_note);
     let state_for_row = Rc::clone(state);
     let stack_for_row = stack.clone();
     list.connect_row_activated(move |_list, row| {
@@ -149,19 +152,57 @@ fn connect_browser_actions(
     });
 }
 
+fn connect_new_note_action(state: &Rc<AppState>, stack: &gtk::Stack, button: &gtk::Button) {
+    let state_for_new = Rc::clone(state);
+    let stack_for_new = stack.clone();
+    button.connect_clicked(move |_| {
+        let state = Rc::clone(&state_for_new);
+        let stack = stack_for_new.clone();
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            let category_id = match state.selected_category.get() {
+                Some(category_id) => Some(category_id),
+                None => client
+                    .categories_async()
+                    .await
+                    .ok()
+                    .and_then(|categories| categories.first().map(|category| category.id)),
+            };
+            let Some(category_id) = category_id else {
+                return;
+            };
+            if let Ok(note) = client.create_note_async(category_id).await {
+                state.current_note.replace(Some(note));
+                refresh_browser(&state);
+                refresh_sidebar(&state);
+                stack.set_visible_child_name("editor");
+            }
+        });
+    });
+}
+
 /// Refreshes the browser widgets after a note or category action.
 pub(crate) fn refresh_browser(state: &Rc<AppState>) {
     refresh_browser_title(state);
-    let (list, stack) = {
+    let (list, stack, pages, status, empty_new_note) = {
         let Some(list) = state.browser_list.borrow().clone() else {
             return;
         };
         let Some(stack) = state.browser_stack.borrow().clone() else {
             return;
         };
-        (list, stack)
+        let Some(pages) = state.browser_content_stack.borrow().clone() else {
+            return;
+        };
+        let Some(status) = state.browser_status.borrow().clone() else {
+            return;
+        };
+        let Some(empty_new_note) = state.browser_empty_new_note_button.borrow().clone() else {
+            return;
+        };
+        (list, stack, pages, status, empty_new_note)
     };
-    refresh_note_list(&list, state, &stack);
+    refresh_note_list(&list, &pages, &status, &empty_new_note, state, &stack);
 }
 
 fn refresh_browser_title(state: &AppState) {
@@ -178,17 +219,28 @@ fn refresh_browser_title(state: &AppState) {
     }
 }
 
-fn refresh_note_list(list: &gtk::ListBox, state: &Rc<AppState>, _stack: &gtk::Stack) {
+fn refresh_note_list(
+    list: &gtk::ListBox,
+    pages: &gtk::Stack,
+    status: &adw::StatusPage,
+    empty_new_note: &gtk::Button,
+    state: &Rc<AppState>,
+    _stack: &gtk::Stack,
+) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
     let query = state.search_query.borrow().trim().to_owned();
     let search_is_active = !query.is_empty();
     let category_id = state.selected_category.get();
+    let category_name = state.selected_category_name.borrow().clone();
     let generation = state.browser_generation.get().saturating_add(1);
     state.browser_generation.set(generation);
     let state = Rc::clone(state);
     let list = list.clone();
+    let pages = pages.clone();
+    let status = status.clone();
+    let empty_new_note = empty_new_note.clone();
     let client = state.client.clone();
     glib::spawn_future_local(async move {
         let entries = if search_is_active {
@@ -208,14 +260,36 @@ fn refresh_note_list(list: &gtk::ListBox, state: &Rc<AppState>, _stack: &gtk::St
         if state.browser_generation.get() != generation {
             return;
         }
-        populate_note_list(&list, entries, search_is_active);
+        populate_note_list(
+            &list,
+            &pages,
+            &status,
+            &empty_new_note,
+            entries,
+            search_is_active,
+            category_name.as_deref(),
+        );
     });
 }
 
-fn populate_note_list(list: &gtk::ListBox, entries: Vec<NoteSummary>, search_is_active: bool) {
+fn populate_note_list(
+    list: &gtk::ListBox,
+    pages: &gtk::Stack,
+    status: &adw::StatusPage,
+    empty_new_note: &gtk::Button,
+    entries: Vec<NoteSummary>,
+    search_is_active: bool,
+    category_name: Option<&str>,
+) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
+    if entries.is_empty() {
+        configure_empty_state(status, empty_new_note, search_is_active, category_name);
+        pages.set_visible_child_name("empty");
+        return;
+    }
+    pages.set_visible_child_name("contents");
     let mut previous_day = None;
     for note in entries {
         let day = local_day(note.updated_at);
@@ -254,6 +328,30 @@ fn populate_note_list(list: &gtk::ListBox, entries: Vec<NoteSummary>, search_is_
         row.set_child(Some(&box_));
         list.append(&row);
     }
+}
+
+fn configure_empty_state(
+    status: &adw::StatusPage,
+    new_note: &gtk::Button,
+    search_is_active: bool,
+    category_name: Option<&str>,
+) {
+    if search_is_active {
+        status.set_title("No matching notes");
+        status.set_description(Some("Try a different search term."));
+        status.set_icon_name(Some("edit-find-symbolic"));
+        new_note.set_visible(false);
+        return;
+    }
+
+    let title = category_name.map_or_else(
+        || "No notes yet".to_owned(),
+        |category_name| format!("No notes in {category_name}"),
+    );
+    status.set_title(&title);
+    status.set_description(Some("Create a note to get started."));
+    status.set_icon_name(Some("document-new-symbolic"));
+    new_note.set_visible(true);
 }
 
 fn local_day(timestamp: OffsetDateTime) -> time::Date {

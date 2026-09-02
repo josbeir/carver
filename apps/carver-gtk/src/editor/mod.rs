@@ -2,7 +2,7 @@
 
 use std::{cell::Cell, rc::Rc, time::Duration as StdDuration};
 
-use carver_domain::derive_content;
+use carver_config::EditorMode;
 use carver_richtext::{EditorProjection, editor_projection};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -44,20 +44,29 @@ pub(crate) fn build_editor(
     back.set_widget_name("back-to-notes-button");
     back.set_tooltip_text(Some("Back to notes"));
     header.pack_start(&back);
-    let title = adw::WindowTitle::new("Note", "Saved automatically");
-    title.set_widget_name("editor-note-title");
-    header.set_title_widget(Some(&title));
     let mode_group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     mode_group.add_css_class("linked");
     mode_group.set_widget_name("editor-mode-group");
-    let rich_mode = gtk::ToggleButton::with_label("Rich Text");
-    rich_mode.set_widget_name("editor-mode-rich");
+    let rich_mode = editor_mode_button(
+        "editor-mode-rich",
+        "document-edit-symbolic",
+        "Edit",
+        "Edit with rich text",
+    );
     rich_mode.set_active(true);
-    let source_mode = gtk::ToggleButton::with_label("Carve Source");
-    source_mode.set_widget_name("editor-mode-source");
+    let source_mode = editor_mode_button(
+        "editor-mode-source",
+        "text-x-generic-symbolic",
+        "Source",
+        "Edit Carve markup",
+    );
     source_mode.set_group(Some(&rich_mode));
-    let rendered_mode = gtk::ToggleButton::with_label("Rendered");
-    rendered_mode.set_widget_name("editor-mode-rendered");
+    let rendered_mode = editor_mode_button(
+        "editor-mode-rendered",
+        "view-reveal-symbolic",
+        "Preview",
+        "Read-only preview",
+    );
     rendered_mode.set_group(Some(&rich_mode));
     mode_group.append(&rich_mode);
     mode_group.append(&source_mode);
@@ -74,14 +83,13 @@ pub(crate) fn build_editor(
     split_toggle.set_widget_name("source-split-toggle");
     split_toggle.set_tooltip_text(Some("Show rendered preview"));
     split_toggle.set_sensitive(false);
-    let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    mode_controls.set_widget_name("editor-mode-switcher");
+    mode_controls.add_css_class("editor-mode-switcher");
     mode_controls.set_halign(gtk::Align::Center);
     mode_controls.append(&mode_group);
     mode_controls.append(&split_toggle);
-    let mode_bar = gtk::CenterBox::new();
-    mode_bar.set_widget_name("editor-mode-bar");
-    mode_bar.set_center_widget(Some(&mode_controls));
-    view.add_top_bar(&mode_bar);
+    header.set_title_widget(Some(&mode_controls));
 
     let format_stack = gtk::Stack::new();
     format_stack.set_widget_name("formatting-toolbar");
@@ -165,12 +173,26 @@ pub(crate) fn build_editor(
         &rich,
         &rich_buffer,
         &source_buffer,
-        &title,
         &split_preview,
         &rendered_preview,
     );
-    connect_editor_title(state, &title, &rich_buffer, &source_buffer);
     view.upcast()
+}
+
+fn editor_mode_button(
+    name: &str,
+    icon_name: &str,
+    label: &str,
+    tooltip: &str,
+) -> gtk::ToggleButton {
+    let button = gtk::ToggleButton::new();
+    button.set_widget_name(name);
+    button.set_tooltip_text(Some(tooltip));
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    content.append(&gtk::Image::from_icon_name(icon_name));
+    content.append(&gtk::Label::new(Some(label)));
+    button.set_child(Some(&content));
+    button
 }
 
 fn text_view(buffer: &gtk::TextBuffer, name: &str, monospace: bool) -> gtk::TextView {
@@ -286,8 +308,7 @@ fn connect_mode_buttons(
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
 ) {
-    let connect = |button: &gtk::ToggleButton, surface: &str| {
-        let surface = surface.to_owned();
+    let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let state = Rc::clone(state);
         let stack = editor_stack.clone();
         let formats = format_stack.clone();
@@ -296,15 +317,17 @@ fn connect_mode_buttons(
         let source = source_buffer.clone();
         let split_preview = split_preview.clone();
         let rendered_preview = rendered_preview.clone();
+        let rendered_mode = rendered_mode.clone();
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
         button.connect_toggled(move |button| {
             if !button.is_active() {
                 return;
             }
+            let persist_selection = !state.synchronizing_editor.get();
             state.synchronizing_editor.set(true);
-            match surface.as_str() {
-                "source" => {
+            match surface {
+                EditorMode::Source => {
                     if !state.source_mode.get() && !state.rendered_mode.get() {
                         source.set_text(&buffer_text(&rich));
                     }
@@ -316,7 +339,7 @@ fn connect_mode_buttons(
                     split_toggle.set_active(state.config.borrow().editor.source_split_view);
                     split_toggle.set_sensitive(split_supported.get());
                 }
-                "rendered" => {
+                EditorMode::Rendered => {
                     if !state.source_mode.get() {
                         source.set_text(&buffer_text(&rich));
                     }
@@ -330,7 +353,7 @@ fn connect_mode_buttons(
                     split_toggle.set_active(false);
                     split_toggle.set_sensitive(false);
                 }
-                _ => {
+                EditorMode::Rich => {
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
                     if matches!(editor_projection(&source_text), EditorProjection::Native(_)) {
                         render_rich_markup(&rich_view, &rich, &source_text, Some(&state));
@@ -350,20 +373,26 @@ fn connect_mode_buttons(
                         formats.set_sensitive(false);
                         split_toggle.set_active(false);
                         split_toggle.set_sensitive(false);
+                        // Keep the control honest about the effective surface,
+                        // without overwriting the user's saved Edit preference.
+                        rendered_mode.set_active(true);
                     }
                 }
             }
-            if surface == "source" {
+            if surface == EditorMode::Source {
                 let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
                 let remote = state.config.borrow().images.load_remote_automatically;
                 load_preview(&split_preview, &source_text, remote);
             }
             state.synchronizing_editor.set(false);
+            if persist_selection {
+                let _ = state.set_last_editor_mode(surface);
+            }
         });
     };
-    connect(rich_mode, "rich");
-    connect(source_mode, "source");
-    connect(rendered_mode, "rendered");
+    connect(rich_mode, EditorMode::Rich);
+    connect(source_mode, EditorMode::Source);
+    connect(rendered_mode, EditorMode::Rendered);
 }
 
 fn connect_split_availability(
@@ -609,7 +638,6 @@ fn connect_note_loading(
     rich_view: &gtk::TextView,
     rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
-    title: &adw::WindowTitle,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
 ) {
@@ -624,12 +652,10 @@ fn connect_note_loading(
     let editor_stack_for_visible = editor_stack.clone();
     let split_preview_for_visible = split_preview.clone();
     let rendered_preview_for_visible = rendered_preview.clone();
-    let title_for_visible = title.clone();
     stack.connect_visible_child_notify(move |stack| {
         if stack.visible_child_name().as_deref() == Some("editor")
             && let Some(note) = state_for_visible.current_note.borrow().as_ref()
         {
-            title_for_visible.set_title(&note.title);
             state_for_visible.synchronizing_editor.set(true);
             source_for_visible.set_text(&note.source);
             let remote = state_for_visible
@@ -671,31 +697,6 @@ fn connect_note_loading(
             state_for_visible.synchronizing_editor.set(false);
         }
     });
-}
-
-fn connect_editor_title(
-    state: &Rc<AppState>,
-    title: &adw::WindowTitle,
-    rich_buffer: &gtk::TextBuffer,
-    source_buffer: &gtk::TextBuffer,
-) {
-    let update = |buffer: &gtk::TextBuffer, use_source: bool| {
-        let state = Rc::clone(state);
-        let title = title.clone();
-        let buffer = buffer.clone();
-        buffer.clone().connect_changed(move |_| {
-            if state.synchronizing_editor.get() || state.current_note.borrow().is_none() {
-                return;
-            }
-            let active_source = state.source_mode.get() || state.rendered_mode.get();
-            if active_source != use_source {
-                return;
-            }
-            title.set_title(&derive_content(&buffer_text(&buffer)).title);
-        });
-    };
-    update(rich_buffer, false);
-    update(source_buffer, true);
 }
 
 fn connect_source_preview(

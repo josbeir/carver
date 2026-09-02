@@ -1,12 +1,13 @@
 //! GTK frontend tests.
 
-use std::{error::Error, rc::Rc};
+use std::{cell::Cell, error::Error, rc::Rc};
 
 use carver_config::{AppPaths, Config, EditorMode, load};
 use carver_sdk::LibraryClient;
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use libadwaita as adw;
+use libadwaita::prelude::*;
 use tempfile::TempDir;
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
         AppState, active_category, create_next_category, create_note_for_active_category,
         open_note, rename_category, save_current_note, store_pasted_image, trash_current_note,
     },
-    dialogs::persist_window_config,
+    dialogs::{category_trash_dialog, persist_window_config},
     editor::{
         buffer_text, build_editor, install_editor_shortcuts, install_image_paste,
         install_list_continuation, install_source_shortcuts, render_rich_markup,
@@ -133,10 +134,37 @@ fn state_actions_create_numbered_categories() -> TestResult {
 fn state_uses_the_configured_initial_editor_mode() -> TestResult {
     let (_temporary_directory, state) = test_state()?;
     let mut config = Config::default();
-    config.editor.default_mode = EditorMode::Source;
+    config.editor.last_mode = EditorMode::Source;
     let source_state = AppState::new(state.client.clone(), config);
 
     assert!(source_state.source_mode.get());
+    assert!(!source_state.rendered_mode.get());
+
+    let mut config = Config::default();
+    config.editor.last_mode = EditorMode::Rendered;
+    let rendered_state = AppState::new(state.client.clone(), config);
+    assert!(!rendered_state.source_mode.get());
+    assert!(rendered_state.rendered_mode.get());
+    Ok(())
+}
+
+#[test]
+fn state_persists_the_last_explicit_editor_surface() -> TestResult {
+    let (temporary_directory, state) = test_state()?;
+    let path = temporary_directory.path().join("config/config.toml");
+    let persisted_state = AppState::new_with_assets(
+        state.client.clone(),
+        Config::default(),
+        None,
+        Some(path.clone()),
+    );
+
+    persisted_state.set_last_editor_mode(EditorMode::Rendered)?;
+
+    let loaded = load(&path)?;
+    assert_eq!(loaded.editor.last_mode, EditorMode::Rendered);
+    let restored = AppState::new(state.client.clone(), loaded);
+    assert!(restored.rendered_mode.get());
     Ok(())
 }
 
@@ -405,7 +433,17 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     stack.set_visible_child_name("browser");
     let app_menu = widget_as::<gtk::MenuButton>(&browser, "app-menu-button");
     let content_clamp = widget_as::<adw::Clamp>(&browser, "browser-content-clamp");
-    assert!(app_menu.is_some() && content_clamp.is_some());
+    let browser_pages = widget_as::<gtk::Stack>(&browser, "browser-content-pages");
+    let browser_status = widget_as::<adw::StatusPage>(&browser, "browser-empty-status");
+    let browser_empty_new_note =
+        widget_as::<gtk::Button>(&browser, "browser-empty-new-note-button");
+    assert!(
+        app_menu.is_some()
+            && content_clamp.is_some()
+            && browser_pages.is_some()
+            && browser_status.is_some()
+            && browser_empty_new_note.is_some()
+    );
     let Some(content_clamp) = content_clamp else {
         return Ok(());
     };
@@ -463,6 +501,21 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     search.set_text("does-not-exist");
     search.emit_by_name::<()>("search-changed", &[]);
     assert!(run_main_context_until(|| note_row_count(&browser) == 0));
+    assert!(run_main_context_until(|| {
+        browser_pages
+            .as_ref()
+            .and_then(gtk::Stack::visible_child_name)
+            .as_deref()
+            == Some("empty")
+            && browser_status
+                .as_ref()
+                .is_some_and(|status| status.title() == "No matching notes")
+            && browser_empty_new_note
+                .as_ref()
+                .is_some_and(|button| !button.is_visible())
+    }));
+    search.set_text("");
+    search.emit_by_name::<()>("search-changed", &[]);
 
     let sidebar = build_sidebar(&state, &split_view);
     let test_window = gtk::Window::new();
@@ -496,19 +549,19 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         count_label.map(|label| label.text().to_string()),
         Some("0 notes".to_owned())
     );
-    let category_row = find_widget(
-        category_list.upcast_ref(),
-        &format!("category:{}", second_category.id),
+    let all_notes_count = widget_as::<gtk::Label>(category_list.upcast_ref(), "all-notes-count");
+    let mut active_note_count = 0;
+    for category in state.client.categories()? {
+        active_note_count += state.client.note_count(category.id)?;
+    }
+    assert_eq!(
+        all_notes_count.map(|label| label.text().to_string()),
+        Some(if active_note_count == 1 {
+            "1 note".to_owned()
+        } else {
+            format!("{active_note_count} notes")
+        })
     );
-    assert!(category_row.is_some());
-    let Some(category_row) = category_row else {
-        return Ok(());
-    };
-    let category_row = category_row.downcast::<gtk::ListBoxRow>().ok();
-    assert!(category_row.is_some());
-    let Some(category_row) = category_row else {
-        return Ok(());
-    };
     rename_category(&state, second_category.id, "Personal")?;
     refresh_sidebar(&state);
     assert_eq!(state.client.categories()?[1].name, "Personal");
@@ -519,8 +572,40 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         )
         .is_some()
     }));
+    let category_row = find_widget(
+        category_list.upcast_ref(),
+        &format!("category:{}", second_category.id),
+    )
+    .and_then(|row| row.downcast::<gtk::ListBoxRow>().ok());
+    assert!(category_row.is_some());
+    let Some(category_row) = category_row else {
+        return Ok(());
+    };
     category_list.select_row(Some(&category_row));
     assert_eq!(state.selected_category.get(), Some(second_category.id));
+    assert!(run_main_context_until(|| {
+        browser_pages
+            .as_ref()
+            .and_then(gtk::Stack::visible_child_name)
+            .as_deref()
+            == Some("empty")
+            && browser_status
+                .as_ref()
+                .is_some_and(|status| status.title() == "No notes in Personal")
+            && browser_empty_new_note
+                .as_ref()
+                .is_some_and(gtk::prelude::WidgetExt::is_visible)
+    }));
+    assert!(category_row.has_css_class("category-actions-visible"));
+    let actions = widget_as::<gtk::Box>(
+        category_row.upcast_ref(),
+        &format!("category-actions:{}", second_category.id),
+    );
+    assert!(
+        actions
+            .as_ref()
+            .is_some_and(gtk::prelude::WidgetExt::is_visible)
+    );
     let home_row = category_list.row_at_index(0);
     assert!(home_row.is_some());
     let Some(home_row) = home_row else {
@@ -528,6 +613,11 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     };
     category_list.select_row(Some(&home_row));
     assert_eq!(state.selected_category.get(), None);
+    assert!(
+        actions
+            .as_ref()
+            .is_some_and(|actions| !actions.is_visible())
+    );
 
     let delete = widget_as::<gtk::Button>(
         category_row.upcast_ref(),
@@ -537,7 +627,46 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let Some(delete) = delete else {
         return Ok(());
     };
-    delete.emit_clicked();
+    assert!(delete.has_css_class("flat"));
+    let confirmed = Rc::new(Cell::new(false));
+    let confirmed_for_dialog = Rc::clone(&confirmed);
+    let confirmation = category_trash_dialog("Personal", move || confirmed_for_dialog.set(true));
+    assert!(confirmation.has_response("trash"));
+    assert_eq!(
+        confirmation.response_appearance("trash"),
+        adw::ResponseAppearance::Destructive
+    );
+    confirmation.emit_by_name::<()>("response", &[&"cancel"]);
+    assert!(!confirmed.get());
+    confirmation.emit_by_name::<()>("response", &[&"trash"]);
+    assert!(confirmed.get());
+    category_list.select_row(Some(&category_row));
+    assert!(run_main_context_until(|| {
+        browser_empty_new_note
+            .as_ref()
+            .is_some_and(gtk::prelude::WidgetExt::is_visible)
+    }));
+    let empty_new_note = browser_empty_new_note.as_ref();
+    assert!(empty_new_note.is_some());
+    let Some(empty_new_note) = empty_new_note else {
+        return Ok(());
+    };
+    empty_new_note.emit_clicked();
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note_count(second_category.id)
+            .is_ok_and(|count| count == 1)
+            && stack.visible_child_name().as_deref() == Some("editor")
+            && widget_as::<gtk::Label>(
+                category_list.upcast_ref(),
+                &format!("category-count:{}", second_category.id),
+            )
+            .is_some_and(|count| count.text() == "1 note")
+    }));
+    state.current_note.replace(Some(created.clone()));
+    state.client.trash_category(second_category.id)?;
+    refresh_sidebar(&state);
     assert!(run_main_context_until(|| {
         state
             .client
@@ -583,8 +712,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let source_bullet = widget_as::<gtk::Button>(&editor, "source-format-bullet-button");
     let more_formatting = widget_as::<gtk::MenuButton>(&editor, "format-more-button");
     let source_more_formatting = widget_as::<gtk::MenuButton>(&editor, "source-format-more-button");
-    let title = widget_as::<adw::WindowTitle>(&editor, "editor-note-title");
-    let mode_bar = widget_as::<gtk::CenterBox>(&editor, "editor-mode-bar");
+    let mode_switcher = widget_as::<gtk::Box>(&editor, "editor-mode-switcher");
     let formatting_bar = widget_as::<gtk::Stack>(&editor, "formatting-toolbar");
     let editor_toggle_categories =
         widget_as::<gtk::ToggleButton>(&editor, "editor-toggle-categories-button");
@@ -605,8 +733,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             && source_bullet.is_some()
             && more_formatting.is_some()
             && source_more_formatting.is_some()
-            && title.is_some()
-            && mode_bar.is_some()
+            && mode_switcher.is_some()
             && formatting_bar.is_some()
             && editor_toggle_categories.is_some()
             && split_preview.is_some()
@@ -627,8 +754,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         Some(source_bullet),
         Some(more_formatting),
         Some(source_more_formatting),
-        Some(title),
-        Some(mode_bar),
+        Some(mode_switcher),
         Some(formatting_bar),
         Some(editor_toggle_categories),
         Some(split_preview),
@@ -648,8 +774,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         source_bullet,
         more_formatting,
         source_more_formatting,
-        title,
-        mode_bar,
+        mode_switcher,
         formatting_bar,
         editor_toggle_categories,
         split_preview,
@@ -658,8 +783,28 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     else {
         return Ok(());
     };
-    assert_eq!(title.title(), created.title);
-    assert!(mode_bar.center_widget().is_some());
+    let mut ancestor = mode_switcher.parent();
+    let mut is_in_header_bar = false;
+    while let Some(parent) = ancestor {
+        if parent.is::<adw::HeaderBar>() {
+            is_in_header_bar = true;
+            break;
+        }
+        ancestor = parent.parent();
+    }
+    assert!(is_in_header_bar);
+    assert_eq!(
+        rich_mode.tooltip_text().as_deref(),
+        Some("Edit with rich text")
+    );
+    assert_eq!(
+        source_mode.tooltip_text().as_deref(),
+        Some("Edit Carve markup")
+    );
+    assert_eq!(
+        rendered_mode.tooltip_text().as_deref(),
+        Some("Read-only preview")
+    );
     assert!(formatting_bar.is_sensitive());
     assert_eq!(
         editor_toggle_categories.icon_name().as_deref(),
@@ -720,6 +865,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     );
     source_mode.set_active(true);
     assert!(state.source_mode.get());
+    assert_eq!(state.config.borrow().editor.last_mode, EditorMode::Source);
     assert!(split_preview.is_sensitive());
     assert!(split_preview.is_active());
     let source_split = widget_as::<gtk::Paned>(&editor, "source-split-view");
@@ -791,9 +937,9 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     assert!(split_preview.is_active());
     assert!(state.config.borrow().editor.source_split_view);
     source.buffer().set_text("# Persisted by mode switch");
-    assert_eq!(title.title(), "Persisted by mode switch");
     rendered_mode.set_active(true);
     assert!(state.rendered_mode.get());
+    assert_eq!(state.config.borrow().editor.last_mode, EditorMode::Rendered);
     assert!(!split_preview.is_sensitive());
     assert!(state.config.borrow().editor.source_split_view);
     source_mode.set_active(true);
@@ -801,6 +947,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     assert!(split_preview.is_active());
     rich_mode.set_active(true);
     assert!(!state.source_mode.get());
+    assert_eq!(state.config.borrow().editor.last_mode, EditorMode::Rich);
     rich.buffer().set_text("A bullet from the toolbar");
     let end = rich.buffer().end_iter();
     rich.buffer().place_cursor(&end);
@@ -868,6 +1015,15 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "[Carver](https://example.com)"
     );
+    source
+        .buffer()
+        .set_text("|= Unsupported table |\n| Cell | ");
+    rich_mode.set_active(true);
+    assert!(rendered_mode.is_active());
+    assert!(state.rendered_mode.get());
+    // Automatic fallback uses Preview but preserves the explicit Edit choice
+    // for the next app launch.
+    assert_eq!(state.config.borrow().editor.last_mode, EditorMode::Rich);
     rich_mode.set_active(true);
     source_mode.set_active(true);
     source.buffer().set_text("# Project\n- first\n1. second");
@@ -980,6 +1136,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     };
     open_trash.emit_clicked();
     assert_eq!(stack.visible_child_name().as_deref(), Some("trash"));
+    assert!(category_list.selected_row().is_none());
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Button>(
             &trash_page,

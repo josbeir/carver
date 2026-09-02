@@ -144,3 +144,37 @@ pub(crate) fn show_category_name_dialog(
     });
     dialog.present(parent);
 }
+
+/// Presents a destructive confirmation before a category is moved to Trash.
+pub(crate) fn show_category_trash_confirmation(
+    parent: Option<&gtk::Window>,
+    category_name: &str,
+    on_confirm: impl Fn() + 'static,
+) {
+    let dialog = category_trash_dialog(category_name, on_confirm);
+    dialog.present(parent);
+}
+
+/// Builds the category-trash confirmation so its destructive behavior is testable.
+pub(crate) fn category_trash_dialog(
+    category_name: &str,
+    on_confirm: impl Fn() + 'static,
+) -> adw::AlertDialog {
+    let dialog = adw::AlertDialog::new(
+        Some(&format!("Move “{category_name}” to Trash?")),
+        Some(
+            "Notes in this category will no longer appear in your library. You can restore the category from Trash later.",
+        ),
+    );
+    dialog.set_widget_name("category-trash-confirmation");
+    dialog.add_responses(&[("cancel", "Cancel"), ("trash", "Move to Trash")]);
+    dialog.set_response_appearance("trash", adw::ResponseAppearance::Destructive);
+    dialog.set_default_response(Some("cancel"));
+    dialog.set_close_response("cancel");
+    dialog.connect_response(None, move |_dialog, response| {
+        if response == "trash" {
+            on_confirm();
+        }
+    });
+    dialog
+}

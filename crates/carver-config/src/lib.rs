@@ -115,9 +115,13 @@ pub struct Config {
 /// Editor preferences.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EditorConfig {
-    /// Rich or source mode selected for new sessions.
-    #[serde(default)]
-    pub default_mode: EditorMode,
+    /// The editor surface selected most recently by the user.
+    ///
+    /// `default_mode` was written before this became a session preference.
+    /// It remains accepted on read so existing configurations migrate when next
+    /// saved, which writes the clearer `last_mode` key.
+    #[serde(default, alias = "default_mode")]
+    pub last_mode: EditorMode,
     /// Milliseconds without edits before persisting a note.
     #[serde(default = "default_autosave_delay")]
     pub autosave_delay_ms: u64,
@@ -126,7 +130,7 @@ pub struct EditorConfig {
     pub source_split_view: bool,
 }
 
-/// The editor representation selected when a session begins.
+/// An editor surface a user can select for a note.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum EditorMode {
@@ -135,6 +139,8 @@ pub enum EditorMode {
     Rich,
     /// Present canonical Carve source.
     Source,
+    /// Present the rendered, read-only result.
+    Rendered,
 }
 
 /// Remote-image preferences.
@@ -196,7 +202,7 @@ impl Default for Config {
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
-            default_mode: EditorMode::default(),
+            last_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
             source_split_view: false,
         }
@@ -311,7 +317,7 @@ mod tests {
 
         let config = load(&path)?;
 
-        assert_eq!(config.editor.default_mode, EditorMode::Source);
+        assert_eq!(config.editor.last_mode, EditorMode::Source);
         assert_eq!(config.editor.autosave_delay_ms, 500);
         assert!(!config.editor.source_split_view);
         assert!(config.images.load_remote_automatically);
@@ -377,6 +383,21 @@ mod tests {
     }
 
     #[test]
+    fn saving_a_legacy_editor_mode_migrates_to_last_mode() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("config.toml");
+        fs::write(&path, "[editor]\ndefault_mode = 'source'\n")?;
+
+        save(&path, &load(&path)?)?;
+
+        let source = fs::read_to_string(path)?;
+        assert!(source.contains("last_mode = \"source\""));
+        assert!(!source.contains("default_mode"));
+        Ok(())
+    }
+
+    #[test]
     fn saving_legacy_config_removes_the_obsolete_onboarding_section()
     -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
@@ -393,7 +414,7 @@ mod tests {
     fn load_rejects_unknown_editor_mode() -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
         let path = directory.path().join("config.toml");
-        fs::write(&path, "[editor]\ndefault_mode = 'preview'\n")?;
+        fs::write(&path, "[editor]\nlast_mode = 'not-a-mode'\n")?;
         let result = load(&path);
         assert!(matches!(result, Err(ConfigError::InvalidToml(_))));
         Ok(())

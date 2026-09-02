@@ -39,6 +39,7 @@ pub(crate) struct AppState {
     pub(crate) source_mode: Cell<bool>,
     pub(crate) rendered_mode: Cell<bool>,
     pub(crate) synchronizing_editor: Cell<bool>,
+    pub(crate) synchronizing_sidebar_selection: Cell<bool>,
     pub(crate) autosave_generation: Cell<u64>,
     pub(crate) preview_generation: Cell<u64>,
     pub(crate) save_in_flight: Cell<bool>,
@@ -49,6 +50,9 @@ pub(crate) struct AppState {
     pub(crate) browser_list: RefCell<Option<gtk::ListBox>>,
     pub(crate) browser_stack: RefCell<Option<gtk::Stack>>,
     pub(crate) browser_title: RefCell<Option<adw::WindowTitle>>,
+    pub(crate) browser_content_stack: RefCell<Option<gtk::Stack>>,
+    pub(crate) browser_status: RefCell<Option<adw::StatusPage>>,
+    pub(crate) browser_empty_new_note_button: RefCell<Option<gtk::Button>>,
     pub(crate) sidebar_list: RefCell<Option<gtk::ListBox>>,
     pub(crate) trash_list: RefCell<Option<gtk::ListBox>>,
     pub(crate) trash_content_stack: RefCell<Option<gtk::Stack>>,
@@ -70,7 +74,8 @@ impl AppState {
         assets_dir: Option<PathBuf>,
         config_path: Option<PathBuf>,
     ) -> Self {
-        let source_mode = config.editor.default_mode == EditorMode::Source;
+        let source_mode = config.editor.last_mode == EditorMode::Source;
+        let rendered_mode = config.editor.last_mode == EditorMode::Rendered;
         Self {
             client,
             assets_dir,
@@ -81,8 +86,9 @@ impl AppState {
             categories: RefCell::new(Vec::new()),
             current_note: RefCell::new(None),
             source_mode: Cell::new(source_mode),
-            rendered_mode: Cell::new(false),
+            rendered_mode: Cell::new(rendered_mode),
             synchronizing_editor: Cell::new(false),
+            synchronizing_sidebar_selection: Cell::new(false),
             autosave_generation: Cell::new(0),
             preview_generation: Cell::new(0),
             save_in_flight: Cell::new(false),
@@ -93,6 +99,9 @@ impl AppState {
             browser_list: RefCell::new(None),
             browser_stack: RefCell::new(None),
             browser_title: RefCell::new(None),
+            browser_content_stack: RefCell::new(None),
+            browser_status: RefCell::new(None),
+            browser_empty_new_note_button: RefCell::new(None),
             sidebar_list: RefCell::new(None),
             trash_list: RefCell::new(None),
             trash_content_stack: RefCell::new(None),
@@ -105,6 +114,21 @@ impl AppState {
     pub(crate) fn set_source_split_view(&self, visible: bool) -> Result<(), ConfigError> {
         let mut updated = self.config.borrow().clone();
         updated.editor.source_split_view = visible;
+        if let Some(path) = self.config_path.as_deref() {
+            save(path, &updated)?;
+        }
+        self.config.replace(updated);
+        Ok(())
+    }
+
+    /// Persists the surface the user explicitly selected.
+    ///
+    /// This intentionally does not update the active UI cells: a note may fall
+    /// back to Preview when its Carve cannot be represented by the native rich
+    /// editor, while still preserving the user's preferred Edit surface.
+    pub(crate) fn set_last_editor_mode(&self, mode: EditorMode) -> Result<(), ConfigError> {
+        let mut updated = self.config.borrow().clone();
+        updated.editor.last_mode = mode;
         if let Some(path) = self.config_path.as_deref() {
             save(path, &updated)?;
         }

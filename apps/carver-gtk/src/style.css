@@ -1,14 +1,15 @@
 .navigation-sidebar row {
-  border-radius: 10px;
-  margin: 2px 6px;
+  border-radius: 8px;
+  margin: 2px 4px;
+  padding: 0;
 }
 
 .navigation-sidebar row.category-card {
-  margin: 2px 6px;
+  margin: 2px 4px;
 }
 
 .category-card-content {
-  min-height: 42px;
+  min-height: 38px;
 }
 
 .category-card-title {
@@ -21,8 +22,11 @@
 }
 
 .category-actions button {
-  min-width: 32px;
-  min-height: 32px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0;
 }
 
@@ -86,9 +90,24 @@ textview text {
   opacity: 0.72;
 }
 
-#editor-mode-bar {
-  padding: 6px 12px;
-  border-bottom: 1px solid alpha(currentColor, 0.12);
+#editor-mode-switcher {
+  background: @headerbar_bg_color;
+  border: 1px solid alpha(currentColor, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px alpha(black, 0.16);
+  padding: 2px;
+}
+
+#editor-mode-switcher button {
+  background: @headerbar_bg_color;
+  font-size: 0.9em;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+#editor-mode-switcher button:checked {
+  background: @accent_bg_color;
+  color: @accent_fg_color;
 }
 
 #formatting-toolbar {
