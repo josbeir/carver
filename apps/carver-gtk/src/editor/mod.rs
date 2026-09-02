@@ -138,6 +138,7 @@ pub(crate) fn build_editor(
         &rendered_preview,
         &split_toggle,
         &pages.split_supported,
+        toast_overlay,
     );
     connect_split_toggle(state, &split_toggle, &editor_stack, &source, &split_preview);
     connect_split_availability(
@@ -307,6 +308,7 @@ fn connect_mode_buttons(
     rendered_preview: &webkit6::WebView,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
+    toast_overlay: &adw::ToastOverlay,
 ) {
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let state = Rc::clone(state);
@@ -320,15 +322,17 @@ fn connect_mode_buttons(
         let rendered_mode = rendered_mode.clone();
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
+        let toast_overlay = toast_overlay.clone();
         button.connect_toggled(move |button| {
             if !button.is_active() {
                 return;
             }
             let persist_selection = !state.synchronizing_editor.get();
             state.synchronizing_editor.set(true);
+            let rich_is_active = !state.source_mode.get() && !state.rendered_mode.get();
             match surface {
                 EditorMode::Source => {
-                    if !state.source_mode.get() && !state.rendered_mode.get() {
+                    if rich_is_active {
                         source.set_text(&buffer_text(&rich));
                     }
                     state.source_mode.set(true);
@@ -340,7 +344,7 @@ fn connect_mode_buttons(
                     split_toggle.set_sensitive(split_supported.get());
                 }
                 EditorMode::Rendered => {
-                    if !state.source_mode.get() {
+                    if rich_is_active {
                         source.set_text(&buffer_text(&rich));
                     }
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
@@ -375,6 +379,9 @@ fn connect_mode_buttons(
                         split_toggle.set_sensitive(false);
                         // Keep the control honest about the effective surface,
                         // without overwriting the user's saved Edit preference.
+                        toast_overlay.add_toast(adw::Toast::new(
+                            "This note uses Carve features unavailable in Edit. Use Source to edit it.",
+                        ));
                         rendered_mode.set_active(true);
                     }
                 }
@@ -1010,14 +1017,4 @@ fn schedule_autosave(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn preview_scroll_script_uses_a_bounded_relative_position() {
-        assert_eq!(
-            preview_scroll_script(0.5),
-            "window.scrollTo(0, (document.documentElement.scrollHeight - window.innerHeight) * 0.5);"
-        );
-    }
-}
+mod tests;

@@ -1,23 +1,16 @@
-//! GTK frontend tests.
+//! End-to-end GTK interaction tests.
 
-use std::{cell::Cell, error::Error, rc::Rc};
+use std::{cell::Cell, rc::Rc};
 
-use carver_config::{AppPaths, Config, EditorMode, load};
-use carver_sdk::LibraryClient;
-use carver_storage_sqlite::SqliteLibrary;
+use carver_config::EditorMode;
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::*;
-use tempfile::TempDir;
 
 use crate::{
-    app::ensure_first_category,
     browser::build_browser,
-    controller::{
-        AppState, active_category, create_next_category, create_note_for_active_category,
-        open_note, rename_category, save_current_note, store_pasted_image, trash_current_note,
-    },
-    dialogs::{category_trash_dialog, persist_window_config},
+    controller::{create_note_for_active_category, rename_category},
+    dialogs::category_trash_dialog,
     editor::{
         buffer_text, build_editor, install_editor_shortcuts, install_image_paste,
         install_list_continuation, install_source_shortcuts, render_rich_markup,
@@ -28,231 +21,9 @@ use crate::{
     trash::{build_trash, refresh_trash},
 };
 
-type TestResult = Result<(), Box<dyn Error>>;
-type TestState = (TempDir, Rc<AppState>);
-
-fn test_state() -> Result<TestState, Box<dyn Error>> {
-    let temporary_directory = tempfile::tempdir()?;
-    let paths = AppPaths {
-        config_dir: temporary_directory.path().join("config"),
-        data_dir: temporary_directory.path().join("data"),
-        cache_dir: temporary_directory.path().join("cache"),
-    };
-    paths.ensure_exists()?;
-    let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())?;
-    let client = LibraryClient::spawn(storage)?;
-    ensure_first_category(&client);
-    let state = Rc::new(AppState::new(client, Config::default()));
-    Ok((temporary_directory, state))
-}
-
-fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
-    if root.widget_name() == name {
-        return Some(root.clone());
-    }
-    let mut child = root.first_child();
-    while let Some(widget) = child {
-        if let Some(found) = find_widget(&widget, name) {
-            return Some(found);
-        }
-        child = widget.next_sibling();
-    }
-    None
-}
-
-fn widget_as<T: glib::prelude::IsA<gtk::Widget> + glib::object::ObjectType>(
-    root: &gtk::Widget,
-    name: &str,
-) -> Option<T> {
-    find_widget(root, name).and_then(|widget| widget.downcast::<T>().ok())
-}
-
-fn note_row_count(root: &gtk::Widget) -> usize {
-    let own_count = usize::from(root.widget_name().starts_with("note:"));
-    let mut child = root.first_child();
-    let mut descendants = 0;
-    while let Some(widget) = child {
-        descendants += note_row_count(&widget);
-        child = widget.next_sibling();
-    }
-    own_count + descendants
-}
-
-fn run_main_context_until(predicate: impl Fn() -> bool) -> bool {
-    let context = glib::MainContext::default();
-    for _ in 0..20 {
-        while context.pending() {
-            context.iteration(false);
-        }
-        if predicate() {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-    false
-}
-
-#[test]
-fn state_actions_create_open_and_save_notes_without_reentrant_borrows() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let first_category = active_category(&state)?;
-    assert!(first_category.is_some());
-
-    let created = create_note_for_active_category(&state)?;
-    let Some(created) = created else {
-        panic!("a seeded library must have a category");
-    };
-    assert_eq!(
-        state.current_note.borrow().as_ref().map(|note| note.id),
-        Some(created.id)
-    );
-
-    let saved = save_current_note(&state, "# Regression note\nNo RefCell panic")?;
-    let Some(saved) = saved else {
-        panic!("the newly created note must remain active");
-    };
-    assert_eq!(saved.revision.0, 2);
-
-    state.current_note.take();
-    let reopened = open_note(&state, created.id)?;
-    assert_eq!(
-        reopened.as_ref().map(|note| note.source.as_str()),
-        Some("# Regression note\nNo RefCell panic")
-    );
-    assert_eq!(
-        reopened.as_ref().map(|note| note.updated_at),
-        Some(saved.updated_at)
-    );
-    assert_eq!(
-        reopened.as_ref().map(|note| note.revision),
-        Some(saved.revision)
-    );
-    Ok(())
-}
-
-#[test]
-fn state_actions_create_numbered_categories() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let category = create_next_category(&state)?;
-    assert_eq!(category.name, "Category 2");
-    assert_eq!(state.client.categories()?.len(), 2);
-    Ok(())
-}
-
-#[test]
-fn state_uses_the_configured_initial_editor_mode() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let mut config = Config::default();
-    config.editor.last_mode = EditorMode::Source;
-    let source_state = AppState::new(state.client.clone(), config);
-
-    assert!(source_state.source_mode.get());
-    assert!(!source_state.rendered_mode.get());
-
-    let mut config = Config::default();
-    config.editor.last_mode = EditorMode::Rendered;
-    let rendered_state = AppState::new(state.client.clone(), config);
-    assert!(!rendered_state.source_mode.get());
-    assert!(rendered_state.rendered_mode.get());
-    Ok(())
-}
-
-#[test]
-fn state_persists_the_last_explicit_editor_surface() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let path = temporary_directory.path().join("config/config.toml");
-    let persisted_state = AppState::new_with_assets(
-        state.client.clone(),
-        Config::default(),
-        None,
-        Some(path.clone()),
-    );
-
-    persisted_state.set_last_editor_mode(EditorMode::Rendered)?;
-
-    let loaded = load(&path)?;
-    assert_eq!(loaded.editor.last_mode, EditorMode::Rendered);
-    let restored = AppState::new(state.client.clone(), loaded);
-    assert!(restored.rendered_mode.get());
-    Ok(())
-}
-
-#[test]
-fn state_actions_rename_categories_and_trash_notes() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let category = state.client.categories()?.remove(0);
-    let renamed = rename_category(&state, category.id, "Work")?;
-    assert_eq!(renamed.name, "Work");
-
-    let created = create_note_for_active_category(&state)?;
-    assert!(created.is_some());
-    let Some(created) = created else {
-        return Ok(());
-    };
-    assert!(trash_current_note(&state)?);
-    assert!(state.current_note.borrow().is_none());
-    assert!(state.client.recent_notes(None, 10, 0)?.is_empty());
-    state.client.restore_note(created.id)?;
-    assert_eq!(state.client.recent_notes(None, 10, 0)?.len(), 1);
-    Ok(())
-}
-
-#[test]
-fn state_action_stores_pasted_images_for_the_active_note() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let created = create_note_for_active_category(&state)?;
-    assert!(created.is_some());
-    let image_path = store_pasted_image(&state, b"test-png-bytes")?;
-    assert!(image_path.is_some());
-    let Some(image_path) = image_path else {
-        return Ok(());
-    };
-    assert!(image_path.starts_with("assets/"));
-    assert!(
-        temporary_directory
-            .path()
-            .join("data")
-            .join(&image_path)
-            .is_file()
-    );
-    Ok(())
-}
-
-#[test]
-fn close_action_persists_window_configuration() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let config_path = temporary_directory
-        .path()
-        .join("config")
-        .join("config.toml");
-    persist_window_config(&state, &config_path, 900, 640, true)?;
-    let persisted = load(&config_path)?;
-    assert_eq!(persisted.window.width, 900);
-    assert_eq!(persisted.window.height, 640);
-    assert!(persisted.window.maximized);
-    Ok(())
-}
-
-#[test]
-fn source_split_preference_persists_to_toml() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let config_path = temporary_directory
-        .path()
-        .join("config")
-        .join("config.toml");
-    let persistent_state = AppState::new_with_assets(
-        state.client.clone(),
-        Config::default(),
-        None,
-        Some(config_path.clone()),
-    );
-
-    persistent_state.set_source_split_view(true)?;
-
-    assert!(load(&config_path)?.editor.source_split_view);
-    assert!(persistent_state.config.borrow().editor.source_split_view);
-    Ok(())
-}
+use super::support::{
+    TestResult, find_widget, note_row_count, run_main_context_until, test_state, widget_as,
+};
 
 #[test]
 #[ignore = "requires a graphical display; CI runs it under Xvfb"]
@@ -264,7 +35,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     formatting::tests::restored_link_selection_replaces_instead_of_duplicating_text();
     formatting::tests::rich_code_block_command_serializes_as_fenced_carve();
     formatting::tests::code_block_tag_uses_compact_type_and_line_spacing()?;
-    crate::editor::source_commands::graphical_commands_cover_editor_buffer_operations();
+    crate::editor::source_commands::tests::graphical_commands_cover_editor_buffer_operations();
     let (_temporary_directory, state) = test_state()?;
     state.config.borrow_mut().editor.autosave_delay_ms = 1;
 
@@ -1151,14 +922,48 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     source
         .buffer()
         .set_text("|= Unsupported table |\n| Cell | ");
+    let unsupported_source = buffer_text(&source.buffer());
+    let Some(unsupported_note) = state.current_note.borrow().clone() else {
+        return Ok(());
+    };
     rich_mode.set_active(true);
     assert!(rendered_mode.is_active());
     assert!(state.rendered_mode.get());
+    assert_eq!(buffer_text(&source.buffer()), unsupported_source);
     // Automatic fallback uses Preview but preserves the explicit Edit choice
     // for the next app launch.
     assert_eq!(state.config.borrow().editor.last_mode, EditorMode::Rich);
+    rendered_mode.set_active(true);
     rich_mode.set_active(true);
+    assert_eq!(buffer_text(&source.buffer()), unsupported_source);
     source_mode.set_active(true);
+    assert_eq!(buffer_text(&source.buffer()), unsupported_source);
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note(unsupported_note.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.source == unsupported_source)
+    }));
+    let persisted_unsupported_note = state.client.note(unsupported_note.id)?;
+    assert_eq!(
+        persisted_unsupported_note
+            .as_ref()
+            .map(|note| note.source.as_str()),
+        Some(unsupported_source.as_str())
+    );
+    let persisted_unsupported_revision = persisted_unsupported_note
+        .as_ref()
+        .map(|note| note.revision);
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note(unsupported_note.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| Some(note.revision) == persisted_unsupported_revision)
+    }));
     source.buffer().set_text("# Project\n- first\n1. second");
     rich_mode.set_active(true);
     assert_eq!(
