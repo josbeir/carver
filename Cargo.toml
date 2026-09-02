@@ -29,7 +29,7 @@ sha2 = "0.10"
 tempfile = "3.20"
 thiserror = "2.0"
 time = { version = "0.3", features = ["formatting", "macros", "parsing", "serde", "local-offset"] }
-toml_edit = { version = "0.23", features = ["serde"] }
+toml = "1.1"
 uuid = { version = "1.18", features = ["serde", "v7"] }
 
 [workspace.lints.rust]

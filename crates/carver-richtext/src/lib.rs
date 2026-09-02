@@ -2,7 +2,17 @@
 
 #![forbid(unsafe_code)]
 
+use carve::{BlockNode, Document, InlineNode, parse};
 use thiserror::Error;
+
+/// The editor surface that can represent a Carve document without data loss.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EditorProjection {
+    /// A document supported by the native editable GTK editor.
+    Native(RichDocument),
+    /// A full-fidelity rendered preview is required; source remains editable.
+    RenderedOnly,
+}
 
 /// A document that can be represented safely by the first native WYSIWYG surface.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -71,6 +81,10 @@ pub enum RichInline {
     Underline(Vec<RichInline>),
     /// Highlighted content.
     Highlight(Vec<RichInline>),
+    /// Superscript content.
+    Superscript(Vec<RichInline>),
+    /// Subscript content.
+    Subscript(Vec<RichInline>),
     /// Inserted content.
     Inserted(Vec<RichInline>),
     /// Deleted content.
@@ -198,6 +212,103 @@ pub fn parse_carve(source: &str) -> Result<RichDocument, RichDocumentError> {
     Ok(RichDocument { blocks })
 }
 
+/// Classifies Carve source for the native editor using the canonical Carve AST.
+///
+/// The native editor deliberately declines constructs whose structure it cannot
+/// serialize faithfully; callers use the full rendered projection for them.
+#[must_use]
+pub fn editor_projection(source: &str) -> EditorProjection {
+    let document = parse(source);
+    if native_document(&document) {
+        parse_carve(source).map_or(EditorProjection::RenderedOnly, EditorProjection::Native)
+    } else {
+        EditorProjection::RenderedOnly
+    }
+}
+
+/// Renders complete Carve source to HTML for a read-only frontend surface.
+#[must_use]
+pub fn render_html(source: &str) -> String {
+    carve::to_html(source)
+}
+
+fn native_document(document: &Document) -> bool {
+    document.frontmatter.is_empty()
+        && document.footnote_defs.is_empty()
+        && document.children.iter().all(native_block)
+}
+
+fn native_block(block: &BlockNode) -> bool {
+    match block {
+        // The canonical parser materializes a generated id on ordinary headings,
+        // so heading attributes alone cannot distinguish authored extra syntax.
+        BlockNode::Heading(heading) => native_inlines(&heading.children),
+        BlockNode::Paragraph(paragraph) => {
+            paragraph.attrs.is_none() && native_inlines(&paragraph.children)
+        }
+        BlockNode::CodeBlock(code) => {
+            code.attrs.is_none() && code.title.is_none() && code.label.is_none()
+        }
+        BlockNode::List(list) => {
+            list.attrs.is_none()
+                && list.items.iter().all(|item| {
+                    item.attrs.is_none()
+                        && item.children.len() == 1
+                        && item.children.iter().all(native_block)
+                })
+        }
+        BlockNode::BlockQuote(quote) => {
+            quote.attrs.is_none() && !quote.fenced && quote.children.iter().all(native_block)
+        }
+        // The canonical parser promotes a line containing only an image into a
+        // block image. The native projection already preserves that source as
+        // an image paragraph, so managed standalone images remain editable.
+        BlockNode::BlockImage(image) => {
+            image.attrs.is_none()
+                && image.title.is_none()
+                && image.ref_label.is_none()
+                && image.raw_ref.is_none()
+                && image.src.starts_with("assets/")
+        }
+        BlockNode::ThematicBreak(rule) => rule.attrs.is_none(),
+        _ => false,
+    }
+}
+
+fn native_inlines(nodes: &[InlineNode]) -> bool {
+    nodes.iter().all(|node| match node {
+        InlineNode::Text(_)
+        | InlineNode::EscapedText(_)
+        | InlineNode::SmartPunctuation(_)
+        | InlineNode::SoftBreak(_) => true,
+        InlineNode::Emphasis(emphasis) => {
+            emphasis.attrs.is_none() && native_inlines(&emphasis.children)
+        }
+        InlineNode::Code(code) => code.attrs.is_none(),
+        InlineNode::Link(link) => {
+            link.attrs.is_none()
+                && link.title.is_none()
+                && link.ref_label.is_none()
+                && link.raw_ref.is_none()
+                && native_inlines(&link.children)
+        }
+        InlineNode::Image(image) => {
+            image.attrs.is_none()
+                && image.title.is_none()
+                && image.ref_label.is_none()
+                && image.raw_ref.is_none()
+                && image.src.starts_with("assets/")
+        }
+        InlineNode::CriticInsert(change) => {
+            change.attrs.is_none() && native_inlines(&change.children)
+        }
+        InlineNode::CriticDelete(change) => {
+            change.attrs.is_none() && native_inlines(&change.children)
+        }
+        _ => false,
+    })
+}
+
 /// Serializes a supported rich document to canonical Carve syntax.
 #[must_use]
 pub fn serialize_carve(document: &RichDocument) -> String {
@@ -260,10 +371,12 @@ fn inline(source: &str) -> Result<Vec<RichInline>, RichDocumentError> {
 }
 
 fn next_inline_start(source: &str) -> Option<usize> {
-    ["![", "[", "`", "~", "*", "/", "_", "=", "{+", "{-"]
-        .iter()
-        .filter_map(|marker| source.find(marker))
-        .min()
+    [
+        "![", "[", "`", "~", "*", "/", "_", "=", "{+", "{-", "{^", "{,",
+    ]
+    .iter()
+    .filter_map(|marker| source.find(marker))
+    .min()
 }
 
 fn inline_at_start(source: &str) -> Result<Option<(RichInline, &str)>, RichDocumentError> {
@@ -304,6 +417,8 @@ fn inline_at_start(source: &str) -> Result<Option<(RichInline, &str)>, RichDocum
             RichInline::Deleted as fn(Vec<RichInline>) -> RichInline,
         ),
         ("{+", "+}", RichInline::Inserted),
+        ("{^", "^}", RichInline::Superscript),
+        ("{,", ",}", RichInline::Subscript),
         ("~", "~", RichInline::Strike),
         ("*", "*", RichInline::Bold),
         ("/", "/", RichInline::Italic),
@@ -411,6 +526,8 @@ fn inline_source(content: &[RichInline]) -> String {
             RichInline::Underline(nodes) => format!("_{}_", inline_source(nodes)),
             RichInline::Highlight(nodes) => format!("={}=", inline_source(nodes)),
             RichInline::Inserted(nodes) => format!("{{+{}+}}", inline_source(nodes)),
+            RichInline::Superscript(nodes) => format!("{{^{}^}}", inline_source(nodes)),
+            RichInline::Subscript(nodes) => format!("{{,{},}}", inline_source(nodes)),
             RichInline::Deleted(nodes) => format!("{{-{}-}}", inline_source(nodes)),
             RichInline::Code(text) => format!("`{text}`"),
             RichInline::Link { text, destination } => format!("[{text}]({destination})"),
@@ -474,6 +591,41 @@ mod tests {
         assert_eq!(
             parse_carve("| A | B |"),
             Err(RichDocumentError::Unsupported(UnsupportedFeature::Table))
+        );
+    }
+
+    #[test]
+    fn canonical_ast_routes_advanced_carve_to_the_full_renderer() {
+        let source = "# Heading\n\n|= Name |= Value |\n| One | Two |\n\n::: note\nKeep this\n:::\n";
+        assert_eq!(editor_projection(source), EditorProjection::RenderedOnly);
+        let html = render_html(source);
+        assert!(html.contains("<table"));
+        assert!(html.contains("Keep this"));
+    }
+
+    #[test]
+    fn canonical_ast_keeps_the_everyday_editor_subset_native() {
+        let source = "## Plan\n\n- [x] *Bold* /italic/ _under_ =highlight= {^sup^} {,sub,}\n\n```rust\nlet ok = true;\n```";
+        assert!(native_document(&parse(source)));
+        assert!(parse_carve(source).is_ok());
+        let projection = editor_projection(source);
+        assert!(
+            matches!(projection, EditorProjection::Native(_)),
+            "{projection:?}"
+        );
+    }
+
+    #[test]
+    fn canonical_ast_keeps_standalone_managed_images_editable() {
+        let source = "# Heading 2\n\n# h2 testttttttttt\n\nthis is a note blabla hello world\n\n![Pasted image](assets/11ce96fc0358a8c741e4086afec6f3ae0ffb5e43f35f4b22f270a437016bcf9b.png)\n\n*blabla*\n\n*glalala*";
+        let projection = editor_projection(source);
+        assert!(
+            matches!(projection, EditorProjection::Native(_)),
+            "{projection:?}"
+        );
+        assert_eq!(
+            parse_carve(source).map(|document| serialize_carve(&document)),
+            Ok(source.to_owned())
         );
     }
 }

@@ -10,7 +10,6 @@ use std::{
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use toml_edit::{de::from_str, ser::to_document};
 
 const APPLICATION_QUALIFIER: &str = "io";
 const APPLICATION_ORGANIZATION: &str = "github.josbeir";
@@ -122,6 +121,9 @@ pub struct EditorConfig {
     /// Milliseconds without edits before persisting a note.
     #[serde(default = "default_autosave_delay")]
     pub autosave_delay_ms: u64,
+    /// Whether source mode restores its rendered split preview.
+    #[serde(default)]
+    pub source_split_view: bool,
 }
 
 /// The editor representation selected when a session begins.
@@ -196,6 +198,7 @@ impl Default for EditorConfig {
         Self {
             default_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
+            source_split_view: false,
         }
     }
 }
@@ -240,7 +243,7 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
         return Ok(Config::default());
     }
     let source = fs::read_to_string(path)?;
-    from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))
+    toml::from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))
 }
 
 /// Saves typed configuration atomically.
@@ -252,10 +255,10 @@ pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let document =
-        to_document(config).map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
+    let document = toml::to_string_pretty(config)
+        .map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
     let temporary = path.with_extension("toml.tmp");
-    fs::write(&temporary, document.to_string())?;
+    fs::write(&temporary, document)?;
     fs::rename(temporary, path)?;
     Ok(())
 }
@@ -310,6 +313,7 @@ mod tests {
 
         assert_eq!(config.editor.default_mode, EditorMode::Source);
         assert_eq!(config.editor.autosave_delay_ms, 500);
+        assert!(!config.editor.source_split_view);
         assert!(config.images.load_remote_automatically);
         assert_eq!(config.window.width, 1120);
         assert_eq!(config.window.height, 760);
@@ -351,8 +355,37 @@ mod tests {
         let path = directory.path().join("config.toml");
         let mut config = Config::default();
         config.window.sidebar_collapsed = true;
+        config.editor.source_split_view = true;
         save(&path, &config)?;
         assert_eq!(load(&path)?, config);
+        Ok(())
+    }
+
+    #[test]
+    fn saved_config_uses_readable_table_sections() -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("config.toml");
+
+        save(&path, &Config::default())?;
+
+        let source = fs::read_to_string(path)?;
+        assert!(source.contains("[editor]"));
+        assert!(source.contains("[images]"));
+        assert!(source.contains("[search]"));
+        assert!(source.contains("[window]"));
+        Ok(())
+    }
+
+    #[test]
+    fn saving_legacy_config_removes_the_obsolete_onboarding_section()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("config.toml");
+        fs::write(&path, "[onboarding]\neditor_format_chosen = true\n")?;
+
+        save(&path, &load(&path)?)?;
+
+        assert!(!fs::read_to_string(path)?.contains("[onboarding]"));
         Ok(())
     }
 

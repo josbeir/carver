@@ -40,8 +40,13 @@ fn build_application(application: &adw::Application) {
     };
 
     ensure_first_category(&client);
-    let state = Rc::new(AppState::new(client, config));
-    build_window(application, &state, config_path);
+    let state = Rc::new(AppState::new_with_assets(
+        client,
+        config,
+        Some(paths.assets_dir()),
+        Some(config_path.clone()),
+    ));
+    build_window(application, &state, config_path.clone());
 }
 
 fn load_styles() {
@@ -84,7 +89,11 @@ fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {
     AppLibraryClient::spawn(storage).map_err(|error| error.to_string())
 }
 
-fn build_window(application: &adw::Application, state: &Rc<AppState>, config_path: PathBuf) {
+fn build_window(
+    application: &adw::Application,
+    state: &Rc<AppState>,
+    config_path: PathBuf,
+) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     let window_config = state.config.borrow().window.clone();
@@ -101,6 +110,9 @@ fn build_window(application: &adw::Application, state: &Rc<AppState>, config_pat
     let content = build_content(state, &split_view, &toast_overlay);
     let sidebar_page = adw::NavigationPage::new(&sidebar, "Categories");
     let content_page = adw::NavigationPage::new(&content, "Notes");
+    // The content page has an explicit sidebar control in every view. Avoid
+    // NavigationSplitView adding a visually identical back affordance.
+    content_page.set_can_pop(false);
     split_view.set_sidebar(Some(&sidebar_page));
     split_view.set_content(Some(&content_page));
 
@@ -118,4 +130,5 @@ fn build_window(application: &adw::Application, state: &Rc<AppState>, config_pat
         glib::Propagation::Proceed
     });
     window.present();
+    window
 }

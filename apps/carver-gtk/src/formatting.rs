@@ -1,13 +1,20 @@
 //! Native rich-text formatting commands used by the editor toolbar.
 
+use std::{cell::RefCell, rc::Rc};
+
 use adw::prelude::*;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-const BLOCK_TAGS: [&str; 6] = [
+use crate::editor::source_commands;
+
+const BLOCK_TAGS: [&str; 9] = [
     "rich-heading-1",
     "rich-heading-2",
     "rich-heading-3",
+    "rich-heading-4",
+    "rich-heading-5",
+    "rich-heading-6",
     "rich-list-bullet",
     "rich-list-ordered",
     "rich-list-task",
@@ -40,6 +47,15 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
         "Strikethrough (Ctrl+Shift+X)",
         "rich-strike",
     );
+    append_tag_button(
+        toolbar,
+        buffer,
+        "format-underline-button",
+        "format-text-underline-symbolic",
+        "Underline (Ctrl+U)",
+        "rich-underline",
+    );
+    append_more_text_formatting(toolbar, buffer);
     append_heading_menu(toolbar, buffer);
     append_block_button(
         toolbar,
@@ -79,6 +95,183 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     append_link_button(toolbar, buffer);
 }
 
+/// Appends the Carve-source equivalents of the native rich editor controls.
+pub(crate) fn append_source_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    append_source_inline_controls(toolbar, buffer);
+    append_source_heading_menu(toolbar, buffer);
+    append_source_block_controls(toolbar, buffer);
+}
+
+fn append_source_inline_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    for (name, icon, tooltip, opening, closing) in [
+        (
+            "source-format-bold-button",
+            "format-text-bold-symbolic",
+            "Bold (Ctrl+B)",
+            "*",
+            "*",
+        ),
+        (
+            "source-format-italic-button",
+            "format-text-italic-symbolic",
+            "Italic (Ctrl+I)",
+            "/",
+            "/",
+        ),
+        (
+            "source-format-strike-button",
+            "format-text-strikethrough-symbolic",
+            "Strikethrough (Ctrl+Shift+X)",
+            "~",
+            "~",
+        ),
+        (
+            "source-format-underline-button",
+            "format-text-underline-symbolic",
+            "Underline (Ctrl+U)",
+            "_",
+            "_",
+        ),
+        (
+            "source-format-code-button",
+            "text-x-generic-symbolic",
+            "Inline code",
+            "`",
+            "`",
+        ),
+    ] {
+        let button = icon_button(name, icon, tooltip);
+        let buffer = buffer.clone();
+        button.connect_clicked(move |_| source_commands::toggle_inline(&buffer, opening, closing));
+        toolbar.append(&button);
+    }
+    append_more_source_formatting(toolbar, buffer);
+}
+
+/// Groups less-frequent marks because GNOME provides no symbolic icons for them.
+fn append_more_text_formatting(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    let menu = gtk::MenuButton::new();
+    menu.set_widget_name("format-more-button");
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some("More text formatting"));
+    menu.add_css_class("flat");
+    let popover = gtk::Popover::new();
+    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    for (label, tag) in [
+        ("Highlight", "rich-highlight"),
+        ("Superscript", "rich-superscript"),
+        ("Subscript", "rich-subscript"),
+    ] {
+        let choice = gtk::Button::with_label(label);
+        choice.add_css_class("flat");
+        let buffer = buffer.clone();
+        choice.connect_clicked(move |_| toggle_tag_on_selection(&buffer, tag));
+        choices.append(&choice);
+    }
+    popover.set_child(Some(&choices));
+    menu.set_popover(Some(&popover));
+    toolbar.append(&menu);
+}
+
+/// Source-mode counterpart to the native rich editor's more-formatting menu.
+fn append_more_source_formatting(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    let menu = gtk::MenuButton::new();
+    menu.set_widget_name("source-format-more-button");
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some("More text formatting"));
+    menu.add_css_class("flat");
+    let popover = gtk::Popover::new();
+    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    for (label, opening, closing) in [
+        ("Highlight", "=", "="),
+        ("Superscript", "{^", "^}"),
+        ("Subscript", "{,", ",}"),
+    ] {
+        let choice = gtk::Button::with_label(label);
+        choice.add_css_class("flat");
+        let buffer = buffer.clone();
+        choice.connect_clicked(move |_| source_commands::toggle_inline(&buffer, opening, closing));
+        choices.append(&choice);
+    }
+    popover.set_child(Some(&choices));
+    menu.set_popover(Some(&popover));
+    toolbar.append(&menu);
+}
+
+fn append_source_heading_menu(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    let heading = gtk::MenuButton::new();
+    heading.set_widget_name("source-format-heading-button");
+    heading.set_icon_name("format-text-rich-symbolic");
+    heading.set_tooltip_text(Some("Text style"));
+    heading.add_css_class("flat");
+    let popover = gtk::Popover::new();
+    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    for (label, level) in [
+        ("Normal text", 0),
+        ("Heading 1", 1),
+        ("Heading 2", 2),
+        ("Heading 3", 3),
+        ("Heading 4", 4),
+        ("Heading 5", 5),
+        ("Heading 6", 6),
+    ] {
+        let choice = gtk::Button::with_label(label);
+        choice.add_css_class("flat");
+        let buffer = buffer.clone();
+        choice.connect_clicked(move |_| source_commands::set_heading(&buffer, level));
+        choices.append(&choice);
+    }
+    popover.set_child(Some(&choices));
+    heading.set_popover(Some(&popover));
+    toolbar.append(&heading);
+}
+
+fn append_source_block_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    for (name, icon, tooltip, prefix) in [
+        (
+            "source-format-bullet-button",
+            "view-list-bullet-symbolic",
+            "Bulleted list (Ctrl+Shift+8)",
+            "- ",
+        ),
+        (
+            "source-format-ordered-button",
+            "view-list-ordered-symbolic",
+            "Numbered list (Ctrl+Shift+7)",
+            "1. ",
+        ),
+        (
+            "source-format-task-button",
+            "object-select-symbolic",
+            "Task list",
+            "- [ ] ",
+        ),
+    ] {
+        let button = icon_button(name, icon, tooltip);
+        let buffer = buffer.clone();
+        button.connect_clicked(move |_| source_commands::toggle_list(&buffer, prefix));
+        toolbar.append(&button);
+    }
+
+    let code_block = icon_button(
+        "source-format-code-block-button",
+        "text-x-generic-symbolic",
+        "Code block",
+    );
+    let source = buffer.clone();
+    code_block.connect_clicked(move |_| source_commands::toggle_code_block(&source));
+    toolbar.append(&code_block);
+
+    let link = icon_button(
+        "source-format-link-button",
+        "insert-link-symbolic",
+        "Insert link",
+    );
+    let source = buffer.clone();
+    link.connect_clicked(move |button| show_source_link_dialog(button, &source));
+    toolbar.append(&link);
+}
+
 /// Installs visual and structural tags used by the native rich projection.
 pub(crate) fn install_tags(buffer: &gtk::TextBuffer) {
     ensure_tag(buffer, "rich-bold", |tag| tag.set_weight(700));
@@ -91,6 +284,14 @@ pub(crate) fn install_tags(buffer: &gtk::TextBuffer) {
         tag.set_underline(gtk::pango::Underline::Single);
     });
     ensure_tag(buffer, "rich-highlight", |_| {});
+    ensure_tag(buffer, "rich-superscript", |tag| {
+        tag.set_rise(6_000);
+        tag.set_scale(0.8);
+    });
+    ensure_tag(buffer, "rich-subscript", |tag| {
+        tag.set_rise(-3_000);
+        tag.set_scale(0.8);
+    });
     ensure_tag(buffer, "rich-inserted", |tag| {
         tag.set_underline(gtk::pango::Underline::Single);
         tag.set_foreground(Some("#26a269"));
@@ -125,6 +326,18 @@ pub(crate) fn install_tags(buffer: &gtk::TextBuffer) {
         tag.set_pixels_above_lines(8);
         tag.set_pixels_below_lines(4);
     });
+    for (name, scale) in [
+        ("rich-heading-4", 1.05),
+        ("rich-heading-5", 1.0),
+        ("rich-heading-6", 0.95),
+    ] {
+        ensure_tag(buffer, name, |tag| {
+            tag.set_weight(700);
+            tag.set_scale(scale);
+            tag.set_pixels_above_lines(6);
+            tag.set_pixels_below_lines(3);
+        });
+    }
     for name in ["rich-list-bullet", "rich-list-ordered", "rich-list-task"] {
         ensure_tag(buffer, name, |tag| {
             tag.set_left_margin(28);
@@ -234,7 +447,10 @@ fn show_link_dialog(button: &gtk::Button, buffer: &gtk::TextBuffer) {
         .build();
     dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
     let buffer = buffer.clone();
+    let selection = Rc::new(RefCell::new(capture_selection(&buffer)));
+    let selection_for_response = Rc::clone(&selection);
     dialog.connect_response(None, move |_dialog, response| {
+        restore_selection(&buffer, selection_for_response.borrow_mut().take());
         if response == "insert" {
             let destination = url.text();
             let link_text = text.text();
@@ -244,6 +460,67 @@ fn show_link_dialog(button: &gtk::Button, buffer: &gtk::TextBuffer) {
         }
     });
     dialog.present(button.root().as_ref());
+}
+
+fn show_source_link_dialog(button: &gtk::Button, buffer: &gtk::TextBuffer) {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let text = gtk::Entry::new();
+    text.set_placeholder_text(Some("Link text"));
+    if let Some((start, end)) = buffer.selection_bounds() {
+        text.set_text(&buffer.text(&start, &end, false));
+    }
+    let url = gtk::Entry::new();
+    url.set_placeholder_text(Some("https://example.com"));
+    url.set_input_purpose(gtk::InputPurpose::Url);
+    content.append(&gtk::Label::new(Some("Text")));
+    content.append(&text);
+    content.append(&gtk::Label::new(Some("Address")));
+    content.append(&url);
+    let dialog = adw::AlertDialog::builder()
+        .heading("Insert Link")
+        .extra_child(&content)
+        .default_response("insert")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
+    let source = buffer.clone();
+    let selection = Rc::new(RefCell::new(capture_selection(&source)));
+    let selection_for_response = Rc::clone(&selection);
+    dialog.connect_response(None, move |_dialog, response| {
+        restore_selection(&source, selection_for_response.borrow_mut().take());
+        if response == "insert" {
+            let destination = url.text();
+            let link_text = text.text();
+            if !destination.trim().is_empty() && !link_text.trim().is_empty() {
+                source_commands::insert_link(&source, &link_text, &destination);
+            }
+        }
+    });
+    dialog.present(button.root().as_ref());
+}
+
+struct SelectionMarks {
+    start: gtk::TextMark,
+    end: gtk::TextMark,
+}
+
+fn capture_selection(buffer: &gtk::TextBuffer) -> Option<SelectionMarks> {
+    let (start, end) = buffer.selection_bounds()?;
+    Some(SelectionMarks {
+        start: buffer.create_mark(None, &start, true),
+        end: buffer.create_mark(None, &end, false),
+    })
+}
+
+fn restore_selection(buffer: &gtk::TextBuffer, selection: Option<SelectionMarks>) {
+    let Some(selection) = selection else {
+        return;
+    };
+    let start = buffer.iter_at_mark(&selection.start);
+    let end = buffer.iter_at_mark(&selection.end);
+    buffer.select_range(&start, &end);
+    buffer.delete_mark(&selection.start);
+    buffer.delete_mark(&selection.end);
 }
 
 /// Returns the destination attached to the link tag at an iterator.
@@ -429,6 +706,9 @@ fn append_heading_menu(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
         ("Heading 1", Some("rich-heading-1")),
         ("Heading 2", Some("rich-heading-2")),
         ("Heading 3", Some("rich-heading-3")),
+        ("Heading 4", Some("rich-heading-4")),
+        ("Heading 5", Some("rich-heading-5")),
+        ("Heading 6", Some("rich-heading-6")),
     ] {
         let choice = gtk::Button::with_label(label);
         choice.add_css_class("flat");
@@ -568,5 +848,40 @@ fn remove_structural_prefix(
         buffer.delete(start, &mut prefix_end);
         *end = *start;
         end.forward_to_line_end();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires a graphical display; CI runs it under Xvfb"]
+    fn restored_link_selection_replaces_instead_of_duplicating_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        gtk::init()?;
+        let buffer = gtk::TextBuffer::new(None);
+        buffer.set_text("Carver link");
+        let start = buffer.start_iter();
+        let end = buffer.end_iter();
+        buffer.select_range(&start, &end);
+        let selection = capture_selection(&buffer);
+        buffer.place_cursor(&buffer.end_iter());
+
+        restore_selection(&buffer, selection);
+        insert_link(&buffer, "Carver link", "https://carver.invalid");
+
+        assert_eq!(buffer_text(&buffer), "Carver link");
+        assert_eq!(
+            link_destination(&buffer.start_iter()).as_deref(),
+            Some("https://carver.invalid")
+        );
+        Ok(())
+    }
+
+    fn buffer_text(buffer: &gtk::TextBuffer) -> String {
+        buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), false)
+            .to_string()
     }
 }

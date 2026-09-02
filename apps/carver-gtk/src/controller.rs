@@ -1,8 +1,11 @@
 //! UI-neutral state and note/category actions for the GTK frontend.
 
-use std::cell::{Cell, RefCell};
+use std::{
+    cell::{Cell, RefCell},
+    path::PathBuf,
+};
 
-use carver_config::{Config, EditorMode};
+use carver_config::{Config, ConfigError, EditorMode, save};
 use carver_sdk::{Category, CategoryId, LibraryClient, Note};
 use carver_storage_sqlite::SqliteLibrary;
 use libadwaita as adw;
@@ -24,14 +27,20 @@ pub(crate) type AppLibraryError = LibraryError<StorageError>;
 /// and prevents a UI callback from holding a mutable state borrow during storage I/O.
 pub(crate) struct AppState {
     pub(crate) client: AppLibraryClient,
+    /// Directory containing managed note-image assets used by rendered previews.
+    pub(crate) assets_dir: Option<PathBuf>,
+    /// TOML path used for immediate editor preference persistence.
+    pub(crate) config_path: Option<PathBuf>,
     pub(crate) config: RefCell<Config>,
     pub(crate) selected_category: Cell<Option<CategoryId>>,
     pub(crate) selected_category_name: RefCell<Option<String>>,
     pub(crate) categories: RefCell<Vec<Category>>,
     pub(crate) current_note: RefCell<Option<Note>>,
     pub(crate) source_mode: Cell<bool>,
+    pub(crate) rendered_mode: Cell<bool>,
     pub(crate) synchronizing_editor: Cell<bool>,
     pub(crate) autosave_generation: Cell<u64>,
+    pub(crate) preview_generation: Cell<u64>,
     pub(crate) save_in_flight: Cell<bool>,
     pub(crate) browser_generation: Cell<u64>,
     pub(crate) sidebar_generation: Cell<u64>,
@@ -49,18 +58,33 @@ pub(crate) struct AppState {
 
 impl AppState {
     /// Creates state for one application window.
+    #[cfg(test)]
     pub(crate) fn new(client: AppLibraryClient, config: Config) -> Self {
+        Self::new_with_assets(client, config, None, None)
+    }
+
+    /// Creates state with the managed asset directory available to the renderer.
+    pub(crate) fn new_with_assets(
+        client: AppLibraryClient,
+        config: Config,
+        assets_dir: Option<PathBuf>,
+        config_path: Option<PathBuf>,
+    ) -> Self {
         let source_mode = config.editor.default_mode == EditorMode::Source;
         Self {
             client,
+            assets_dir,
+            config_path,
             config: RefCell::new(config),
             selected_category: Cell::new(None),
             selected_category_name: RefCell::new(None),
             categories: RefCell::new(Vec::new()),
             current_note: RefCell::new(None),
             source_mode: Cell::new(source_mode),
+            rendered_mode: Cell::new(false),
             synchronizing_editor: Cell::new(false),
             autosave_generation: Cell::new(0),
+            preview_generation: Cell::new(0),
             save_in_flight: Cell::new(false),
             browser_generation: Cell::new(0),
             sidebar_generation: Cell::new(0),
@@ -75,6 +99,17 @@ impl AppState {
             trash_status: RefCell::new(None),
             empty_trash_button: RefCell::new(None),
         }
+    }
+
+    /// Updates and writes the source split-preview preference when a path is available.
+    pub(crate) fn set_source_split_view(&self, visible: bool) -> Result<(), ConfigError> {
+        let mut updated = self.config.borrow().clone();
+        updated.editor.source_split_view = visible;
+        if let Some(path) = self.config_path.as_deref() {
+            save(path, &updated)?;
+        }
+        self.config.replace(updated);
+        Ok(())
     }
 }
 

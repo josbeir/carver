@@ -60,6 +60,12 @@ fn serialize_line(start: &gtk::TextIter, end: &gtk::TextIter) -> String {
         ("## ", 0)
     } else if has_line_tag(start, "rich-heading-3") {
         ("### ", 0)
+    } else if has_line_tag(start, "rich-heading-4") {
+        ("#### ", 0)
+    } else if has_line_tag(start, "rich-heading-5") {
+        ("##### ", 0)
+    } else if has_line_tag(start, "rich-heading-6") {
+        ("###### ", 0)
     } else if has_line_tag(start, "rich-quote") {
         ("> ", 0)
     } else if let Some((prefix, width)) = list_marker(start) {
@@ -69,7 +75,7 @@ fn serialize_line(start: &gtk::TextIter, end: &gtk::TextIter) -> String {
     };
     let mut output = prefix.to_owned();
     let mut current = *start;
-    let mut active = [false; 8];
+    let mut active = [false; 10];
     let delimiters = [
         ("rich-bold", "*"),
         ("rich-italic", "/"),
@@ -79,8 +85,10 @@ fn serialize_line(start: &gtk::TextIter, end: &gtk::TextIter) -> String {
         ("rich-inserted", "{+"),
         ("rich-deleted", "{-"),
         ("rich-code", "`"),
+        ("rich-superscript", "{^"),
+        ("rich-subscript", "{,"),
     ];
-    let closing_delimiters = ["*", "/", "~", "_", "=", "+}", "-}", "`"];
+    let closing_delimiters = ["*", "/", "~", "_", "=", "+}", "-}", "`", "^}", ",}"];
     while current.offset() < end.offset() {
         let mut next = current;
         next.forward_char();
@@ -93,6 +101,8 @@ fn serialize_line(start: &gtk::TextIter, end: &gtk::TextIter) -> String {
             has_tag(&current, "rich-inserted"),
             has_tag(&current, "rich-deleted"),
             has_tag(&current, "rich-code"),
+            has_tag(&current, "rich-superscript"),
+            has_tag(&current, "rich-subscript"),
         ];
         for index in (0..active.len()).rev() {
             if active[index] && !tags[index] {

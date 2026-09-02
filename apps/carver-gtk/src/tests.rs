@@ -19,7 +19,7 @@ use crate::{
     dialogs::persist_window_config,
     editor::{
         buffer_text, build_editor, install_editor_shortcuts, install_image_paste,
-        install_list_continuation, render_rich_markup,
+        install_list_continuation, install_source_shortcuts, render_rich_markup,
     },
     formatting,
     sidebar::{build_sidebar, refresh_sidebar},
@@ -197,6 +197,27 @@ fn close_action_persists_window_configuration() -> TestResult {
 }
 
 #[test]
+fn source_split_preference_persists_to_toml() -> TestResult {
+    let (temporary_directory, state) = test_state()?;
+    let config_path = temporary_directory
+        .path()
+        .join("config")
+        .join("config.toml");
+    let persistent_state = AppState::new_with_assets(
+        state.client.clone(),
+        Config::default(),
+        None,
+        Some(config_path.clone()),
+    );
+
+    persistent_state.set_source_split_view(true)?;
+
+    assert!(load(&config_path)?.editor.source_split_view);
+    assert!(persistent_state.config.borrow().editor.source_split_view);
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires a graphical display; CI runs it under Xvfb"]
 // CONTEXT: GTK must be initialized on one test thread; this scenario covers
 // connected signals in their real order instead of unsafe parallel test setup.
@@ -347,6 +368,25 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     );
     assert_eq!(buffer_text(&shortcut_buffer), "- First item\n- Second item");
 
+    let source_shortcut_view = gtk::TextView::new();
+    let source_shortcut_buffer = source_shortcut_view.buffer();
+    let source_shortcut_controller =
+        install_source_shortcuts(&source_shortcut_view, &source_shortcut_buffer);
+    source_shortcut_buffer.set_text("source shortcut");
+    source_shortcut_buffer.select_range(
+        &source_shortcut_buffer.start_iter(),
+        &source_shortcut_buffer.end_iter(),
+    );
+    source_shortcut_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::b,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert_eq!(buffer_text(&source_shortcut_buffer), "*source shortcut*");
+
     let rich_roundtrip_view = gtk::TextView::new();
     let rich_roundtrip_buffer = rich_roundtrip_view.buffer();
     let source = "# Carve WYSIWYG Demo\n\nThis is a *WYSIWYG editor* that outputs /Carve markup/.\n\n## Inline marks\n\n- *Strong* → `*text*`\n- /Emphasis/ → `/text/`\n- _Underline_ → `_text_`\n- =Highlight= → `=text=`\n- ~Strike~ → `~text~`\n- {+Inserted+} → `{+text+}`\n- {-Deleted-} → `{-text-}`\n- [HTML]{abbr=\"HyperText Markup Language\"} → `[HTML]{abbr=\"...\"}`\n\n## Task list\n\n- [x] Task lists round-trip to `- [x]`\n- [ ] Toggle the checkbox and watch the source\n\n> Edit the content and watch the Carve source below.\n\n```php\necho \"Hello, Carve!\";\n```";
@@ -426,10 +466,12 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
 
     let sidebar = build_sidebar(&state, &split_view);
     let test_window = gtk::Window::new();
+    test_window.set_default_size(1_400, 900);
     let test_layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     test_layout.append(&sidebar);
     test_layout.append(&stack);
     test_window.set_child(Some(&test_layout));
+    test_window.present();
     let category_list = widget_as::<gtk::ListBox>(&sidebar, "category-list");
     assert!(category_list.is_some());
     let Some(category_list) = category_list else {
@@ -508,13 +550,6 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .is_none()
     }));
 
-    let hide_categories = widget_as::<gtk::Button>(&sidebar, "hide-categories-button");
-    assert!(hide_categories.is_some());
-    let Some(hide_categories) = hide_categories else {
-        return Ok(());
-    };
-    hide_categories.emit_clicked();
-    assert!(split_view.is_collapsed() && split_view.shows_content());
     let toggle_categories = widget_as::<gtk::ToggleButton>(&browser, "toggle-categories-button");
     assert!(toggle_categories.is_some());
     let Some(toggle_categories) = toggle_categories else {
@@ -522,53 +557,127 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     };
     toggle_categories.emit_clicked();
     assert!(
-        !split_view.is_collapsed() && split_view.shows_content() && toggle_categories.is_active()
+        split_view.is_collapsed() && split_view.shows_content() && !toggle_categories.is_active()
     );
     toggle_categories.emit_clicked();
     assert!(
-        split_view.is_collapsed() && split_view.shows_content() && !toggle_categories.is_active()
+        !split_view.is_collapsed() && split_view.shows_content() && toggle_categories.is_active()
     );
 
     stack.remove(&editor_placeholder);
-    let editor = build_editor(&state, &stack, &adw::ToastOverlay::new());
+    state.config.borrow_mut().editor.source_split_view = true;
+    let editor = build_editor(&state, &stack, &adw::ToastOverlay::new(), &split_view);
     stack.add_named(&editor, Some("editor"));
     stack.set_visible_child_name("editor");
     let rich = widget_as::<gtk::TextView>(&editor, "rich-editor");
     let source = widget_as::<gtk::TextView>(&editor, "source-editor");
-    let mode = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-toggle");
+    let rich_mode = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-rich");
+    let source_mode = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-source");
+    let rendered_mode = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-rendered");
     let back = widget_as::<gtk::Button>(&editor, "back-to-notes-button");
     let bold = widget_as::<gtk::Button>(&editor, "format-bold-button");
     let bullet = widget_as::<gtk::Button>(&editor, "format-bullet-button");
     let ordered = widget_as::<gtk::Button>(&editor, "format-ordered-button");
     let heading = widget_as::<gtk::MenuButton>(&editor, "format-heading-button");
+    let source_bold = widget_as::<gtk::Button>(&editor, "source-format-bold-button");
+    let source_bullet = widget_as::<gtk::Button>(&editor, "source-format-bullet-button");
+    let more_formatting = widget_as::<gtk::MenuButton>(&editor, "format-more-button");
+    let source_more_formatting = widget_as::<gtk::MenuButton>(&editor, "source-format-more-button");
+    let title = widget_as::<adw::WindowTitle>(&editor, "editor-note-title");
+    let mode_bar = widget_as::<gtk::CenterBox>(&editor, "editor-mode-bar");
+    let formatting_bar = widget_as::<gtk::Stack>(&editor, "formatting-toolbar");
+    let editor_toggle_categories =
+        widget_as::<gtk::ToggleButton>(&editor, "editor-toggle-categories-button");
+    let split_preview = widget_as::<gtk::ToggleButton>(&editor, "source-split-toggle");
     let trash = widget_as::<gtk::Button>(&editor, "delete-note-button");
     assert!(
         rich.is_some()
             && source.is_some()
-            && mode.is_some()
+            && rich_mode.is_some()
+            && source_mode.is_some()
+            && rendered_mode.is_some()
             && back.is_some()
             && bold.is_some()
             && bullet.is_some()
             && ordered.is_some()
             && heading.is_some()
+            && source_bold.is_some()
+            && source_bullet.is_some()
+            && more_formatting.is_some()
+            && source_more_formatting.is_some()
+            && title.is_some()
+            && mode_bar.is_some()
+            && formatting_bar.is_some()
+            && editor_toggle_categories.is_some()
+            && split_preview.is_some()
             && trash.is_some()
     );
     let (
         Some(rich),
         Some(source),
-        Some(mode),
+        Some(rich_mode),
+        Some(source_mode),
+        Some(rendered_mode),
         Some(back),
         Some(bold),
         Some(bullet),
         Some(ordered),
         Some(heading),
+        Some(source_bold),
+        Some(source_bullet),
+        Some(more_formatting),
+        Some(source_more_formatting),
+        Some(title),
+        Some(mode_bar),
+        Some(formatting_bar),
+        Some(editor_toggle_categories),
+        Some(split_preview),
         Some(trash),
     ) = (
-        rich, source, mode, back, bold, bullet, ordered, heading, trash,
+        rich,
+        source,
+        rich_mode,
+        source_mode,
+        rendered_mode,
+        back,
+        bold,
+        bullet,
+        ordered,
+        heading,
+        source_bold,
+        source_bullet,
+        more_formatting,
+        source_more_formatting,
+        title,
+        mode_bar,
+        formatting_bar,
+        editor_toggle_categories,
+        split_preview,
+        trash,
     )
     else {
         return Ok(());
     };
+    assert_eq!(title.title(), created.title);
+    assert!(mode_bar.center_widget().is_some());
+    assert!(formatting_bar.is_sensitive());
+    assert_eq!(
+        editor_toggle_categories.icon_name().as_deref(),
+        Some("sidebar-show-symbolic")
+    );
+    split_view.set_collapsed(true);
+    assert!(!editor_toggle_categories.is_active());
+    editor_toggle_categories.emit_clicked();
+    assert!(!split_view.is_collapsed());
+    assert!(!split_preview.is_sensitive());
+    assert_eq!(
+        more_formatting.icon_name().as_deref(),
+        Some("view-more-symbolic")
+    );
+    assert_eq!(
+        source_more_formatting.icon_name().as_deref(),
+        Some("view-more-symbolic")
+    );
     assert_eq!(
         rich.buffer().text(
             &rich.buffer().start_iter(),
@@ -609,8 +718,56 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         heading.icon_name().as_deref(),
         Some("format-text-rich-symbolic")
     );
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert!(state.source_mode.get());
+    assert!(split_preview.is_sensitive());
+    assert!(split_preview.is_active());
+    let source_split = widget_as::<gtk::Paned>(&editor, "source-split-view");
+    assert!(source_split.is_some());
+    let Some(source_split) = source_split else {
+        return Ok(());
+    };
+    let split_rendered_preview = source_split.end_child();
+    assert!(
+        split_rendered_preview
+            .as_ref()
+            .is_some_and(gtk::prelude::WidgetExt::is_visible)
+    );
+    // Isolate the editor from the fixed test sidebar. This supplies it a real
+    // narrow allocation, just as the adaptive main layout does in the app.
+    stack.remove(&editor);
+    let narrow_window = gtk::Window::builder()
+        .default_width(640)
+        .default_height(900)
+        .child(&editor)
+        .build();
+    narrow_window.present();
+    assert!(run_main_context_until(|| {
+        !split_preview.is_sensitive()
+            && split_rendered_preview
+                .as_ref()
+                .is_some_and(|preview| !preview.is_visible())
+    }));
+    assert!(split_preview.is_active());
+    narrow_window.set_child(Option::<&gtk::Widget>::None);
+    narrow_window.close();
+    let restored_window = gtk::Window::builder()
+        .default_width(1_400)
+        .default_height(900)
+        .child(&editor)
+        .build();
+    restored_window.present();
+    assert!(run_main_context_until(|| {
+        split_preview.is_active()
+            && split_preview.is_sensitive()
+            && split_rendered_preview
+                .as_ref()
+                .is_some_and(gtk::prelude::WidgetExt::is_visible)
+    }));
+    restored_window.set_child(Option::<&gtk::Widget>::None);
+    restored_window.close();
+    stack.add_named(&editor, Some("editor"));
+    stack.set_visible_child_name("editor");
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -619,13 +776,36 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "*format me*"
     );
-    mode.set_active(false);
+    source.buffer().set_text("source text");
+    source
+        .buffer()
+        .select_range(&source.buffer().start_iter(), &source.buffer().end_iter());
+    source_bold.emit_clicked();
+    assert_eq!(buffer_text(&source.buffer()), "*source text*");
+    source
+        .buffer()
+        .select_range(&source.buffer().start_iter(), &source.buffer().end_iter());
+    source_bullet.emit_clicked();
+    assert_eq!(buffer_text(&source.buffer()), "- *source text*");
+    split_preview.set_active(true);
+    assert!(split_preview.is_active());
+    assert!(state.config.borrow().editor.source_split_view);
+    source.buffer().set_text("# Persisted by mode switch");
+    assert_eq!(title.title(), "Persisted by mode switch");
+    rendered_mode.set_active(true);
+    assert!(state.rendered_mode.get());
+    assert!(!split_preview.is_sensitive());
+    assert!(state.config.borrow().editor.source_split_view);
+    source_mode.set_active(true);
+    assert_eq!(buffer_text(&source.buffer()), "# Persisted by mode switch");
+    assert!(split_preview.is_active());
+    rich_mode.set_active(true);
     assert!(!state.source_mode.get());
     rich.buffer().set_text("A bullet from the toolbar");
     let end = rich.buffer().end_iter();
     rich.buffer().place_cursor(&end);
     bullet.emit_clicked();
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -634,7 +814,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "- A bullet from the toolbar"
     );
-    mode.set_active(false);
+    rich_mode.set_active(true);
     rich.buffer()
         .set_text("First item\nSecond item\nThird item");
     let selected_start = rich.buffer().start_iter();
@@ -646,7 +826,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     first_line_end.forward_to_line_end();
     rich.buffer()
         .remove_tag_by_name("rich-list-bullet", &first_line_start, &first_line_end);
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -655,12 +835,12 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "- First item\n- Second item\n- Third item"
     );
-    mode.set_active(false);
+    rich_mode.set_active(true);
     rich.buffer().set_text("A number from the toolbar");
     let end = rich.buffer().end_iter();
     rich.buffer().place_cursor(&end);
     ordered.emit_clicked();
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -669,7 +849,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "1. A number from the toolbar"
     );
-    mode.set_active(false);
+    rich_mode.set_active(true);
     rich.buffer().set_text("Carver");
     let link_start = rich.buffer().start_iter();
     let link_end = rich.buffer().end_iter();
@@ -679,7 +859,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         &link_end,
         "https://example.com",
     );
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -688,10 +868,10 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "[Carver](https://example.com)"
     );
-    mode.set_active(false);
-    mode.set_active(true);
+    rich_mode.set_active(true);
+    source_mode.set_active(true);
     source.buffer().set_text("# Project\n- first\n1. second");
-    mode.set_active(false);
+    rich_mode.set_active(true);
     assert_eq!(
         rich.buffer().text(
             &rich.buffer().start_iter(),
@@ -707,7 +887,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .iter()
             .any(|tag| tag.name().as_deref() == Some("rich-heading-1"))
     );
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -716,10 +896,14 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ),
         "# Project\n- first\n1. second"
     );
-    mode.set_active(false);
+    source.buffer().set_text("# Heading 2\n\n# h2 testttttttttt\n\nthis is a note blabla hello world\n\n![Pasted image](assets/managed.png)\n\n*blabla*\n\n*glalala*");
+    rich_mode.set_active(true);
+    assert!(rich_mode.is_active());
+    assert!(!state.rendered_mode.get());
+    rich_mode.set_active(true);
     rich.buffer()
         .set_text("First paragraph\n\nSecond paragraph\n");
-    mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),
@@ -731,8 +915,8 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     source
         .buffer()
         .set_text("First paragraph\n\nSecond paragraph\n");
-    mode.set_active(false);
-    mode.set_active(true);
+    rich_mode.set_active(true);
+    source_mode.set_active(true);
     assert_eq!(
         source.buffer().text(
             &source.buffer().start_iter(),

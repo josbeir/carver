@@ -7,7 +7,9 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
-use crate::{controller::AppState, editor::build_editor, trash::build_trash};
+use crate::{
+    controller::AppState, editor::build_editor, sidebar::sidebar_toggle_button, trash::build_trash,
+};
 
 /// Builds the browser and editor stack for the content pane.
 pub(crate) fn build_content(
@@ -19,7 +21,7 @@ pub(crate) fn build_content(
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let browser = build_browser(state, &stack, split_view);
     stack.add_named(&browser, Some("browser"));
-    let editor = build_editor(state, &stack, toast_overlay);
+    let editor = build_editor(state, &stack, toast_overlay, split_view);
     stack.add_named(&editor, Some("editor"));
     let trash = build_trash(state, &stack, toast_overlay);
     stack.add_named(&trash, Some("trash"));
@@ -50,30 +52,7 @@ pub(crate) fn build_browser(
     app_menu.set_tooltip_text(Some("Main Menu"));
     app_menu.set_menu_model(Some(&menu));
     header.pack_end(&app_menu);
-    let toggle_sidebar = gtk::ToggleButton::new();
-    toggle_sidebar.set_icon_name("sidebar-show-symbolic");
-    toggle_sidebar.set_widget_name("toggle-categories-button");
-    toggle_sidebar.set_tooltip_text(Some("Hide Categories"));
-    toggle_sidebar.set_active(!split_view.is_collapsed());
-    let split = split_view.clone();
-    toggle_sidebar.connect_toggled(move |button| {
-        if button.is_active() {
-            split.set_collapsed(false);
-        } else {
-            split.set_collapsed(true);
-            split.set_show_content(true);
-        }
-    });
-    let toggle_for_state = toggle_sidebar.clone();
-    split_view.connect_collapsed_notify(move |split| {
-        if split.is_collapsed() {
-            toggle_for_state.set_active(false);
-            toggle_for_state.set_tooltip_text(Some("Show Categories"));
-        } else {
-            toggle_for_state.set_active(true);
-            toggle_for_state.set_tooltip_text(Some("Hide Categories"));
-        }
-    });
+    let toggle_sidebar = sidebar_toggle_button(split_view, "toggle-categories-button");
     header.pack_start(&toggle_sidebar);
     view.add_top_bar(&header);
 

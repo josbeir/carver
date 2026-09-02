@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+carve-lang.workspace = true
 thiserror.workspace = true
 
 [lints]

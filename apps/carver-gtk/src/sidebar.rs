@@ -20,21 +20,11 @@ pub(crate) fn build_sidebar(
     container.add_css_class("sidebar");
 
     let header = adw::HeaderBar::new();
-    let collapse_sidebar = gtk::Button::from_icon_name("sidebar-hide-symbolic");
-    collapse_sidebar.set_widget_name("hide-categories-button");
-    collapse_sidebar.set_tooltip_text(Some("Hide Categories"));
-    header.pack_start(&collapse_sidebar);
     let new_category = gtk::Button::from_icon_name("folder-new-symbolic");
     new_category.set_widget_name("new-category-button");
     new_category.set_tooltip_text(Some("New Category"));
     header.pack_end(&new_category);
     container.append(&header);
-
-    let split_for_collapse = split_view.clone();
-    collapse_sidebar.connect_clicked(move |_| {
-        split_for_collapse.set_collapsed(true);
-        split_for_collapse.set_show_content(true);
-    });
 
     let list = gtk::ListBox::new();
     list.set_widget_name("category-list");
@@ -98,6 +88,40 @@ pub(crate) fn build_sidebar(
     container.append(&scroll);
     container.append(&trash_footer(state, split_view));
     container.upcast()
+}
+
+/// Builds the shared control that expands or collapses the category sidebar.
+pub(crate) fn sidebar_toggle_button(
+    split_view: &adw::NavigationSplitView,
+    widget_name: &str,
+) -> gtk::ToggleButton {
+    let toggle = gtk::ToggleButton::new();
+    toggle.set_icon_name("sidebar-show-symbolic");
+    toggle.set_widget_name(widget_name);
+    toggle.set_tooltip_text(Some("Hide Categories"));
+    toggle.set_active(!split_view.is_collapsed());
+
+    let split = split_view.clone();
+    toggle.connect_toggled(move |button| {
+        if button.is_active() {
+            split.set_collapsed(false);
+        } else {
+            split.set_collapsed(true);
+            split.set_show_content(true);
+        }
+    });
+
+    let toggle_for_state = toggle.clone();
+    split_view.connect_collapsed_notify(move |split| {
+        if split.is_collapsed() {
+            toggle_for_state.set_active(false);
+            toggle_for_state.set_tooltip_text(Some("Show Categories"));
+        } else {
+            toggle_for_state.set_active(true);
+            toggle_for_state.set_tooltip_text(Some("Hide Categories"));
+        }
+    });
+    toggle
 }
 
 fn trash_footer(state: &Rc<AppState>, split_view: &adw::NavigationSplitView) -> gtk::Widget {

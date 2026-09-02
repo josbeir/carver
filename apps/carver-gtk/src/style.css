@@ -85,3 +85,12 @@ textview text {
 .dim-label {
   opacity: 0.72;
 }
+
+#editor-mode-bar {
+  padding: 6px 12px;
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+#formatting-toolbar {
+  border-top: 1px solid alpha(currentColor, 0.12);
+}

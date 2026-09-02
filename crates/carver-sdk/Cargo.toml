@@ -7,8 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-config = { path = "../carver-config" }
-carver-domain = { path = "../carver-domain" }
+carver-config = { path = "../carver-config", version = "0.1.0" }
+carver-domain = { path = "../carver-domain", version = "0.1.0" }
 async-channel.workspace = true
 thiserror.workspace = true
 time.workspace = true

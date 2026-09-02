@@ -64,7 +64,10 @@ fn render_block(
             let tag = match level {
                 1 => "rich-heading-1",
                 2 => "rich-heading-2",
-                _ => "rich-heading-3",
+                3 => "rich-heading-3",
+                4 => "rich-heading-4",
+                5 => "rich-heading-5",
+                _ => "rich-heading-6",
             };
             buffer.apply_tag_by_name(tag, &start, &end);
         }
@@ -148,6 +151,16 @@ fn render_inlines(
                 render_inlines(view, buffer, nodes, state, false);
                 let start = buffer.iter_at_offset(start_offset);
                 buffer.apply_tag_by_name("rich-highlight", &start, &buffer.end_iter());
+            }
+            RichInline::Superscript(nodes) => {
+                render_inlines(view, buffer, nodes, state, false);
+                let start = buffer.iter_at_offset(start_offset);
+                buffer.apply_tag_by_name("rich-superscript", &start, &buffer.end_iter());
+            }
+            RichInline::Subscript(nodes) => {
+                render_inlines(view, buffer, nodes, state, false);
+                let start = buffer.iter_at_offset(start_offset);
+                buffer.apply_tag_by_name("rich-subscript", &start, &buffer.end_iter());
             }
             RichInline::Inserted(nodes) => {
                 render_inlines(view, buffer, nodes, state, false);

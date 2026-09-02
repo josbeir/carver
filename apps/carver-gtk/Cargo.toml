@@ -7,15 +7,17 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-config = { path = "../../crates/carver-config" }
-carver-sdk = { path = "../../crates/carver-sdk" }
-carver-richtext = { path = "../../crates/carver-richtext" }
-carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite" }
+carver-config = { path = "../../crates/carver-config", version = "0.1.0" }
+carver-domain = { path = "../../crates/carver-domain", version = "0.1.0" }
+carver-sdk = { path = "../../crates/carver-sdk", version = "0.1.0" }
+carver-richtext = { path = "../../crates/carver-richtext", version = "0.1.0" }
+carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite", version = "0.1.0" }
 glib.workspace = true
 gtk.workspace = true
 libadwaita.workspace = true
 time.workspace = true
 uuid.workspace = true
+webkit6 = "0.6.1"
 
 [dev-dependencies]
 tempfile.workspace = true
