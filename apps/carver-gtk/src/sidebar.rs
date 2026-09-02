@@ -10,6 +10,7 @@ use crate::{
     browser::refresh_browser,
     controller::{AppState, create_category, rename_category},
     dialogs::show_category_name_dialog,
+    trash::refresh_trash,
 };
 
 /// Builds the responsive category sidebar.
@@ -41,17 +42,8 @@ pub(crate) fn build_sidebar(
     list.set_widget_name("category-list");
     list.set_selection_mode(gtk::SelectionMode::Single);
     list.add_css_class("navigation-sidebar");
-    let home = gtk::ListBoxRow::new();
-    home.set_selectable(true);
-    home.set_child(Some(&sidebar_row("go-home-symbolic", "All notes")));
-    list.append(&home);
-
-    if let Ok(categories) = state.client.categories() {
-        for category in categories {
-            list.append(&category_sidebar_row(state, &category));
-        }
-    }
-    list.select_row(Some(&home));
+    state.sidebar_list.replace(Some(list.clone()));
+    refresh_sidebar(state);
 
     let state_for_selection = Rc::clone(state);
     let split_for_selection = split_view.clone();
@@ -78,22 +70,23 @@ pub(crate) fn build_sidebar(
             .selected_category_name
             .replace(selected_name);
         refresh_browser(&state_for_selection);
+        if let Some(stack) = state_for_selection.browser_stack.borrow().clone() {
+            stack.set_visible_child_name("browser");
+        }
         if split_for_selection.is_collapsed() {
             split_for_selection.set_show_content(true);
         }
     });
 
     let state_for_new = Rc::clone(state);
-    let list_for_new = list.clone();
     new_category.connect_clicked(move |button| {
         let parent = button
             .root()
             .and_then(|root| root.downcast::<gtk::Window>().ok());
         let state = Rc::clone(&state_for_new);
-        let list = list_for_new.clone();
         show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
-            if let Ok(category) = create_category(&state, &name) {
-                list.append(&category_sidebar_row(&state, &category));
+            if create_category(&state, &name).is_ok() {
+                refresh_sidebar(&state);
             }
         });
     });
@@ -102,7 +95,67 @@ pub(crate) fn build_sidebar(
     scroll.set_child(Some(&list));
     scroll.set_vexpand(true);
     container.append(&scroll);
+    container.append(&trash_footer(state, split_view));
     container.upcast()
+}
+
+fn trash_footer(state: &Rc<AppState>, split_view: &adw::NavigationSplitView) -> gtk::Widget {
+    let trash = gtk::Button::new();
+    trash.set_widget_name("open-trash-button");
+    trash.set_tooltip_text(Some("Open Trash"));
+    trash.add_css_class("flat");
+    let trash_content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    trash_content.set_margin_start(12);
+    trash_content.set_margin_end(12);
+    trash_content.set_margin_top(8);
+    trash_content.set_margin_bottom(8);
+    trash_content.append(&gtk::Image::from_icon_name("user-trash-symbolic"));
+    let trash_label = gtk::Label::new(Some("Trash"));
+    trash_label.set_xalign(0.0);
+    trash_label.add_css_class("category-card-title");
+    trash_content.append(&trash_label);
+    trash.set_child(Some(&trash_content));
+    let state_for_trash = Rc::clone(state);
+    let split_for_trash = split_view.clone();
+    trash.connect_clicked(move |_| {
+        refresh_trash(&state_for_trash);
+        if let Some(stack) = state_for_trash.browser_stack.borrow().clone() {
+            stack.set_visible_child_name("trash");
+        }
+        if split_for_trash.is_collapsed() {
+            split_for_trash.set_show_content(true);
+        }
+    });
+    let footer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    footer.add_css_class("sidebar-footer");
+    footer.append(&trash);
+    footer.upcast()
+}
+
+/// Rebuilds the category list after a category or trash action.
+pub(crate) fn refresh_sidebar(state: &Rc<AppState>) {
+    let Some(list) = state.sidebar_list.borrow().clone() else {
+        return;
+    };
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    let home = gtk::ListBoxRow::new();
+    home.set_selectable(true);
+    home.set_child(Some(&sidebar_row("go-home-symbolic", "All notes")));
+    list.append(&home);
+    let selected_category = state.selected_category.get();
+    let mut selected_row = None;
+    if let Ok(categories) = state.client.categories() {
+        for category in categories {
+            let row = category_sidebar_row(state, &category);
+            if Some(category.id) == selected_category {
+                selected_row = Some(row.clone());
+            }
+            list.append(&row);
+        }
+    }
+    list.select_row(selected_row.as_ref().or(Some(&home)));
 }
 
 fn sidebar_row(icon_name: &str, label: &str) -> gtk::Widget {
@@ -125,11 +178,11 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
     row.set_selectable(true);
     row.set_widget_name(&format!("category:{}", category.id));
     row.add_css_class("category-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     content.set_margin_start(12);
-    content.set_margin_end(6);
-    content.set_margin_top(6);
-    content.set_margin_bottom(6);
+    content.set_margin_end(8);
+    content.set_margin_top(4);
+    content.set_margin_bottom(4);
     content.append(&gtk::Image::from_icon_name("folder-symbolic"));
     let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
     text.set_hexpand(true);
@@ -149,7 +202,6 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
     let rename = gtk::Button::from_icon_name("document-edit-symbolic");
     rename.set_widget_name(&format!("rename-category:{}", category.id));
     rename.set_tooltip_text(Some("Rename Category"));
-    rename.add_css_class("flat");
     let state_for_rename = Rc::clone(state);
     let name_for_rename = name.clone();
     let category_id = category.id;
@@ -177,13 +229,10 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
             },
         );
     });
-    content.append(&rename);
     let trash = gtk::Button::from_icon_name("user-trash-symbolic");
     trash.set_widget_name(&format!("delete-category:{}", category.id));
     trash.set_tooltip_text(Some("Move Category to Trash"));
-    trash.add_css_class("flat");
     let state_for_trash = Rc::clone(state);
-    let row_for_trash = row.clone();
     let category_id = category.id;
     trash.connect_clicked(move |_| {
         if state_for_trash.client.trash_category(category_id).is_ok() {
@@ -191,15 +240,17 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
                 state_for_trash.selected_category.set(None);
                 state_for_trash.selected_category_name.replace(None);
             }
-            if let Some(parent) = row_for_trash.parent()
-                && let Ok(list) = parent.downcast::<gtk::ListBox>()
-            {
-                list.remove(&row_for_trash);
-            }
+            refresh_sidebar(&state_for_trash);
             refresh_browser(&state_for_trash);
+            refresh_trash(&state_for_trash);
         }
     });
-    content.append(&trash);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    actions.add_css_class("linked");
+    actions.add_css_class("category-actions");
+    actions.append(&rename);
+    actions.append(&trash);
+    content.append(&actions);
     row.set_child(Some(&content));
     row
 }

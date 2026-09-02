@@ -143,6 +143,62 @@ pub struct NoteSummary {
     pub has_images: bool,
 }
 
+/// A trashed category together with the active notes it can recover.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrashedCategorySummary {
+    /// The deleted category.
+    pub category: Category,
+    /// Number of non-trashed notes that become visible when the category is restored.
+    pub recoverable_note_count: usize,
+}
+
+/// Lightweight information used to restore a directly trashed note.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrashedNoteSummary {
+    /// Stable identity.
+    pub id: NoteId,
+    /// Owning active category.
+    pub category_id: CategoryId,
+    /// Owning category name shown in recovery UI.
+    pub category_name: String,
+    /// Derived display title.
+    pub title: String,
+    /// Short plaintext excerpt.
+    pub excerpt: String,
+    /// Time the note was moved to trash.
+    pub trashed_at: OffsetDateTime,
+    /// Whether the note has managed image assets.
+    pub has_images: bool,
+}
+
+/// All top-level recoverable items in the in-app trash.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrashContents {
+    /// Deleted categories, newest first.
+    pub categories: Vec<TrashedCategorySummary>,
+    /// Directly deleted notes whose categories remain active, newest first.
+    pub notes: Vec<TrashedNoteSummary>,
+}
+
+impl TrashContents {
+    /// Returns whether the trash contains no recoverable items.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.categories.is_empty() && self.notes.is_empty()
+    }
+}
+
+/// Counts content permanently removed by an Empty Trash operation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrashPurgeResult {
+    /// Number of deleted categories.
+    pub categories_deleted: usize,
+    /// Number of deleted notes.
+    pub notes_deleted: usize,
+    /// Number of unreferenced managed assets deleted.
+    pub assets_deleted: usize,
+}
+
 /// A date-heading and its recently edited notes.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RecentGroup {

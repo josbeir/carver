@@ -10,6 +10,7 @@ use time::{Duration, OffsetDateTime, UtcOffset};
 use crate::{
     controller::{AppState, create_note_for_active_category, open_note},
     editor::build_editor,
+    trash::build_trash,
 };
 
 /// Builds the browser and editor stack for the content pane.
@@ -24,6 +25,8 @@ pub(crate) fn build_content(
     stack.add_named(&browser, Some("browser"));
     let editor = build_editor(state, &stack, toast_overlay);
     stack.add_named(&editor, Some("editor"));
+    let trash = build_trash(state, &stack, toast_overlay);
+    stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
     stack.upcast()
 }

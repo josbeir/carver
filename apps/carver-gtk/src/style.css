@@ -4,7 +4,7 @@
 }
 
 .navigation-sidebar row.category-card {
-  margin: 4px 6px;
+  margin: 2px 6px;
 }
 
 .category-card-content {
@@ -18,6 +18,20 @@
 .category-card-count {
   font-size: 0.9em;
   opacity: 0.72;
+}
+
+.category-actions button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.sidebar-footer {
+  border-top: 1px solid alpha(currentColor, 0.14);
+}
+
+.sidebar-footer button {
+  border-radius: 0;
 }
 
 .note-feed {

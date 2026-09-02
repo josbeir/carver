@@ -9,6 +9,7 @@ mod dialogs;
 mod editor;
 mod formatting;
 mod sidebar;
+mod trash;
 
 fn main() -> glib::ExitCode {
     app::run()

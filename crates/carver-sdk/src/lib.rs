@@ -5,7 +5,10 @@
 use std::sync::{Arc, Mutex};
 
 use carver_config::{AppPaths, ConfigError};
-pub use carver_domain::{Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit};
+pub use carver_domain::{
+    Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -99,6 +102,17 @@ impl LibraryClient {
             .map_err(Into::into)
     }
 
+    /// Restores a category from the in-app trash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category cannot be restored.
+    pub fn restore_category(&self, category_id: CategoryId) -> Result<(), LibraryError> {
+        self.storage()?
+            .restore_category(category_id, OffsetDateTime::now_utc())
+            .map_err(Into::into)
+    }
+
     /// Creates a blank note in a category.
     ///
     /// # Errors
@@ -153,6 +167,24 @@ impl LibraryClient {
     /// Returns an error when the note cannot be restored.
     pub fn restore_note(&self, note_id: NoteId) -> Result<(), LibraryError> {
         self.storage()?.restore_note(note_id).map_err(Into::into)
+    }
+
+    /// Lists all top-level recoverable items in the in-app trash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the trash cannot be queried.
+    pub fn trash_contents(&self) -> Result<TrashContents, LibraryError> {
+        self.storage()?.trash_contents().map_err(Into::into)
+    }
+
+    /// Permanently removes all trashed content and unreferenced managed assets.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the purge cannot be completed.
+    pub fn empty_trash(&self) -> Result<TrashPurgeResult, LibraryError> {
+        self.storage()?.empty_trash().map_err(Into::into)
     }
 
     /// Returns the latest active notes, optionally filtered to a category.

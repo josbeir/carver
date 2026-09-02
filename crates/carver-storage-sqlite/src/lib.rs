@@ -3,12 +3,14 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
 
 use carver_domain::{
-    Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, derive_content,
+    Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
@@ -348,6 +350,94 @@ impl SqliteLibrary {
         Ok(())
     }
 
+    /// Lists the top-level items available for recovery from trash.
+    ///
+    /// Notes belonging to a trashed category are represented by that category rather than
+    /// duplicated as individual recovery actions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the trash cannot be read or stored values are corrupt.
+    pub fn trash_contents(&self) -> Result<TrashContents, StorageError> {
+        let mut categories = self.connection.prepare(
+            "SELECT c.id, c.name, c.position, c.created_at, c.updated_at, c.trashed_at,
+                    COUNT(n.id)
+             FROM categories c
+             LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
+             WHERE c.trashed_at IS NOT NULL
+             GROUP BY c.id
+             ORDER BY c.trashed_at DESC",
+        )?;
+        let categories = categories
+            .query_map([], trashed_category_summary_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut notes = self.connection.prepare(
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.trashed_at,
+                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
+             FROM notes n
+             JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NOT NULL AND c.trashed_at IS NULL
+             ORDER BY n.trashed_at DESC",
+        )?;
+        let notes = notes
+            .query_map([], trashed_note_summary_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(TrashContents { categories, notes })
+    }
+
+    /// Permanently removes all trashed notes, categories, and unreferenced managed assets.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database or managed-asset cleanup fails.
+    pub fn empty_trash(&self) -> Result<TrashPurgeResult, StorageError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute(
+            "DELETE FROM note_fts WHERE note_id IN (
+                 SELECT n.id FROM notes n JOIN categories c ON c.id = n.category_id
+                 WHERE n.trashed_at IS NOT NULL OR c.trashed_at IS NOT NULL
+             )",
+            [],
+        )?;
+        let notes_deleted = transaction.execute(
+            "DELETE FROM notes WHERE id IN (
+                 SELECT n.id FROM notes n JOIN categories c ON c.id = n.category_id
+                 WHERE n.trashed_at IS NOT NULL OR c.trashed_at IS NOT NULL
+             )",
+            [],
+        )?;
+        let categories_deleted =
+            transaction.execute("DELETE FROM categories WHERE trashed_at IS NOT NULL", [])?;
+        let mut orphan_assets = transaction.prepare(
+            "SELECT filename FROM assets
+             WHERE NOT EXISTS (SELECT 1 FROM note_assets WHERE note_assets.asset_hash = assets.hash)",
+        )?;
+        let orphan_filenames = orphan_assets
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        let orphan_paths = orphan_filenames
+            .iter()
+            .map(|filename| self.managed_asset_path(filename))
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(orphan_assets);
+        let assets_deleted = transaction.execute(
+            "DELETE FROM assets
+             WHERE NOT EXISTS (SELECT 1 FROM note_assets WHERE note_assets.asset_hash = assets.hash)",
+            [],
+        )?;
+        transaction.commit()?;
+        for path in orphan_paths {
+            if path.exists() {
+                fs::remove_file(path)?;
+            }
+        }
+        Ok(TrashPurgeResult {
+            categories_deleted,
+            notes_deleted,
+            assets_deleted,
+        })
+    }
+
     /// Adds bytes to the managed asset store and returns its portable source path.
     ///
     /// # Errors
@@ -434,17 +524,38 @@ impl SqliteLibrary {
     }
 
     fn cleanup_orphan_assets(&self) -> Result<(), StorageError> {
+        let mut statement = self.connection.prepare("SELECT filename FROM assets")?;
+        let known_assets = statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
         for entry in fs::read_dir(&self.assets_dir)? {
             let entry = entry?;
-            if entry
-                .path()
+            let path = entry.path();
+            let is_partial = path
                 .extension()
-                .is_some_and(|extension| extension == "partial")
-            {
+                .is_some_and(|extension| extension == "partial");
+            let is_orphan = entry.file_type()?.is_file()
+                && entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|filename| !known_assets.contains(filename));
+            if is_partial || is_orphan {
                 fs::remove_file(entry.path())?;
             }
         }
         Ok(())
+    }
+
+    fn managed_asset_path(&self, filename: &str) -> Result<PathBuf, StorageError> {
+        let path = Path::new(filename);
+        let is_single_filename = path.components().count() == 1
+            && path.file_name().and_then(|value| value.to_str()) == Some(filename);
+        if !is_single_filename {
+            return Err(StorageError::Corrupt(format!(
+                "managed asset filename is unsafe: {filename}"
+            )));
+        }
+        Ok(self.assets_dir.join(path))
     }
 }
 
@@ -490,6 +601,34 @@ fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
         excerpt: plain_text.chars().take(180).collect(),
         updated_at: parse_timestamp(row.get(4)?).map_err(to_sql_error)?,
         has_images: row.get(5)?,
+    })
+}
+
+fn trashed_category_summary_from_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TrashedCategorySummary> {
+    let recoverable_note_count: i64 = row.get(6)?;
+    let recoverable_note_count = usize::try_from(recoverable_note_count).map_err(|_| {
+        to_sql_error(StorageError::Corrupt(
+            "recoverable note count does not fit usize".to_owned(),
+        ))
+    })?;
+    Ok(TrashedCategorySummary {
+        category: category_from_row(row)?,
+        recoverable_note_count,
+    })
+}
+
+fn trashed_note_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrashedNoteSummary> {
+    let trashed_at: i64 = row.get(5)?;
+    Ok(TrashedNoteSummary {
+        id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
+        category_id: category_id(&row.get::<_, String>(1)?).map_err(to_sql_error)?,
+        category_name: row.get(2)?,
+        title: row.get(3)?,
+        excerpt: row.get::<_, String>(4)?.chars().take(180).collect(),
+        trashed_at: parse_timestamp(trashed_at).map_err(to_sql_error)?,
+        has_images: row.get(6)?,
     })
 }
 
@@ -600,6 +739,87 @@ mod tests {
             .recent_notes(None, 20, 0)
             .unwrap_or_else(|error| panic!("list failed: {error}"));
         assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn trash_contents_groups_category_notes_and_lists_directly_trashed_notes() {
+        let (_directory, library) = library();
+        let now = OffsetDateTime::now_utc();
+        let active_category = library
+            .create_category("Active", now)
+            .unwrap_or_else(|error| panic!("category failed: {error}"));
+        let direct_note = library
+            .create_note(active_category.id, now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        library
+            .trash_note(direct_note.id, now)
+            .unwrap_or_else(|error| panic!("direct trash failed: {error}"));
+        let deleted_category = library
+            .create_category("Deleted", now)
+            .unwrap_or_else(|error| panic!("category failed: {error}"));
+        let grouped_note = library
+            .create_note(deleted_category.id, now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        library
+            .trash_category(deleted_category.id, now)
+            .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+
+        let contents = library
+            .trash_contents()
+            .unwrap_or_else(|error| panic!("trash listing failed: {error}"));
+
+        assert_eq!(contents.categories.len(), 1);
+        assert_eq!(contents.categories[0].category.id, deleted_category.id);
+        assert_eq!(contents.categories[0].recoverable_note_count, 1);
+        assert_eq!(contents.notes.len(), 1);
+        assert_eq!(contents.notes[0].id, direct_note.id);
+        assert_ne!(contents.notes[0].id, grouped_note.id);
+    }
+
+    #[test]
+    fn empty_trash_removes_search_entries_and_orphaned_assets() {
+        let (directory, library) = library();
+        let now = OffsetDateTime::now_utc();
+        let category = library
+            .create_category("Work", now)
+            .unwrap_or_else(|error| panic!("category failed: {error}"));
+        let note = library
+            .create_note(category.id, now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        let saved = library
+            .save_note(note.id, note.revision, "# Remove me", now)
+            .unwrap_or_else(|error| panic!("save failed: {error}"));
+        library
+            .store_asset(saved.id, "png", b"test image")
+            .unwrap_or_else(|error| panic!("asset failed: {error}"));
+        library
+            .trash_note(saved.id, now)
+            .unwrap_or_else(|error| panic!("trash failed: {error}"));
+
+        let result = library
+            .empty_trash()
+            .unwrap_or_else(|error| panic!("empty failed: {error}"));
+
+        assert_eq!(result.notes_deleted, 1);
+        assert_eq!(result.assets_deleted, 1);
+        assert!(
+            library
+                .note(saved.id)
+                .unwrap_or_else(|error| panic!("lookup failed: {error}"))
+                .is_none()
+        );
+        assert!(
+            library
+                .search_notes("Remove", None, 10)
+                .unwrap_or_else(|error| panic!("search failed: {error}"))
+                .is_empty()
+        );
+        assert!(
+            fs::read_dir(directory.path().join("assets"))
+                .unwrap_or_else(|error| panic!("asset directory failed: {error}"))
+                .next()
+                .is_none()
+        );
     }
 
     #[test]

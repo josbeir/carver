@@ -9,6 +9,8 @@ use crate::{
     browser::refresh_browser,
     controller::{AppState, save_current_note, store_pasted_image, trash_current_note},
     formatting,
+    sidebar::refresh_sidebar,
+    trash::refresh_trash,
 };
 
 /// Builds the note editor and connects its user-facing actions.
@@ -134,6 +136,8 @@ fn connect_trash_action(
         match trash_current_note(&state_for_trash) {
             Ok(true) => {
                 refresh_browser(&state_for_trash);
+                refresh_sidebar(&state_for_trash);
+                refresh_trash(&state_for_trash);
                 stack_for_trash.set_visible_child_name("browser");
                 let toast = adw::Toast::new("Moved note to Trash");
                 toast.set_button_label(Some("Undo"));
@@ -143,6 +147,8 @@ fn connect_trash_action(
                         && state_for_undo.client.restore_note(note.id).is_ok()
                     {
                         refresh_browser(&state_for_undo);
+                        refresh_sidebar(&state_for_undo);
+                        refresh_trash(&state_for_undo);
                     }
                 });
                 toast_for_trash.add_toast(toast);

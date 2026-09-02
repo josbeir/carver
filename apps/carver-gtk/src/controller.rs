@@ -23,6 +23,11 @@ pub(crate) struct AppState {
     pub(crate) browser_list: RefCell<Option<gtk::ListBox>>,
     pub(crate) browser_stack: RefCell<Option<gtk::Stack>>,
     pub(crate) browser_title: RefCell<Option<adw::WindowTitle>>,
+    pub(crate) sidebar_list: RefCell<Option<gtk::ListBox>>,
+    pub(crate) trash_list: RefCell<Option<gtk::ListBox>>,
+    pub(crate) trash_content_stack: RefCell<Option<gtk::Stack>>,
+    pub(crate) trash_status: RefCell<Option<adw::StatusPage>>,
+    pub(crate) empty_trash_button: RefCell<Option<gtk::Button>>,
 }
 
 impl AppState {
@@ -42,6 +47,11 @@ impl AppState {
             browser_list: RefCell::new(None),
             browser_stack: RefCell::new(None),
             browser_title: RefCell::new(None),
+            sidebar_list: RefCell::new(None),
+            trash_list: RefCell::new(None),
+            trash_content_stack: RefCell::new(None),
+            trash_status: RefCell::new(None),
+            empty_trash_button: RefCell::new(None),
         }
     }
 }

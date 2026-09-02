@@ -18,6 +18,7 @@ use crate::{
     dialogs::persist_window_config,
     editor::{build_editor, install_image_paste},
     sidebar::build_sidebar,
+    trash::{build_trash, refresh_trash},
 };
 
 type TestResult = Result<(), Box<dyn Error>>;
@@ -238,6 +239,9 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     stack.add_named(&browser, Some("browser"));
     let editor_placeholder = gtk::Box::new(gtk::Orientation::Vertical, 0);
     stack.add_named(&editor_placeholder, Some("editor"));
+    let trash_overlay = adw::ToastOverlay::new();
+    let trash_page = build_trash(&state, &stack, &trash_overlay);
+    stack.add_named(&trash_page, Some("trash"));
     stack.set_visible_child_name("browser");
     let app_menu = widget_as::<gtk::MenuButton>(&browser, "app-menu-button");
     let content_clamp = widget_as::<adw::Clamp>(&browser, "browser-content-clamp");
@@ -506,6 +510,56 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .note(created.id)?
             .is_some_and(|note| note.trashed_at.is_some())
     );
+    let open_trash = widget_as::<gtk::Button>(&sidebar, "open-trash-button");
+    assert!(open_trash.is_some());
+    let Some(open_trash) = open_trash else {
+        return Ok(());
+    };
+    open_trash.emit_clicked();
+    assert_eq!(stack.visible_child_name().as_deref(), Some("trash"));
+    let restore_category = widget_as::<gtk::Button>(
+        &trash_page,
+        &format!("restore-category:{}", second_category.id),
+    );
+    assert!(restore_category.is_some());
+    let Some(restore_category) = restore_category else {
+        return Ok(());
+    };
+    restore_category.emit_clicked();
+    assert_eq!(state.client.categories()?.len(), 2);
+    let restore_note =
+        widget_as::<gtk::Button>(&trash_page, &format!("restore-note:{}", created.id));
+    assert!(restore_note.is_some());
+    let Some(restore_note) = restore_note else {
+        return Ok(());
+    };
+    restore_note.emit_clicked();
+    assert!(
+        state
+            .client
+            .note(created.id)?
+            .is_some_and(|note| note.trashed_at.is_none())
+    );
+    state.client.trash_category(second_category.id)?;
+    refresh_trash(&state);
+    let empty_trash = widget_as::<gtk::Button>(&trash_page, "empty-trash-button");
+    assert!(
+        empty_trash
+            .as_ref()
+            .is_some_and(gtk::prelude::WidgetExt::is_sensitive)
+    );
+    let Some(empty_trash) = empty_trash else {
+        return Ok(());
+    };
+    empty_trash.emit_clicked();
+    let empty_dialog = active_dialog();
+    assert!(empty_dialog.is_some());
+    let Some(empty_dialog) = empty_dialog else {
+        return Ok(());
+    };
+    empty_dialog.response(gtk::ResponseType::Accept);
+    assert!(state.client.trash_contents()?.is_empty());
+    assert_eq!(state.client.categories()?.len(), 1);
     test_window.close();
     Ok(())
 }
