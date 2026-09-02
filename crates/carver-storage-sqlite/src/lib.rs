@@ -1,4 +1,4 @@
-//! SQLite persistence for Carver's managed note library.
+//! `SQLite` persistence for Carver's managed note library.
 
 #![forbid(unsafe_code)]
 
@@ -34,7 +34,7 @@ pub enum StorageError {
     /// An asset extension was not part of the supported image format allowlist.
     #[error("unsupported asset extension: {0}")]
     UnsupportedAssetExtension(String),
-    /// SQLite reported a problem.
+    /// `SQLite` reported a problem.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     /// Asset filesystem work failed.

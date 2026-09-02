@@ -9,26 +9,27 @@ permissions:
   id-token: write
 
 jobs:
-  test:
+  quality:
+    name: Quality (stable)
     # GTK 4.22 requires Ubuntu 26.04; ubuntu-latest currently provides GTK 4.14.
     runs-on: ubuntu-26.04
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain: [stable, "1.88"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Cache registry, dependency artifacts, and CI-installed cargo tools across runs.
+          # The stable and MSRV builds have distinct caches because Rust artifacts are not ABI compatible.
+          shared-key: carver-stable
+          cache-all-crates: true
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
           libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev xvfb
       - name: Format
-        if: matrix.toolchain == 'stable'
         run: cargo fmt --all -- --check
       - name: Lint
         run: >-
@@ -39,18 +40,15 @@ jobs:
           xvfb-run -a cargo test --workspace --locked --
           --include-ignored --test-threads=1
       - name: Install coverage tool
-        if: matrix.toolchain == 'stable'
         run: >-
           rustup component add llvm-tools-preview &&
           cargo install cargo-llvm-cov --version 0.9.0 --locked
       - name: Coverage
-        if: matrix.toolchain == 'stable'
         run: |
           mkdir -p coverage
           xvfb-run -a cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 \
             --lcov --output-path coverage/lcov.info -- --include-ignored --test-threads=1
       - name: Upload coverage to Codecov
-        if: matrix.toolchain == 'stable'
         uses: codecov/codecov-action@v5
         with:
           files: coverage/lcov.info
@@ -58,10 +56,27 @@ jobs:
           fail_ci_if_error: true
           use_oidc: true
       - name: Documentation
-        if: matrix.toolchain == 'stable'
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps --locked
       - name: Dependency policy
-        if: matrix.toolchain == 'stable'
         run: cargo install cargo-deny --version 0.20.2 --locked && cargo deny check
+
+  msrv:
+    name: MSRV (Rust 1.92)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Keep MSRV artifacts isolated from stable while reusing them on subsequent runs.
+          shared-key: carver-msrv-1.92
+      - name: Install GTK dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev
+      - name: Check MSRV compatibility
+        run: cargo check --workspace --all-targets --all-features --locked

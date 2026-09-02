@@ -3,7 +3,7 @@
 [![Quality](https://github.com/josbeir/carver/actions/workflows/quality.yml/badge.svg)](https://github.com/josbeir/carver/actions/workflows/quality.yml)
 [![codecov](https://codecov.io/gh/josbeir/carver/graph/badge.svg)](https://codecov.io/gh/josbeir/carver)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![MSRV: 1.88](https://img.shields.io/badge/MSRV-1.88-93450a.svg)](https://www.rust-lang.org/)
+[![MSRV: 1.92](https://img.shields.io/badge/MSRV-1.92-93450a.svg)](https://www.rust-lang.org/)
 
 Carver is a fast, native GNOME note-taking application built with Rust, GTK4, and
 Libadwaita. It keeps Carve markup as the durable source of every note while providing a
@@ -42,7 +42,7 @@ Carver is a Cargo workspace with clear dependency boundaries:
 
 ## Getting started
 
-Carver currently runs from source. It requires Rust 1.88 or newer, GTK 4.22+, Libadwaita
+Carver currently runs from source. It requires Rust 1.92 or newer, GTK 4.22+, Libadwaita
 1.9+, and WebKitGTK 6 development libraries.
 
 ```sh

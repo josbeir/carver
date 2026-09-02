@@ -56,7 +56,7 @@ impl AppPaths {
         self.config_dir.join("config.toml")
     }
 
-    /// Returns the SQLite database path.
+    /// Returns the `SQLite` database path.
     #[must_use]
     pub fn database_file(&self) -> PathBuf {
         self.data_dir.join("library.sqlite3")
