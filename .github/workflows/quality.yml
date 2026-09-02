@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,9 +43,18 @@ jobs:
           cargo install cargo-llvm-cov --version 0.9.0 --locked
       - name: Coverage
         if: matrix.toolchain == 'stable'
-        run: >-
-          xvfb-run -a cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80
-          -- --include-ignored --test-threads=1
+        run: |
+          mkdir -p coverage
+          xvfb-run -a cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 \
+            --lcov --output-path coverage/lcov.info -- --include-ignored --test-threads=1
+      - name: Upload coverage to Codecov
+        if: matrix.toolchain == 'stable'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: true
+          use_oidc: true
       - name: Documentation
         if: matrix.toolchain == 'stable'
         env:
