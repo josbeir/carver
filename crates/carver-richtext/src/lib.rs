@@ -30,8 +30,13 @@ pub enum RichBlock {
         /// Item content.
         content: Vec<RichInline>,
     },
-    /// A fenced code block.
-    CodeBlock(String),
+    /// A fenced code block, retaining its optional language identifier.
+    CodeBlock {
+        /// Optional language identifier following the opening fence.
+        language: Option<String>,
+        /// Literal code content without its fences.
+        content: String,
+    },
     /// A quoted paragraph.
     Quote(Vec<RichInline>),
     /// A thematic separator.
@@ -62,6 +67,14 @@ pub enum RichInline {
     Italic(Vec<RichInline>),
     /// Struck-through content.
     Strike(Vec<RichInline>),
+    /// Underlined content.
+    Underline(Vec<RichInline>),
+    /// Highlighted content.
+    Highlight(Vec<RichInline>),
+    /// Inserted content.
+    Inserted(Vec<RichInline>),
+    /// Deleted content.
+    Deleted(Vec<RichInline>),
     /// Inline code.
     Code(String),
     /// Link text and destination.
@@ -70,6 +83,13 @@ pub enum RichInline {
         text: String,
         /// Link destination.
         destination: String,
+    },
+    /// Text carrying a Carve attribute list.
+    Attribute {
+        /// Visible text.
+        text: String,
+        /// Attribute list contents without its surrounding braces.
+        attributes: String,
     },
     /// A managed local image.
     Image {
@@ -125,9 +145,39 @@ pub fn parse_carve(source: &str) -> Result<RichDocument, RichDocumentError> {
         return Err(RichDocumentError::Unsupported(UnsupportedFeature::Footnote));
     }
     let mut blocks = Vec::new();
-    for line in source.lines() {
+    // `str::lines` deliberately omits empty and trailing lines. Those lines are
+    // editable paragraph breaks, so the native representation must retain them.
+    let mut lines = source.split('\n').peekable();
+    while let Some(line) = lines.next() {
         let trimmed = line.trim_start();
-        if trimmed == "---" {
+        if let Some(language) = trimmed.strip_prefix("```") {
+            let language = (!language.trim().is_empty()).then(|| language.trim().to_owned());
+            let mut content = Vec::new();
+            let mut closed = false;
+            for code_line in lines.by_ref() {
+                if code_line.trim() == "```" {
+                    closed = true;
+                    break;
+                }
+                content.push(code_line);
+            }
+            if closed {
+                blocks.push(RichBlock::CodeBlock {
+                    language,
+                    content: content.join("\n"),
+                });
+            } else {
+                blocks.push(RichBlock::Paragraph(inline(line)?));
+                blocks.extend(
+                    content
+                        .into_iter()
+                        .map(inline)
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .map(RichBlock::Paragraph),
+                );
+            }
+        } else if trimmed == "---" {
             blocks.push(RichBlock::Rule);
         } else if let Some((level, content)) = heading(trimmed) {
             blocks.push(RichBlock::Heading {
@@ -141,7 +191,7 @@ pub fn parse_carve(source: &str) -> Result<RichDocument, RichDocumentError> {
             });
         } else if let Some(content) = trimmed.strip_prefix("> ") {
             blocks.push(RichBlock::Quote(inline(content)?));
-        } else if !line.is_empty() {
+        } else {
             blocks.push(RichBlock::Paragraph(inline(line)?));
         }
     }
@@ -192,86 +242,131 @@ fn inline(source: &str) -> Result<Vec<RichInline>, RichDocumentError> {
     let mut result = Vec::new();
     let mut remainder = source;
     while !remainder.is_empty() {
-        if let Some((before, alt, path, after)) = image(remainder) {
-            push_text(&mut result, before);
-            result.push(RichInline::Image {
-                alt: alt.to_owned(),
-                path: path.to_owned(),
-            });
-            remainder = after;
-        } else if let Some((before, text, destination, after)) = link(remainder) {
-            push_text(&mut result, before);
-            result.push(RichInline::Link {
-                text: text.to_owned(),
-                destination: destination.to_owned(),
-            });
-            remainder = after;
-        } else if let Some((before, content, after)) = delimited(remainder, "`") {
-            push_text(&mut result, before);
-            result.push(RichInline::Code(content.to_owned()));
-            remainder = after;
-        } else if let Some((before, content, after)) = delimited(remainder, "~") {
-            push_text(&mut result, before);
-            result.push(RichInline::Strike(inline(content)?));
-            remainder = after;
-        } else if let Some((before, content, after)) = delimited(remainder, "*") {
-            push_text(&mut result, before);
-            result.push(RichInline::Bold(inline(content)?));
-            remainder = after;
-        } else if let Some((before, content, after)) = delimited(remainder, "/") {
-            push_text(&mut result, before);
-            result.push(RichInline::Italic(inline(content)?));
-            remainder = after;
-        } else {
+        let Some(position) = next_inline_start(remainder) else {
             push_text(&mut result, remainder);
             break;
+        };
+        push_text(&mut result, &remainder[..position]);
+        remainder = &remainder[position..];
+        if let Some((node, after)) = inline_at_start(remainder)? {
+            result.push(node);
+            remainder = after;
+        } else if let Some(character) = remainder.chars().next() {
+            push_text(&mut result, &remainder[..character.len_utf8()]);
+            remainder = &remainder[character.len_utf8()..];
         }
     }
     Ok(result)
 }
 
-fn image(source: &str) -> Option<(&str, &str, &str, &str)> {
-    let start = source.find("![")?;
-    let rest = &source[start + 2..];
+fn next_inline_start(source: &str) -> Option<usize> {
+    ["![", "[", "`", "~", "*", "/", "_", "=", "{+", "{-"]
+        .iter()
+        .filter_map(|marker| source.find(marker))
+        .min()
+}
+
+fn inline_at_start(source: &str) -> Result<Option<(RichInline, &str)>, RichDocumentError> {
+    if let Some((alt, path, after)) = image_at_start(source) {
+        return Ok(Some((
+            RichInline::Image {
+                alt: alt.to_owned(),
+                path: path.to_owned(),
+            },
+            after,
+        )));
+    }
+    if let Some((text, destination, after)) = link_at_start(source) {
+        return Ok(Some((
+            RichInline::Link {
+                text: text.to_owned(),
+                destination: destination.to_owned(),
+            },
+            after,
+        )));
+    }
+    if let Some((text, attributes, after)) = attribute_at_start(source) {
+        return Ok(Some((
+            RichInline::Attribute {
+                text: text.to_owned(),
+                attributes: attributes.to_owned(),
+            },
+            after,
+        )));
+    }
+    if let Some((content, after)) = delimited_at_start(source, "`") {
+        return Ok(Some((RichInline::Code(content.to_owned()), after)));
+    }
+    for (opening, closing, wrap) in [
+        (
+            "{-",
+            "-}",
+            RichInline::Deleted as fn(Vec<RichInline>) -> RichInline,
+        ),
+        ("{+", "+}", RichInline::Inserted),
+        ("~", "~", RichInline::Strike),
+        ("*", "*", RichInline::Bold),
+        ("/", "/", RichInline::Italic),
+        ("_", "_", RichInline::Underline),
+        ("=", "=", RichInline::Highlight),
+    ] {
+        if let Some((content, after)) = delimited_at_start_with_closing(source, opening, closing) {
+            return Ok(Some((wrap(inline(content)?), after)));
+        }
+    }
+    Ok(None)
+}
+
+fn image_at_start(source: &str) -> Option<(&str, &str, &str)> {
+    let rest = source.strip_prefix("![")?;
     let close_alt = rest.find("](")?;
     let close_path = rest[close_alt + 2..].find(')')?;
     let path_start = close_alt + 2;
     let path_end = path_start + close_path;
     Some((
-        &source[..start],
         &rest[..close_alt],
         &rest[path_start..path_end],
         &rest[path_end + 1..],
     ))
 }
 
-fn link(source: &str) -> Option<(&str, &str, &str, &str)> {
-    let start = source.find('[')?;
-    if source[..start].ends_with('!') {
-        return None;
-    }
-    let rest = &source[start + 1..];
+fn link_at_start(source: &str) -> Option<(&str, &str, &str)> {
+    let rest = source.strip_prefix('[')?;
     let close_text = rest.find("](")?;
     let close_destination = rest[close_text + 2..].find(')')?;
     let destination_start = close_text + 2;
     let destination_end = destination_start + close_destination;
     Some((
-        &source[..start],
         &rest[..close_text],
         &rest[destination_start..destination_end],
         &rest[destination_end + 1..],
     ))
 }
 
-fn delimited<'a>(source: &'a str, delimiter: &str) -> Option<(&'a str, &'a str, &'a str)> {
-    let start = source.find(delimiter)?;
-    let rest = &source[start + delimiter.len()..];
-    let end = rest.find(delimiter)?;
+fn attribute_at_start(source: &str) -> Option<(&str, &str, &str)> {
+    let rest = source.strip_prefix('[')?;
+    let text_end = rest.find("]{")?;
+    let attributes = &rest[text_end + 2..];
+    let attributes_end = attributes.find('}')?;
     Some((
-        &source[..start],
-        &rest[..end],
-        &rest[end + delimiter.len()..],
+        &rest[..text_end],
+        &attributes[..attributes_end],
+        &attributes[attributes_end + 1..],
     ))
+}
+
+fn delimited_at_start<'a>(source: &'a str, delimiter: &str) -> Option<(&'a str, &'a str)> {
+    delimited_at_start_with_closing(source, delimiter, delimiter)
+}
+
+fn delimited_at_start_with_closing<'a>(
+    source: &'a str,
+    opening: &str,
+    closing: &str,
+) -> Option<(&'a str, &'a str)> {
+    let rest = source.strip_prefix(opening)?;
+    let end = rest.find(closing)?;
+    Some((&rest[..end], &rest[end + closing.len()..]))
 }
 
 fn push_text(target: &mut Vec<RichInline>, text: &str) {
@@ -296,7 +391,10 @@ fn block_source(block: &RichBlock) -> String {
             },
             inline_source(content)
         ),
-        RichBlock::CodeBlock(content) => format!("```\n{content}\n```"),
+        RichBlock::CodeBlock { language, content } => format!(
+            "```{}\n{content}\n```",
+            language.as_deref().unwrap_or_default()
+        ),
         RichBlock::Quote(content) => format!("> {}", inline_source(content)),
         RichBlock::Rule => "---".to_owned(),
     }
@@ -310,8 +408,13 @@ fn inline_source(content: &[RichInline]) -> String {
             RichInline::Bold(nodes) => format!("*{}*", inline_source(nodes)),
             RichInline::Italic(nodes) => format!("/{} /", inline_source(nodes)).replace(" /", "/"),
             RichInline::Strike(nodes) => format!("~{}~", inline_source(nodes)),
+            RichInline::Underline(nodes) => format!("_{}_", inline_source(nodes)),
+            RichInline::Highlight(nodes) => format!("={}=", inline_source(nodes)),
+            RichInline::Inserted(nodes) => format!("{{+{}+}}", inline_source(nodes)),
+            RichInline::Deleted(nodes) => format!("{{-{}-}}", inline_source(nodes)),
             RichInline::Code(text) => format!("`{text}`"),
             RichInline::Link { text, destination } => format!("[{text}]({destination})"),
+            RichInline::Attribute { text, attributes } => format!("[{text}]{{{attributes}}}"),
             RichInline::Image { alt, path } => format!("![{alt}]({path})"),
         })
         .collect()
@@ -342,8 +445,30 @@ mod tests {
     fn parses_common_inline_formatting() {
         let document = parse_carve("`code` ~strike~ [link](https://example.test)")
             .unwrap_or_else(|error| panic!("parse failed: {error}"));
-        assert_eq!(serialize_carve(&document), "`code` ~strike~ [link](https://example.test)");
+        assert_eq!(
+            serialize_carve(&document),
+            "`code` ~strike~ [link](https://example.test)"
+        );
     }
+
+    #[test]
+    fn parses_the_documented_wysiwyg_subset_without_losing_source() {
+        let source = "# Carve WYSIWYG Demo\n\nThis is a *WYSIWYG editor* that outputs /Carve markup/.\n\n## Inline marks\n\n- *Strong* → `*text*`\n- /Emphasis/ → `/text/`\n- _Underline_ → `_text_`\n- =Highlight= → `=text=`\n- ~Strike~ → `~text~`\n- {+Inserted+} → `{+text+}`\n- {-Deleted-} → `{-text-}`\n- [HTML]{abbr=\"HyperText Markup Language\"} → `[HTML]{abbr=\"...\"}`\n\n## Task list\n\n- [x] Task lists round-trip to `- [x]`\n- [ ] Toggle the checkbox and watch the source\n\n> Edit the content and watch the Carve source below.\n\n```php\necho \"Hello, Carve!\";\n```";
+        let document = parse_carve(source).unwrap_or_else(|error| panic!("parse failed: {error}"));
+        assert_eq!(serialize_carve(&document), source);
+        assert!(matches!(
+            document.blocks.last(),
+            Some(RichBlock::CodeBlock { language: Some(language), .. }) if language == "php"
+        ));
+    }
+
+    #[test]
+    fn preserves_empty_and_trailing_paragraph_breaks() {
+        let source = "First paragraph\n\nSecond paragraph\n";
+        let document = parse_carve(source).unwrap_or_else(|error| panic!("parse failed: {error}"));
+        assert_eq!(serialize_carve(&document), source);
+    }
+
     #[test]
     fn protects_tables_from_lossy_rich_editing() {
         assert_eq!(

@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use adw::prelude::*;
 use carver_sdk::{TrashedCategorySummary, TrashedNoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -115,33 +116,20 @@ fn connect_empty_action(
     let state_for_empty = Rc::clone(state);
     let toast_for_empty = toast_overlay.clone();
     button.connect_clicked(move |button| {
-        let dialog = gtk::Dialog::builder()
-            .modal(true)
-            .title("Empty Trash?")
-            .build();
-        if let Some(parent) = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok())
-        {
-            dialog.set_transient_for(Some(&parent));
-        }
-        dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-        let empty_button = dialog.add_button("Empty Trash", gtk::ResponseType::Accept);
-        empty_button.add_css_class("destructive-action");
-        let warning = gtk::Label::new(Some(
+        let dialog = adw::AlertDialog::new(
+            Some("Empty Trash?"),
+            Some(
             "All trashed notes, categories, and unreferenced images will be permanently deleted.",
-        ));
-        warning.set_wrap(true);
-        warning.set_xalign(0.0);
-        warning.set_margin_start(18);
-        warning.set_margin_end(18);
-        warning.set_margin_top(12);
-        warning.set_margin_bottom(12);
-        dialog.content_area().append(&warning);
+            ),
+        );
+        dialog.add_responses(&[("cancel", "Cancel"), ("empty", "Empty Trash")]);
+        dialog.set_response_appearance("empty", adw::ResponseAppearance::Destructive);
+        dialog.set_default_response(Some("cancel"));
+        dialog.set_close_response("cancel");
         let state = Rc::clone(&state_for_empty);
         let toast = toast_for_empty.clone();
-        dialog.connect_response(move |dialog, response| {
-            if response == gtk::ResponseType::Accept {
+        dialog.connect_response(None, move |_dialog, response| {
+            if response == "empty" {
                 match state.client.empty_trash() {
                     Ok(_) => {
                         refresh_sidebar(&state);
@@ -155,9 +143,8 @@ fn connect_empty_action(
                     }
                 }
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(button.root().as_ref());
     });
 }
 

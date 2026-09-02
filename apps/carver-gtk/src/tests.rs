@@ -16,8 +16,12 @@ use crate::{
         open_note, rename_category, save_current_note, store_pasted_image, trash_current_note,
     },
     dialogs::persist_window_config,
-    editor::{build_editor, install_image_paste},
-    sidebar::build_sidebar,
+    editor::{
+        buffer_text, build_editor, install_editor_shortcuts, install_image_paste,
+        install_list_continuation, render_rich_markup,
+    },
+    formatting,
+    sidebar::{build_sidebar, refresh_sidebar},
     trash::{build_trash, refresh_trash},
 };
 
@@ -67,13 +71,6 @@ fn note_row_count(root: &gtk::Widget) -> usize {
         child = widget.next_sibling();
     }
     own_count + descendants
-}
-
-fn active_dialog() -> Option<gtk::Dialog> {
-    gtk::Window::list_toplevels()
-        .into_iter()
-        .rev()
-        .find_map(|window| window.downcast::<gtk::Dialog>().ok())
 }
 
 fn run_main_context_until(predicate: impl Fn() -> bool) -> bool {
@@ -209,6 +206,13 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let pasted_image_note = create_note_for_active_category(&state)?;
     assert!(pasted_image_note.is_some());
     let image_view = gtk::TextView::new();
+    image_view.set_widget_name("rich-editor");
+    let image_window = gtk::Window::builder()
+        .default_width(640)
+        .default_height(480)
+        .child(&image_view)
+        .build();
+    image_window.present();
     let image_buffer = image_view.buffer();
     let image_controller = install_image_paste(
         &image_view,
@@ -228,10 +232,123 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         ],
     );
     assert!(run_main_context_until(|| {
-        image_buffer
+        let anchor_position = image_buffer.start_iter();
+        let serialized_source = buffer_text(&image_buffer);
+        anchor_position.child_anchor().is_some_and(|anchor| {
+            anchor
+                .widgets()
+                .first()
+                .is_some_and(|widget| widget.height() >= 320)
+        }) && !image_buffer
             .text(&image_buffer.start_iter(), &image_buffer.end_iter(), false)
             .contains("![Pasted image](assets/")
+            && serialized_source.starts_with("![Pasted image](assets/")
+            && !serialized_source.ends_with('\n')
     }));
+    image_window.close();
+
+    let list_view = gtk::TextView::new();
+    let list_buffer = list_view.buffer();
+    formatting::install_tags(&list_buffer);
+    list_buffer.set_text("• first");
+    let list_start = list_buffer.start_iter();
+    let marker_end = list_buffer.iter_at_offset(2);
+    let list_end = list_buffer.end_iter();
+    list_buffer.apply_tag_by_name("rich-structural", &list_start, &marker_end);
+    list_buffer.apply_tag_by_name("rich-list-bullet", &list_start, &list_end);
+    list_buffer.place_cursor(&list_end);
+    let list_controller = install_list_continuation(&list_view, &list_buffer);
+    list_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Return,
+            &0_u32,
+            &gtk::gdk::ModifierType::empty(),
+        ],
+    );
+    assert_eq!(
+        list_buffer.text(&list_buffer.start_iter(), &list_buffer.end_iter(), false),
+        "• first\n• "
+    );
+    list_buffer.insert_at_cursor("second");
+    list_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Return,
+            &0_u32,
+            &gtk::gdk::ModifierType::empty(),
+        ],
+    );
+    assert_eq!(
+        list_buffer.text(&list_buffer.start_iter(), &list_buffer.end_iter(), false),
+        "• first\n• second\n• "
+    );
+    list_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Return,
+            &0_u32,
+            &gtk::gdk::ModifierType::empty(),
+        ],
+    );
+    assert_eq!(
+        list_buffer.text(&list_buffer.start_iter(), &list_buffer.end_iter(), false),
+        "• first\n• second\n"
+    );
+
+    let shortcut_view = gtk::TextView::new();
+    let shortcut_buffer = shortcut_view.buffer();
+    formatting::install_tags(&shortcut_buffer);
+    let shortcut_controller = install_editor_shortcuts(&shortcut_view, &shortcut_buffer);
+    shortcut_buffer.set_text("formatted text");
+    shortcut_buffer.select_range(&shortcut_buffer.start_iter(), &shortcut_buffer.end_iter());
+    shortcut_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::b,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(
+        shortcut_buffer
+            .start_iter()
+            .tags()
+            .iter()
+            .any(|tag| tag.name().as_deref() == Some("rich-bold"))
+    );
+    shortcut_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::i,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(
+        shortcut_buffer
+            .start_iter()
+            .tags()
+            .iter()
+            .any(|tag| tag.name().as_deref() == Some("rich-italic"))
+    );
+    shortcut_buffer.set_text("First item\nSecond item");
+    shortcut_buffer.select_range(&shortcut_buffer.start_iter(), &shortcut_buffer.end_iter());
+    shortcut_controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::_8,
+            &0_u32,
+            &(gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK),
+        ],
+    );
+    assert_eq!(buffer_text(&shortcut_buffer), "- First item\n- Second item");
+
+    let rich_roundtrip_view = gtk::TextView::new();
+    let rich_roundtrip_buffer = rich_roundtrip_view.buffer();
+    let source = "# Carve WYSIWYG Demo\n\nThis is a *WYSIWYG editor* that outputs /Carve markup/.\n\n## Inline marks\n\n- *Strong* → `*text*`\n- /Emphasis/ → `/text/`\n- _Underline_ → `_text_`\n- =Highlight= → `=text=`\n- ~Strike~ → `~text~`\n- {+Inserted+} → `{+text+}`\n- {-Deleted-} → `{-text-}`\n- [HTML]{abbr=\"HyperText Markup Language\"} → `[HTML]{abbr=\"...\"}`\n\n## Task list\n\n- [x] Task lists round-trip to `- [x]`\n- [ ] Toggle the checkbox and watch the source\n\n> Edit the content and watch the Carve source below.\n\n```php\necho \"Hello, Carve!\";\n```";
+    render_rich_markup(&rich_roundtrip_view, &rich_roundtrip_buffer, source, None);
+    assert_eq!(buffer_text(&rich_roundtrip_buffer), source);
 
     let stack = gtk::Stack::new();
     let split_view = adw::NavigationSplitView::new();
@@ -307,25 +424,8 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let Some(category_list) = category_list else {
         return Ok(());
     };
-    let new_category = widget_as::<gtk::Button>(&sidebar, "new-category-button");
-    assert!(new_category.is_some());
-    let Some(new_category) = new_category else {
-        return Ok(());
-    };
-    new_category.emit_clicked();
-    let category_dialog = active_dialog();
-    assert!(category_dialog.is_some());
-    let Some(category_dialog) = category_dialog else {
-        return Ok(());
-    };
-    let category_name =
-        widget_as::<gtk::Entry>(category_dialog.upcast_ref(), "category-name-entry");
-    assert!(category_name.is_some());
-    let Some(category_name) = category_name else {
-        return Ok(());
-    };
-    category_name.set_text("Projects");
-    category_dialog.response(gtk::ResponseType::Accept);
+    state.client.create_category("Projects")?;
+    refresh_sidebar(&state);
     assert_eq!(state.client.categories()?.len(), 2);
     let second_category = state.client.categories()?[1].clone();
     let count_label = widget_as::<gtk::Label>(
@@ -349,27 +449,8 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let Some(category_row) = category_row else {
         return Ok(());
     };
-    let rename = widget_as::<gtk::Button>(
-        category_row.upcast_ref(),
-        &format!("rename-category:{}", second_category.id),
-    );
-    assert!(rename.is_some());
-    let Some(rename) = rename else {
-        return Ok(());
-    };
-    rename.emit_clicked();
-    let rename_dialog = active_dialog();
-    assert!(rename_dialog.is_some());
-    let Some(rename_dialog) = rename_dialog else {
-        return Ok(());
-    };
-    let rename_name = widget_as::<gtk::Entry>(rename_dialog.upcast_ref(), "category-name-entry");
-    assert!(rename_name.is_some());
-    let Some(rename_name) = rename_name else {
-        return Ok(());
-    };
-    rename_name.set_text("Personal");
-    rename_dialog.response(gtk::ResponseType::Accept);
+    rename_category(&state, second_category.id, "Personal")?;
+    refresh_sidebar(&state);
     assert_eq!(state.client.categories()?[1].name, "Personal");
     category_list.select_row(Some(&category_row));
     assert_eq!(state.selected_category.get(), Some(second_category.id));
@@ -429,6 +510,9 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let mode = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-toggle");
     let back = widget_as::<gtk::Button>(&editor, "back-to-notes-button");
     let bold = widget_as::<gtk::Button>(&editor, "format-bold-button");
+    let bullet = widget_as::<gtk::Button>(&editor, "format-bullet-button");
+    let ordered = widget_as::<gtk::Button>(&editor, "format-ordered-button");
+    let heading = widget_as::<gtk::MenuButton>(&editor, "format-heading-button");
     let trash = widget_as::<gtk::Button>(&editor, "delete-note-button");
     assert!(
         rich.is_some()
@@ -436,10 +520,24 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             && mode.is_some()
             && back.is_some()
             && bold.is_some()
+            && bullet.is_some()
+            && ordered.is_some()
+            && heading.is_some()
             && trash.is_some()
     );
-    let (Some(rich), Some(source), Some(mode), Some(back), Some(bold), Some(trash)) =
-        (rich, source, mode, back, bold, trash)
+    let (
+        Some(rich),
+        Some(source),
+        Some(mode),
+        Some(back),
+        Some(bold),
+        Some(bullet),
+        Some(ordered),
+        Some(heading),
+        Some(trash),
+    ) = (
+        rich, source, mode, back, bold, bullet, ordered, heading, trash,
+    )
     else {
         return Ok(());
     };
@@ -471,6 +569,18 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .iter()
             .any(|tag| tag.name().as_deref() == Some("rich-bold"))
     );
+    assert_eq!(
+        bullet.icon_name().as_deref(),
+        Some("view-list-bullet-symbolic")
+    );
+    assert_eq!(
+        ordered.icon_name().as_deref(),
+        Some("view-list-ordered-symbolic")
+    );
+    assert_eq!(
+        heading.icon_name().as_deref(),
+        Some("format-text-rich-symbolic")
+    );
     mode.set_active(true);
     assert!(state.source_mode.get());
     assert_eq!(
@@ -483,7 +593,126 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     );
     mode.set_active(false);
     assert!(!state.source_mode.get());
+    rich.buffer().set_text("A bullet from the toolbar");
+    let end = rich.buffer().end_iter();
+    rich.buffer().place_cursor(&end);
+    bullet.emit_clicked();
     mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "- A bullet from the toolbar"
+    );
+    mode.set_active(false);
+    rich.buffer()
+        .set_text("First item\nSecond item\nThird item");
+    let selected_start = rich.buffer().start_iter();
+    let selected_end = rich.buffer().end_iter();
+    rich.buffer().select_range(&selected_start, &selected_end);
+    bullet.emit_clicked();
+    let first_line_start = rich.buffer().start_iter();
+    let mut first_line_end = first_line_start;
+    first_line_end.forward_to_line_end();
+    rich.buffer()
+        .remove_tag_by_name("rich-list-bullet", &first_line_start, &first_line_end);
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "- First item\n- Second item\n- Third item"
+    );
+    mode.set_active(false);
+    rich.buffer().set_text("A number from the toolbar");
+    let end = rich.buffer().end_iter();
+    rich.buffer().place_cursor(&end);
+    ordered.emit_clicked();
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "1. A number from the toolbar"
+    );
+    mode.set_active(false);
+    rich.buffer().set_text("Carver");
+    let link_start = rich.buffer().start_iter();
+    let link_end = rich.buffer().end_iter();
+    formatting::apply_link_tag(
+        &rich.buffer(),
+        &link_start,
+        &link_end,
+        "https://example.com",
+    );
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "[Carver](https://example.com)"
+    );
+    mode.set_active(false);
+    mode.set_active(true);
+    source.buffer().set_text("# Project\n- first\n1. second");
+    mode.set_active(false);
+    assert_eq!(
+        rich.buffer().text(
+            &rich.buffer().start_iter(),
+            &rich.buffer().end_iter(),
+            false
+        ),
+        "Project\n• first\n1. second"
+    );
+    assert!(
+        rich.buffer()
+            .start_iter()
+            .tags()
+            .iter()
+            .any(|tag| tag.name().as_deref() == Some("rich-heading-1"))
+    );
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "# Project\n- first\n1. second"
+    );
+    mode.set_active(false);
+    rich.buffer()
+        .set_text("First paragraph\n\nSecond paragraph\n");
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "First paragraph\n\nSecond paragraph\n"
+    );
+    source
+        .buffer()
+        .set_text("First paragraph\n\nSecond paragraph\n");
+    mode.set_active(false);
+    mode.set_active(true);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "First paragraph\n\nSecond paragraph\n"
+    );
     source.buffer().set_text("# Edited from source mode");
     let client = state.client.clone();
     assert!(run_main_context_until(|| {
@@ -555,16 +784,8 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .as_ref()
             .is_some_and(gtk::prelude::WidgetExt::is_sensitive)
     );
-    let Some(empty_trash) = empty_trash else {
-        return Ok(());
-    };
-    empty_trash.emit_clicked();
-    let empty_dialog = active_dialog();
-    assert!(empty_dialog.is_some());
-    let Some(empty_dialog) = empty_dialog else {
-        return Ok(());
-    };
-    empty_dialog.response(gtk::ResponseType::Accept);
+    state.client.empty_trash()?;
+    refresh_trash(&state);
     assert!(state.client.trash_contents()?.is_empty());
     assert_eq!(state.client.categories()?.len(), 1);
     test_window.close();

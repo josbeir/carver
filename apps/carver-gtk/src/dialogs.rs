@@ -2,6 +2,7 @@
 
 use std::{path::Path, rc::Rc};
 
+use adw::prelude::*;
 use carver_config::{ConfigError, save};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -39,63 +40,60 @@ fn show_preferences_dialog(
     config_path: &Path,
 ) {
     let config = state.config.borrow().clone();
-    let dialog = gtk::Dialog::builder()
-        .modal(true)
-        .title("Preferences")
-        .default_width(420)
-        .build();
-    dialog.set_transient_for(Some(parent));
-    dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-    dialog.add_button("Save", gtk::ResponseType::Accept);
-    dialog.set_default_response(gtk::ResponseType::Accept);
-    let content = dialog.content_area();
-    content.set_spacing(12);
-    content.set_margin_start(18);
-    content.set_margin_end(18);
-    content.set_margin_top(12);
-    content.set_margin_bottom(12);
+    let dialog = adw::PreferencesDialog::new();
+    dialog.set_search_enabled(false);
+    let page = adw::PreferencesPage::new();
+    page.set_title("Editor");
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Editing");
 
-    let remote_images = gtk::CheckButton::with_label("Load remote images automatically");
+    let remote_images = adw::SwitchRow::new();
+    remote_images.set_title("Load remote images automatically");
     remote_images.set_active(config.images.load_remote_automatically);
-    content.append(&remote_images);
-    let autosave_row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    let autosave_label = gtk::Label::new(Some("Autosave delay (milliseconds)"));
-    autosave_label.set_hexpand(true);
-    autosave_label.set_xalign(0.0);
+    group.add(&remote_images);
+
+    let autosave_row = adw::ActionRow::new();
+    autosave_row.set_title("Autosave delay");
+    autosave_row.set_subtitle("Milliseconds before changes are saved");
     let autosave = gtk::SpinButton::with_range(100.0, 10_000.0, 100.0);
     let initial_delay = u32::try_from(config.editor.autosave_delay_ms.clamp(100, 10_000))
         .map_or(10_000.0, f64::from);
     autosave.set_value(initial_delay);
-    autosave_row.append(&autosave_label);
-    autosave_row.append(&autosave);
-    content.append(&autosave_row);
+    autosave_row.add_suffix(&autosave);
+    group.add(&autosave_row);
+    page.add(&group);
+    dialog.add(&page);
 
-    let state_for_response = Rc::clone(state);
-    let path_for_response = config_path.to_owned();
-    dialog.connect_response(move |dialog, response| {
-        if response == gtk::ResponseType::Accept {
-            let mut config = state_for_response.config.borrow().clone();
-            config.images.load_remote_automatically = remote_images.is_active();
-            config.editor.autosave_delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
-            if save(&path_for_response, &config).is_ok() {
-                state_for_response.config.replace(config);
-            }
+    let state_for_images = Rc::clone(state);
+    let path_for_images = config_path.to_owned();
+    remote_images.connect_active_notify(move |remote_images| {
+        let mut updated = state_for_images.config.borrow().clone();
+        updated.images.load_remote_automatically = remote_images.is_active();
+        if save(&path_for_images, &updated).is_ok() {
+            state_for_images.config.replace(updated);
         }
-        dialog.close();
     });
-    dialog.present();
+    let state_for_delay = Rc::clone(state);
+    let path_for_delay = config_path.to_owned();
+    autosave.connect_value_changed(move |autosave| {
+        let mut updated = state_for_delay.config.borrow().clone();
+        updated.editor.autosave_delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
+        if save(&path_for_delay, &updated).is_ok() {
+            state_for_delay.config.replace(updated);
+        }
+    });
+    dialog.present(Some(parent));
 }
 
 fn show_about_window(parent: &adw::ApplicationWindow) {
-    let about = adw::AboutWindow::builder()
+    let about = adw::AboutDialog::builder()
         .application_name("Carver")
         .version(env!("CARGO_PKG_VERSION"))
         .developer_name("Carver contributors")
         .comments("A native GNOME notebook for Carve markup.")
         .license_type(gtk::License::MitX11)
         .build();
-    about.set_transient_for(Some(parent));
-    about.present();
+    about.present(Some(parent));
 }
 
 /// Saves window geometry supplied by the close-request interaction.
@@ -120,41 +118,29 @@ pub(crate) fn show_category_name_dialog(
     initial_name: &str,
     on_submit: impl Fn(String) + 'static,
 ) {
-    let dialog = gtk::Dialog::builder()
-        .modal(true)
-        .title(title)
-        .default_width(360)
-        .build();
-    if let Some(parent) = parent {
-        dialog.set_transient_for(Some(parent));
-    }
-    dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-    let save_button = dialog.add_button("Save", gtk::ResponseType::Accept);
-    dialog.set_default_response(gtk::ResponseType::Accept);
-    let content = dialog.content_area();
-    content.set_margin_start(18);
-    content.set_margin_end(18);
-    content.set_margin_top(12);
-    content.set_margin_bottom(12);
     let entry = gtk::Entry::new();
     entry.set_widget_name("category-name-entry");
     entry.set_text(initial_name);
-    entry.set_activates_default(true);
     entry.set_placeholder_text(Some("Category name"));
-    save_button.set_sensitive(!initial_name.trim().is_empty());
-    let save_for_entry = save_button.clone();
+    let dialog = adw::AlertDialog::builder()
+        .heading(title)
+        .extra_child(&entry)
+        .default_response("save")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("save", "Save")]);
+    dialog.set_response_enabled("save", !initial_name.trim().is_empty());
+    let dialog_for_entry = dialog.clone();
     entry.connect_changed(move |entry| {
-        save_for_entry.set_sensitive(!entry.text().trim().is_empty());
+        dialog_for_entry.set_response_enabled("save", !entry.text().trim().is_empty());
     });
-    content.append(&entry);
-    dialog.connect_response(move |dialog, response| {
-        if response == gtk::ResponseType::Accept {
+    dialog.connect_response(None, move |_dialog, response| {
+        if response == "save" {
             let name = entry.text().trim().to_owned();
             if !name.is_empty() {
                 on_submit(name);
             }
         }
-        dialog.close();
     });
-    dialog.present();
+    dialog.present(parent);
 }
