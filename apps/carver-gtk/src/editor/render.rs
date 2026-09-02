@@ -229,10 +229,13 @@ fn render_image(
         let Ok(texture) = gtk::gdk::Texture::from_bytes(&glib::Bytes::from_owned(bytes)) else {
             return;
         };
-        let picture = gtk::Picture::for_paintable(&texture);
-        picture.set_can_shrink(true);
-        picture.set_content_fit(gtk::ContentFit::Contain);
-        picture.set_size_request(480, 320);
+        // A mode change can hide this TextView while its asset request is in
+        // flight. Anchoring a child into that unallocated view triggers GTK's
+        // GtkGizmo snapshot warning and leaves a stale image widget behind.
+        if !view.is_mapped() || !view.is_child_visible() || view.width() == 0 {
+            return;
+        }
+        let picture = responsive_picture(&view, &texture);
         view.add_child_at_anchor(&picture, &anchor);
     });
     let mut cursor = buffer.iter_at_offset(start_offset + 1);
@@ -250,6 +253,82 @@ fn append_image_break(buffer: &gtk::TextBuffer, cursor: &mut gtk::TextIter) {
     let break_end = buffer.iter_at_offset(cursor.offset());
     let break_start = buffer.iter_at_offset(break_start);
     buffer.apply_tag_by_name("rich-image-break", &break_start, &break_end);
+}
+
+/// Creates an anchored editor image that is bounded by the text-view viewport.
+fn responsive_picture(view: &gtk::TextView, texture: &gtk::gdk::Texture) -> gtk::Picture {
+    const HORIZONTAL_GUTTER: i32 = 48;
+    const FALLBACK_MAX_WIDTH: i32 = 480;
+
+    let picture = gtk::Picture::for_paintable(texture);
+    picture.set_can_shrink(true);
+    picture.set_content_fit(gtk::ContentFit::Contain);
+
+    let texture_width = texture.width();
+    let texture_height = texture.height();
+    resize_picture(
+        &picture,
+        texture_width,
+        texture_height,
+        available_image_width(view, FALLBACK_MAX_WIDTH),
+        HORIZONTAL_GUTTER,
+    );
+
+    if let Some(scroll) = view.parent().and_downcast::<gtk::ScrolledWindow>() {
+        let picture = glib::object::ObjectExt::downgrade(&picture);
+        scroll
+            .hadjustment()
+            .connect_page_size_notify(move |adjustment| {
+                let Some(picture) = picture.upgrade() else {
+                    return;
+                };
+                resize_picture(
+                    &picture,
+                    texture_width,
+                    texture_height,
+                    adjustment_width(adjustment),
+                    HORIZONTAL_GUTTER,
+                );
+            });
+    }
+    picture
+}
+
+fn available_image_width(view: &gtk::TextView, fallback: i32) -> i32 {
+    view.parent()
+        .and_downcast::<gtk::ScrolledWindow>()
+        .map(|scroll| adjustment_width(&scroll.hadjustment()))
+        .filter(|width| *width > 0)
+        .or_else(|| (view.width() > 0).then(|| view.width()))
+        .unwrap_or(fallback)
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "GtkAdjustment page sizes are non-negative pixel values, clamped to i32 first"
+)]
+fn adjustment_width(adjustment: &gtk::Adjustment) -> i32 {
+    adjustment
+        .page_size()
+        .round()
+        .clamp(0.0, f64::from(i32::MAX)) as i32
+}
+
+fn resize_picture(
+    picture: &gtk::Picture,
+    texture_width: i32,
+    texture_height: i32,
+    viewport_width: i32,
+    horizontal_gutter: i32,
+) {
+    let width = texture_width.min((viewport_width - horizontal_gutter).max(1));
+    let height = i64::from(texture_height)
+        .saturating_mul(i64::from(width))
+        .checked_div(i64::from(texture_width.max(1)))
+        .unwrap_or(1)
+        .max(1);
+    let height = i32::try_from(height).unwrap_or(i32::MAX);
+    picture.set_size_request(width, height);
 }
 
 /// Installs Ctrl+V image paste support on one editor view.
@@ -296,10 +375,7 @@ pub(crate) fn install_image_paste(
                             buffer.insert(&mut cursor, "\n");
                         }
                         let anchor = buffer.create_child_anchor(&mut cursor);
-                        let picture = gtk::Picture::for_paintable(&texture);
-                        picture.set_can_shrink(true);
-                        picture.set_content_fit(gtk::ContentFit::Contain);
-                        picture.set_size_request(480, 320);
+                        let picture = responsive_picture(&view, &texture);
                         view.add_child_at_anchor(&picture, &anchor);
                         let source_start_offset = cursor.offset();
                         let source = format!("![Pasted image]({path})");

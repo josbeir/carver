@@ -57,49 +57,28 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     );
     append_more_text_formatting(toolbar, buffer);
     append_heading_menu(toolbar, buffer);
-    append_block_button(
-        toolbar,
-        buffer,
-        "format-bullet-button",
-        "view-list-bullet-symbolic",
-        "Bulleted list (Ctrl+Shift+8)",
-        "rich-list-bullet",
-        "• ",
-    );
-    append_block_button(
-        toolbar,
-        buffer,
-        "format-ordered-button",
-        "view-list-ordered-symbolic",
-        "Numbered list (Ctrl+Shift+7)",
-        "rich-list-ordered",
-        "1. ",
-    );
-    append_block_button(
-        toolbar,
-        buffer,
-        "format-task-button",
-        "object-select-symbolic",
-        "Task list",
-        "rich-list-task",
-        "☐ ",
-    );
+    append_rich_list_controls(toolbar, buffer);
     append_tag_button(
         toolbar,
         buffer,
         "format-code-button",
-        "text-x-generic-symbolic",
+        "text-editor-symbolic",
         "Inline code",
         "rich-code",
     );
+    append_rich_code_block_button(toolbar, buffer);
     append_link_button(toolbar, buffer);
 }
 
 /// Appends the Carve-source equivalents of the native rich editor controls.
 pub(crate) fn append_source_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     append_source_inline_controls(toolbar, buffer);
+    append_more_source_formatting(toolbar, buffer);
     append_source_heading_menu(toolbar, buffer);
-    append_source_block_controls(toolbar, buffer);
+    append_source_list_controls(toolbar, buffer);
+    append_source_inline_code_button(toolbar, buffer);
+    append_source_code_block_button(toolbar, buffer);
+    append_source_link_button(toolbar, buffer);
 }
 
 fn append_source_inline_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
@@ -132,20 +111,12 @@ fn append_source_inline_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
             "_",
             "_",
         ),
-        (
-            "source-format-code-button",
-            "text-x-generic-symbolic",
-            "Inline code",
-            "`",
-            "`",
-        ),
     ] {
         let button = icon_button(name, icon, tooltip);
         let buffer = buffer.clone();
         button.connect_clicked(move |_| source_commands::toggle_inline(&buffer, opening, closing));
         toolbar.append(&button);
     }
-    append_more_source_formatting(toolbar, buffer);
 }
 
 /// Groups less-frequent marks because GNOME provides no symbolic icons for them.
@@ -226,7 +197,7 @@ fn append_source_heading_menu(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     toolbar.append(&heading);
 }
 
-fn append_source_block_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+fn append_source_list_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     for (name, icon, tooltip, prefix) in [
         (
             "source-format-bullet-button",
@@ -252,16 +223,31 @@ fn append_source_block_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
         button.connect_clicked(move |_| source_commands::toggle_list(&buffer, prefix));
         toolbar.append(&button);
     }
+}
 
+fn append_source_inline_code_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    let button = icon_button(
+        "source-format-code-button",
+        "text-editor-symbolic",
+        "Inline code",
+    );
+    let buffer = buffer.clone();
+    button.connect_clicked(move |_| source_commands::toggle_inline(&buffer, "`", "`"));
+    toolbar.append(&button);
+}
+
+fn append_source_code_block_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     let code_block = icon_button(
         "source-format-code-block-button",
-        "text-x-generic-symbolic",
+        "utilities-terminal-symbolic",
         "Code block",
     );
     let source = buffer.clone();
     code_block.connect_clicked(move |_| source_commands::toggle_code_block(&source));
     toolbar.append(&code_block);
+}
 
+fn append_source_link_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
     let link = icon_button(
         "source-format-link-button",
         "insert-link-symbolic",
@@ -556,10 +542,9 @@ pub(crate) fn apply_code_block_tag(
         && let Some(tag) = buffer.create_tag(Some(&name), &[])
     {
         tag.set_family(Some("monospace"));
-        tag.set_left_margin(12);
-        tag.set_right_margin(12);
-        tag.set_pixels_above_lines(8);
-        tag.set_pixels_below_lines(8);
+        // Code belongs to the surrounding paragraph rhythm, while its smaller
+        // monospace face and themed background keep it visually distinct.
+        tag.set_scale(0.9);
     }
     buffer.apply_tag_by_name(&name, start, end);
 }
@@ -673,6 +658,45 @@ fn append_tag_button(
     let buffer = buffer.clone();
     let tag_name = tag_name.to_owned();
     button.connect_clicked(move |_| toggle_tag_on_selection(&buffer, &tag_name));
+    toolbar.append(&button);
+}
+
+fn append_rich_list_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    for (name, icon, tooltip, tag_name, marker) in [
+        (
+            "format-bullet-button",
+            "view-list-bullet-symbolic",
+            "Bulleted list (Ctrl+Shift+8)",
+            "rich-list-bullet",
+            "• ",
+        ),
+        (
+            "format-ordered-button",
+            "view-list-ordered-symbolic",
+            "Numbered list (Ctrl+Shift+7)",
+            "rich-list-ordered",
+            "1. ",
+        ),
+        (
+            "format-task-button",
+            "object-select-symbolic",
+            "Task list",
+            "rich-list-task",
+            "☐ ",
+        ),
+    ] {
+        append_block_button(toolbar, buffer, name, icon, tooltip, tag_name, marker);
+    }
+}
+
+fn append_rich_code_block_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
+    let button = icon_button(
+        "format-code-block-button",
+        "utilities-terminal-symbolic",
+        "Code block",
+    );
+    let buffer = buffer.clone();
+    button.connect_clicked(move |_| toggle_selected_code_blocks(&buffer));
     toolbar.append(&button);
 }
 
@@ -828,6 +852,43 @@ fn remove_block_tags(buffer: &gtk::TextBuffer, start: &gtk::TextIter, end: &gtk:
     for tag in BLOCK_TAGS {
         buffer.remove_tag_by_name(tag, start, end);
     }
+    remove_code_block_tags(buffer, start, end);
+}
+
+fn remove_code_block_tags(buffer: &gtk::TextBuffer, start: &gtk::TextIter, end: &gtk::TextIter) {
+    buffer.tag_table().foreach(|tag| {
+        if tag
+            .name()
+            .as_deref()
+            .is_some_and(|name| name.starts_with("rich-code-block-"))
+        {
+            buffer.remove_tag(tag, start, end);
+        }
+    });
+}
+
+/// Toggles a fenced Carve code block for every line touched by the selection.
+fn toggle_selected_code_blocks(buffer: &gtk::TextBuffer) {
+    let (first_line, last_line) = selected_line_range(buffer);
+    let active = (first_line..=last_line).all(|line| {
+        buffer
+            .iter_at_line(line)
+            .is_some_and(|start| code_block_language(&start).is_some())
+    });
+
+    for line in first_line..=last_line {
+        let Some(mut start) = buffer.iter_at_line(line) else {
+            continue;
+        };
+        let mut end = start;
+        end.forward_to_line_end();
+        remove_block_tags(buffer, &start, &end);
+        remove_structural_prefix(buffer, &mut start, &mut end);
+        if !active {
+            apply_code_block_tag(buffer, &start, &end, None);
+        }
+    }
+    apply_theme_colors(buffer);
 }
 
 fn remove_structural_prefix(
@@ -852,14 +913,10 @@ fn remove_structural_prefix(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    #[test]
-    #[ignore = "requires a graphical display; CI runs it under Xvfb"]
-    fn restored_link_selection_replaces_instead_of_duplicating_text()
-    -> Result<(), Box<dyn std::error::Error>> {
-        gtk::init()?;
+    pub(crate) fn restored_link_selection_replaces_instead_of_duplicating_text() {
         let buffer = gtk::TextBuffer::new(None);
         buffer.set_text("Carver link");
         let start = buffer.start_iter();
@@ -876,6 +933,41 @@ mod tests {
             link_destination(&buffer.start_iter()).as_deref(),
             Some("https://carver.invalid")
         );
+    }
+
+    pub(crate) fn rich_code_block_command_serializes_as_fenced_carve() {
+        let buffer = gtk::TextBuffer::new(None);
+        install_tags(&buffer);
+        buffer.set_text("let answer = 42;");
+        let start = buffer.start_iter();
+        let end = buffer.end_iter();
+        buffer.select_range(&start, &end);
+
+        toggle_selected_code_blocks(&buffer);
+
+        assert_eq!(
+            crate::editor::buffer_text(&buffer),
+            "```\nlet answer = 42;\n```"
+        );
+    }
+
+    pub(crate) fn code_block_tag_uses_compact_type_and_line_spacing()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let buffer = gtk::TextBuffer::new(None);
+        buffer.set_text("first\nsecond");
+        let start = buffer.start_iter();
+        let end = buffer.end_iter();
+        apply_code_block_tag(&buffer, &start, &end, None);
+
+        let tag = buffer
+            .tag_table()
+            .lookup("rich-code-block-")
+            .ok_or("code block tag should be installed")?;
+
+        assert_eq!(tag.pixels_above_lines(), 0);
+        assert_eq!(tag.pixels_below_lines(), 0);
+        assert_eq!((tag.left_margin(), tag.right_margin()), (0, 0));
+        assert!((tag.scale() - 0.9).abs() < f64::EPSILON);
         Ok(())
     }
 

@@ -23,6 +23,7 @@ use crate::{
         install_list_continuation, install_source_shortcuts, render_rich_markup,
     },
     formatting,
+    note_move::{move_note_to_category, show_move_note_dialog},
     sidebar::{build_sidebar, refresh_sidebar},
     trash::{build_trash, refresh_trash},
 };
@@ -117,6 +118,14 @@ fn state_actions_create_open_and_save_notes_without_reentrant_borrows() -> TestR
     assert_eq!(
         reopened.as_ref().map(|note| note.source.as_str()),
         Some("# Regression note\nNo RefCell panic")
+    );
+    assert_eq!(
+        reopened.as_ref().map(|note| note.updated_at),
+        Some(saved.updated_at)
+    );
+    assert_eq!(
+        reopened.as_ref().map(|note| note.revision),
+        Some(saved.revision)
     );
     Ok(())
 }
@@ -252,6 +261,10 @@ fn source_split_preference_persists_to_toml() -> TestResult {
 #[expect(clippy::too_many_lines)]
 fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult {
     gtk::init()?;
+    formatting::tests::restored_link_selection_replaces_instead_of_duplicating_text();
+    formatting::tests::rich_code_block_command_serializes_as_fenced_carve();
+    formatting::tests::code_block_tag_uses_compact_type_and_line_spacing()?;
+    crate::editor::source_commands::graphical_commands_cover_editor_buffer_operations();
     let (_temporary_directory, state) = test_state()?;
     state.config.borrow_mut().editor.autosave_delay_ms = 1;
 
@@ -290,7 +303,13 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             anchor
                 .widgets()
                 .first()
-                .is_some_and(|widget| widget.height() >= 320)
+                .and_then(|widget| widget.downcast_ref::<gtk::Picture>())
+                .is_some_and(|picture| {
+                    picture.can_shrink()
+                        && picture.content_fit() == gtk::ContentFit::Contain
+                        && picture.width_request() == 1
+                        && picture.height_request() == 1
+                })
         }) && !image_buffer
             .text(&image_buffer.start_iter(), &image_buffer.end_iter(), false)
             .contains("![Pasted image](assets/")
@@ -423,7 +442,8 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
 
     let stack = gtk::Stack::new();
     let split_view = adw::NavigationSplitView::new();
-    let browser = build_browser(&state, &stack, &split_view);
+    let browser_toast_overlay = adw::ToastOverlay::new();
+    let browser = build_browser(&state, &stack, &split_view, &browser_toast_overlay);
     stack.add_named(&browser, Some("browser"));
     let editor_placeholder = gtk::Box::new(gtk::Orientation::Vertical, 0);
     stack.add_named(&editor_placeholder, Some("editor"));
@@ -473,6 +493,10 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     assert!(run_main_context_until(|| {
         find_widget(note_list.upcast_ref(), &format!("note:{}", created.id)).is_some()
     }));
+    assert!(
+        widget_as::<gtk::MenuButton>(note_list.upcast_ref(), &format!("note-menu:{}", created.id),)
+            .is_some()
+    );
     let created_row = find_widget(note_list.upcast_ref(), &format!("note:{}", created.id));
     assert!(created_row.is_some());
     let Some(created_row) = created_row else {
@@ -562,6 +586,79 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             format!("{active_note_count} notes")
         })
     );
+    let move_dialog = show_move_note_dialog(
+        &state,
+        created.id,
+        created.category_id,
+        &created.title,
+        &browser_toast_overlay,
+        Some(&test_window),
+    );
+    let move_search = widget_as::<gtk::SearchEntry>(move_dialog.upcast_ref(), "move-note-search");
+    let move_categories =
+        widget_as::<gtk::ListBox>(move_dialog.upcast_ref(), "move-note-category-list");
+    assert!(move_search.is_some() && move_categories.is_some());
+    let Some(move_search) = move_search else {
+        return Ok(());
+    };
+    let Some(move_categories) = move_categories else {
+        return Ok(());
+    };
+    assert!(run_main_context_until(|| move_categories
+        .first_child()
+        .is_some()));
+    move_search.set_text("does-not-exist");
+    move_search.emit_by_name::<()>("search-changed", &[]);
+    assert!(run_main_context_until(|| {
+        move_categories
+            .first_child()
+            .and_then(|row| row.downcast::<gtk::ListBoxRow>().ok())
+            .and_then(|row| row.child())
+            .and_then(|child| child.downcast::<gtk::Label>().ok())
+            .is_some_and(|label| label.text() == "No categories found")
+    }));
+    move_dialog.close();
+    let source_category = state.client.categories()?[0].clone();
+    move_note_to_category(
+        &state,
+        created.id,
+        source_category.id,
+        second_category.clone(),
+        &browser_toast_overlay,
+    );
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note(created.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.category_id == second_category.id)
+            && widget_as::<gtk::Label>(
+                category_list.upcast_ref(),
+                &format!("category-count:{}", second_category.id),
+            )
+            .is_some_and(|count| count.text() == "1 note")
+    }));
+    move_note_to_category(
+        &state,
+        created.id,
+        second_category.id,
+        source_category,
+        &browser_toast_overlay,
+    );
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note(created.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.category_id != second_category.id)
+            && widget_as::<gtk::Label>(
+                category_list.upcast_ref(),
+                &format!("category-count:{}", second_category.id),
+            )
+            .is_some_and(|count| count.text() == "0 notes")
+    }));
     rename_category(&state, second_category.id, "Personal")?;
     refresh_sidebar(&state);
     assert_eq!(state.client.categories()?[1].name, "Personal");
@@ -664,7 +761,7 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             )
             .is_some_and(|count| count.text() == "1 note")
     }));
-    state.current_note.replace(Some(created.clone()));
+    state.current_note.replace(state.client.note(created.id)?);
     state.client.trash_category(second_category.id)?;
     refresh_sidebar(&state);
     assert!(run_main_context_until(|| {
@@ -708,8 +805,12 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let bullet = widget_as::<gtk::Button>(&editor, "format-bullet-button");
     let ordered = widget_as::<gtk::Button>(&editor, "format-ordered-button");
     let heading = widget_as::<gtk::MenuButton>(&editor, "format-heading-button");
+    let rich_inline_code = widget_as::<gtk::Button>(&editor, "format-code-button");
     let source_bold = widget_as::<gtk::Button>(&editor, "source-format-bold-button");
     let source_bullet = widget_as::<gtk::Button>(&editor, "source-format-bullet-button");
+    let source_inline_code = widget_as::<gtk::Button>(&editor, "source-format-code-button");
+    let rich_code_block = widget_as::<gtk::Button>(&editor, "format-code-block-button");
+    let source_code_block = widget_as::<gtk::Button>(&editor, "source-format-code-block-button");
     let more_formatting = widget_as::<gtk::MenuButton>(&editor, "format-more-button");
     let source_more_formatting = widget_as::<gtk::MenuButton>(&editor, "source-format-more-button");
     let mode_switcher = widget_as::<gtk::Box>(&editor, "editor-mode-switcher");
@@ -729,8 +830,12 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             && bullet.is_some()
             && ordered.is_some()
             && heading.is_some()
+            && rich_inline_code.is_some()
             && source_bold.is_some()
             && source_bullet.is_some()
+            && source_inline_code.is_some()
+            && rich_code_block.is_some()
+            && source_code_block.is_some()
             && more_formatting.is_some()
             && source_more_formatting.is_some()
             && mode_switcher.is_some()
@@ -738,6 +843,34 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             && editor_toggle_categories.is_some()
             && split_preview.is_some()
             && trash.is_some()
+    );
+    assert_eq!(
+        rich_inline_code
+            .as_ref()
+            .and_then(gtk::prelude::ButtonExt::icon_name)
+            .as_deref(),
+        Some("text-editor-symbolic")
+    );
+    assert_eq!(
+        rich_code_block
+            .as_ref()
+            .and_then(gtk::prelude::ButtonExt::icon_name)
+            .as_deref(),
+        Some("utilities-terminal-symbolic")
+    );
+    assert_eq!(
+        source_inline_code
+            .as_ref()
+            .and_then(gtk::prelude::ButtonExt::icon_name)
+            .as_deref(),
+        Some("text-editor-symbolic")
+    );
+    assert_eq!(
+        source_code_block
+            .as_ref()
+            .and_then(gtk::prelude::ButtonExt::icon_name)
+            .as_deref(),
+        Some("utilities-terminal-symbolic")
     );
     let (
         Some(rich),
@@ -1090,6 +1223,18 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             .flatten()
             .is_some_and(|note| note.source == "# Edited from source mode")
     }));
+    assert!(run_main_context_until(|| {
+        state
+            .current_note
+            .borrow()
+            .as_ref()
+            .is_some_and(|note| note.source == "# Edited from source mode")
+    }));
+    let note_before_back = state.current_note.borrow().clone();
+    assert!(note_before_back.is_some());
+    let Some(note_before_back) = note_before_back else {
+        return Ok(());
+    };
     search.set_text("");
     search.emit_by_name::<()>("search-changed", &[]);
     back.emit_clicked();
@@ -1105,6 +1250,15 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     assert_eq!(
         state.client.note(created.id)?.map(|note| note.source),
         Some("# Edited from source mode".to_owned())
+    );
+    let note_after_back = state.client.note(created.id)?;
+    assert_eq!(
+        note_after_back.as_ref().map(|note| note.updated_at),
+        Some(note_before_back.updated_at)
+    );
+    assert_eq!(
+        note_after_back.as_ref().map(|note| note.revision),
+        Some(note_before_back.revision)
     );
     assert!(run_main_context_until(|| {
         find_widget(&browser, &format!("note-title:{}", created.id))

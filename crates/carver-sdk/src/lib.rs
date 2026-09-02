@@ -65,6 +65,13 @@ pub trait LibraryBackend: Send + 'static {
         source: &str,
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error>;
+    /// Moves an active note to an active category without changing its content timestamp.
+    fn move_note(
+        &self,
+        note_id: NoteId,
+        category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error>;
     /// Moves a note to trash at the supplied time.
     fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error>;
     /// Restores a note from trash.
@@ -238,6 +245,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
         .await
     }
 
+    /// Moves a note to an active category without blocking the caller.
+    pub async fn move_note_async(
+        &self,
+        note_id: NoteId,
+        category_id: CategoryId,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.move_note(note_id, category_id, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
     /// Moves a note to trash without blocking the caller.
     pub async fn trash_note_async(&self, note_id: NoteId) -> Result<(), LibraryError<B::Error>> {
         self.request(move |backend| backend.trash_note(note_id, OffsetDateTime::now_utc()))
@@ -363,6 +382,17 @@ impl<B: LibraryBackend> LibraryClient<B> {
         let source = source.to_owned();
         self.blocking(move |backend| {
             backend.save_note(note_id, revision, &source, OffsetDateTime::now_utc())
+        })
+    }
+
+    /// Moves a note synchronously for bootstrap code and tests.
+    pub fn move_note(
+        &self,
+        note_id: NoteId,
+        category_id: CategoryId,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.blocking(move |backend| {
+            backend.move_note(note_id, category_id, OffsetDateTime::now_utc())
         })
     }
 
@@ -584,6 +614,15 @@ mod tests {
             Self::unsupported()
         }
 
+        fn move_note(
+            &self,
+            _note_id: NoteId,
+            _category_id: CategoryId,
+            _now: OffsetDateTime,
+        ) -> Result<Note, Self::Error> {
+            Self::unsupported()
+        }
+
         fn trash_note(&self, _note_id: NoteId, _now: OffsetDateTime) -> Result<(), Self::Error> {
             Self::unsupported()
         }
@@ -672,6 +711,7 @@ mod tests {
             Revision(0),
             "Updated source".to_owned(),
         )));
+        assert_backend_error(&block_on(client.move_note_async(note_id, category_id)));
         assert_backend_error(&block_on(client.trash_note_async(note_id)));
         assert_backend_error(&block_on(client.restore_note_async(note_id)));
         assert_backend_error(&block_on(client.trash_contents_async()));

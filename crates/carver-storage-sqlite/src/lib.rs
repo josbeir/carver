@@ -46,6 +46,9 @@ pub enum StorageError {
     /// An optimistic save did not match the current note revision.
     #[error("note was changed by another session")]
     Conflict,
+    /// A note or destination category was missing or no longer active.
+    #[error("note or destination category is unavailable")]
+    MoveUnavailable,
 }
 
 impl SqliteLibrary {
@@ -246,6 +249,13 @@ impl SqliteLibrary {
         source: &str,
         now: OffsetDateTime,
     ) -> Result<Note, StorageError> {
+        let existing = self.note(note_id)?.ok_or(StorageError::Conflict)?;
+        if existing.revision != expected_revision || existing.trashed_at.is_some() {
+            return Err(StorageError::Conflict);
+        }
+        if existing.source == source {
+            return Ok(existing);
+        }
         let derived = derive_content(source);
         let affected = self.connection.execute(
             "UPDATE notes SET source = ?3, title = ?4, plain_text = ?5, revision = revision + 1, updated_at = ?6
@@ -258,6 +268,33 @@ impl SqliteLibrary {
         self.replace_fts(note_id, &derived)?;
         self.note(note_id)?
             .ok_or_else(|| StorageError::Corrupt("saved note was not found".to_owned()))
+    }
+
+    /// Moves an active note to an active category without changing its content timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note or destination category is unavailable, or the update
+    /// cannot be persisted.
+    pub fn move_note(
+        &self,
+        note_id: NoteId,
+        category_id: CategoryId,
+        _now: OffsetDateTime,
+    ) -> Result<Note, StorageError> {
+        let affected = self.connection.execute(
+            "UPDATE notes SET category_id = ?2, revision = revision + 1
+             WHERE id = ?1 AND trashed_at IS NULL
+               AND EXISTS (
+                   SELECT 1 FROM categories WHERE id = ?2 AND trashed_at IS NULL
+               )",
+            params![note_id.to_string(), category_id.to_string()],
+        )?;
+        if affected != 1 {
+            return Err(StorageError::MoveUnavailable);
+        }
+        self.note(note_id)?
+            .ok_or_else(|| StorageError::Corrupt("moved note was not found".to_owned()))
     }
 
     /// Lists recent notes, optionally restricted to one category.
@@ -650,6 +687,15 @@ impl LibraryBackend for SqliteLibrary {
         Self::save_note(self, note_id, revision, source, now)
     }
 
+    fn move_note(
+        &self,
+        note_id: NoteId,
+        category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::move_note(self, note_id, category_id, now)
+    }
+
     fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error> {
         Self::trash_note(self, note_id, now)
     }
@@ -864,6 +910,102 @@ mod tests {
             .unwrap_or_else(|error| panic!("search failed: {error}"));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].note.title, "Roadmap");
+    }
+
+    #[test]
+    fn saving_unchanged_source_preserves_the_note_timestamp_and_revision() {
+        let (_directory, library) = library();
+        let created_at = OffsetDateTime::UNIX_EPOCH;
+        let category = library
+            .create_category("Work", created_at)
+            .unwrap_or_else(|error| panic!("category failed: {error}"));
+        let note = library
+            .create_note(category.id, created_at)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        let edited_at = created_at + time::Duration::days(1);
+        let saved = library
+            .save_note(note.id, note.revision, "# Keep", edited_at)
+            .unwrap_or_else(|error| panic!("save failed: {error}"));
+
+        let unchanged = library
+            .save_note(
+                saved.id,
+                saved.revision,
+                &saved.source,
+                edited_at + time::Duration::days(1),
+            )
+            .unwrap_or_else(|error| panic!("unchanged save failed: {error}"));
+
+        assert_eq!(unchanged.updated_at, saved.updated_at);
+        assert_eq!(unchanged.revision, saved.revision);
+    }
+
+    #[test]
+    fn moving_a_note_preserves_content_and_its_recent_position() {
+        let (_directory, library) = library();
+        let created_at = OffsetDateTime::now_utc() - time::Duration::days(1);
+        let source_category = library
+            .create_category("Source", created_at)
+            .unwrap_or_else(|error| panic!("source category failed: {error}"));
+        let destination_category = library
+            .create_category("Destination", created_at)
+            .unwrap_or_else(|error| panic!("destination category failed: {error}"));
+        let note = library
+            .create_note(source_category.id, created_at)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        let saved = library
+            .save_note(note.id, note.revision, "# Keep this content", created_at)
+            .unwrap_or_else(|error| panic!("save failed: {error}"));
+        let asset = library
+            .store_asset(saved.id, "png", b"asset")
+            .unwrap_or_else(|error| panic!("asset failed: {error}"));
+
+        let moved = library
+            .move_note(saved.id, destination_category.id, OffsetDateTime::now_utc())
+            .unwrap_or_else(|error| panic!("move failed: {error}"));
+
+        assert_eq!(moved.category_id, destination_category.id);
+        assert_eq!(moved.source, saved.source);
+        assert_eq!(moved.updated_at, saved.updated_at);
+        assert_eq!(moved.revision.0, saved.revision.0 + 1);
+        assert!(
+            library
+                .note_asset_bytes(moved.id, &asset)
+                .unwrap_or_else(|error| panic!("asset lookup failed: {error}"))
+                .is_some()
+        );
+        assert_eq!(
+            library.note_count(source_category.id).unwrap_or(usize::MAX),
+            0
+        );
+        assert_eq!(
+            library
+                .note_count(destination_category.id)
+                .unwrap_or(usize::MAX),
+            1
+        );
+    }
+
+    #[test]
+    fn moving_to_a_trashed_category_is_rejected() {
+        let (_directory, library) = library();
+        let now = OffsetDateTime::now_utc();
+        let source_category = library
+            .create_category("Source", now)
+            .unwrap_or_else(|error| panic!("source category failed: {error}"));
+        let destination_category = library
+            .create_category("Destination", now)
+            .unwrap_or_else(|error| panic!("destination category failed: {error}"));
+        let note = library
+            .create_note(source_category.id, now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        library
+            .trash_category(destination_category.id, now)
+            .unwrap_or_else(|error| panic!("destination trash failed: {error}"));
+
+        let result = library.move_note(note.id, destination_category.id, now);
+
+        assert!(matches!(result, Err(StorageError::MoveUnavailable)));
     }
     #[test]
     fn trashed_category_hides_its_notes() {

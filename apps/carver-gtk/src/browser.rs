@@ -10,6 +10,7 @@ use time::{Duration, OffsetDateTime, UtcOffset};
 use crate::{
     controller::AppState,
     editor::build_editor,
+    note_move::show_move_note_dialog,
     sidebar::{refresh_sidebar, sidebar_toggle_button},
     trash::build_trash,
 };
@@ -22,7 +23,7 @@ pub(crate) fn build_content(
 ) -> gtk::Widget {
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
-    let browser = build_browser(state, &stack, split_view);
+    let browser = build_browser(state, &stack, split_view, toast_overlay);
     stack.add_named(&browser, Some("browser"));
     let editor = build_editor(state, &stack, toast_overlay, split_view);
     stack.add_named(&editor, Some("editor"));
@@ -37,6 +38,7 @@ pub(crate) fn build_browser(
     state: &Rc<AppState>,
     stack: &gtk::Stack,
     split_view: &adw::NavigationSplitView,
+    toast_overlay: &adw::ToastOverlay,
 ) -> gtk::Widget {
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
@@ -108,6 +110,9 @@ pub(crate) fn build_browser(
     state
         .browser_empty_new_note_button
         .replace(Some(empty_new_note.clone()));
+    state
+        .browser_toast_overlay
+        .replace(Some(toast_overlay.clone()));
     refresh_browser(state);
     connect_browser_actions(state, &search, &new_note, &empty_new_note, &list, stack);
     view.upcast()
@@ -184,7 +189,7 @@ fn connect_new_note_action(state: &Rc<AppState>, stack: &gtk::Stack, button: &gt
 /// Refreshes the browser widgets after a note or category action.
 pub(crate) fn refresh_browser(state: &Rc<AppState>) {
     refresh_browser_title(state);
-    let (list, stack, pages, status, empty_new_note) = {
+    let (list, stack, pages, status, empty_new_note, toast_overlay) = {
         let Some(list) = state.browser_list.borrow().clone() else {
             return;
         };
@@ -200,9 +205,20 @@ pub(crate) fn refresh_browser(state: &Rc<AppState>) {
         let Some(empty_new_note) = state.browser_empty_new_note_button.borrow().clone() else {
             return;
         };
-        (list, stack, pages, status, empty_new_note)
+        let Some(toast_overlay) = state.browser_toast_overlay.borrow().clone() else {
+            return;
+        };
+        (list, stack, pages, status, empty_new_note, toast_overlay)
     };
-    refresh_note_list(&list, &pages, &status, &empty_new_note, state, &stack);
+    refresh_note_list(
+        &list,
+        &pages,
+        &status,
+        &empty_new_note,
+        &toast_overlay,
+        state,
+        &stack,
+    );
 }
 
 fn refresh_browser_title(state: &AppState) {
@@ -224,6 +240,7 @@ fn refresh_note_list(
     pages: &gtk::Stack,
     status: &adw::StatusPage,
     empty_new_note: &gtk::Button,
+    toast_overlay: &adw::ToastOverlay,
     state: &Rc<AppState>,
     _stack: &gtk::Stack,
 ) {
@@ -241,6 +258,7 @@ fn refresh_note_list(
     let pages = pages.clone();
     let status = status.clone();
     let empty_new_note = empty_new_note.clone();
+    let toast_overlay = toast_overlay.clone();
     let client = state.client.clone();
     glib::spawn_future_local(async move {
         let entries = if search_is_active {
@@ -265,6 +283,8 @@ fn refresh_note_list(
             &pages,
             &status,
             &empty_new_note,
+            &toast_overlay,
+            &state,
             entries,
             search_is_active,
             category_name.as_deref(),
@@ -272,11 +292,17 @@ fn refresh_note_list(
     });
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "browser refresh keeps its established page widgets and snapshot data explicit"
+)]
 fn populate_note_list(
     list: &gtk::ListBox,
     pages: &gtk::Stack,
     status: &adw::StatusPage,
     empty_new_note: &gtk::Button,
+    toast_overlay: &adw::ToastOverlay,
+    state: &Rc<AppState>,
     entries: Vec<NoteSummary>,
     search_is_active: bool,
     category_name: Option<&str>,
@@ -307,11 +333,13 @@ fn populate_note_list(
         let row = gtk::ListBoxRow::new();
         row.set_widget_name(&format!("note:{}", note.id));
         row.add_css_class("note-card");
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        content.set_margin_start(12);
+        content.set_margin_end(8);
+        content.set_margin_top(10);
+        content.set_margin_bottom(10);
         let box_ = gtk::Box::new(gtk::Orientation::Vertical, 4);
-        box_.set_margin_start(12);
-        box_.set_margin_end(12);
-        box_.set_margin_top(10);
-        box_.set_margin_bottom(10);
+        box_.set_hexpand(true);
         let title = gtk::Label::new(Some(&note.title));
         title.set_widget_name(&format!("note-title:{}", note.id));
         title.set_xalign(0.0);
@@ -325,9 +353,84 @@ fn populate_note_list(
         excerpt.set_single_line_mode(true);
         excerpt.add_css_class("note-card-excerpt");
         box_.append(&excerpt);
-        row.set_child(Some(&box_));
+        content.append(&box_);
+        content.append(&note_menu(state, &note, toast_overlay));
+        row.set_child(Some(&content));
         list.append(&row);
     }
+}
+
+fn note_menu(
+    state: &Rc<AppState>,
+    note: &NoteSummary,
+    toast_overlay: &adw::ToastOverlay,
+) -> gtk::MenuButton {
+    let menu = gtk::MenuButton::new();
+    menu.set_widget_name(&format!("note-menu:{}", note.id));
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some("Note actions"));
+    menu.add_css_class("flat");
+    let popover = gtk::Popover::new();
+    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let move_button = overflow_menu_action("Move to Category…");
+    let state_for_move = Rc::clone(state);
+    let toast_for_move = toast_overlay.clone();
+    let note_for_move = note.clone();
+    let popover_for_move = popover.clone();
+    move_button.connect_clicked(move |button| {
+        popover_for_move.popdown();
+        let parent = button
+            .root()
+            .and_then(|root| root.downcast::<gtk::Window>().ok());
+        show_move_note_dialog(
+            &state_for_move,
+            note_for_move.id,
+            note_for_move.category_id,
+            &note_for_move.title,
+            &toast_for_move,
+            parent.as_ref(),
+        );
+    });
+    actions.append(&move_button);
+    let trash_button = overflow_menu_action("Move to Trash");
+    trash_button.add_css_class("destructive-action");
+    let state_for_trash = Rc::clone(state);
+    let toast_for_trash = toast_overlay.clone();
+    let note_for_trash = note.clone();
+    let popover_for_trash = popover.clone();
+    trash_button.connect_clicked(move |_| {
+        popover_for_trash.popdown();
+        let state = Rc::clone(&state_for_trash);
+        let toast = toast_for_trash.clone();
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            match client.trash_note_async(note_for_trash.id).await {
+                Ok(()) => {
+                    refresh_browser(&state);
+                    refresh_sidebar(&state);
+                    toast.add_toast(adw::Toast::new("Moved note to Trash"));
+                }
+                Err(error) => toast.add_toast(adw::Toast::new(&format!(
+                    "Could not move note to Trash: {error}"
+                ))),
+            }
+        });
+    });
+    actions.append(&trash_button);
+    popover.set_child(Some(&actions));
+    menu.set_popover(Some(&popover));
+    menu
+}
+
+fn overflow_menu_action(label: &str) -> gtk::Button {
+    let button = gtk::Button::new();
+    button.add_css_class("flat");
+    let label = gtk::Label::new(Some(label));
+    label.set_xalign(0.0);
+    label.set_margin_start(8);
+    label.set_margin_end(8);
+    button.set_child(Some(&label));
+    button
 }
 
 fn configure_empty_state(

@@ -171,6 +171,58 @@ fn selected_line_range(buffer: &gtk::TextBuffer) -> (i32, i32) {
     (start.line(), end.line())
 }
 
+/// Exercises source-editing commands with GTK initialized by the shared UI test.
+#[cfg(test)]
+pub(crate) fn graphical_commands_cover_editor_buffer_operations() {
+    let buffer = gtk::TextBuffer::new(None);
+
+    toggle_inline(&buffer, "*", "*");
+    assert_eq!(buffer_text(&buffer), "**");
+
+    buffer.set_text("selected");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_inline(&buffer, "*", "*");
+    assert_eq!(buffer_text(&buffer), "*selected*");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_inline(&buffer, "*", "*");
+    assert_eq!(buffer_text(&buffer), "selected");
+
+    buffer.set_text("# one\nsecond");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    set_heading(&buffer, 2);
+    assert_eq!(buffer_text(&buffer), "## one\n## second");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    set_heading(&buffer, 0);
+    assert_eq!(buffer_text(&buffer), "one\nsecond");
+
+    buffer.set_text("first\nsecond");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_list(&buffer, "- ");
+    assert_eq!(buffer_text(&buffer), "- first\n- second");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_list(&buffer, "- ");
+    assert_eq!(buffer_text(&buffer), "first\nsecond");
+
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_code_block(&buffer);
+    assert_eq!(buffer_text(&buffer), "```\nfirst\nsecond\n```");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    toggle_code_block(&buffer);
+    assert_eq!(buffer_text(&buffer), "first\nsecond");
+
+    buffer.set_text("Carver");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    insert_link(&buffer, "Carver", "https://carver.invalid");
+    assert_eq!(buffer_text(&buffer), "[Carver](https://carver.invalid)");
+}
+
+#[cfg(test)]
+fn buffer_text(buffer: &gtk::TextBuffer) -> String {
+    buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

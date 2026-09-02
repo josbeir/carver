@@ -562,6 +562,11 @@ fn connect_back_action(
         let Some(note) = state_for_back.current_note.borrow().clone() else {
             return;
         };
+        if source.as_str() == note.source {
+            refresh_browser(&state_for_back);
+            stack_for_back.set_visible_child_name("browser");
+            return;
+        }
         state_for_back
             .autosave_generation
             .set(state_for_back.autosave_generation.get().saturating_add(1));
@@ -975,6 +980,9 @@ fn schedule_autosave(
         } else {
             buffer_text(&rich_buffer)
         };
+        if source.as_str() == note.source {
+            return;
+        }
         if state.save_in_flight.get() {
             return;
         }

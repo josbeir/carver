@@ -8,6 +8,7 @@ mod controller;
 mod dialogs;
 mod editor;
 mod formatting;
+mod note_move;
 mod sidebar;
 mod trash;
 
