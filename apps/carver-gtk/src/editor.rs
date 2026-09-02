@@ -52,8 +52,8 @@ pub(crate) fn build_editor(
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
     formatting::append_controls(&format_bar, &rich_buffer);
-    formatting::apply_theme_colors(&rich, &rich_buffer);
-    connect_theme_colors(&rich, &rich_buffer);
+    formatting::apply_theme_colors(&rich_buffer);
+    connect_theme_colors(&rich_buffer);
     install_list_continuation(&rich, &rich_buffer);
     install_editor_shortcuts(&rich, &rich_buffer);
     add_editor_pages(&editor_stack, &rich, &source);
@@ -315,14 +315,18 @@ pub(crate) fn render_rich_markup(
         }
         render_block(view, buffer, block, state, block_ends_with_image(block));
     }
-    formatting::apply_theme_colors(view, buffer);
+    formatting::apply_theme_colors(buffer);
 }
 
-fn connect_theme_colors(view: &gtk::TextView, buffer: &gtk::TextBuffer) {
-    let view = view.clone();
-    let buffer = buffer.clone();
-    adw::StyleManager::default().connect_dark_notify(move |_| {
-        formatting::apply_theme_colors(&view, &buffer);
+fn connect_theme_colors(buffer: &gtk::TextBuffer) {
+    let manager = adw::StyleManager::default();
+    let buffer_for_scheme = buffer.clone();
+    manager.connect_dark_notify(move |_| {
+        formatting::apply_theme_colors(&buffer_for_scheme);
+    });
+    let buffer_for_accent = buffer.clone();
+    manager.connect_accent_color_rgba_notify(move |_| {
+        formatting::apply_theme_colors(&buffer_for_accent);
     });
 }
 

@@ -138,48 +138,26 @@ pub(crate) fn install_tags(buffer: &gtk::TextBuffer) {
 }
 
 /// Applies colors derived from the active GNOME theme to editor-only rich tags.
-pub(crate) fn apply_theme_colors(view: &gtk::TextView, buffer: &gtk::TextBuffer) {
-    let context = view.style_context();
-    let dark = adw::StyleManager::default().is_dark();
-    let accent = context.lookup_color("accent_bg_color").unwrap_or_else(|| {
-        if dark {
-            gtk::gdk::RGBA::new(0.47, 0.69, 1.0, 1.0)
-        } else {
-            gtk::gdk::RGBA::new(0.21, 0.52, 0.89, 1.0)
-        }
-    });
-    let accent_foreground = context.lookup_color("accent_fg_color").unwrap_or_else(|| {
-        if dark {
-            gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 1.0)
-        } else {
-            gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
-        }
-    });
-    let background = context.lookup_color("view_bg_color").unwrap_or_else(|| {
-        if dark {
-            gtk::gdk::RGBA::new(0.12, 0.12, 0.13, 1.0)
-        } else {
-            gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
-        }
-    });
-    let foreground = context.color();
+pub(crate) fn apply_theme_colors(buffer: &gtk::TextBuffer) {
+    let manager = adw::StyleManager::default();
+    let dark = manager.is_dark();
+    let accent = manager.accent_color_rgba();
+    let accent_foreground = contrasting_foreground(&accent);
+    let background = if dark {
+        gtk::gdk::RGBA::new(0.12, 0.12, 0.13, 1.0)
+    } else {
+        gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+    };
+    let foreground = if dark {
+        gtk::gdk::RGBA::new(0.96, 0.96, 0.97, 1.0)
+    } else {
+        gtk::gdk::RGBA::new(0.12, 0.12, 0.13, 1.0)
+    };
     let inline_code_background = blend(&background, &accent, if dark { 0.2 } else { 0.1 });
     let block_background = blend(&background, &accent, if dark { 0.12 } else { 0.06 });
 
-    set_tag_colors(
-        buffer,
-        "rich-code",
-        &inline_code_background,
-        &accent,
-        false,
-    );
-    set_tag_colors(
-        buffer,
-        "rich-highlight",
-        &accent,
-        &accent_foreground,
-        false,
-    );
+    set_tag_colors(buffer, "rich-code", &inline_code_background, &accent);
+    set_tag_colors(buffer, "rich-highlight", &accent, &accent_foreground);
     buffer.tag_table().foreach(|tag| {
         if tag
             .name()
@@ -193,27 +171,29 @@ pub(crate) fn apply_theme_colors(view: &gtk::TextView, buffer: &gtk::TextBuffer)
     });
 }
 
+fn contrasting_foreground(background: &gtk::gdk::RGBA) -> gtk::gdk::RGBA {
+    let luminance =
+        0.2126 * background.red() + 0.7152 * background.green() + 0.0722 * background.blue();
+    if luminance > 0.55 {
+        gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 1.0)
+    } else {
+        gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+    }
+}
+
 fn set_tag_colors(
     buffer: &gtk::TextBuffer,
     name: &str,
     background: &gtk::gdk::RGBA,
     foreground: &gtk::gdk::RGBA,
-    paragraph: bool,
 ) {
     if let Some(tag) = buffer.tag_table().lookup(name) {
         tag.set_background_rgba(Some(background));
-        if paragraph {
-            tag.set_paragraph_background_rgba(Some(background));
-        }
         tag.set_foreground_rgba(Some(foreground));
     }
 }
 
-fn blend(
-    background: &gtk::gdk::RGBA,
-    overlay: &gtk::gdk::RGBA,
-    amount: f32,
-) -> gtk::gdk::RGBA {
+fn blend(background: &gtk::gdk::RGBA, overlay: &gtk::gdk::RGBA, amount: f32) -> gtk::gdk::RGBA {
     let remaining = 1.0 - amount;
     gtk::gdk::RGBA::new(
         background.red() * remaining + overlay.red() * amount,
