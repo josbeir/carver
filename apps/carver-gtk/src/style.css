@@ -1,0 +1,26 @@
+.navigation-sidebar row {
+  border-radius: 10px;
+  margin: 2px 6px;
+}
+
+.boxed-list row {
+  border-radius: 12px;
+  margin: 2px 0;
+}
+
+.boxed-list row:hover {
+  background: alpha(currentColor, 0.06);
+}
+
+textview {
+  font-size: 12pt;
+  line-height: 1.55;
+}
+
+textview text {
+  background: transparent;
+}
+
+.dim-label {
+  opacity: 0.72;
+}

@@ -1,0 +1,18 @@
+[package]
+name = "carver-domain"
+description = "UI-independent domain model for Carver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+carve-lang.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+time.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+

@@ -1,0 +1,18 @@
+[package]
+name = "carver-sdk"
+description = "Portable application SDK for Carver libraries"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+carver-config = { path = "../carver-config" }
+carver-domain = { path = "../carver-domain" }
+carver-storage-sqlite = { path = "../carver-storage-sqlite" }
+thiserror.workspace = true
+time.workspace = true
+
+[lints]
+workspace = true
+

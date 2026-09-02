@@ -1,0 +1,18 @@
+# Carver stores this file in $XDG_CONFIG_HOME/carver/config.toml.
+schema_version = 1
+
+[editor]
+default_mode = "rich"
+autosave_delay_ms = 500
+
+[images]
+load_remote_automatically = true
+
+[search]
+default_scope = "all-categories"
+
+[window]
+width = 1120
+height = 760
+maximized = false
+sidebar_collapsed = false

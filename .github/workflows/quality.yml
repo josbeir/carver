@@ -1,0 +1,34 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install GTK dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libgtk-4-dev libadwaita-1-dev xvfb
+      - name: Format
+        run: cargo fmt --check
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test
+        run: xvfb-run -a cargo test --workspace -- --include-ignored --test-threads=1
+      - name: Install coverage tool
+        run: cargo install cargo-llvm-cov --locked
+      - name: Coverage
+        run: >-
+          xvfb-run -a cargo llvm-cov --workspace --all-features --fail-under-lines 80
+          -- --include-ignored --test-threads=1
+      - name: Documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps
+      - name: Dependency policy
+        run: cargo install cargo-deny --locked && cargo deny check
