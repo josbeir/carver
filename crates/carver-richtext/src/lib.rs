@@ -199,6 +199,21 @@ fn inline(source: &str) -> Result<Vec<RichInline>, RichDocumentError> {
                 path: path.to_owned(),
             });
             remainder = after;
+        } else if let Some((before, text, destination, after)) = link(remainder) {
+            push_text(&mut result, before);
+            result.push(RichInline::Link {
+                text: text.to_owned(),
+                destination: destination.to_owned(),
+            });
+            remainder = after;
+        } else if let Some((before, content, after)) = delimited(remainder, "`") {
+            push_text(&mut result, before);
+            result.push(RichInline::Code(content.to_owned()));
+            remainder = after;
+        } else if let Some((before, content, after)) = delimited(remainder, "~") {
+            push_text(&mut result, before);
+            result.push(RichInline::Strike(inline(content)?));
+            remainder = after;
         } else if let Some((before, content, after)) = delimited(remainder, "*") {
             push_text(&mut result, before);
             result.push(RichInline::Bold(inline(content)?));
@@ -227,6 +242,24 @@ fn image(source: &str) -> Option<(&str, &str, &str, &str)> {
         &rest[..close_alt],
         &rest[path_start..path_end],
         &rest[path_end + 1..],
+    ))
+}
+
+fn link(source: &str) -> Option<(&str, &str, &str, &str)> {
+    let start = source.find('[')?;
+    if source[..start].ends_with('!') {
+        return None;
+    }
+    let rest = &source[start + 1..];
+    let close_text = rest.find("](")?;
+    let close_destination = rest[close_text + 2..].find(')')?;
+    let destination_start = close_text + 2;
+    let destination_end = destination_start + close_destination;
+    Some((
+        &source[..start],
+        &rest[..close_text],
+        &rest[destination_start..destination_end],
+        &rest[destination_end + 1..],
     ))
 }
 
@@ -292,6 +325,24 @@ mod tests {
         let document = parse_carve("# Plan\n*bold* ![diagram](assets/diagram.png)")
             .unwrap_or_else(|error| panic!("parse failed: {error}"));
         assert!(serialize_carve(&document).contains("![diagram](assets/diagram.png)"));
+    }
+
+    #[test]
+    fn parses_headings_and_all_common_list_markers() {
+        let document = parse_carve("# Title\n- bullet\n1. numbered\n- [x] done")
+            .unwrap_or_else(|error| panic!("parse failed: {error}"));
+        assert_eq!(document.blocks.len(), 4);
+        assert_eq!(
+            serialize_carve(&document),
+            "# Title\n- bullet\n1. numbered\n- [x] done"
+        );
+    }
+
+    #[test]
+    fn parses_common_inline_formatting() {
+        let document = parse_carve("`code` ~strike~ [link](https://example.test)")
+            .unwrap_or_else(|error| panic!("parse failed: {error}"));
+        assert_eq!(serialize_carve(&document), "`code` ~strike~ [link](https://example.test)");
     }
     #[test]
     fn protects_tables_from_lossy_rich_editing() {
