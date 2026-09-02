@@ -9,6 +9,11 @@ Carver is a native GNOME home for notes that last. Capture ideas in a polished w
 space, keep them organized without ceremony, and reach for the
 [Carve](https://github.com/markup-carve) source whenever you want full control.
 
+<p align="center">
+  <img src="docs/Screenshot%20From%202026-09-03%2000-36-17.png" alt="Carver notes view" width="49%" />
+  <img src="docs/Screenshot%20From%202026-09-03%2000-36-28.png" alt="Carver source and preview view" width="49%" />
+</p>
+
 ## Notes, without the clutter
 
 - **Rich-text editing** — Write naturally with formatting, lists, tasks, links, code, images,
