@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 carver-config = { path = "../../crates/carver-config" }
 carver-sdk = { path = "../../crates/carver-sdk" }
+carver-richtext = { path = "../../crates/carver-richtext" }
 glib.workspace = true
 gtk.workspace = true
 libadwaita.workspace = true

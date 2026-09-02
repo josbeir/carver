@@ -1,10 +1,18 @@
-//! Carve formatting commands used by the rich editor toolbar.
+//! Native rich-text formatting commands used by the editor toolbar.
 
 use gtk::prelude::*;
 
 /// Appends the common Carve formatting controls to an editor toolbar.
 pub(crate) fn append_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    append_wrap_button(toolbar, buffer, "format-bold-button", "B", "Bold", "*", "*");
+    install_tags(buffer);
+    append_tag_button(
+        toolbar,
+        buffer,
+        "format-bold-button",
+        "B",
+        "Bold",
+        "rich-bold",
+    );
     append_wrap_button(
         toolbar,
         buffer,
@@ -65,6 +73,44 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
         "[",
         "](https://)",
     );
+}
+
+fn install_tags(buffer: &gtk::TextBuffer) {
+    let table = buffer.tag_table();
+    if table.lookup("rich-bold").is_none()
+        && let Some(tag) = buffer.create_tag(Some("rich-bold"), &[])
+    {
+        tag.set_weight(700);
+    }
+    if table.lookup("rich-hidden-source").is_none()
+        && let Some(tag) = buffer.create_tag(Some("rich-hidden-source"), &[])
+    {
+        tag.set_invisible(true);
+    }
+}
+
+fn append_tag_button(
+    toolbar: &gtk::Box,
+    buffer: &gtk::TextBuffer,
+    name: &str,
+    label: &str,
+    tooltip: &str,
+    tag_name: &str,
+) {
+    let button = gtk::Button::with_label(label);
+    button.set_widget_name(name);
+    button.set_tooltip_text(Some(tooltip));
+    button.add_css_class("flat");
+    let buffer = buffer.clone();
+    let tag_name = tag_name.to_owned();
+    button.connect_clicked(move |_| apply_tag_to_selection(&buffer, &tag_name));
+    toolbar.append(&button);
+}
+
+fn apply_tag_to_selection(buffer: &gtk::TextBuffer, tag_name: &str) {
+    if let Some((start, end)) = buffer.selection_bounds() {
+        buffer.apply_tag_by_name(tag_name, &start, &end);
+    }
 }
 
 fn append_wrap_button(

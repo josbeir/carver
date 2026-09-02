@@ -3,6 +3,7 @@ members = [
   "apps/carver-gtk",
   "crates/carver-config",
   "crates/carver-domain",
+  "crates/carver-richtext",
   "crates/carver-sdk",
   "crates/carver-storage-sqlite",
 ]

@@ -473,6 +473,34 @@ impl SqliteLibrary {
         Ok(format!("assets/{filename}"))
     }
 
+    /// Reads a managed image only when it belongs to the requested note.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the asset path is unsafe or the managed file cannot be read.
+    pub fn note_asset_bytes(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<Vec<u8>>, StorageError> {
+        let Some(filename) = relative_path.strip_prefix("assets/") else {
+            return Ok(None);
+        };
+        let attached: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT a.filename FROM assets a JOIN note_assets na ON na.asset_hash = a.hash
+             WHERE na.note_id = ?1 AND a.filename = ?2",
+                params![note_id.to_string(), filename],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(filename) = attached else {
+            return Ok(None);
+        };
+        Ok(Some(fs::read(self.managed_asset_path(&filename)?)?))
+    }
+
     fn migrate(&self) -> Result<(), StorageError> {
         self.connection.execute_batch(
             "CREATE TABLE IF NOT EXISTS categories (

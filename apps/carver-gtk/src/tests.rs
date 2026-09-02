@@ -462,7 +462,14 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
             &rich.buffer().end_iter(),
             false
         ),
-        "*format me*"
+        "format me"
+    );
+    assert!(
+        rich.buffer()
+            .start_iter()
+            .tags()
+            .iter()
+            .any(|tag| tag.name().as_deref() == Some("rich-bold"))
     );
     mode.set_active(true);
     assert!(state.source_mode.get());

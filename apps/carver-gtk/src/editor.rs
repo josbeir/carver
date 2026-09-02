@@ -2,6 +2,7 @@
 
 use std::{rc::Rc, time::Duration as StdDuration};
 
+use carver_richtext::parse_carve;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -55,7 +56,14 @@ pub(crate) fn build_editor(
     view.add_top_bar(&format_bar);
     view.set_content(Some(&editor_stack));
 
-    connect_mode_toggle(state, &mode, &editor_stack, &rich_buffer, &source_buffer);
+    connect_mode_toggle(
+        state,
+        &mode,
+        &editor_stack,
+        &rich,
+        &rich_buffer,
+        &source_buffer,
+    );
     connect_trash_action(state, stack, toast_overlay, &trash);
     connect_back_action(
         state,
@@ -68,7 +76,14 @@ pub(crate) fn build_editor(
     connect_autosave(state, toast_overlay, &rich_buffer, &source_buffer);
     let _rich_image_paste = install_image_paste(&rich, &rich_buffer, state, toast_overlay);
     let _source_image_paste = install_image_paste(&source, &source_buffer, state, toast_overlay);
-    connect_note_loading(state, stack, &rich_buffer, &source_buffer);
+    connect_note_loading(
+        state,
+        stack,
+        &mode,
+        &editor_stack,
+        &rich_buffer,
+        &source_buffer,
+    );
     view.upcast()
 }
 
@@ -98,12 +113,14 @@ fn connect_mode_toggle(
     state: &Rc<AppState>,
     mode: &gtk::ToggleButton,
     editor_stack: &gtk::Stack,
+    rich_view: &gtk::TextView,
     rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
 ) {
     let state_for_mode = Rc::clone(state);
     let stack_for_mode = editor_stack.clone();
     let rich_for_mode = rich_buffer.clone();
+    let rich_view_for_mode = rich_view.clone();
     let source_for_mode = source_buffer.clone();
     mode.connect_toggled(move |button| {
         let source_mode = button.is_active();
@@ -114,7 +131,11 @@ fn connect_mode_toggle(
             stack_for_mode.set_visible_child_name("source");
             button.set_label("Rich Text");
         } else {
-            rich_for_mode.set_text(&buffer_text(&source_for_mode));
+            render_rich_markup(
+                &rich_view_for_mode,
+                &rich_for_mode,
+                &buffer_text(&source_for_mode),
+            );
             stack_for_mode.set_visible_child_name("rich");
             button.set_label("Carve Source");
         }
@@ -235,22 +256,58 @@ fn connect_autosave(
 fn connect_note_loading(
     state: &Rc<AppState>,
     stack: &gtk::Stack,
+    mode: &gtk::ToggleButton,
+    editor_stack: &gtk::Stack,
     rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
 ) {
     let state_for_visible = Rc::clone(state);
     let rich_for_visible = rich_buffer.clone();
     let source_for_visible = source_buffer.clone();
+    let mode_for_visible = mode.clone();
+    let editor_stack_for_visible = editor_stack.clone();
     stack.connect_visible_child_notify(move |stack| {
         if stack.visible_child_name().as_deref() == Some("editor")
             && let Some(note) = state_for_visible.current_note.borrow().as_ref()
         {
             state_for_visible.synchronizing_editor.set(true);
-            rich_for_visible.set_text(&note.source);
+            if parse_carve(&note.source).is_ok() {
+                render_rich_markup_placeholder(&rich_for_visible, &note.source);
+            } else {
+                mode_for_visible.set_active(true);
+                editor_stack_for_visible.set_visible_child_name("source");
+                state_for_visible.source_mode.set(true);
+            }
             source_for_visible.set_text(&note.source);
             state_for_visible.synchronizing_editor.set(false);
         }
     });
+}
+
+fn render_rich_markup(view: &gtk::TextView, buffer: &gtk::TextBuffer, source: &str) {
+    let _ = view;
+    render_rich_markup_placeholder(buffer, source);
+}
+
+fn render_rich_markup_placeholder(buffer: &gtk::TextBuffer, source: &str) {
+    buffer.set_text("");
+    let mut remaining = source;
+    while let Some(start) = remaining.find('*') {
+        let before = &remaining[..start];
+        buffer.insert_at_cursor(before);
+        let after_start = &remaining[start + 1..];
+        let Some(end) = after_start.find('*') else {
+            buffer.insert_at_cursor(&remaining[start..]);
+            return;
+        };
+        let content = &after_start[..end];
+        let mut tag_start = buffer.end_iter();
+        buffer.insert(&mut tag_start, content);
+        let tag_end = buffer.end_iter();
+        buffer.apply_tag_by_name("rich-bold", &tag_start, &tag_end);
+        remaining = &after_start[end + 1..];
+    }
+    buffer.insert_at_cursor(remaining);
 }
 
 /// Installs Ctrl+V image paste support on one editor view.
@@ -263,6 +320,7 @@ pub(crate) fn install_image_paste(
     let controller = gtk::EventControllerKey::new();
     let state = Rc::clone(state);
     let buffer = buffer.clone();
+    let view_for_handler = view.clone();
     let toast_overlay = toast_overlay.clone();
     let clipboard = view.display().clipboard();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
@@ -271,6 +329,7 @@ pub(crate) fn install_image_paste(
         }
         let state = Rc::clone(&state);
         let buffer = buffer.clone();
+        let view = view_for_handler.clone();
         let toast_overlay = toast_overlay.clone();
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
             let Ok(Some(texture)) = result else {
@@ -278,6 +337,19 @@ pub(crate) fn install_image_paste(
             };
             let bytes = texture.save_to_png_bytes();
             match store_pasted_image(&state, bytes.as_ref()) {
+                Ok(Some(path)) if view.widget_name() == "rich-editor" => {
+                    let insert = buffer.get_insert();
+                    let mut cursor = buffer.iter_at_mark(&insert);
+                    buffer.insert(&mut cursor, "\n");
+                    let anchor = buffer.create_child_anchor(&mut cursor);
+                    let picture = gtk::Picture::for_paintable(&texture);
+                    picture.set_can_shrink(true);
+                    picture.set_size_request(480, -1);
+                    view.add_child_at_anchor(&picture, &anchor);
+                    let source_start = cursor;
+                    buffer.insert(&mut cursor, &format!("![Pasted image]({path})\n"));
+                    buffer.apply_tag_by_name("rich-hidden-source", &source_start, &cursor);
+                }
                 Ok(Some(path)) => buffer.insert_at_cursor(&format!("\n![Pasted image]({path})\n")),
                 Ok(None) => {}
                 Err(error) => toast_overlay.add_toast(adw::Toast::new(&format!(
@@ -328,5 +400,25 @@ fn schedule_autosave(
 }
 
 fn buffer_text(buffer: &gtk::TextBuffer) -> glib::GString {
-    buffer.text(&buffer.start_iter(), &buffer.end_iter(), false)
+    let mut output = String::new();
+    let mut current = buffer.start_iter();
+    let mut bold = false;
+    while !current.is_end() {
+        let is_bold = current
+            .tags()
+            .iter()
+            .any(|tag| tag.name().as_deref() == Some("rich-bold"));
+        if is_bold != bold {
+            output.push('*');
+            bold = is_bold;
+        }
+        if current.char() != '\u{fffc}' {
+            output.push(current.char());
+        }
+        current.forward_char();
+    }
+    if bold {
+        output.push('*');
+    }
+    output.into()
 }

@@ -235,6 +235,21 @@ impl LibraryClient {
             .map_err(Into::into)
     }
 
+    /// Reads a managed image attached to a note.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the asset cannot be read.
+    pub fn note_asset_bytes(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<Vec<u8>>, LibraryError> {
+        self.storage()?
+            .note_asset_bytes(note_id, relative_path)
+            .map_err(Into::into)
+    }
+
     fn storage(&self) -> Result<std::sync::MutexGuard<'_, SqliteLibrary>, LibraryError> {
         self.storage.lock().map_err(|_| LibraryError::Unavailable)
     }

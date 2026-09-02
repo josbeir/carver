@@ -100,6 +100,7 @@ name = "carver-gtk"
 version = "0.1.0"
 dependencies = [
  "carver-config",
+ "carver-richtext",
  "carver-sdk",
  "glib",
  "gtk4",
@@ -107,6 +108,13 @@ dependencies = [
  "tempfile",
  "time",
  "uuid",
+]
+
+[[package]]
+name = "carver-richtext"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
