@@ -5,29 +5,21 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
 [![MSRV: 1.92](https://img.shields.io/badge/MSRV-1.92-93450a.svg)](https://www.rust-lang.org/)
 
-Carver is a fast, native GNOME note-taking application built with Rust, GTK4, and
-Libadwaita. It keeps Carve markup as the durable source of every note while providing a
-natural rich-text editing experience for everyday writing.
+Carver is a native GNOME home for notes that last. Capture ideas in a polished writing
+space, keep them organized without ceremony, and reach for the
+[Carve](https://github.com/markup-carve) source whenever you want full control.
 
-## Features
+## Notes, without the clutter
 
-- A responsive GNOME interface with a collapsible category sidebar, recent notes grouped by
-  day, and a focused full-text search powered by SQLite FTS5.
-- Categories containing multiple notes, live note counters, contextual note moves, and a
-  recoverable Trash.
-- Three complementary note surfaces: rich-text Edit, canonical Carve Source, and a rendered
-  Preview. Source mode can show a synchronized rendered split preview.
-- WYSIWYG support for common Carve formatting: headings, inline marks, ordered/bulleted/task
-  lists, links, inline code, and fenced code blocks. Familiar shortcuts such as Ctrl+B and
-  Ctrl+I work in both editable surfaces.
-- Images pasted directly from the clipboard are saved as managed local assets and rendered in
-  notes. Remote image loading is configurable.
-- Automatic, debounced saves with optimistic-concurrency revisions. Opening or leaving an
-  unchanged note does not alter its modification date.
-- TOML preferences for editor mode, split preview, image behavior, search scope, and window
-  state.
-- A UI-neutral Rust SDK layered above SQLite, making future native frontends practical without
-  coupling them to GTK.
+- **Rich-text editing** — Write naturally with formatting, lists, tasks, links, code, images,
+  and familiar keyboard shortcuts.
+- **Carve source and split preview** — Switch to the durable source whenever you want precision,
+  or work with source and its rendered result side by side.
+- **Categories that stay out of your way** — Keep notes organized, move them as your thinking
+  evolves, and recover deleted work from Trash.
+- **Full-text search** — Find the note you need quickly, across your entire library.
+- **Fast by design** — A native GNOME experience, built in Rust for a responsive and dependable
+  daily workspace.
 
 ## Architecture
 
