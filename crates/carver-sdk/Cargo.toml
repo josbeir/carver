@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 carver-config = { path = "../carver-config" }
 carver-domain = { path = "../carver-domain" }
-carver-storage-sqlite = { path = "../carver-storage-sqlite" }
+async-channel.workspace = true
 thiserror.workspace = true
 time.workspace = true
 

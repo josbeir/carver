@@ -12,6 +12,7 @@ use carver_domain::{
     Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
     TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
+use carver_sdk::LibraryBackend;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -584,6 +585,120 @@ impl SqliteLibrary {
             )));
         }
         Ok(self.assets_dir.join(path))
+    }
+}
+
+impl LibraryBackend for SqliteLibrary {
+    type Error = StorageError;
+
+    fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error> {
+        Self::create_category(self, name, now)
+    }
+
+    fn categories(&self) -> Result<Vec<Category>, Self::Error> {
+        self.list_categories()
+    }
+
+    fn note_count(&self, category_id: CategoryId) -> Result<usize, Self::Error> {
+        Self::note_count(self, category_id)
+    }
+
+    fn rename_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        Self::rename_category(self, category_id, name, now)
+    }
+
+    fn trash_category(
+        &self,
+        category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<(), Self::Error> {
+        Self::trash_category(self, category_id, now)
+    }
+
+    fn restore_category(
+        &self,
+        category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<(), Self::Error> {
+        Self::restore_category(self, category_id, now)
+    }
+
+    fn create_note(
+        &self,
+        category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::create_note(self, category_id, now)
+    }
+
+    fn note(&self, note_id: NoteId) -> Result<Option<Note>, Self::Error> {
+        Self::note(self, note_id)
+    }
+
+    fn save_note(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::save_note(self, note_id, revision, source, now)
+    }
+
+    fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error> {
+        Self::trash_note(self, note_id, now)
+    }
+
+    fn restore_note(&self, note_id: NoteId) -> Result<(), Self::Error> {
+        Self::restore_note(self, note_id)
+    }
+
+    fn trash_contents(&self) -> Result<TrashContents, Self::Error> {
+        Self::trash_contents(self)
+    }
+
+    fn empty_trash(&self) -> Result<TrashPurgeResult, Self::Error> {
+        Self::empty_trash(self)
+    }
+
+    fn recent_notes(
+        &self,
+        category_id: Option<CategoryId>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, Self::Error> {
+        Self::recent_notes(self, category_id, limit, offset)
+    }
+
+    fn search(
+        &self,
+        query: &str,
+        category_id: Option<CategoryId>,
+        limit: usize,
+    ) -> Result<Vec<SearchHit>, Self::Error> {
+        self.search_notes(query, category_id, limit)
+    }
+
+    fn store_asset(
+        &self,
+        note_id: NoteId,
+        extension: &str,
+        bytes: &[u8],
+    ) -> Result<String, Self::Error> {
+        Self::store_asset(self, note_id, extension, bytes)
+    }
+
+    fn note_asset_bytes(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
+        Self::note_asset_bytes(self, note_id, relative_path)
     }
 }
 

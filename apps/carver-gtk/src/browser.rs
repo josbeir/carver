@@ -7,11 +7,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
-use crate::{
-    controller::{AppState, create_note_for_active_category, open_note},
-    editor::build_editor,
-    trash::build_trash,
-};
+use crate::{controller::AppState, editor::build_editor, trash::build_trash};
 
 /// Builds the browser and editor stack for the content pane.
 pub(crate) fn build_content(
@@ -109,6 +105,17 @@ pub(crate) fn build_browser(
     state.browser_stack.replace(Some(stack.clone()));
     state.browser_title.replace(Some(title));
     refresh_browser(state);
+    connect_browser_actions(state, &search, &new_note, &list, stack);
+    view.upcast()
+}
+
+fn connect_browser_actions(
+    state: &Rc<AppState>,
+    search: &gtk::SearchEntry,
+    new_note: &gtk::Button,
+    list: &gtk::ListBox,
+    stack: &gtk::Stack,
+) {
     let state_for_search = Rc::clone(state);
     search.connect_search_changed(move |entry| {
         state_for_search
@@ -119,10 +126,27 @@ pub(crate) fn build_browser(
     let state_for_new = Rc::clone(state);
     let stack_for_new = stack.clone();
     new_note.connect_clicked(move |_| {
-        if let Ok(Some(_note)) = create_note_for_active_category(&state_for_new) {
-            refresh_browser(&state_for_new);
-            stack_for_new.set_visible_child_name("editor");
-        }
+        let state = Rc::clone(&state_for_new);
+        let stack = stack_for_new.clone();
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            let category_id = match state.selected_category.get() {
+                Some(category_id) => Some(category_id),
+                None => client
+                    .categories_async()
+                    .await
+                    .ok()
+                    .and_then(|categories| categories.first().map(|category| category.id)),
+            };
+            let Some(category_id) = category_id else {
+                return;
+            };
+            if let Ok(note) = client.create_note_async(category_id).await {
+                state.current_note.replace(Some(note));
+                refresh_browser(&state);
+                stack.set_visible_child_name("editor");
+            }
+        });
     });
     let state_for_row = Rc::clone(state);
     let stack_for_row = stack.clone();
@@ -134,15 +158,20 @@ pub(crate) fn build_browser(
         let Ok(id) = uuid::Uuid::parse_str(raw_id) else {
             return;
         };
-        if let Ok(Some(_note)) = open_note(&state_for_row, NoteId::from_uuid(id)) {
-            stack_for_row.set_visible_child_name("editor");
-        }
+        let state = Rc::clone(&state_for_row);
+        let stack = stack_for_row.clone();
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            if let Ok(Some(note)) = client.note_async(NoteId::from_uuid(id)).await {
+                state.current_note.replace(Some(note));
+                stack.set_visible_child_name("editor");
+            }
+        });
     });
-    view.upcast()
 }
 
 /// Refreshes the browser widgets after a note or category action.
-pub(crate) fn refresh_browser(state: &AppState) {
+pub(crate) fn refresh_browser(state: &Rc<AppState>) {
     refresh_browser_title(state);
     let (list, stack) = {
         let Some(list) = state.browser_list.borrow().clone() else {
@@ -170,27 +199,44 @@ fn refresh_browser_title(state: &AppState) {
     }
 }
 
-fn refresh_note_list(list: &gtk::ListBox, state: &AppState, _stack: &gtk::Stack) {
+fn refresh_note_list(list: &gtk::ListBox, state: &Rc<AppState>, _stack: &gtk::Stack) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
-    let search_query = state.search_query.borrow();
-    let search_is_active = !search_query.trim().is_empty();
-    let entries: Vec<NoteSummary> = if search_is_active {
-        state
-            .client
-            .search(&search_query, state.selected_category.get(), 200)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|hit| hit.note)
-            .collect()
-    } else {
-        state
-            .client
-            .recent_notes(state.selected_category.get(), 200, 0)
-            .unwrap_or_default()
-    };
-    drop(search_query);
+    let query = state.search_query.borrow().trim().to_owned();
+    let search_is_active = !query.is_empty();
+    let category_id = state.selected_category.get();
+    let generation = state.browser_generation.get().saturating_add(1);
+    state.browser_generation.set(generation);
+    let state = Rc::clone(state);
+    let list = list.clone();
+    let client = state.client.clone();
+    glib::spawn_future_local(async move {
+        let entries = if search_is_active {
+            client
+                .search_async(query, category_id, 200)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|hit| hit.note)
+                .collect()
+        } else {
+            client
+                .recent_notes_async(category_id, 200, 0)
+                .await
+                .unwrap_or_default()
+        };
+        if state.browser_generation.get() != generation {
+            return;
+        }
+        populate_note_list(&list, entries, search_is_active);
+    });
+}
+
+fn populate_note_list(list: &gtk::ListBox, entries: Vec<NoteSummary>, search_is_active: bool) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
     let mut previous_day = None;
     for note in entries {
         let day = local_day(note.updated_at);

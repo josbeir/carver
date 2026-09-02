@@ -5,3 +5,4 @@
 *.partial
 coverage/
 .agents/
+default_*

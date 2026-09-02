@@ -4,13 +4,13 @@ use std::{path::PathBuf, rc::Rc};
 
 use adw::prelude::*;
 use carver_config::{AppPaths, load, save};
-use carver_sdk::LibraryClient;
+use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
     browser::build_content,
-    controller::AppState,
+    controller::{AppLibraryClient, AppState},
     dialogs::{install_window_actions, persist_window_config},
     sidebar::build_sidebar,
 };
@@ -31,10 +31,10 @@ fn build_application(application: &adw::Application) {
     let config_path = paths.config_file();
     let config = load(&config_path).unwrap_or_default();
     let _ = save(&config_path, &config);
-    let client = match LibraryClient::open(&paths) {
+    let client = match open_library(&paths) {
         Ok(client) => client,
         Err(error) => {
-            show_startup_error(application, &error.to_string());
+            show_startup_error(application, &error);
             return;
         }
     };
@@ -69,12 +69,19 @@ fn show_startup_error(application: &adw::Application, error: &str) {
 }
 
 /// Ensures a newly created library has a default category.
-pub(crate) fn ensure_first_category(client: &LibraryClient) {
+pub(crate) fn ensure_first_category(client: &AppLibraryClient) {
     if let Ok(categories) = client.categories()
         && categories.is_empty()
     {
         let _ = client.create_category("Notes");
     }
+}
+
+fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {
+    paths.ensure_exists().map_err(|error| error.to_string())?;
+    let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())
+        .map_err(|error| error.to_string())?;
+    AppLibraryClient::spawn(storage).map_err(|error| error.to_string())
 }
 
 fn build_window(application: &adw::Application, state: &Rc<AppState>, config_path: PathBuf) {

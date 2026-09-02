@@ -1,6 +1,6 @@
 //! In-app trash browser and recovery actions.
 
-use std::rc::Rc;
+use std::{error::Error, rc::Rc};
 
 use adw::prelude::*;
 use carver_sdk::{TrashedCategorySummary, TrashedNoteSummary};
@@ -76,7 +76,30 @@ pub(crate) fn refresh_trash(state: &Rc<AppState>) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
-    match state.client.trash_contents() {
+    let generation = state.trash_generation.get().saturating_add(1);
+    state.trash_generation.set(generation);
+    let state = Rc::clone(state);
+    let client = state.client.clone();
+    glib::spawn_future_local(async move {
+        let result = client.trash_contents_async().await;
+        if state.trash_generation.get() != generation {
+            return;
+        }
+        populate_trash(&list, &pages, &status, &empty_button, &state, result);
+    });
+}
+
+fn populate_trash<E>(
+    list: &gtk::ListBox,
+    pages: &gtk::Stack,
+    status: &adw::StatusPage,
+    empty_button: &gtk::Button,
+    state: &Rc<AppState>,
+    result: Result<carver_sdk::TrashContents, carver_sdk::LibraryError<E>>,
+) where
+    E: Error + Send + Sync + 'static,
+{
+    match result {
         Ok(contents) if contents.is_empty() => {
             status.set_title("Trash is empty");
             status.set_description(Some("Deleted notes and categories can be restored here."));
@@ -86,13 +109,13 @@ pub(crate) fn refresh_trash(state: &Rc<AppState>) {
         Ok(contents) => {
             empty_button.set_sensitive(true);
             if !contents.categories.is_empty() {
-                append_section_heading(&list, "Categories");
+                append_section_heading(list, "Categories");
                 for category in &contents.categories {
                     list.append(&trashed_category_row(state, category));
                 }
             }
             if !contents.notes.is_empty() {
-                append_section_heading(&list, "Notes");
+                append_section_heading(list, "Notes");
                 for note in &contents.notes {
                     list.append(&trashed_note_row(state, note));
                 }
@@ -130,7 +153,11 @@ fn connect_empty_action(
         let toast = toast_for_empty.clone();
         dialog.connect_response(None, move |_dialog, response| {
             if response == "empty" {
-                match state.client.empty_trash() {
+                let state = Rc::clone(&state);
+                let client = state.client.clone();
+                let toast = toast.clone();
+                glib::spawn_future_local(async move {
+                match client.empty_trash_async().await {
                     Ok(_) => {
                         refresh_sidebar(&state);
                         refresh_browser(&state);
@@ -142,6 +169,7 @@ fn connect_empty_action(
                             .add_toast(adw::Toast::new(&format!("Could not empty Trash: {error}")));
                     }
                 }
+                });
             }
         });
         dialog.present(button.root().as_ref());
@@ -197,11 +225,15 @@ fn trashed_category_row(
     let state_for_restore = Rc::clone(state);
     let category_id = category.category.id;
     restore.connect_clicked(move |_| {
-        if let Ok(()) = state_for_restore.client.restore_category(category_id) {
-            refresh_sidebar(&state_for_restore);
-            refresh_browser(&state_for_restore);
-            refresh_trash(&state_for_restore);
-        }
+        let state = Rc::clone(&state_for_restore);
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            if client.restore_category_async(category_id).await.is_ok() {
+                refresh_sidebar(&state);
+                refresh_browser(&state);
+                refresh_trash(&state);
+            }
+        });
     });
     content.append(&restore);
     row.set_child(Some(&content));
@@ -245,11 +277,15 @@ fn trashed_note_row(state: &Rc<AppState>, note: &TrashedNoteSummary) -> gtk::Lis
     let state_for_restore = Rc::clone(state);
     let note_id = note.id;
     restore.connect_clicked(move |_| {
-        if let Ok(()) = state_for_restore.client.restore_note(note_id) {
-            refresh_sidebar(&state_for_restore);
-            refresh_browser(&state_for_restore);
-            refresh_trash(&state_for_restore);
-        }
+        let state = Rc::clone(&state_for_restore);
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            if client.restore_note_async(note_id).await.is_ok() {
+                refresh_sidebar(&state);
+                refresh_browser(&state);
+                refresh_trash(&state);
+            }
+        });
     });
     content.append(&restore);
     row.set_child(Some(&content));

@@ -4,6 +4,7 @@ use std::{error::Error, rc::Rc};
 
 use carver_config::{AppPaths, Config, EditorMode, load};
 use carver_sdk::LibraryClient;
+use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use libadwaita as adw;
 use tempfile::TempDir;
@@ -35,7 +36,9 @@ fn test_state() -> Result<TestState, Box<dyn Error>> {
         data_dir: temporary_directory.path().join("data"),
         cache_dir: temporary_directory.path().join("cache"),
     };
-    let client = LibraryClient::open(&paths)?;
+    paths.ensure_exists()?;
+    let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())?;
+    let client = LibraryClient::spawn(storage)?;
     ensure_first_category(&client);
     let state = Rc::new(AppState::new(client, Config::default()));
     Ok((temporary_directory, state))
@@ -374,7 +377,10 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         return Ok(());
     };
     new_note.emit_clicked();
-    assert_eq!(stack.visible_child_name().as_deref(), Some("editor"));
+    assert!(run_main_context_until(|| {
+        stack.visible_child_name().as_deref() == Some("editor")
+            && state.current_note.borrow().is_some()
+    }));
     let created = state.current_note.borrow().clone();
     assert!(created.is_some());
     let Some(created) = created else {
@@ -386,6 +392,9 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     let Some(note_list) = note_list else {
         return Ok(());
     };
+    assert!(run_main_context_until(|| {
+        find_widget(note_list.upcast_ref(), &format!("note:{}", created.id)).is_some()
+    }));
     let created_row = find_widget(note_list.upcast_ref(), &format!("note:{}", created.id));
     assert!(created_row.is_some());
     let Some(created_row) = created_row else {
@@ -398,7 +407,9 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     };
     stack.set_visible_child_name("browser");
     note_list.emit_by_name::<()>("row-activated", &[&created_row]);
-    assert_eq!(stack.visible_child_name().as_deref(), Some("editor"));
+    assert!(run_main_context_until(|| {
+        stack.visible_child_name().as_deref() == Some("editor")
+    }));
 
     let search = widget_as::<gtk::SearchEntry>(&browser, "note-search-entry");
     assert!(search.is_some());
@@ -408,10 +419,10 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     search.set_text("Untitled");
     search.emit_by_name::<()>("search-changed", &[]);
     assert_eq!(state.search_query.borrow().as_str(), "Untitled");
-    assert_eq!(note_row_count(&browser), 2);
+    assert!(run_main_context_until(|| note_row_count(&browser) == 2));
     search.set_text("does-not-exist");
     search.emit_by_name::<()>("search-changed", &[]);
-    assert_eq!(note_row_count(&browser), 0);
+    assert!(run_main_context_until(|| note_row_count(&browser) == 0));
 
     let sidebar = build_sidebar(&state, &split_view);
     let test_window = gtk::Window::new();
@@ -428,6 +439,13 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     refresh_sidebar(&state);
     assert_eq!(state.client.categories()?.len(), 2);
     let second_category = state.client.categories()?[1].clone();
+    assert!(run_main_context_until(|| {
+        find_widget(
+            category_list.upcast_ref(),
+            &format!("category-count:{}", second_category.id),
+        )
+        .is_some()
+    }));
     let count_label = widget_as::<gtk::Label>(
         category_list.upcast_ref(),
         &format!("category-count:{}", second_category.id),
@@ -452,6 +470,13 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     rename_category(&state, second_category.id, "Personal")?;
     refresh_sidebar(&state);
     assert_eq!(state.client.categories()?[1].name, "Personal");
+    assert!(run_main_context_until(|| {
+        find_widget(
+            category_list.upcast_ref(),
+            &format!("category:{}", second_category.id),
+        )
+        .is_some()
+    }));
     category_list.select_row(Some(&category_row));
     assert_eq!(state.selected_category.get(), Some(second_category.id));
     let home_row = category_list.row_at_index(0);
@@ -471,14 +496,17 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         return Ok(());
     };
     delete.emit_clicked();
-    assert_eq!(state.client.categories()?.len(), 1);
-    assert!(
-        find_widget(
-            category_list.upcast_ref(),
-            &format!("category:{}", second_category.id)
-        )
-        .is_none()
-    );
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .categories()
+            .is_ok_and(|categories| categories.len() == 1)
+            && find_widget(
+                category_list.upcast_ref(),
+                &format!("category:{}", second_category.id),
+            )
+            .is_none()
+    }));
 
     let hide_categories = widget_as::<gtk::Button>(&sidebar, "hide-categories-button");
     assert!(hide_categories.is_some());
@@ -725,11 +753,24 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     search.set_text("");
     search.emit_by_name::<()>("search-changed", &[]);
     back.emit_clicked();
-    assert_eq!(stack.visible_child_name().as_deref(), Some("browser"));
+    assert!(run_main_context_until(|| {
+        stack.visible_child_name().as_deref() == Some("browser")
+            && state
+                .client
+                .note(created.id)
+                .ok()
+                .flatten()
+                .is_some_and(|note| note.source == "# Edited from source mode")
+    }));
     assert_eq!(
         state.client.note(created.id)?.map(|note| note.source),
         Some("# Edited from source mode".to_owned())
     );
+    assert!(run_main_context_until(|| {
+        find_widget(&browser, &format!("note-title:{}", created.id))
+            .and_then(|widget| widget.downcast::<gtk::Label>().ok())
+            .is_some_and(|label| label.text() == "Edited from source mode")
+    }));
     let refreshed_title = find_widget(&browser, &format!("note-title:{}", created.id));
     let refreshed_title = refreshed_title.and_then(|widget| widget.downcast::<gtk::Label>().ok());
     assert_eq!(
@@ -740,12 +781,14 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     );
     stack.set_visible_child_name("editor");
     trash.emit_clicked();
-    assert!(
+    assert!(run_main_context_until(|| {
         state
             .client
-            .note(created.id)?
+            .note(created.id)
+            .ok()
+            .flatten()
             .is_some_and(|note| note.trashed_at.is_some())
-    );
+    }));
     let open_trash = widget_as::<gtk::Button>(&sidebar, "open-trash-button");
     assert!(open_trash.is_some());
     let Some(open_trash) = open_trash else {
@@ -753,6 +796,13 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
     };
     open_trash.emit_clicked();
     assert_eq!(stack.visible_child_name().as_deref(), Some("trash"));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Button>(
+            &trash_page,
+            &format!("restore-category:{}", second_category.id),
+        )
+        .is_some()
+    }));
     let restore_category = widget_as::<gtk::Button>(
         &trash_page,
         &format!("restore-category:{}", second_category.id),
@@ -762,7 +812,15 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         return Ok(());
     };
     restore_category.emit_clicked();
-    assert_eq!(state.client.categories()?.len(), 2);
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .categories()
+            .is_ok_and(|categories| categories.len() == 2)
+    }));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Button>(&trash_page, &format!("restore-note:{}", created.id)).is_some()
+    }));
     let restore_note =
         widget_as::<gtk::Button>(&trash_page, &format!("restore-note:{}", created.id));
     assert!(restore_note.is_some());
@@ -770,20 +828,22 @@ fn gtk_interactions_cover_navigation_search_and_editor_controls() -> TestResult 
         return Ok(());
     };
     restore_note.emit_clicked();
-    assert!(
+    assert!(run_main_context_until(|| {
         state
             .client
-            .note(created.id)?
+            .note(created.id)
+            .ok()
+            .flatten()
             .is_some_and(|note| note.trashed_at.is_none())
-    );
+    }));
     state.client.trash_category(second_category.id)?;
     refresh_trash(&state);
     let empty_trash = widget_as::<gtk::Button>(&trash_page, "empty-trash-button");
-    assert!(
+    assert!(run_main_context_until(|| {
         empty_trash
             .as_ref()
             .is_some_and(gtk::prelude::WidgetExt::is_sensitive)
-    );
+    }));
     state.client.empty_trash()?;
     refresh_trash(&state);
     assert!(state.client.trash_contents()?.is_empty());

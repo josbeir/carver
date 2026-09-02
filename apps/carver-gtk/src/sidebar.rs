@@ -7,9 +7,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    browser::refresh_browser,
-    controller::{AppState, create_category, rename_category},
-    dialogs::show_category_name_dialog,
+    browser::refresh_browser, controller::AppState, dialogs::show_category_name_dialog,
     trash::refresh_trash,
 };
 
@@ -59,12 +57,11 @@ pub(crate) fn build_sidebar(
         state_for_selection.selected_category.set(selected);
         let selected_name = selected.and_then(|category_id| {
             state_for_selection
-                .client
-                .categories()
-                .ok()?
-                .into_iter()
+                .categories
+                .borrow()
+                .iter()
                 .find(|category| category.id == category_id)
-                .map(|category| category.name)
+                .map(|category| category.name.clone())
         });
         state_for_selection
             .selected_category_name
@@ -85,9 +82,13 @@ pub(crate) fn build_sidebar(
             .and_then(|root| root.downcast::<gtk::Window>().ok());
         let state = Rc::clone(&state_for_new);
         show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
-            if create_category(&state, &name).is_ok() {
-                refresh_sidebar(&state);
-            }
+            let client = state.client.clone();
+            let state = Rc::clone(&state);
+            glib::spawn_future_local(async move {
+                if client.create_category_async(name).await.is_ok() {
+                    refresh_sidebar(&state);
+                }
+            });
         });
     });
 
@@ -140,20 +141,46 @@ pub(crate) fn refresh_sidebar(state: &Rc<AppState>) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
+    let generation = state.sidebar_generation.get().saturating_add(1);
+    state.sidebar_generation.set(generation);
+    let state = Rc::clone(state);
+    let client = state.client.clone();
+    glib::spawn_future_local(async move {
+        let Ok(categories) = client.categories_async().await else {
+            return;
+        };
+        let mut categories_with_counts = Vec::with_capacity(categories.len());
+        for category in &categories {
+            let count = client
+                .note_count_async(category.id)
+                .await
+                .unwrap_or_default();
+            categories_with_counts.push((category.clone(), count));
+        }
+        if state.sidebar_generation.get() != generation {
+            return;
+        }
+        state.categories.replace(categories);
+        populate_sidebar(&list, &state, categories_with_counts);
+    });
+}
+
+fn populate_sidebar(list: &gtk::ListBox, state: &Rc<AppState>, categories: Vec<(Category, usize)>) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
     let home = gtk::ListBoxRow::new();
     home.set_selectable(true);
     home.set_child(Some(&sidebar_row("go-home-symbolic", "All notes")));
     list.append(&home);
     let selected_category = state.selected_category.get();
     let mut selected_row = None;
-    if let Ok(categories) = state.client.categories() {
-        for category in categories {
-            let row = category_sidebar_row(state, &category);
-            if Some(category.id) == selected_category {
-                selected_row = Some(row.clone());
-            }
-            list.append(&row);
+    for (category, note_count) in categories {
+        let row = category_sidebar_row(state, &category, note_count);
+        if Some(category.id) == selected_category {
+            selected_row = Some(row.clone());
         }
+        list.append(&row);
     }
     list.select_row(selected_row.as_ref().or(Some(&home)));
 }
@@ -173,7 +200,11 @@ fn sidebar_row(icon_name: &str, label: &str) -> gtk::Widget {
     row.upcast()
 }
 
-fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListBoxRow {
+fn category_sidebar_row(
+    state: &Rc<AppState>,
+    category: &Category,
+    note_count: usize,
+) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_selectable(true);
     row.set_widget_name(&format!("category:{}", category.id));
@@ -192,7 +223,6 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
     name.set_single_line_mode(true);
     name.add_css_class("category-card-title");
     text.append(&name);
-    let note_count = state.client.note_count(category.id).unwrap_or_default();
     let count_label = gtk::Label::new(Some(&note_count_label(note_count)));
     count_label.set_widget_name(&format!("category-count:{}", category.id));
     count_label.set_xalign(0.0);
@@ -217,15 +247,21 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
             "Rename Category",
             &current_name,
             move |name| {
-                if let Ok(category) = rename_category(&state, category_id, &name) {
-                    if state.selected_category.get() == Some(category.id) {
-                        state
-                            .selected_category_name
-                            .replace(Some(category.name.clone()));
-                        refresh_browser(&state);
+                let client = state.client.clone();
+                let state = Rc::clone(&state);
+                let name_label = name_label.clone();
+                glib::spawn_future_local(async move {
+                    if let Ok(category) = client.rename_category_async(category_id, name).await {
+                        if state.selected_category.get() == Some(category.id) {
+                            state
+                                .selected_category_name
+                                .replace(Some(category.name.clone()));
+                            refresh_browser(&state);
+                        }
+                        name_label.set_text(&category.name);
+                        refresh_sidebar(&state);
                     }
-                    name_label.set_text(&category.name);
-                }
+                });
             },
         );
     });
@@ -235,15 +271,19 @@ fn category_sidebar_row(state: &Rc<AppState>, category: &Category) -> gtk::ListB
     let state_for_trash = Rc::clone(state);
     let category_id = category.id;
     trash.connect_clicked(move |_| {
-        if state_for_trash.client.trash_category(category_id).is_ok() {
-            if state_for_trash.selected_category.get() == Some(category_id) {
-                state_for_trash.selected_category.set(None);
-                state_for_trash.selected_category_name.replace(None);
+        let state = Rc::clone(&state_for_trash);
+        let client = state.client.clone();
+        glib::spawn_future_local(async move {
+            if client.trash_category_async(category_id).await.is_ok() {
+                if state.selected_category.get() == Some(category_id) {
+                    state.selected_category.set(None);
+                    state.selected_category_name.replace(None);
+                }
+                refresh_sidebar(&state);
+                refresh_browser(&state);
+                refresh_trash(&state);
             }
-            refresh_sidebar(&state_for_trash);
-            refresh_browser(&state_for_trash);
-            refresh_trash(&state_for_trash);
-        }
+        });
     });
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     actions.add_css_class("linked");
