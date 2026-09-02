@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use carver_config::AppPaths;
+use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
 use thiserror::Error;
@@ -19,6 +19,9 @@ pub struct LibraryClient {
 /// SDK-level failures.
 #[derive(Debug, Error)]
 pub enum LibraryError {
+    /// Preparing application directories failed.
+    #[error(transparent)]
+    Config(#[from] ConfigError),
     /// Persistence failed.
     #[error(transparent)]
     Storage(#[from] StorageError),
@@ -34,9 +37,7 @@ impl LibraryClient {
     ///
     /// Returns an error when paths cannot be prepared or the SQLite library cannot open.
     pub fn open(paths: &AppPaths) -> Result<Self, LibraryError> {
-        paths
-            .ensure_exists()
-            .map_err(|error| LibraryError::Storage(StorageError::Corrupt(error.to_string())))?;
+        paths.ensure_exists()?;
         let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())?;
         Ok(Self {
             storage: Arc::new(Mutex::new(storage)),
@@ -63,6 +64,15 @@ impl LibraryClient {
         self.storage()?.list_categories().map_err(Into::into)
     }
 
+    /// Counts the active notes in a category.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category's note count cannot be queried.
+    pub fn note_count(&self, category_id: CategoryId) -> Result<usize, LibraryError> {
+        self.storage()?.note_count(category_id).map_err(Into::into)
+    }
+
     /// Renames an existing category.
     ///
     /// # Errors
@@ -75,6 +85,17 @@ impl LibraryClient {
     ) -> Result<Category, LibraryError> {
         self.storage()?
             .rename_category(category_id, name, OffsetDateTime::now_utc())
+            .map_err(Into::into)
+    }
+
+    /// Moves a category to the in-app trash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category cannot be moved to trash.
+    pub fn trash_category(&self, category_id: CategoryId) -> Result<(), LibraryError> {
+        self.storage()?
+            .trash_category(category_id, OffsetDateTime::now_utc())
             .map_err(Into::into)
     }
 
@@ -184,5 +205,31 @@ impl LibraryClient {
 
     fn storage(&self) -> Result<std::sync::MutexGuard<'_, SqliteLibrary>, LibraryError> {
         self.storage.lock().map_err(|_| LibraryError::Unavailable)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_reports_directory_setup_failures_as_configuration_errors()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let config_file = directory.path().join("config-file");
+        std::fs::write(&config_file, "not a directory")?;
+        let paths = AppPaths {
+            config_dir: config_file,
+            data_dir: directory.path().join("data"),
+            cache_dir: directory.path().join("cache"),
+        };
+
+        let result = LibraryClient::open(&paths);
+
+        assert!(matches!(
+            result,
+            Err(LibraryError::Config(ConfigError::Io(_)))
+        ));
+        Ok(())
     }
 }

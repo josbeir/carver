@@ -13,6 +13,8 @@ carver-storage-sqlite = { path = "../carver-storage-sqlite" }
 thiserror.workspace = true
 time.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true
-

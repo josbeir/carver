@@ -117,11 +117,22 @@ pub struct Config {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EditorConfig {
     /// Rich or source mode selected for new sessions.
-    #[serde(default = "default_editor_mode")]
-    pub default_mode: String,
+    #[serde(default)]
+    pub default_mode: EditorMode,
     /// Milliseconds without edits before persisting a note.
     #[serde(default = "default_autosave_delay")]
     pub autosave_delay_ms: u64,
+}
+
+/// The editor representation selected when a session begins.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditorMode {
+    /// Present the formatted editor.
+    #[default]
+    Rich,
+    /// Present canonical Carve source.
+    Source,
 }
 
 /// Remote-image preferences.
@@ -133,11 +144,22 @@ pub struct ImageConfig {
 }
 
 /// Search preferences.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SearchConfig {
     /// Whether a new search begins in the current category or all categories.
-    #[serde(default = "default_search_scope")]
-    pub default_scope: String,
+    #[serde(default)]
+    pub default_scope: SearchScope,
+}
+
+/// The initial category scope for a new search.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SearchScope {
+    /// Search every active category.
+    #[default]
+    AllCategories,
+    /// Search only the selected category when there is one.
+    CurrentCategory,
 }
 
 /// Persisted window state.
@@ -172,7 +194,7 @@ impl Default for Config {
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
-            default_mode: default_editor_mode(),
+            default_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
         }
     }
@@ -182,14 +204,6 @@ impl Default for ImageConfig {
     fn default() -> Self {
         Self {
             load_remote_automatically: true,
-        }
-    }
-}
-
-impl Default for SearchConfig {
-    fn default() -> Self {
-        Self {
-            default_scope: default_search_scope(),
         }
     }
 }
@@ -249,17 +263,11 @@ pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
 const fn default_schema_version() -> u32 {
     1
 }
-fn default_editor_mode() -> String {
-    "rich".to_owned()
-}
 const fn default_autosave_delay() -> u64 {
     500
 }
 const fn default_true() -> bool {
     true
-}
-fn default_search_scope() -> String {
-    "all-categories".to_owned()
 }
 const fn default_width() -> i32 {
     1120
@@ -285,6 +293,16 @@ mod tests {
         config.window.sidebar_collapsed = true;
         save(&path, &config)?;
         assert_eq!(load(&path)?, config);
+        Ok(())
+    }
+
+    #[test]
+    fn load_rejects_unknown_editor_mode() -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let path = directory.path().join("config.toml");
+        fs::write(&path, "[editor]\ndefault_mode = 'preview'\n")?;
+        let result = load(&path);
+        assert!(matches!(result, Err(ConfigError::InvalidToml(_))));
         Ok(())
     }
 }

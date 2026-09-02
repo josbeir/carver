@@ -116,6 +116,7 @@ dependencies = [
  "carver-config",
  "carver-domain",
  "carver-storage-sqlite",
+ "tempfile",
  "thiserror",
  "time",
 ]

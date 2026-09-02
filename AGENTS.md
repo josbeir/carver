@@ -9,7 +9,11 @@ Libadwaita, SQLite, and the Carve markup crate.
 - `crates/carver-config`: XDG locations and TOML configuration.
 - `crates/carver-storage-sqlite`: SQLite schema, migrations, search, and managed assets.
 - `crates/carver-sdk`: UI-neutral facade for current and future native frontends.
-- `apps/carver-gtk`: GTK4/Libadwaita application. Keep UI code local to this crate.
+- `apps/carver-gtk`: GTK4/Libadwaita application. `main.rs` is bootstrap only;
+  `app.rs` owns lifecycle/window composition; `controller.rs` owns GTK-facing state
+  and UI-neutral actions; `browser.rs`, `sidebar.rs`, `editor.rs`, and `dialogs.rs`
+  own their respective UI boundaries; `formatting.rs` owns toolbar commands; and
+  `tests.rs` contains GTK frontend tests. Keep UI code local to this crate.
 
 Dependencies must point inward: GTK calls the SDK; the SDK calls storage; storage and
 configuration use domain types. Domain must not depend on infrastructure or GTK.

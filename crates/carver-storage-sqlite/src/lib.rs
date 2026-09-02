@@ -25,6 +25,12 @@ pub struct SqliteLibrary {
 /// Storage-layer failures.
 #[derive(Debug, Error)]
 pub enum StorageError {
+    /// A category name was empty after trimming whitespace.
+    #[error("category name cannot be empty")]
+    InvalidCategoryName,
+    /// An asset extension was not part of the supported image format allowlist.
+    #[error("unsupported asset extension: {0}")]
+    UnsupportedAssetExtension(String),
     /// SQLite reported a problem.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
@@ -39,11 +45,13 @@ pub enum StorageError {
     Conflict,
 }
 
-// CONTEXT: each public storage operation has a homogeneous `StorageError` contract;
-// rustdoc documents the error enum once instead of duplicating identical sections.
-#[expect(clippy::missing_errors_doc)]
 impl SqliteLibrary {
     /// Opens a library and applies all known migrations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database, its parent directory, managed assets, or
+    /// migration schema cannot be opened or prepared.
     pub fn open(database_path: &Path, assets_dir: &Path) -> Result<Self, StorageError> {
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)?;
@@ -65,14 +73,20 @@ impl SqliteLibrary {
     }
 
     /// Creates a category at the end of the sidebar.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the next position cannot be queried or the category
+    /// cannot be persisted.
     pub fn create_category(
         &self,
         name: &str,
         now: OffsetDateTime,
     ) -> Result<Category, StorageError> {
+        let name = category_name(name)?;
         let category = Category {
             id: CategoryId::new(),
-            name: name.trim().to_owned(),
+            name: name.to_owned(),
             position: self.next_category_position()?,
             created_at: now,
             updated_at: now,
@@ -86,6 +100,10 @@ impl SqliteLibrary {
     }
 
     /// Lists active categories in explicit sidebar order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when categories cannot be read or stored values are corrupt.
     pub fn list_categories(&self) -> Result<Vec<Category>, StorageError> {
         let mut statement = self.connection.prepare(
             "SELECT id, name, position, created_at, updated_at, trashed_at
@@ -97,7 +115,27 @@ impl SqliteLibrary {
             .map_err(Into::into)
     }
 
+    /// Counts the active notes in one active category.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the count cannot be queried or converted for this platform.
+    pub fn note_count(&self, category_id: CategoryId) -> Result<usize, StorageError> {
+        let count: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.category_id = ?1 AND n.trashed_at IS NULL AND c.trashed_at IS NULL",
+            [category_id.to_string()],
+            |row| row.get(0),
+        )?;
+        usize::try_from(count)
+            .map_err(|_| StorageError::Corrupt("note count does not fit usize".to_owned()))
+    }
+
     /// Moves a category to trash; its active notes become hidden through the parent relationship.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category cannot be updated.
     pub fn trash_category(
         &self,
         category_id: CategoryId,
@@ -111,6 +149,10 @@ impl SqliteLibrary {
     }
 
     /// Restores a previously trashed category.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category cannot be updated.
     pub fn restore_category(
         &self,
         category_id: CategoryId,
@@ -124,18 +166,18 @@ impl SqliteLibrary {
     }
 
     /// Renames an active category while retaining its position and notes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the name is empty, the category is absent, or the
+    /// category cannot be persisted.
     pub fn rename_category(
         &self,
         category_id: CategoryId,
         name: &str,
         now: OffsetDateTime,
     ) -> Result<Category, StorageError> {
-        let name = name.trim();
-        if name.is_empty() {
-            return Err(StorageError::Corrupt(
-                "category name cannot be empty".to_owned(),
-            ));
-        }
+        let name = category_name(name)?;
         let affected = self.connection.execute(
             "UPDATE categories SET name = ?2, updated_at = ?3 WHERE id = ?1 AND trashed_at IS NULL",
             params![category_id.to_string(), name, timestamp(now)],
@@ -153,6 +195,10 @@ impl SqliteLibrary {
     }
 
     /// Creates a note with empty Carve source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note or its search index entry cannot be persisted.
     pub fn create_note(
         &self,
         category_id: CategoryId,
@@ -163,14 +209,18 @@ impl SqliteLibrary {
         self.connection.execute(
             "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at)
              VALUES (?1, ?2, '', ?3, ?4, 1, ?5, ?5)",
-            params![id.to_string(), category_id.to_string(), derived.title, derived.plain_text, timestamp(now)],
+            params![id.to_string(), category_id.to_string(), &derived.title, &derived.plain_text, timestamp(now)],
         )?;
-        self.replace_fts(id, &derive_content(""))?;
+        self.replace_fts(id, &derived)?;
         self.note(id)?
             .ok_or_else(|| StorageError::Corrupt("new note was not persisted".to_owned()))
     }
 
     /// Loads a complete active or trashed note.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note cannot be read or stored values are corrupt.
     pub fn note(&self, note_id: NoteId) -> Result<Option<Note>, StorageError> {
         self.connection.query_row(
             "SELECT id, category_id, source, title, plain_text, revision, created_at, updated_at, trashed_at
@@ -181,6 +231,11 @@ impl SqliteLibrary {
     }
 
     /// Saves source if the caller still owns the supplied revision.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the revision conflicts, the note is unavailable, or the
+    /// note and its search index cannot be updated.
     pub fn save_note(
         &self,
         note_id: NoteId,
@@ -203,6 +258,10 @@ impl SqliteLibrary {
     }
 
     /// Lists recent notes, optionally restricted to one category.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when notes cannot be read or stored values are corrupt.
     pub fn recent_notes(
         &self,
         category_id: Option<CategoryId>,
@@ -227,6 +286,10 @@ impl SqliteLibrary {
     }
 
     /// Runs a full-text search over active notes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the search index cannot be queried or stored values are corrupt.
     pub fn search_notes(
         &self,
         query: &str,
@@ -260,6 +323,10 @@ impl SqliteLibrary {
     }
 
     /// Moves a note into the in-app trash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note cannot be updated.
     pub fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), StorageError> {
         self.connection.execute(
             "UPDATE notes SET trashed_at = ?2 WHERE id = ?1",
@@ -269,6 +336,10 @@ impl SqliteLibrary {
     }
 
     /// Restores a note from trash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note cannot be updated.
     pub fn restore_note(&self, note_id: NoteId) -> Result<(), StorageError> {
         self.connection.execute(
             "UPDATE notes SET trashed_at = NULL WHERE id = ?1",
@@ -278,6 +349,10 @@ impl SqliteLibrary {
     }
 
     /// Adds bytes to the managed asset store and returns its portable source path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when bytes cannot be written or their metadata cannot be persisted.
     pub fn store_asset(
         &self,
         note_id: NoteId,
@@ -285,7 +360,7 @@ impl SqliteLibrary {
         bytes: &[u8],
     ) -> Result<String, StorageError> {
         let digest = format!("{:x}", Sha256::digest(bytes));
-        let safe_extension = extension.trim_start_matches('.').to_ascii_lowercase();
+        let safe_extension = asset_extension(extension)?;
         let filename = format!("{digest}.{safe_extension}");
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
@@ -296,14 +371,14 @@ impl SqliteLibrary {
         self.connection.execute(
             "INSERT OR IGNORE INTO assets (hash, filename, byte_size) VALUES (?1, ?2, ?3)",
             params![
-                digest,
-                filename,
+                &digest,
+                &filename,
                 i64::try_from(bytes.len()).unwrap_or(i64::MAX)
             ],
         )?;
         self.connection.execute(
             "INSERT OR IGNORE INTO note_assets (note_id, asset_hash) VALUES (?1, ?2)",
-            params![note_id.to_string(), format!("{:x}", Sha256::digest(bytes))],
+            params![note_id.to_string(), &digest],
         )?;
         Ok(format!("assets/{filename}"))
     }
@@ -423,6 +498,31 @@ fn category_id(value: &str) -> Result<CategoryId, StorageError> {
         .map(CategoryId::from_uuid)
         .map_err(|error| StorageError::Corrupt(error.to_string()))
 }
+
+fn category_name(name: &str) -> Result<&str, StorageError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(StorageError::InvalidCategoryName);
+    }
+    Ok(name)
+}
+
+fn asset_extension(extension: &str) -> Result<&'static str, StorageError> {
+    match extension
+        .trim_start_matches('.')
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => Ok("png"),
+        "jpg" | "jpeg" => Ok("jpg"),
+        "gif" => Ok("gif"),
+        "webp" => Ok("webp"),
+        "svg" => Ok("svg"),
+        _ => Err(StorageError::UnsupportedAssetExtension(
+            extension.to_owned(),
+        )),
+    }
+}
 fn note_id(value: &str) -> Result<NoteId, StorageError> {
     Uuid::parse_str(value)
         .map(NoteId::from_uuid)
@@ -500,5 +600,29 @@ mod tests {
             .recent_notes(None, 20, 0)
             .unwrap_or_else(|error| panic!("list failed: {error}"));
         assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn create_category_rejects_blank_names() {
+        let (_directory, library) = library();
+        let result = library.create_category(" \t ", OffsetDateTime::now_utc());
+        assert!(matches!(result, Err(StorageError::InvalidCategoryName)));
+    }
+
+    #[test]
+    fn store_asset_rejects_unsupported_extensions() {
+        let (_directory, library) = library();
+        let now = OffsetDateTime::now_utc();
+        let category = library
+            .create_category("Work", now)
+            .unwrap_or_else(|error| panic!("category failed: {error}"));
+        let note = library
+            .create_note(category.id, now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+        let result = library.store_asset(note.id, "../sqlite", b"not an image");
+        assert!(matches!(
+            result,
+            Err(StorageError::UnsupportedAssetExtension(_))
+        ));
     }
 }
