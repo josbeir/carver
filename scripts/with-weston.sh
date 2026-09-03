@@ -36,15 +36,23 @@ trap cleanup EXIT INT TERM
 if [[ "$owns_runtime_dir" == true ]]; then
   chmod 700 "$runtime_dir"
 fi
-XDG_RUNTIME_DIR="$runtime_dir" weston \
-  --backend=headless \
-  --renderer=pixman \
-  --socket="$socket_name" \
-  --width=1280 \
-  --height=900 \
-  --idle-time=0 \
-  --fake-seat \
-  --log="$weston_log" &
+
+# Weston 14 in CI does not expose --fake-seat, while newer releases do. It is
+# only a compatibility convenience for the headless backend, so use it when
+# available without making the test harness depend on a particular release.
+weston_args=(
+  --backend=headless
+  --renderer=pixman
+  --socket="$socket_name"
+  --width=1280
+  --height=900
+  --idle-time=0
+  --log="$weston_log"
+)
+if weston --help 2>&1 | grep -Fq -- '--fake-seat'; then
+  weston_args+=(--fake-seat)
+fi
+XDG_RUNTIME_DIR="$runtime_dir" weston "${weston_args[@]}" &
 weston_pid=$!
 
 for _ in $(seq 1 100); do
