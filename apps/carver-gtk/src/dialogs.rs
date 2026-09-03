@@ -71,6 +71,7 @@ fn show_preferences_dialog(
         updated.images.load_remote_automatically = remote_images.is_active();
         if save(&path_for_images, &updated).is_ok() {
             state_for_images.config.replace(updated);
+            state_for_images.refresh_remote_image_policy(remote_images.is_active());
         }
     });
     let state_for_delay = Rc::clone(state);
@@ -122,6 +123,7 @@ pub(crate) fn show_category_name_dialog(
     entry.set_widget_name("category-name-entry");
     entry.set_text(initial_name);
     entry.set_placeholder_text(Some("Category name"));
+    entry.set_activates_default(true);
     let dialog = adw::AlertDialog::builder()
         .heading(title)
         .extra_child(&entry)

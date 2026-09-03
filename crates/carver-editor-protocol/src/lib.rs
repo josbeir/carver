@@ -18,12 +18,19 @@ pub enum EditorCommand {
     Heading(u8),
     /// Insert a table with the supplied dimensions.
     InsertTable {
-        /// Number of body rows.
+        /// Total number of rows, including the optional header row.
         rows: u8,
         /// Number of columns.
         columns: u8,
         /// Whether the first row is a header.
         header: bool,
+    },
+    /// Replace the current selection with a labelled link.
+    InsertLink {
+        /// Visible link text.
+        text: String,
+        /// Link destination.
+        destination: String,
     },
     /// Set a selected image's responsive width percentage, or restore intrinsic width.
     ImageWidth(Option<u8>),
@@ -97,6 +104,16 @@ mod tests {
         assert_eq!(
             encoded,
             "{\"insert-table\":{\"rows\":2,\"columns\":3,\"header\":true}}"
+        );
+
+        let link = EditorCommand::InsertLink {
+            text: String::from("Carve"),
+            destination: String::from("https://github.com/markup-carve"),
+        };
+        let encoded = serde_json::to_string(&link).unwrap_or_default();
+        assert_eq!(
+            encoded,
+            "{\"insert-link\":{\"text\":\"Carve\",\"destination\":\"https://github.com/markup-carve\"}}"
         );
     }
 

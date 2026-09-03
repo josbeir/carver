@@ -6,8 +6,10 @@
   --code-background: #303036;
   --code-language-background: #25252a;
   --border-color: #5b5b63;
-  --selection-background: #358e45;
-  --selection-foreground: #ffffff;
+  --table-header-background: #38383f;
+  --accent-color: #358e45;
+  --selection-background: rgb(53 142 69 / 25%);
+  --selection-foreground: var(--document-foreground);
 }
 html,
 body {
@@ -18,6 +20,11 @@ body {
   background: var(--document-background);
   color: var(--document-foreground);
   font: 12pt Cantarell, sans-serif;
+}
+.ProseMirror::selection,
+body[data-preview]::selection {
+  background: var(--preview-selection-background, var(--selection-background));
+  color: var(--preview-selection-foreground, var(--selection-foreground));
 }
 .ProseMirror,
 body[data-preview] {
@@ -70,16 +77,22 @@ body[data-preview] {
   display: block;
 }
 :where(.ProseMirror, body[data-preview]) img {
-  display: block;
   max-width: 100%;
   height: auto;
-  margin-block: .5rem;
+  vertical-align: middle;
 }
 :where(.ProseMirror, body[data-preview]) img[style] {
   height: auto !important;
 }
+.ProseMirror p:has(> img) {
+  white-space: normal;
+}
+.ProseMirror p:has(> img:only-child) > img,
 body[data-preview] > img {
-  margin-block-end: 3rem;
+  display: block;
+}
+body[data-preview] > img {
+  margin: 0 0 1rem;
 }
 :where(.ProseMirror, body[data-preview]) ul,
 :where(.ProseMirror, body[data-preview]) ol {
@@ -103,6 +116,10 @@ body[data-preview] > img {
   min-width: 4rem;
   padding: 6px;
   overflow-wrap: anywhere;
+}
+:where(.ProseMirror, body[data-preview]) th {
+  background: var(--table-header-background);
+  font-weight: 700;
 }
 body[data-preview] th,
 body[data-preview] td {
@@ -129,7 +146,7 @@ body[data-preview] ul.task-list li > label {
 }
 :where(.ProseMirror, body[data-preview]) ul[data-type=taskList] input[type=checkbox],
 body[data-preview] ul.task-list input[type=checkbox] {
-  accent-color: var(--selection-background);
+  accent-color: var(--preview-accent-color, var(--accent-color));
   inline-size: 1rem;
   block-size: 1rem;
   margin: 0;
@@ -151,7 +168,7 @@ body[data-preview] ul:has(> li > input[type=checkbox]) li {
   margin-block: .5rem;
 }
 body[data-preview] ul:has(> li > input[type=checkbox]) input[type=checkbox] {
-  accent-color: var(--selection-background);
+  accent-color: var(--preview-accent-color, var(--accent-color));
   inline-size: 1rem;
   block-size: 1rem;
   margin: 0 .55rem 0 0;
@@ -175,6 +192,7 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
   --code-background: #ededf1;
   --code-language-background: #ffffff;
   --border-color: #b7b7c0;
+  --table-header-background: #e7e7ec;
 }
 
 /* src/preview.css */

@@ -17,6 +17,7 @@ use carver_storage_sqlite::StorageError;
 
 /// The local library client used by the GTK frontend.
 pub(crate) type AppLibraryClient = LibraryClient<SqliteLibrary>;
+type RemoteImagePolicyHandler = RefCell<Option<Box<dyn Fn(bool)>>>;
 
 #[cfg(test)]
 pub(crate) type AppLibraryError = LibraryError<StorageError>;
@@ -32,6 +33,7 @@ pub(crate) struct AppState {
     /// TOML path used for immediate editor preference persistence.
     pub(crate) config_path: Option<PathBuf>,
     pub(crate) config: RefCell<Config>,
+    remote_image_policy_handler: RemoteImagePolicyHandler,
     pub(crate) selected_category: Cell<Option<CategoryId>>,
     pub(crate) selected_category_name: RefCell<Option<String>>,
     pub(crate) categories: RefCell<Vec<Category>>,
@@ -52,6 +54,7 @@ pub(crate) struct AppState {
     pub(crate) browser_title: RefCell<Option<adw::WindowTitle>>,
     pub(crate) browser_content_stack: RefCell<Option<gtk::Stack>>,
     pub(crate) browser_status: RefCell<Option<adw::StatusPage>>,
+    pub(crate) browser_search_empty_card: RefCell<Option<gtk::Box>>,
     pub(crate) browser_empty_new_note_button: RefCell<Option<gtk::Button>>,
     pub(crate) browser_toast_overlay: RefCell<Option<adw::ToastOverlay>>,
     pub(crate) sidebar_list: RefCell<Option<gtk::ListBox>>,
@@ -82,6 +85,7 @@ impl AppState {
             assets_dir,
             config_path,
             config: RefCell::new(config),
+            remote_image_policy_handler: RefCell::new(None),
             selected_category: Cell::new(None),
             selected_category_name: RefCell::new(None),
             categories: RefCell::new(Vec::new()),
@@ -102,6 +106,7 @@ impl AppState {
             browser_title: RefCell::new(None),
             browser_content_stack: RefCell::new(None),
             browser_status: RefCell::new(None),
+            browser_search_empty_card: RefCell::new(None),
             browser_empty_new_note_button: RefCell::new(None),
             browser_toast_overlay: RefCell::new(None),
             sidebar_list: RefCell::new(None),
@@ -136,6 +141,19 @@ impl AppState {
         }
         self.config.replace(updated);
         Ok(())
+    }
+
+    /// Registers the active editor's image-policy refresh hook.
+    pub(crate) fn set_remote_image_policy_handler(&self, handler: impl Fn(bool) + 'static) {
+        self.remote_image_policy_handler
+            .replace(Some(Box::new(handler)));
+    }
+
+    /// Updates the live editor after its persisted remote-image policy changes.
+    pub(crate) fn refresh_remote_image_policy(&self, enabled: bool) {
+        if let Some(handler) = self.remote_image_policy_handler.borrow().as_ref() {
+            handler(enabled);
+        }
     }
 }
 

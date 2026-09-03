@@ -2,6 +2,8 @@ import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import './style.css';
 import { unsupportedForEditing } from './editability.js';
+import { insertOrUpdateLink, linkContext } from './link.js';
+import { resizeSelectedTable, tableSize } from './table-resize.js';
 import {
   CarveKit,
   carveToProseMirrorWithReport,
@@ -53,7 +55,7 @@ function reportSelection() {
   const states = [
     ['bold', active('bold')], ['italic', active('italic')], ['strike', active('strike')],
     ['underline', active('underline')], ['inline-code', active('code')], ['highlight', active('highlight')],
-    ['superscript', active('superscript')], ['subscript', active('subscript')],
+    ['superscript', active('superscript')], ['subscript', active('subscript')], ['link', active('link')],
     ['bullet-list', active('bulletList')], ['ordered-list', active('orderedList')], ['task-list', active('taskList')],
     ['code-block', active('codeBlock')], ['table', active('table')], ['image', image],
   ];
@@ -101,28 +103,46 @@ function command(name, argument) {
     case 'italic': return chain.toggleItalic().run();
     case 'strike': return chain.toggleStrike().run();
     case 'underline': return chain.toggleUnderline().run();
-    case 'inline-code': return chain.toggleCode().run();
     case 'highlight': return chain.toggleHighlight().run();
     case 'superscript': return chain.toggleSuperscript().run();
     case 'subscript': return chain.toggleSubscript().run();
+    case 'inline-code': return chain.toggleCode().run();
     case 'bullet-list': return chain.toggleBulletList().run();
     case 'ordered-list': return chain.toggleOrderedList().run();
     case 'task-list': return chain.toggleTaskList().run();
     case 'code-block': return chain.toggleCodeBlock().run();
     case 'heading': return argument ? chain.toggleHeading({ level: argument }).run() : chain.setParagraph().run();
-    case 'insert-table': return chain.insertTable({ rows: argument?.rows ?? 3, cols: argument?.columns ?? 3, withHeaderRow: argument?.header ?? true }).run();
-    case 'add-row-before': return chain.addRowBefore().run();
-    case 'add-row-after': return chain.addRowAfter().run();
-    case 'delete-row': return chain.deleteRow().run();
-    case 'add-column-before': return chain.addColumnBefore().run();
-    case 'add-column-after': return chain.addColumnAfter().run();
-    case 'delete-column': return chain.deleteColumn().run();
-    case 'delete-table': return chain.deleteTable().run();
+    case 'insert-table': return insertOrResizeTable(argument);
     case 'image-width': return setImageWidth(argument);
+    case 'insert-link': return insertLink(argument);
     case 'undo': return chain.undo().run();
     case 'redo': return chain.redo().run();
     default: return false;
   }
+}
+
+function insertOrResizeTable(argument) {
+  // The table picker is native GTK UI, so using it moves focus away from the
+  // WebView. Restore the editor selection before asking Tiptap which table is
+  // active; otherwise a later resize is treated as an insertion attempt.
+  editor.commands.focus();
+  const { rows, columns } = tableSize(argument?.rows, argument?.columns);
+  const header = argument?.header ?? true;
+  if (!editor.isActive('table')) {
+    return editor.chain().focus().insertTable({ rows, cols: columns, withHeaderRow: header }).run();
+  }
+  const transactions = resizeSelectedTable(editor.state, { rows, columns, header });
+  if (!transactions.length) return false;
+  transactions.forEach(transaction => editor.view.dispatch(transaction.scrollIntoView()));
+  return true;
+}
+
+function insertLink(argument) {
+  editor.commands.focus();
+  const transaction = insertOrUpdateLink(editor.state, argument);
+  if (!transaction) return false;
+  editor.view.dispatch(transaction);
+  return true;
 }
 
 function setImageWidth(width) {
@@ -139,7 +159,12 @@ function pasteImage(event) {
   if (!item) return;
   event.preventDefault();
   const file = item.getAsFile();
-  if (!file) return;
+  if (!file) return false;
+  return persistImageFile(file);
+}
+
+function persistImageFile(file) {
+  if (!file?.type.startsWith('image/')) return false;
   const reader = new FileReader();
   reader.onload = () => {
     const data = String(reader.result).split(',', 2)[1];
@@ -149,15 +174,35 @@ function pasteImage(event) {
   return true;
 }
 
-function insertImage(path) {
-  if (replacePendingBlobImage(path)) return;
+function dropImages(event) {
+  const files = [...(event.dataTransfer?.files ?? [])].filter(file => file.type.startsWith('image/'));
+  if (!files.length) {
+    // WebKitGTK commonly reports a native image drop as a file URI rather
+    // than a browser File. The GTK drop target imports that file; suppress
+    // WebKit's default URI-text insertion in the meantime.
+    const uriList = event.dataTransfer?.getData('text/uri-list') ?? '';
+    if (!/^file:\/\/\/.+\.(?:avif|gif|jpe?g|png|svg|webp)(?:\r?$)/im.test(uriList)) {
+      return false;
+    }
+    event.preventDefault();
+    return true;
+  }
+  event.preventDefault();
+  const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+  if (position != null) editor.chain().focus().setTextSelection(position).run();
+  files.forEach(persistImageFile);
+  return true;
+}
+
+function insertImage(path, alt = 'Pasted image') {
+  if (replacePendingBlobImage(path, alt)) return;
   editor.chain().focus().insertContent([
-    { type: 'paragraph', content: [{ type: 'image', attrs: { src: path, alt: 'Pasted image' } }] },
+    { type: 'paragraph', content: [{ type: 'image', attrs: { src: path, alt } }] },
     { type: 'paragraph' },
   ]).run();
 }
 
-function replacePendingBlobImage(path) {
+function replacePendingBlobImage(path, alt) {
   let pending = null;
   editor.state.doc.descendants((node, position) => {
     if (node.type.name === 'image' && typeof node.attrs.src === 'string'
@@ -173,7 +218,7 @@ function replacePendingBlobImage(path) {
   return editor.chain().setNodeSelection(pending.position).updateAttributes('image', {
     ...pending.attrs,
     src: path,
-    alt: pending.attrs.alt || 'Pasted image',
+    alt: pending.attrs.alt || alt,
   }).run();
 }
 
@@ -212,7 +257,10 @@ function initialize() {
     element: root,
     extensions: [CarveKit.configure({ image: false }), CarveImage],
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
-    editorProps: { handlePaste: (_view, event) => pasteImage(event) ?? false },
+    editorProps: {
+      handlePaste: (_view, event) => pasteImage(event) ?? false,
+      handleDrop: (_view, event) => dropImages(event),
+    },
     onUpdate: ({ editor: updated }) => {
       if (loading) return;
       // WebKit may turn a clipboard image into a `blob:` image before it
@@ -231,6 +279,9 @@ function initialize() {
   root.addEventListener('paste', event => {
     if (pasteImage(event)) event.stopPropagation();
   }, true);
+  root.addEventListener('drop', event => {
+    if (dropImages(event)) event.stopPropagation();
+  }, true);
   send({ type: 'ready' });
 }
 
@@ -238,9 +289,11 @@ globalThis.carverEditor = {
   load,
   command,
   source: () => editor ? serializeToCarve(editor.getJSON()) : '',
+  linkContext: () => editor ? linkContext(editor.state) : { text: '', destination: '' },
   insertImage,
-  setTheme: (dark, selectionBackground, selectionForeground) => {
+  setTheme: (dark, accent, selectionBackground, selectionForeground) => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.setProperty('--accent-color', accent);
     document.documentElement.style.setProperty('--selection-background', selectionBackground);
     document.documentElement.style.setProperty('--selection-foreground', selectionForeground);
   },

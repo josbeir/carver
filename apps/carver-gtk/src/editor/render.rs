@@ -5,7 +5,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::controller::AppState;
+use crate::{controller::AppState, formatting};
 
 /// Installs Ctrl+V image paste support for the Carve source editor.
 ///
@@ -55,4 +55,52 @@ pub(crate) fn install_image_paste(
     });
     view.add_controller(controller.clone());
     controller
+}
+
+/// Installs managed image-file drag and drop for an editing surface.
+///
+/// GTK owns native file drops, including `WebKit` drops that only expose a URI
+/// to JavaScript. Routing both source and rich editors through this handler
+/// keeps local paths out of the persisted document.
+pub(crate) fn install_image_drop(
+    view: &impl IsA<gtk::Widget>,
+    state: &Rc<AppState>,
+    toast_overlay: &adw::ToastOverlay,
+    on_insert: impl Fn(String, String) + 'static,
+) -> gtk::DropTarget {
+    use glib::types::StaticType;
+
+    let target = gtk::DropTarget::new(
+        gtk::gdk::FileList::static_type(),
+        gtk::gdk::DragAction::COPY,
+    );
+    let state = Rc::clone(state);
+    let toast_overlay = toast_overlay.clone();
+    let on_insert: Rc<dyn Fn(String, String)> = Rc::new(on_insert);
+    target.connect_drop(move |_target, value, _x, _y| {
+        let Ok(files) = value.get::<gtk::gdk::FileList>() else {
+            return false;
+        };
+        let files = files.files();
+        if files.is_empty() {
+            return false;
+        }
+        for file in files {
+            let Some(extension) = formatting::image_extension_for_file(&file) else {
+                continue;
+            };
+            let alt = formatting::image_alt_for_file(&file);
+            formatting::import_managed_image_file(
+                &file,
+                &alt,
+                &state,
+                &toast_overlay,
+                Rc::clone(&on_insert),
+                extension,
+            );
+        }
+        true
+    });
+    view.add_controller(target.clone());
+    target
 }

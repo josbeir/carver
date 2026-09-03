@@ -102,22 +102,47 @@ fn mime_type(path: &str) -> &'static str {
 
 /// Renders source using Carve's full HTML renderer under a restrictive CSP.
 pub(crate) fn rendered_document(source: &str, allow_remote_images: bool) -> String {
-    rendered_document_for_theme(
-        source,
-        allow_remote_images,
-        gtk::is_initialized() && libadwaita::StyleManager::default().is_dark(),
-    )
+    let (dark, theme) = if gtk::is_initialized() {
+        let style_manager = libadwaita::StyleManager::default();
+        let dark = style_manager.is_dark();
+        let theme = super::web::selection_theme(
+            dark,
+            &style_manager.accent_color().to_standalone_rgba(dark),
+        );
+        (dark, theme)
+    } else {
+        let dark = false;
+        let theme =
+            super::web::selection_theme(dark, &gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0));
+        (dark, theme)
+    };
+    rendered_document_with_selection(source, allow_remote_images, dark, &theme)
 }
 
+#[cfg(test)]
 fn rendered_document_for_theme(source: &str, allow_remote_images: bool, dark: bool) -> String {
+    let theme = super::web::selection_theme(dark, &gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0));
+    rendered_document_with_selection(source, allow_remote_images, dark, &theme)
+}
+
+fn rendered_document_with_selection(
+    source: &str,
+    allow_remote_images: bool,
+    dark: bool,
+    selection: &super::web::SelectionTheme,
+) -> String {
     let image_sources = if allow_remote_images {
         "img-src data: https: http: carver-asset:"
     } else {
         "img-src data: carver-asset:"
     };
     let body = carve::to_html(source).replace("src=\"assets/", "src=\"carver-asset:///assets/");
+    let selection_style = format!(
+        "--preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
+        selection.accent, selection.background, selection.foreground,
+    );
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'none'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview>{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview>{body}</body></html>",
         color_scheme = if dark { "dark" } else { "light" },
     )
 }

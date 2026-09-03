@@ -98,13 +98,21 @@ pub(crate) fn build_editor(
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
     let rich = RichEditor::new(state, &source_buffer, toast_overlay);
+    let rich_for_remote_images = rich.clone();
+    let source_for_remote_images = source_buffer.clone();
+    state.set_remote_image_policy_handler(move |allow_remote_images| {
+        rich_for_remote_images.reload_with_remote_images(
+            &buffer_text(&source_for_remote_images),
+            allow_remote_images,
+        );
+    });
     refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(state.assets_dir.as_deref());
-    let rich_toolbar = web::append_controls(&rich_format_bar, &rich);
+    let rich_toolbar = web::append_controls(&rich_format_bar, &rich, state, toast_overlay);
     rich.connect_selection_changed(move |selection| rich_toolbar.set_selection_state(&selection));
-    formatting::append_source_controls(&source_format_bar, &source_buffer);
+    formatting::append_source_controls(&source_format_bar, &source_buffer, state, toast_overlay);
     format_stack.add_named(&rich_format_bar, Some("rich"));
     format_stack.add_named(&source_format_bar, Some("source"));
     install_source_shortcuts(&source, &source_buffer);
@@ -163,6 +171,16 @@ pub(crate) fn build_editor(
     connect_source_preview(state, &source_buffer, &split_preview, &rendered_preview);
     let _source_image_paste =
         render::install_image_paste(&source, &source_buffer, state, toast_overlay);
+    let source_buffer_for_drop = source_buffer.clone();
+    let _source_image_drop =
+        render::install_image_drop(&source, state, toast_overlay, move |path, alt| {
+            source_commands::insert_image(&source_buffer_for_drop, &alt, &path);
+        });
+    let rich_for_drop = rich.clone();
+    let _rich_image_drop =
+        render::install_image_drop(rich.view(), state, toast_overlay, move |path, alt| {
+            rich_for_drop.insert_image_with_alt(&path, &alt);
+        });
     connect_note_loading(
         state,
         stack,
@@ -804,20 +822,36 @@ fn connect_preview_theme_refresh(
     rendered_preview: &webkit6::WebView,
     rich: &RichEditor,
 ) {
-    let state = Rc::clone(state);
+    let state_for_dark_theme = Rc::clone(state);
     let source = source_buffer.clone();
-    let split_preview = split_preview.clone();
-    let rendered_preview = rendered_preview.clone();
+    let split_preview_for_dark_theme = split_preview.clone();
+    let rendered_preview_for_dark_theme = rendered_preview.clone();
     let rich_for_dark_theme = rich.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
         let source_text = buffer_text(&source);
-        let remote = state.config.borrow().images.load_remote_automatically;
-        load_preview(&split_preview, &source_text, remote);
-        load_preview(&rendered_preview, &source_text, remote);
+        let remote = state_for_dark_theme
+            .config
+            .borrow()
+            .images
+            .load_remote_automatically;
+        load_preview(&split_preview_for_dark_theme, &source_text, remote);
+        load_preview(&rendered_preview_for_dark_theme, &source_text, remote);
         refresh_rich_theme(&rich_for_dark_theme);
     });
+    let state_for_accent = Rc::clone(state);
+    let source = source_buffer.clone();
+    let split_preview = split_preview.clone();
+    let rendered_preview = rendered_preview.clone();
     let rich = rich.clone();
     adw::StyleManager::default().connect_accent_color_notify(move |_| {
+        let source_text = buffer_text(&source);
+        let remote = state_for_accent
+            .config
+            .borrow()
+            .images
+            .load_remote_automatically;
+        load_preview(&split_preview, &source_text, remote);
+        load_preview(&rendered_preview, &source_text, remote);
         refresh_rich_theme(&rich);
     });
 }

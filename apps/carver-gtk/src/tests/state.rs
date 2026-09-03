@@ -1,5 +1,7 @@
 //! State, persistence, and storage-facing GTK tests.
 
+use std::{cell::Cell, rc::Rc};
+
 use carver_config::{Config, EditorMode, load};
 
 use crate::{
@@ -11,6 +13,19 @@ use crate::{
 };
 
 use super::support::{TestResult, test_state};
+
+#[test]
+fn remote_image_policy_refresh_notifies_the_active_editor() -> TestResult {
+    let (_temporary_directory, state) = test_state()?;
+    let received = Rc::new(Cell::new(None));
+    let received_by_handler = Rc::clone(&received);
+    state.set_remote_image_policy_handler(move |enabled| received_by_handler.set(Some(enabled)));
+
+    state.refresh_remote_image_policy(false);
+
+    assert_eq!(received.get(), Some(false));
+    Ok(())
+}
 
 #[test]
 fn state_actions_create_open_and_save_notes_without_reentrant_borrows() -> TestResult {

@@ -24,6 +24,7 @@ fn rendered_document_matches_the_editor_block_presentation() {
     assert!(PREVIEW_STYLESHEET.contains("ul:has(> li > input[type=checkbox])"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > img"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview] th"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview]::selection"));
 }
 
 #[test]

@@ -79,6 +79,62 @@ pub(crate) fn insert_link(buffer: &gtk::TextBuffer, text: &str, destination: &st
     }
 }
 
+/// Inserts a Carve table with the selected dimensions at the source cursor.
+pub(crate) fn insert_table(buffer: &gtk::TextBuffer, rows: u8, columns: u8, header: bool) {
+    if rows == 0 || columns == 0 {
+        return;
+    }
+    let mut table = String::new();
+    for row in 0..rows {
+        for _ in 0..columns {
+            table.push('|');
+            if header && row == 0 {
+                table.push('=');
+            }
+            table.push(' ');
+        }
+        table.push('|');
+        if row + 1 != rows {
+            table.push('\n');
+        }
+    }
+    buffer.insert_at_cursor(&format!("\n{table}\n"));
+}
+
+/// Inserts a managed image as a stand-alone Carve block.
+pub(crate) fn insert_image(buffer: &gtk::TextBuffer, alt: &str, path: &str) {
+    let alt = alt.replace(']', "\\]");
+    buffer.insert_at_cursor(&format!("\n![{alt}]({path})\n"));
+}
+
+/// Updates the width attribute of the direct Carve image containing the cursor.
+///
+/// Returns `false` when the cursor does not point at a direct image form.
+pub(crate) fn set_image_width(buffer: &gtk::TextBuffer, width: Option<u8>) -> bool {
+    let source = buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .to_string();
+    let cursor = buffer.iter_at_mark(&buffer.get_insert()).offset();
+    let Some(cursor) = byte_offset_at_character(&source, cursor) else {
+        return false;
+    };
+    let Some((start, end)) = image_span_at(&source, cursor) else {
+        return false;
+    };
+    let replacement = image_with_width(&source[start..end], width);
+    let Some(start_offset) = character_offset_at_byte(&source, start) else {
+        return false;
+    };
+    let Some(end_offset) = character_offset_at_byte(&source, end) else {
+        return false;
+    };
+    let mut start = buffer.iter_at_offset(start_offset);
+    let mut end = buffer.iter_at_offset(end_offset);
+    buffer.delete(&mut start, &mut end);
+    buffer.insert(&mut start, &replacement);
+    true
+}
+
 fn replace_selection(
     buffer: &gtk::TextBuffer,
     start: &gtk::TextIter,
@@ -90,6 +146,98 @@ fn replace_selection(
     buffer.delete(&mut start, &mut end);
     buffer.insert(&mut start, replacement);
     buffer.place_cursor(&start);
+}
+
+fn image_span_at(source: &str, cursor: usize) -> Option<(usize, usize)> {
+    let start = source[..cursor].rfind("![")?;
+    let close = source[start..].find(')')? + start + 1;
+    let mut end = close;
+    if source[end..].starts_with('{') {
+        let attrs_end = source[end..].find('}')? + end + 1;
+        end = attrs_end;
+    }
+    (cursor <= end).then_some((start, end))
+}
+
+fn image_with_width(image: &str, width: Option<u8>) -> String {
+    let Some(close) = image.rfind(')') else {
+        return image.to_owned();
+    };
+    let (image, attrs) = image.split_at(close + 1);
+    let attrs = attrs
+        .strip_prefix('{')
+        .and_then(|attrs| attrs.strip_suffix('}'));
+    let mut entries = image_attributes_without_width(attrs.unwrap_or_default());
+    if let Some(width) = width {
+        entries.push(format!("width=\"{width}%\""));
+    }
+    if entries.is_empty() {
+        image.to_owned()
+    } else {
+        format!("{image}{{{}}}", entries.join(" "))
+    }
+}
+
+fn image_attributes_without_width(attributes: &str) -> Vec<String> {
+    let mut entries = Vec::new();
+    let mut cursor = 0;
+    while cursor < attributes.len() {
+        cursor += attributes[cursor..]
+            .char_indices()
+            .take_while(|(_, character)| character.is_whitespace())
+            .map(|(offset, character)| offset + character.len_utf8())
+            .last()
+            .unwrap_or_default();
+        if cursor >= attributes.len() {
+            break;
+        }
+        let start = cursor;
+        let key_end = attributes[cursor..]
+            .char_indices()
+            .find_map(|(offset, character)| {
+                (character == '=' || character.is_whitespace()).then_some(cursor + offset)
+            })
+            .unwrap_or(attributes.len());
+        let key = &attributes[start..key_end];
+        cursor = key_end;
+        if attributes[cursor..].starts_with('=') {
+            cursor += 1;
+            if let Some(quote) = attributes[cursor..]
+                .chars()
+                .next()
+                .filter(|quote| *quote == '\'' || *quote == '"')
+            {
+                cursor += quote.len_utf8();
+                cursor = attributes[cursor..]
+                    .find(quote)
+                    .map_or(attributes.len(), |offset| {
+                        cursor + offset + quote.len_utf8()
+                    });
+            } else {
+                cursor = attributes[cursor..]
+                    .char_indices()
+                    .find_map(|(offset, character)| {
+                        character.is_whitespace().then_some(cursor + offset)
+                    })
+                    .unwrap_or(attributes.len());
+            }
+        }
+        if key != "width" {
+            entries.push(attributes[start..cursor].to_owned());
+        }
+    }
+    entries
+}
+
+fn byte_offset_at_character(source: &str, character_offset: i32) -> Option<usize> {
+    usize::try_from(character_offset)
+        .ok()
+        .and_then(|offset| source.char_indices().nth(offset).map(|(byte, _)| byte))
+        .or_else(|| (character_offset >= 0).then_some(source.len()))
+}
+
+fn character_offset_at_byte(source: &str, byte_offset: usize) -> Option<i32> {
+    i32::try_from(source[..byte_offset].chars().count()).ok()
 }
 
 fn replace_selected_lines(buffer: &gtk::TextBuffer, transform: impl Fn(&str) -> String) {

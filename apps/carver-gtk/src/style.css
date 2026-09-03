@@ -77,6 +77,16 @@
   opacity: 0.72;
 }
 
+.search-empty-card {
+  border-radius: 12px;
+  background: alpha(currentColor, 0.06);
+  padding: 14px;
+}
+
+.search-empty-card-title {
+  font-weight: 700;
+}
+
 textview {
   font-size: 12pt;
   line-height: 1.55;
@@ -114,6 +124,16 @@ textview text {
   border-top: 1px solid alpha(currentColor, 0.12);
 }
 
+#formatting-toolbar button.format-fallback-button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 5px;
+}
+
+.format-fallback-glyph {
+  font-weight: 700;
+}
+
 /* Formatting is selection-driven: a control remains lit only while the
  * browser reports that its mark or block contains the current caret. */
 .toolbar button:checked,
@@ -125,4 +145,20 @@ textview text {
 popover button:checked {
   background: @accent_bg_color;
   color: @accent_fg_color;
+}
+
+.table-size-cell {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 0;
+  background: alpha(currentColor, 0.08);
+}
+
+.table-size-cell.selected {
+  background: alpha(@accent_bg_color, 0.35);
+}
+
+.table-size-picker label {
+  font-size: 1.15em;
 }

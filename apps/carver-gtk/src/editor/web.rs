@@ -8,9 +8,10 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_editor_protocol::{EditorCommand, EditorEvent, SelectionState};
 use gtk::prelude::*;
+use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::controller::AppState;
+use crate::{controller::AppState, formatting};
 
 const EDITOR_JAVASCRIPT: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/editor.js"));
@@ -80,9 +81,11 @@ impl RichEditor {
         };
         editor.connect_messages(&manager, state, source_buffer, toast_overlay);
         editor.connect_load_lifecycle();
-        editor
-            .view
-            .load_html(&editor_document(), Some("carver-asset:///"));
+        let allow_remote_images = state.config.borrow().images.load_remote_automatically;
+        editor.view.load_html(
+            &editor_document(allow_remote_images),
+            Some("carver-asset:///"),
+        );
         editor
     }
 
@@ -98,6 +101,17 @@ impl RichEditor {
         self.pending_source
             .replace(Some((next_session, source.to_owned())));
         self.flush_pending_source();
+    }
+
+    /// Rebuilds the sandbox shell so its CSP reflects the remote-image policy,
+    /// then restores the canonical Carve source when the new editor is ready.
+    pub(crate) fn reload_with_remote_images(&self, source: &str, allow_remote_images: bool) {
+        self.ready.set(false);
+        self.view.load_html(
+            &editor_document(allow_remote_images),
+            Some("carver-asset:///"),
+        );
+        self.load_source(source);
     }
 
     /// Sends a native formatting action to the focused editor selection.
@@ -117,6 +131,10 @@ impl RichEditor {
                 "image-width",
                 width.map_or_else(|| String::from("0"), |value| value.to_string()),
             ),
+            EditorCommand::InsertLink { text, destination } => (
+                "insert-link",
+                format!("{{text:{},destination:{}}}", json(text), json(destination)),
+            ),
         };
         self.evaluate(&format!(
             "window.carverEditor.command({}, {});",
@@ -127,12 +145,12 @@ impl RichEditor {
 
     /// Applies GNOME's color scheme and system accent without reloading the document.
     pub(crate) fn set_theme(&self, dark: bool, accent: &gtk::gdk::RGBA) {
-        let accent = rgba_css(accent);
-        let foreground = selection_foreground(accent.as_str());
+        let selection = selection_theme(dark, accent);
         self.evaluate(&format!(
-            "window.carverEditor.setTheme({dark}, {}, {});",
-            json(&accent),
-            json(foreground)
+            "window.carverEditor.setTheme({dark}, {}, {}, {});",
+            json(&selection.accent),
+            json(&selection.background),
+            json(selection.foreground)
         ));
     }
 
@@ -232,7 +250,7 @@ impl RichEditor {
                     let toast_overlay = toast_overlay.clone();
                     glib::spawn_future_local(async move {
                         match client.store_asset_async(note.id, extension, bytes).await {
-                            Ok(path) => editor.insert_image(&path),
+                            Ok(path) => editor.insert_image_with_alt(&path, "Pasted image"),
                             Err(error) => toast_overlay.add_toast(libadwaita::Toast::new(
                                 &format!("Could not store pasted image: {error}"),
                             )),
@@ -268,8 +286,13 @@ impl RichEditor {
         ));
     }
 
-    fn insert_image(&self, path: &str) {
-        self.evaluate(&format!("window.carverEditor.insertImage({});", json(path)));
+    /// Inserts a managed asset that was supplied by a native image source.
+    pub(crate) fn insert_image_with_alt(&self, path: &str, alt: &str) {
+        self.evaluate(&format!(
+            "window.carverEditor.insertImage({}, {});",
+            json(path),
+            json(alt)
+        ));
     }
 
     fn evaluate(&self, script: &str) {
@@ -284,7 +307,16 @@ impl RichEditor {
 }
 
 /// Appends native controls that dispatch their actions to the web editing surface.
-pub(crate) fn append_controls(toolbar: &gtk::Box, editor: &RichEditor) -> RichToolbar {
+#[expect(
+    clippy::too_many_lines,
+    reason = "the ordered toolbar declaration keeps command parity visibly auditable"
+)]
+pub(crate) fn append_controls(
+    toolbar: &gtk::Box,
+    editor: &RichEditor,
+    state: &Rc<AppState>,
+    toast_overlay: &libadwaita::ToastOverlay,
+) -> RichToolbar {
     let mut toggle_buttons = Vec::new();
     for (name, icon, tooltip, command) in [
         (
@@ -310,6 +342,24 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, editor: &RichEditor) -> RichTo
             "format-text-underline-symbolic",
             "Underline (Ctrl+U)",
             "underline",
+        ),
+        (
+            "format-highlight-button",
+            "format-text-highlight-symbolic",
+            "Highlight",
+            "highlight",
+        ),
+        (
+            "format-superscript-button",
+            "format-text-superscript-symbolic",
+            "Superscript",
+            "superscript",
+        ),
+        (
+            "format-subscript-button",
+            "format-text-subscript-symbolic",
+            "Subscript",
+            "subscript",
         ),
         (
             "format-code-button",
@@ -344,7 +394,7 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, editor: &RichEditor) -> RichTo
     ] {
         let active_name = command;
         let button = gtk::ToggleButton::new();
-        button.set_icon_name(icon);
+        set_toolbar_icon(&button, icon);
         button.set_widget_name(name);
         button.set_tooltip_text(Some(tooltip));
         button.add_css_class("flat");
@@ -354,9 +404,18 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, editor: &RichEditor) -> RichTo
         toolbar.append(&button);
         toggle_buttons.push((active_name, button));
     }
+    let link = gtk::ToggleButton::new();
+    link.set_icon_name("insert-link-symbolic");
+    link.set_widget_name("format-link-button");
+    link.set_tooltip_text(Some("Insert link"));
+    link.add_css_class("flat");
+    let editor_for_link = editor.clone();
+    link.connect_clicked(move |button| show_rich_link_dialog(button, &editor_for_link));
+    toolbar.append(&link);
+    toggle_buttons.push(("link", link));
     let (heading, heading_choices) = append_heading_menu(toolbar, editor);
     let table = append_table_menu(toolbar, editor);
-    let (image, image_width_choices) = append_image_menu(toolbar, editor);
+    let (image, image_width_choices) = append_image_menu(toolbar, editor, state, toast_overlay);
     RichToolbar {
         toggle_buttons,
         heading,
@@ -364,6 +423,36 @@ pub(crate) fn append_controls(toolbar: &gtk::Box, editor: &RichEditor) -> RichTo
         table,
         image,
         image_width_choices,
+    }
+}
+
+/// Uses a compact text glyph only when the active icon theme lacks one of the
+/// newer text-formatting icons. This prevents broken-image placeholders on
+/// distributions whose Adwaita icon set predates those icon names.
+fn set_toolbar_icon(button: &gtk::ToggleButton, icon_name: &str) {
+    let has_icon = gtk::gdk::Display::default()
+        .is_some_and(|display| gtk::IconTheme::for_display(&display).has_icon(icon_name));
+    if has_icon {
+        button.set_icon_name(icon_name);
+    } else if let Some(glyph) = toolbar_fallback_glyph(icon_name) {
+        let label = gtk::Label::new(Some(glyph));
+        label.set_width_chars(2);
+        label.set_max_width_chars(2);
+        label.add_css_class("format-fallback-glyph");
+        button.set_child(Some(&label));
+        button.add_css_class("format-fallback-button");
+        button.add_css_class("image-button");
+    } else {
+        button.set_icon_name(icon_name);
+    }
+}
+
+fn toolbar_fallback_glyph(icon_name: &str) -> Option<&'static str> {
+    match icon_name {
+        "format-text-highlight-symbolic" => Some("H"),
+        "format-text-superscript-symbolic" => Some("Aˣ"),
+        "format-text-subscript-symbolic" => Some("Aₓ"),
+        _ => None,
     }
 }
 
@@ -449,67 +538,108 @@ fn append_heading_menu(
 }
 
 fn append_table_menu(toolbar: &gtk::Box, editor: &RichEditor) -> gtk::MenuButton {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name("format-table-button");
-    menu.set_icon_name("view-grid-symbolic");
-    menu.set_tooltip_text(Some("Table"));
-    menu.add_css_class("flat");
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let commands = [
-        (
-            "Insert 3 × 3 table",
-            EditorCommand::InsertTable {
-                rows: 3,
-                columns: 3,
-                header: true,
-            },
-        ),
-        (
-            "Add row above",
-            EditorCommand::Named(String::from("add-row-before")),
-        ),
-        (
-            "Add row below",
-            EditorCommand::Named(String::from("add-row-after")),
-        ),
-        (
-            "Delete row",
-            EditorCommand::Named(String::from("delete-row")),
-        ),
-        (
-            "Add column before",
-            EditorCommand::Named(String::from("add-column-before")),
-        ),
-        (
-            "Add column after",
-            EditorCommand::Named(String::from("add-column-after")),
-        ),
-        (
-            "Delete column",
-            EditorCommand::Named(String::from("delete-column")),
-        ),
-        (
-            "Delete table",
-            EditorCommand::Named(String::from("delete-table")),
-        ),
-    ];
-    for (label, command) in commands {
-        let choice = gtk::Button::with_label(label);
-        choice.add_css_class("flat");
-        let editor = editor.clone();
-        choice.connect_clicked(move |_| editor.command(&command));
-        choices.append(&choice);
+    let editor = editor.clone();
+    formatting::append_table_picker(
+        toolbar,
+        "format-table-button",
+        move |rows, columns, header| {
+            // The web adapter inserts at an ordinary caret and resizes when
+            // the selection is inside a table, so one grid owns both flows.
+            editor.command(&EditorCommand::InsertTable {
+                rows,
+                columns,
+                header,
+            });
+        },
+    )
+}
+
+fn show_rich_link_dialog(button: &impl IsA<gtk::Widget>, editor: &RichEditor) {
+    let parent = button.root().and_downcast::<gtk::Window>();
+    let editor_for_dialog = editor.clone();
+    editor.view().evaluate_javascript(
+        "JSON.stringify(window.carverEditor.linkContext());",
+        None,
+        Some("carver-editor:///bridge"),
+        None::<&gtk::gio::Cancellable>,
+        move |result| {
+            let context = result
+                .ok()
+                .map(|value| parse_link_context(&value.to_str()))
+                .unwrap_or_default();
+            present_rich_link_dialog(parent.as_ref(), &editor_for_dialog, &context);
+        },
+    );
+}
+
+fn present_rich_link_dialog(
+    parent: Option<&gtk::Window>,
+    editor: &RichEditor,
+    context: &LinkContext,
+) {
+    let fields = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let text = gtk::Entry::new();
+    text.set_placeholder_text(Some("Link text"));
+    text.set_text(&context.text);
+    let url = gtk::Entry::new();
+    url.set_placeholder_text(Some("https://example.com"));
+    url.set_input_purpose(gtk::InputPurpose::Url);
+    url.set_text(&context.destination);
+    fields.append(&gtk::Label::new(Some("Text")));
+    fields.append(&text);
+    fields.append(&gtk::Label::new(Some("Address")));
+    fields.append(&url);
+    let dialog = libadwaita::AlertDialog::builder()
+        .heading("Insert Link")
+        .extra_child(&fields)
+        .default_response("insert")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
+    let editor = editor.clone();
+    dialog.connect_response(None, move |_dialog, response| {
+        if response == "insert" {
+            let text = text.text();
+            let destination = url.text();
+            if !text.trim().is_empty() && !destination.trim().is_empty() {
+                editor.command(&EditorCommand::InsertLink {
+                    text: text.to_string(),
+                    destination: destination.to_string(),
+                });
+            }
+        }
+    });
+    dialog.present(parent);
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+struct LinkContext {
+    text: String,
+    destination: String,
+}
+
+fn parse_link_context(value: &str) -> LinkContext {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(value) else {
+        return LinkContext::default();
+    };
+    let field = |name| {
+        value
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    LinkContext {
+        text: field("text"),
+        destination: field("destination"),
     }
-    let popover = gtk::Popover::new();
-    popover.set_child(Some(&choices));
-    menu.set_popover(Some(&popover));
-    toolbar.append(&menu);
-    menu
 }
 
 fn append_image_menu(
     toolbar: &gtk::Box,
     editor: &RichEditor,
+    state: &Rc<AppState>,
+    toast_overlay: &libadwaita::ToastOverlay,
 ) -> (gtk::MenuButton, Vec<(Option<u8>, gtk::ToggleButton)>) {
     let menu = gtk::MenuButton::new();
     menu.set_widget_name("format-image-size-button");
@@ -517,6 +647,19 @@ fn append_image_menu(
     menu.set_tooltip_text(Some("Image size"));
     menu.add_css_class("flat");
     let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let insert = gtk::Button::with_label("Insert image…");
+    insert.add_css_class("flat");
+    let editor_for_insert = editor.clone();
+    let state = Rc::clone(state);
+    let toast_overlay = toast_overlay.clone();
+    insert.connect_clicked(move |button| {
+        let editor = editor_for_insert.clone();
+        formatting::choose_managed_image(button, &state, &toast_overlay, move |path, alt| {
+            editor.insert_image_with_alt(&path, &alt);
+        });
+    });
+    choices.append(&insert);
+    choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
     let mut active_choices = Vec::new();
     for (label, width) in [
         ("Original size", None),
@@ -554,62 +697,99 @@ fn json(value: &str) -> String {
 }
 
 fn rgba_css(rgba: &gtk::gdk::RGBA) -> String {
+    let (red, green, blue) = rgba_components(rgba);
+    format!("#{red:02x}{green:02x}{blue:02x}")
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the explicitly clamped, rounded range is always an sRGB byte"
+)]
+fn rgba_components(rgba: &gtk::gdk::RGBA) -> (u8, u8, u8) {
     let component = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
-    format!(
-        "#{:02x}{:02x}{:02x}",
+    (
         component(rgba.red()),
         component(rgba.green()),
-        component(rgba.blue())
+        component(rgba.blue()),
     )
 }
 
-fn selection_foreground(accent: &str) -> &'static str {
-    let Some((red, green, blue)) = parse_hex_rgb(accent) else {
-        return "#ffffff";
-    };
-    let channel = |value: u8| {
-        let value = f32::from(value) / 255.0;
-        if value <= 0.040_45 {
-            value / 12.92
-        } else {
-            ((value + 0.055) / 1.055).powf(2.4)
-        }
-    };
-    let luminance = 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
-    let black_contrast = (luminance + 0.05) / 0.05;
-    let white_contrast = 1.05 / (luminance + 0.05);
-    if black_contrast >= white_contrast {
-        "#000000"
-    } else {
-        "#ffffff"
+pub(super) struct SelectionTheme {
+    pub(super) accent: String,
+    pub(super) background: String,
+    pub(super) foreground: &'static str,
+}
+
+/// Matches GTK text views: a translucent accent keeps selected text readable
+/// while the document foreground remains unchanged in both color schemes.
+pub(super) fn selection_theme(dark: bool, accent: &gtk::gdk::RGBA) -> SelectionTheme {
+    let (red, green, blue) = rgba_components(accent);
+    SelectionTheme {
+        accent: rgba_css(accent),
+        background: format!("rgb({red} {green} {blue} / 25%)"),
+        foreground: if dark { "#f6f5f4" } else { "#242424" },
     }
 }
 
-fn parse_hex_rgb(value: &str) -> Option<(u8, u8, u8)> {
-    let value = value.strip_prefix('#')?;
-    (value.len() == 6).then_some(()).and_then(|_| {
-        Some((
-            u8::from_str_radix(&value[0..2], 16).ok()?,
-            u8::from_str_radix(&value[2..4], 16).ok()?,
-            u8::from_str_radix(&value[4..6], 16).ok()?,
-        ))
-    })
-}
-
-fn editor_document() -> String {
+/// Builds the sandboxed editor shell using the configured image source policy.
+fn editor_document(allow_remote_images: bool) -> String {
+    let image_sources = if allow_remote_images {
+        "data: https: http: carver-asset: blob:"
+    } else {
+        "data: carver-asset: blob:"
+    };
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data: carver-asset: blob:; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style></head><body><div id=\"editor\"></div></body></html>"
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::selection_foreground;
+    use super::{
+        LinkContext, editor_document, parse_link_context, selection_theme, toolbar_fallback_glyph,
+    };
 
     #[test]
-    fn selection_foreground_uses_the_highest_contrast_text_color() {
-        assert_eq!(selection_foreground("#1a5fb4"), "#ffffff");
-        assert_eq!(selection_foreground("#358e45"), "#000000");
-        assert_eq!(selection_foreground("#f6d32d"), "#000000");
+    fn editor_document_allows_remote_images_when_configured() {
+        assert!(editor_document(true).contains("img-src data: https: http: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn editor_document_keeps_remote_images_blocked_when_disabled() {
+        assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn selection_theme_preserves_dark_document_text() {
+        let accent = gtk::gdk::RGBA::new(0.102, 0.373, 0.706, 1.0);
+        let theme = selection_theme(true, &accent);
+        assert_eq!(theme.foreground, "#f6f5f4");
+    }
+
+    #[test]
+    fn selection_theme_uses_a_translucent_accent_background() {
+        let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+        let theme = selection_theme(false, &accent);
+        assert_eq!(theme.background, "rgb(53 142 69 / 25%)");
+    }
+
+    #[test]
+    fn toolbar_fallback_glyphs_cover_unavailable_formatting_icons() {
+        assert_eq!(
+            toolbar_fallback_glyph("format-text-superscript-symbolic"),
+            Some("Aˣ")
+        );
+    }
+
+    #[test]
+    fn link_context_keeps_the_dialog_fields_from_the_editor() {
+        assert_eq!(
+            parse_link_context(r#"{"text":"Carve","destination":"https://markup-carve.dev"}"#),
+            LinkContext {
+                text: String::from("Carve"),
+                destination: String::from("https://markup-carve.dev"),
+            }
+        );
     }
 }

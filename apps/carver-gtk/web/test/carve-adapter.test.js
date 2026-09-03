@@ -42,6 +42,18 @@ test('keeps adjacent images editable through a lossless source envelope', () => 
   assert.equal(serializeToCarve(result.doc), source);
 });
 
+test('keeps image soft breaks as inline whitespace for the editor', () => {
+  const source = '![First](assets/first.png)\n![Second](assets/second.png)';
+  const result = carveToProseMirrorWithReport(source, { unsupported: 'preserve' });
+  const content = result.doc.content[0].content;
+
+  assert.equal(result.doc.content.length, 1);
+  assert.equal(content[0].type, 'image');
+  assert.deepEqual(content[1], { type: 'text', text: '\n' });
+  assert.equal(content[2].type, 'image');
+  assert.equal(serializeToCarve(result.doc), source);
+});
+
 test('serializes image blocks with a blank line between them', () => {
   const document = {
     type: 'doc',

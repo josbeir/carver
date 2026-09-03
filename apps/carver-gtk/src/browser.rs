@@ -70,6 +70,19 @@ pub(crate) fn build_browser(
     search.set_widget_name("note-search-entry");
     search.set_placeholder_text(Some("Search notes"));
     content.append(&search);
+    let search_empty_card = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    search_empty_card.set_widget_name("browser-search-empty-card");
+    search_empty_card.add_css_class("search-empty-card");
+    search_empty_card.set_visible(false);
+    let search_empty_title = gtk::Label::new(Some("No matching notes"));
+    search_empty_title.set_xalign(0.0);
+    search_empty_title.add_css_class("search-empty-card-title");
+    let search_empty_description = gtk::Label::new(Some("Try a different search term."));
+    search_empty_description.set_xalign(0.0);
+    search_empty_description.add_css_class("dim-label");
+    search_empty_card.append(&search_empty_title);
+    search_empty_card.append(&search_empty_description);
+    content.append(&search_empty_card);
     let list = gtk::ListBox::new();
     list.set_widget_name("note-list");
     list.set_selection_mode(gtk::SelectionMode::Single);
@@ -107,6 +120,9 @@ pub(crate) fn build_browser(
     state.browser_title.replace(Some(title));
     state.browser_content_stack.replace(Some(pages));
     state.browser_status.replace(Some(status));
+    state
+        .browser_search_empty_card
+        .replace(Some(search_empty_card));
     state
         .browser_empty_new_note_button
         .replace(Some(empty_new_note.clone()));
@@ -189,7 +205,7 @@ fn connect_new_note_action(state: &Rc<AppState>, stack: &gtk::Stack, button: &gt
 /// Refreshes the browser widgets after a note or category action.
 pub(crate) fn refresh_browser(state: &Rc<AppState>) {
     refresh_browser_title(state);
-    let (list, stack, pages, status, empty_new_note, toast_overlay) = {
+    let (list, stack, pages, status, search_empty_card, empty_new_note, toast_overlay) = {
         let Some(list) = state.browser_list.borrow().clone() else {
             return;
         };
@@ -202,18 +218,30 @@ pub(crate) fn refresh_browser(state: &Rc<AppState>) {
         let Some(status) = state.browser_status.borrow().clone() else {
             return;
         };
+        let Some(search_empty_card) = state.browser_search_empty_card.borrow().clone() else {
+            return;
+        };
         let Some(empty_new_note) = state.browser_empty_new_note_button.borrow().clone() else {
             return;
         };
         let Some(toast_overlay) = state.browser_toast_overlay.borrow().clone() else {
             return;
         };
-        (list, stack, pages, status, empty_new_note, toast_overlay)
+        (
+            list,
+            stack,
+            pages,
+            status,
+            search_empty_card,
+            empty_new_note,
+            toast_overlay,
+        )
     };
     refresh_note_list(
         &list,
         &pages,
         &status,
+        &search_empty_card,
         &empty_new_note,
         &toast_overlay,
         state,
@@ -235,10 +263,15 @@ fn refresh_browser_title(state: &AppState) {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "browser refresh keeps its established page widgets and snapshot data explicit"
+)]
 fn refresh_note_list(
     list: &gtk::ListBox,
     pages: &gtk::Stack,
     status: &adw::StatusPage,
+    search_empty_card: &gtk::Box,
     empty_new_note: &gtk::Button,
     toast_overlay: &adw::ToastOverlay,
     state: &Rc<AppState>,
@@ -247,6 +280,7 @@ fn refresh_note_list(
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
+    search_empty_card.set_visible(false);
     let query = state.search_query.borrow().trim().to_owned();
     let search_is_active = !query.is_empty();
     let category_id = state.selected_category.get();
@@ -257,6 +291,7 @@ fn refresh_note_list(
     let list = list.clone();
     let pages = pages.clone();
     let status = status.clone();
+    let search_empty_card = search_empty_card.clone();
     let empty_new_note = empty_new_note.clone();
     let toast_overlay = toast_overlay.clone();
     let client = state.client.clone();
@@ -282,6 +317,7 @@ fn refresh_note_list(
             &list,
             &pages,
             &status,
+            &search_empty_card,
             &empty_new_note,
             &toast_overlay,
             &state,
@@ -300,6 +336,7 @@ fn populate_note_list(
     list: &gtk::ListBox,
     pages: &gtk::Stack,
     status: &adw::StatusPage,
+    search_empty_card: &gtk::Box,
     empty_new_note: &gtk::Button,
     toast_overlay: &adw::ToastOverlay,
     state: &Rc<AppState>,
@@ -311,10 +348,16 @@ fn populate_note_list(
         list.remove(&child);
     }
     if entries.is_empty() {
-        configure_empty_state(status, empty_new_note, search_is_active, category_name);
+        if search_is_active {
+            search_empty_card.set_visible(true);
+            pages.set_visible_child_name("contents");
+            return;
+        }
+        configure_empty_state(status, empty_new_note, category_name);
         pages.set_visible_child_name("empty");
         return;
     }
+    search_empty_card.set_visible(false);
     pages.set_visible_child_name("contents");
     let mut previous_day = None;
     for note in entries {
@@ -436,17 +479,8 @@ fn overflow_menu_action(label: &str) -> gtk::Button {
 fn configure_empty_state(
     status: &adw::StatusPage,
     new_note: &gtk::Button,
-    search_is_active: bool,
     category_name: Option<&str>,
 ) {
-    if search_is_active {
-        status.set_title("No matching notes");
-        status.set_description(Some("Try a different search term."));
-        status.set_icon_name(Some("edit-find-symbolic"));
-        new_note.set_visible(false);
-        return;
-    }
-
     let title = category_name.map_or_else(
         || "No notes yet".to_owned(),
         |category_name| format!("No notes in {category_name}"),

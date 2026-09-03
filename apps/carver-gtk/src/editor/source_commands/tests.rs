@@ -36,6 +36,32 @@ fn list_command_switches_all_selected_lines_without_nested_prefixes() {
     assert_eq!(list_replacement("one", "1. ", false), "1. one");
 }
 
+#[test]
+fn image_width_replaces_only_the_width_attribute() {
+    assert_eq!(
+        image_with_width(
+            "![Diagram](assets/diagram.png){width=\"25%\" title=\"Project overview\"}",
+            Some(50),
+        ),
+        "![Diagram](assets/diagram.png){title=\"Project overview\" width=\"50%\"}"
+    );
+    assert_eq!(
+        image_with_width("![Diagram](assets/diagram.png){width=\"25%\"}", None),
+        "![Diagram](assets/diagram.png)"
+    );
+}
+
+#[test]
+fn image_span_accepts_a_cursor_in_presentation_attributes() {
+    let source = "Before ![Diagram](assets/diagram.png){width=\"50%\"} after";
+    let cursor = source.find("50%").unwrap_or_default();
+    let span = image_span_at(source, cursor).unwrap_or_default();
+    assert_eq!(
+        &source[span.0..span.1],
+        "![Diagram](assets/diagram.png){width=\"50%\"}"
+    );
+}
+
 fn inline_command_inserts_an_empty_pair_at_the_cursor() {
     let buffer = buffer_with("word");
     let end = buffer.end_iter();
@@ -125,6 +151,21 @@ fn link_command_replaces_selection_or_inserts_at_cursor() {
     assert_eq!(text(&inserted), "Read [more](https://example.com/more)");
 }
 
+fn image_commands_insert_standalone_markup_and_update_width() {
+    let buffer = buffer_with("![Diagram](assets/diagram.png){width=\"25%\"}");
+    let cursor = buffer.iter_at_offset(30);
+    buffer.place_cursor(&cursor);
+    assert!(set_image_width(&buffer, Some(50)));
+    assert_eq!(
+        text(&buffer),
+        "![Diagram](assets/diagram.png){width=\"50%\"}"
+    );
+
+    let inserted = buffer_with("");
+    insert_image(&inserted, "Diagram", "assets/diagram.png");
+    assert_eq!(text(&inserted), "\n![Diagram](assets/diagram.png)\n");
+}
+
 pub(crate) fn gtk_source_commands_cover_selection_and_block_operations() {
     inline_command_inserts_an_empty_pair_at_the_cursor();
     inline_command_replaces_selected_text_and_keeps_it_selected();
@@ -134,4 +175,5 @@ pub(crate) fn gtk_source_commands_cover_selection_and_block_operations() {
     code_block_command_wraps_then_unwraps_the_selection();
     code_block_command_without_selection_uses_inline_code();
     link_command_replaces_selection_or_inserts_at_cursor();
+    image_commands_insert_standalone_markup_and_update_width();
 }

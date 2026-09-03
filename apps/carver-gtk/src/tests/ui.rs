@@ -63,6 +63,27 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
 
     let category_list =
         widget_as::<gtk::ListBox>(&sidebar, "category-list").ok_or("category list")?;
+    assert!(run_main_context_until(|| category_list
+        .first_child()
+        .is_some()));
+    let home_row = category_list
+        .first_child()
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("all notes row")?;
+    let home_content = home_row.child().ok_or("all notes content")?;
+    let home_controllers = home_content.observe_controllers();
+    let home_click = (0..home_controllers.n_items())
+        .find_map(|index| {
+            home_controllers
+                .item(index)
+                .and_downcast::<gtk::GestureClick>()
+        })
+        .ok_or("all notes click handler")?;
+    home_click.emit_by_name::<()>("released", &[&1_i32, &0.0_f64, &0.0_f64]);
+    assert!(run_main_context_until(|| {
+        stack.visible_child_name().as_deref() == Some("browser")
+    }));
+
     state.client.create_category("Projects")?;
     refresh_sidebar(&state);
     let second = state.client.categories()?[1].clone();
@@ -102,8 +123,13 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .borrow()
         .as_str()
         == "not-present"));
+    let search_empty_card =
+        widget_as::<gtk::Box>(&browser, "browser-search-empty-card").ok_or("search empty card")?;
+    assert!(run_main_context_until(|| search_empty_card.is_visible()));
+    assert!(search.is_visible());
     search.set_text("");
     search.emit_by_name::<()>("search-changed", &[]);
+    assert!(run_main_context_until(|| !search_empty_card.is_visible()));
 
     let move_dialog = show_move_note_dialog(
         &state,
@@ -214,8 +240,9 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         widget_as::<webkit6::WebView>(&editor, "rendered-preview").ok_or("rendered preview")?;
     let preview_padding = std::rc::Rc::new(std::cell::RefCell::new(None));
     let preview_padding_for_callback = std::rc::Rc::clone(&preview_padding);
+    let rendered_preview_for_padding = rendered_preview.clone();
     glib::timeout_add_local_once(std::time::Duration::from_millis(250), move || {
-        rendered_preview.evaluate_javascript(
+        rendered_preview_for_padding.evaluate_javascript(
             "getComputedStyle(document.body).paddingTop",
             None,
             None,
@@ -230,6 +257,27 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .borrow()
         .is_some()));
     assert_eq!(preview_padding.borrow().as_deref(), Some("24px"));
+    let preview_selection = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let preview_selection_for_callback = std::rc::Rc::clone(&preview_selection);
+    rendered_preview.evaluate_javascript(
+        "getComputedStyle(document.documentElement).getPropertyValue('--selection-background').trim()",
+        None,
+        None,
+        None::<&gtk::gio::Cancellable>,
+        move |result| {
+            *preview_selection_for_callback.borrow_mut() =
+                result.ok().map(|value| value.to_str().to_string());
+        },
+    );
+    assert!(run_main_context_until(|| preview_selection
+        .borrow()
+        .is_some()));
+    assert!(
+        preview_selection
+            .borrow()
+            .as_deref()
+            .is_some_and(|value| value.starts_with("rgb("))
+    );
     rich.set_active(true);
     assert!(run_main_context_until(|| rich.is_active()));
     assert!(run_main_context_until(|| document_loaded.get()));
@@ -249,6 +297,50 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     assert_eq!(
         browser_source.borrow().as_deref(),
         Some("# Source\n\nA paragraph")
+    );
+    let editor_selection = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let editor_selection_for_callback = std::rc::Rc::clone(&editor_selection);
+    web.evaluate_javascript(
+        "getComputedStyle(document.documentElement).getPropertyValue('--selection-background').trim()",
+        None,
+        None,
+        None::<&gtk::gio::Cancellable>,
+        move |result| {
+            *editor_selection_for_callback.borrow_mut() =
+                result.ok().map(|value| value.to_str().to_string());
+        },
+    );
+    assert!(run_main_context_until(|| editor_selection
+        .borrow()
+        .is_some()));
+    assert_eq!(
+        editor_selection.borrow().as_deref(),
+        preview_selection.borrow().as_deref()
+    );
+    state.refresh_remote_image_policy(false);
+    let rich_image_policy = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let rich_image_policy_for_callback = std::rc::Rc::clone(&rich_image_policy);
+    let web_for_image_policy = web.clone();
+    glib::timeout_add_local_once(std::time::Duration::from_millis(250), move || {
+        web_for_image_policy.evaluate_javascript(
+            "document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]')?.content ?? null",
+            None,
+            None,
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                *rich_image_policy_for_callback.borrow_mut() =
+                    result.ok().map(|value| value.to_str().to_string());
+            },
+        );
+    });
+    assert!(run_main_context_until(|| rich_image_policy
+        .borrow()
+        .is_some()));
+    assert!(
+        rich_image_policy
+            .borrow()
+            .as_deref()
+            .is_some_and(|policy| policy.contains("img-src data: carver-asset: blob:"))
     );
     let heading_menu =
         widget_as::<gtk::MenuButton>(&editor, "format-heading-button").ok_or("heading menu")?;
@@ -498,6 +590,61 @@ fn exercise_source_formatting_controls(
             select_all(buffer);
             choice.emit_clicked();
         }
+    }
+
+    let table = widget_as::<gtk::MenuButton>(editor, "source-format-table-button")
+        .ok_or("source table picker")?;
+    let table_content = table
+        .popover()
+        .and_then(|popover| popover.child())
+        .and_downcast::<gtk::Box>()
+        .ok_or("source table picker content")?;
+    let grid = table_content
+        .first_child()
+        .and_then(|dimensions| dimensions.next_sibling())
+        .and_downcast::<gtk::Grid>()
+        .ok_or("source table size grid")?;
+    let first_cell = grid
+        .first_child()
+        .and_downcast::<gtk::Button>()
+        .ok_or("source table first cell")?;
+    buffer.set_text("");
+    first_cell.emit_clicked();
+    if !buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .contains("|= |")
+    {
+        return Err("source table picker insert".into());
+    }
+
+    let image = widget_as::<gtk::MenuButton>(editor, "source-format-image-button")
+        .ok_or("source image menu")?;
+    let image_choices = image
+        .popover()
+        .and_then(|popover| popover.child())
+        .and_downcast::<gtk::Box>()
+        .ok_or("source image choices")?;
+    let mut child = image_choices.first_child();
+    let mut width_choice = None;
+    while let Some(widget) = child {
+        child = widget.next_sibling();
+        if let Ok(button) = widget.downcast::<gtk::Button>()
+            && button.label().as_deref() == Some("50%")
+        {
+            width_choice = Some(button);
+            break;
+        }
+    }
+    let width_choice = width_choice.ok_or("source image width choice")?;
+    buffer.set_text("![Image](assets/image.png)");
+    let cursor = buffer.end_iter();
+    buffer.place_cursor(&cursor);
+    width_choice.emit_clicked();
+    if !buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .contains("width=\"50%\"")
+    {
+        return Err("source image width choice".into());
     }
     Ok(())
 }

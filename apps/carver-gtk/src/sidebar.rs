@@ -208,12 +208,14 @@ fn populate_sidebar(list: &gtk::ListBox, state: &Rc<AppState>, categories: Vec<(
     home.set_selectable(true);
     home.add_css_class("category-card");
     let all_notes_count = categories.iter().map(|(_, count)| count).sum();
-    home.set_child(Some(&sidebar_row(
+    let home_content = sidebar_row(
         "go-home-symbolic",
         "All notes",
         all_notes_count,
         Some("all-notes-count"),
-    )));
+    );
+    install_active_row_navigation(&home_content, state, None);
+    home.set_child(Some(&home_content));
     list.append(&home);
     let selected_category = state.selected_category.get();
     let mut selected_row = None;
@@ -272,21 +274,9 @@ fn category_sidebar_row(
     content.set_margin_end(16);
     content.set_margin_top(5);
     content.set_margin_bottom(5);
-    content.append(&gtk::Image::from_icon_name("folder-symbolic"));
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    text.set_hexpand(true);
-    let name = gtk::Label::new(Some(&category.name));
-    name.set_xalign(0.0);
-    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    name.set_single_line_mode(true);
-    name.add_css_class("category-card-title");
-    text.append(&name);
-    let count_label = gtk::Label::new(Some(&note_count_label(note_count)));
-    count_label.set_widget_name(&format!("category-count:{}", category.id));
-    count_label.set_xalign(0.0);
-    count_label.add_css_class("category-card-count");
-    text.append(&count_label);
-    content.append(&text);
+    let (primary_content, name) = category_primary_content(category, note_count);
+    install_active_row_navigation(&primary_content, state, Some(category.id));
+    content.append(&primary_content);
     let rename = gtk::Button::from_icon_name("document-edit-symbolic");
     rename.set_widget_name(&format!("rename-category:{}", category.id));
     rename.set_tooltip_text(Some("Rename Category"));
@@ -361,6 +351,66 @@ fn category_sidebar_row(
     content.append(&actions);
     row.set_child(Some(&content));
     row
+}
+
+fn category_primary_content(category: &Category, note_count: usize) -> (gtk::Box, gtk::Label) {
+    let primary_content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    primary_content.set_hexpand(true);
+    primary_content.append(&gtk::Image::from_icon_name("folder-symbolic"));
+    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    text.set_hexpand(true);
+    let name = gtk::Label::new(Some(&category.name));
+    name.set_xalign(0.0);
+    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    name.set_single_line_mode(true);
+    name.add_css_class("category-card-title");
+    text.append(&name);
+    let count_label = gtk::Label::new(Some(&note_count_label(note_count)));
+    count_label.set_widget_name(&format!("category-count:{}", category.id));
+    count_label.set_xalign(0.0);
+    count_label.add_css_class("category-card-count");
+    text.append(&count_label);
+    primary_content.append(&text);
+    (primary_content, name)
+}
+
+/// Lets a selected category act as the back target while a note is open.
+///
+/// GTK does not emit `row-selected` when a user clicks the row already selected
+/// by the sidebar. The regular selection handler continues to handle a change
+/// of category; this click handler only handles the otherwise ignored active
+/// category and returns to its note list.
+fn install_active_row_navigation(
+    widget: &impl IsA<gtk::Widget>,
+    state: &Rc<AppState>,
+    category_id: Option<CategoryId>,
+) {
+    let click = gtk::GestureClick::new();
+    click.set_button(gtk::gdk::BUTTON_PRIMARY);
+    let state = Rc::clone(state);
+    click.connect_released(move |_, _, _, _| {
+        if state.selected_category.get() != category_id {
+            return;
+        }
+        let Some(stack) = state.browser_stack.borrow().clone() else {
+            return;
+        };
+        if stack.visible_child_name().as_deref() != Some("editor") {
+            return;
+        }
+        refresh_browser(&state);
+        stack.set_visible_child_name("browser");
+        let split_view = state.sidebar_list.borrow().clone().and_then(|list| {
+            list.ancestor(adw::NavigationSplitView::static_type())
+                .and_downcast::<adw::NavigationSplitView>()
+        });
+        if let Some(split_view) = split_view
+            && split_view.is_collapsed()
+        {
+            split_view.set_show_content(true);
+        }
+    });
+    widget.add_controller(click);
 }
 
 /// Keeps secondary category actions available without making every row busy.

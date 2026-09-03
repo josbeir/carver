@@ -20,5 +20,4 @@
   opacity: 1;
   pointer-events: auto;
 }
-.ProseMirror-selectednode { outline: 2px solid var(--selection-background); }
-::selection { background: var(--selection-background); color: var(--selection-foreground); }
+.ProseMirror-selectednode { outline: 2px solid var(--accent-color); }
