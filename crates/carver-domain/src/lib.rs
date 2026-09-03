@@ -133,6 +133,8 @@ pub struct NoteSummary {
     pub id: NoteId,
     /// Owning category.
     pub category_id: CategoryId,
+    /// Owning category's display name.
+    pub category_name: String,
     /// Derived display title.
     pub title: String,
     /// Short plaintext excerpt.

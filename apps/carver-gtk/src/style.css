@@ -73,6 +73,23 @@
   font-weight: 700;
 }
 
+.note-card-metadata {
+  min-height: 22px;
+}
+
+.note-category-pill {
+  border-radius: 999px;
+  background: alpha(@accent_bg_color, 0.2);
+  color: @accent_color;
+  font-size: 0.85em;
+  padding: 2px 7px;
+}
+
+.note-card-updated {
+  opacity: 0.72;
+  font-size: 0.9em;
+}
+
 .note-card-excerpt {
   opacity: 0.72;
 }

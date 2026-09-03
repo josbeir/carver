@@ -2,6 +2,7 @@ import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import './style.css';
 import { unsupportedForEditing } from './editability.js';
+import { focusEmptyEditorSurface } from './empty-surface.js';
 import { insertOrUpdateLink, linkContext } from './link.js';
 import { resizeSelectedTable, tableSize } from './table-resize.js';
 import {
@@ -282,6 +283,9 @@ function initialize() {
   root.addEventListener('drop', event => {
     if (dropImages(event)) event.stopPropagation();
   }, true);
+  root.addEventListener('pointerdown', event => {
+    focusEmptyEditorSurface(event, editor, root);
+  });
   send({ type: 'ready' });
 }
 

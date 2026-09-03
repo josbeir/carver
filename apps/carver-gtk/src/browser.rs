@@ -5,7 +5,7 @@ use std::rc::Rc;
 use carver_sdk::{NoteId, NoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
-use time::{Duration, OffsetDateTime, UtcOffset};
+use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
     controller::AppState,
@@ -284,6 +284,7 @@ fn refresh_note_list(
     let query = state.search_query.borrow().trim().to_owned();
     let search_is_active = !query.is_empty();
     let category_id = state.selected_category.get();
+    let show_category = category_id.is_none();
     let category_name = state.selected_category_name.borrow().clone();
     let generation = state.browser_generation.get().saturating_add(1);
     state.browser_generation.set(generation);
@@ -323,6 +324,7 @@ fn refresh_note_list(
             &state,
             entries,
             search_is_active,
+            show_category,
             category_name.as_deref(),
         );
     });
@@ -342,6 +344,7 @@ fn populate_note_list(
     state: &Rc<AppState>,
     entries: Vec<NoteSummary>,
     search_is_active: bool,
+    show_category: bool,
     category_name: Option<&str>,
 ) {
     while let Some(child) = list.first_child() {
@@ -390,12 +393,33 @@ fn populate_note_list(
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
         title.set_single_line_mode(true);
         box_.append(&title);
-        let excerpt = gtk::Label::new(Some(&note.excerpt));
+        let excerpt_text = card_excerpt(&note.title, &note.excerpt);
+        let excerpt = gtk::Label::new(Some(&excerpt_text));
+        excerpt.set_widget_name(&format!("note-excerpt:{}", note.id));
         excerpt.set_xalign(0.0);
         excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
         excerpt.set_single_line_mode(true);
         excerpt.add_css_class("note-card-excerpt");
-        box_.append(&excerpt);
+        if !excerpt_text.is_empty() {
+            box_.append(&excerpt);
+        }
+        let metadata = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        metadata.set_margin_top(8);
+        metadata.add_css_class("note-card-metadata");
+        if show_category {
+            let category = gtk::Label::new(Some(&note.category_name));
+            category.set_widget_name(&format!("note-category:{}", note.id));
+            category.add_css_class("note-category-pill");
+            metadata.append(&category);
+        }
+        let updated = gtk::Label::new(Some(&format!(
+            "Updated {}",
+            relative_update_time(note.updated_at, OffsetDateTime::now_utc())
+        )));
+        updated.set_widget_name(&format!("note-updated:{}", note.id));
+        updated.add_css_class("note-card-updated");
+        metadata.append(&updated);
+        box_.append(&metadata);
         content.append(&box_);
         content.append(&note_menu(state, &note, toast_overlay));
         row.set_child(Some(&content));
@@ -508,4 +532,99 @@ fn day_label(day: time::Date) -> String {
         return "Yesterday".to_owned();
     }
     day.to_string()
+}
+
+fn card_excerpt(title: &str, excerpt: &str) -> String {
+    let excerpt = excerpt.split_whitespace().collect::<Vec<_>>().join(" ");
+    excerpt
+        .strip_prefix(title)
+        .and_then(|remaining| remaining.strip_prefix(' '))
+        .unwrap_or(&excerpt)
+        .to_owned()
+}
+
+fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTime) -> String {
+    let elapsed_seconds = (now - updated_at).whole_seconds().max(0);
+    if elapsed_seconds < 60 {
+        return elapsed_label(elapsed_seconds, "second");
+    }
+    let elapsed_minutes = elapsed_seconds / 60;
+    if elapsed_minutes < 60 {
+        return elapsed_label(elapsed_minutes, "minute");
+    }
+    let elapsed_hours = elapsed_minutes / 60;
+    if elapsed_hours < 24 {
+        return elapsed_label(elapsed_hours, "hour");
+    }
+
+    let day = local_day(updated_at);
+    let today = local_day(now);
+    if day == today - Duration::days(1) {
+        return String::from("Yesterday");
+    }
+    let date = format!("{} {}", month_name(day.month()), day.day());
+    if day.year() == today.year() {
+        date
+    } else {
+        format!("{date}, {}", day.year())
+    }
+}
+
+fn elapsed_label(amount: i64, unit: &str) -> String {
+    let suffix = if amount == 1 { "" } else { "s" };
+    format!("{amount} {unit}{suffix} ago")
+}
+
+const fn month_name(month: Month) -> &'static str {
+    match month {
+        Month::January => "Jan",
+        Month::February => "Feb",
+        Month::March => "Mar",
+        Month::April => "Apr",
+        Month::May => "May",
+        Month::June => "Jun",
+        Month::July => "Jul",
+        Month::August => "Aug",
+        Month::September => "Sep",
+        Month::October => "Oct",
+        Month::November => "Nov",
+        Month::December => "Dec",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use time::macros::datetime;
+
+    use super::{card_excerpt, relative_update_time};
+
+    #[test]
+    fn card_excerpt_collapses_whitespace_and_omits_a_repeated_title() {
+        assert_eq!(
+            card_excerpt("Heading 1", "Heading 1\n\n  Relevant   body text"),
+            "Relevant body text"
+        );
+    }
+
+    #[test]
+    fn relative_update_time_reports_seconds_before_a_minute() {
+        assert_eq!(
+            relative_update_time(
+                datetime!(2026-09-03 12:00:00 UTC),
+                datetime!(2026-09-03 12:00:30 UTC)
+            ),
+            "30 seconds ago"
+        );
+    }
+
+    #[test]
+    fn relative_update_time_uses_yesterday_for_the_previous_day() {
+        assert_eq!(
+            relative_update_time(
+                datetime!(2026-09-02 08:00:00 UTC),
+                datetime!(2026-09-03 12:00:00 UTC)
+            ),
+            "Yesterday"
+        );
+    }
 }

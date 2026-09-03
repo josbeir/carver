@@ -60,6 +60,10 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .borrow()
         .is_some()));
     let note = state.current_note.borrow().clone().ok_or("created note")?;
+    assert!(run_main_context_until(|| {
+        find_widget(browser.upcast_ref(), &format!("note-category:{}", note.id)).is_some()
+    }));
+    assert!(find_widget(browser.upcast_ref(), &format!("note-updated:{}", note.id)).is_some());
 
     let category_list =
         widget_as::<gtk::ListBox>(&sidebar, "category-list").ok_or("category list")?;

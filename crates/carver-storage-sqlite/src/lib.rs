@@ -310,7 +310,7 @@ impl SqliteLibrary {
     ) -> Result<Vec<NoteSummary>, StorageError> {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
-            "SELECT n.id, n.category_id, n.title, n.plain_text, n.updated_at,
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.updated_at,
                     EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL
@@ -341,7 +341,7 @@ impl SqliteLibrary {
         }
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
-            "SELECT n.id, n.category_id, n.title, n.plain_text, n.updated_at,
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.updated_at,
                     EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id),
                     snippet(note_fts, 2, '', '', '…', 14)
              FROM note_fts JOIN notes n ON n.id = note_fts.note_id
@@ -355,7 +355,7 @@ impl SqliteLibrary {
             .query_map(params![fts_query(query), category, limit], |row| {
                 Ok(SearchHit {
                     note: summary_from_row(row)?,
-                    snippet: row.get(6)?,
+                    snippet: row.get(7)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()
@@ -782,14 +782,15 @@ fn note_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
 }
 
 fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
-    let plain_text: String = row.get(3)?;
+    let plain_text: String = row.get(4)?;
     Ok(NoteSummary {
         id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
         category_id: category_id(&row.get::<_, String>(1)?).map_err(to_sql_error)?,
-        title: row.get(2)?,
+        category_name: row.get(2)?,
+        title: row.get(3)?,
         excerpt: plain_text.chars().take(180).collect(),
-        updated_at: parse_timestamp(row.get(4)?).map_err(to_sql_error)?,
-        has_images: row.get(5)?,
+        updated_at: parse_timestamp(row.get(5)?).map_err(to_sql_error)?,
+        has_images: row.get(6)?,
     })
 }
 

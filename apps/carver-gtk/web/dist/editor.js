@@ -17643,6 +17643,17 @@ img.ProseMirror-separator {
     return opaque ? Object.keys(result.preserved ?? {}) : [];
   }
 
+  // src/empty-surface.js
+  function focusEmptyEditorSurface(event, editor2, root2) {
+    const surface = editor2?.view?.dom;
+    if (!editor2?.isEmpty || !surface || event.target !== root2 && event.target !== surface) {
+      return false;
+    }
+    event.preventDefault();
+    editor2.commands.focus("end");
+    return true;
+  }
+
   // src/link.js
   function activeLinkRange(state) {
     const link = state.schema.marks.link;
@@ -39107,6 +39118,9 @@ ${content}`;
     root.addEventListener("drop", (event) => {
       if (dropImages(event)) event.stopPropagation();
     }, true);
+    root.addEventListener("pointerdown", (event) => {
+      focusEmptyEditorSurface(event, editor, root);
+    });
     send({ type: "ready" });
   }
   globalThis.carverEditor = {

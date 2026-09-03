@@ -23,7 +23,10 @@ body[data-preview]::selection {
 .ProseMirror,
 body[data-preview] { box-sizing: border-box; line-height: 1.55; }
 
-.ProseMirror { min-height: 100%; outline: none; padding: 24px; }
+/* A new document contains only one empty paragraph.  Give its editable root
+ * a viewport-sized hit area so clicking anywhere in the writing surface can
+ * place the caret, rather than only clicking that paragraph's first line. */
+.ProseMirror { min-height: 100vh; outline: none; padding: 24px; }
 body[data-preview] { padding: 24px; }
 
 :where(.ProseMirror, body[data-preview]) > :first-child { margin-top: 0; }
