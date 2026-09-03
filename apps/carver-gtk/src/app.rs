@@ -15,10 +15,13 @@ use crate::{
     sidebar::build_sidebar,
 };
 
-const APPLICATION_ID: &str = "io.github.josbeir.Carver.Devel";
+pub(crate) const APPLICATION_ID: &str = "io.github.josbeir.Carver";
+const APPLICATION_NAME: &str = "Carver";
+pub(crate) const APPLICATION_ICON: &str = "io.github.josbeir.Carver";
 
 /// Runs the Libadwaita application.
 pub(crate) fn run() -> glib::ExitCode {
+    glib::set_application_name(APPLICATION_NAME);
     let application =
         adw::Application::new(Some(APPLICATION_ID), gtk::gio::ApplicationFlags::empty());
     application.connect_activate(build_application);
@@ -64,6 +67,7 @@ fn load_styles() {
 fn show_startup_error(application: &adw::Application, error: &str) {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
+    window.set_icon_name(Some(APPLICATION_ICON));
     let status = adw::StatusPage::builder()
         .title("Carver could not open its library")
         .description(error)
@@ -96,6 +100,7 @@ fn build_window(
 ) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
+    window.set_icon_name(Some(APPLICATION_ICON));
     let window_config = state.config.borrow().window.clone();
     window.set_default_size(window_config.width, window_config.height);
     window.set_maximized(window_config.maximized);

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.josbeir.Carver</id>
+  <name>Carver</name>
+  <summary>A native GNOME home for notes that last</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.josbeir">
+    <name>Carver contributors</name>
+  </developer>
+  <url type="homepage">https://github.com/josbeir/carver</url>
+  <launchable type="desktop-id">io.github.josbeir.Carver.desktop</launchable>
+  <description>
+    <p>Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control.</p>
+  </description>
+  <content_rating type="oars-1.1"/>
+</component>

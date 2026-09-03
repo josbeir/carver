@@ -548,6 +548,10 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         &application_state,
         application_config.clone(),
     );
+    assert_eq!(
+        application_window.icon_name().as_deref(),
+        Some(crate::app::APPLICATION_ICON)
+    );
     crate::dialogs::present_dialogs_for_test(
         &application_window,
         &application_state,

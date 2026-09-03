@@ -50,6 +50,13 @@ cd carver
 cargo run -p carver-gtk
 ```
 
+To make a source-tree run appear in GNOME with Carver's icon and name, install
+the local desktop assets once before launching it:
+
+```bash
+./scripts/install-dev-assets.sh
+```
+
 ## Development and quality
 
 Run the standard checks before contributing:

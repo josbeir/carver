@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Carver
+Comment=Notes that last
+Exec=carver-gtk %U
+Icon=io.github.josbeir.Carver
+Terminal=false
+Type=Application
+Categories=Office;GTK;
+Keywords=notes;markdown;writing;editor;
+StartupWMClass=io.github.josbeir.Carver
