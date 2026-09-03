@@ -113,3 +113,16 @@ textview text {
 #formatting-toolbar {
   border-top: 1px solid alpha(currentColor, 0.12);
 }
+
+/* Formatting is selection-driven: a control remains lit only while the
+ * browser reports that its mark or block contains the current caret. */
+.toolbar button:checked,
+.toolbar menubutton.context-active > button {
+  background: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+popover button:checked {
+  background: @accent_bg_color;
+  color: @accent_fg_color;
+}

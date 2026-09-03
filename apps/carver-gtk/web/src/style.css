@@ -1,0 +1,24 @@
+@import './document.css';
+
+#editor { min-height: 100%; }
+.ProseMirror pre { position: relative; }
+.ProseMirror pre > .carve-code-lang {
+  position: absolute;
+  inset: 8px 8px auto auto;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--code-language-background);
+  color: inherit;
+  font: 0.85rem Cantarell, sans-serif;
+}
+.ProseMirror pre:hover > .carve-code-lang,
+.ProseMirror pre:focus-within > .carve-code-lang {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ProseMirror-selectednode { outline: 2px solid var(--selection-background); }
+::selection { background: var(--selection-background); color: var(--selection-foreground); }

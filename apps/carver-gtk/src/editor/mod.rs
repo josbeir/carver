@@ -3,7 +3,6 @@
 use std::{cell::Cell, rc::Rc, time::Duration as StdDuration};
 
 use carver_config::EditorMode;
-use carver_richtext::{EditorProjection, editor_projection};
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::BreakpointBinExt;
@@ -18,12 +17,11 @@ mod preview;
 mod render;
 mod source;
 pub(crate) mod source_commands;
+mod web;
 
 use preview::{build_preview, load_preview};
-use render::connect_theme_colors;
-pub(crate) use render::{install_image_paste, render_rich_markup};
 pub(crate) use source::buffer_text;
-use source::has_tag;
+use web::RichEditor;
 
 /// Builds the note editor and connects its user-facing actions.
 #[expect(
@@ -97,24 +95,22 @@ pub(crate) fn build_editor(
     let source_format_bar = formatting_bar();
 
     let editor_stack = gtk::Stack::new();
-    let rich_buffer = gtk::TextBuffer::new(None);
-    let rich = text_view(&rich_buffer, "rich-editor", false);
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
+    let rich = RichEditor::new(state, &source_buffer, toast_overlay);
+    refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
+    split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(state.assets_dir.as_deref());
-    formatting::append_controls(&rich_format_bar, &rich_buffer);
+    let rich_toolbar = web::append_controls(&rich_format_bar, &rich);
+    rich.connect_selection_changed(move |selection| rich_toolbar.set_selection_state(&selection));
     formatting::append_source_controls(&source_format_bar, &source_buffer);
     format_stack.add_named(&rich_format_bar, Some("rich"));
     format_stack.add_named(&source_format_bar, Some("source"));
-    formatting::apply_theme_colors(&rich_buffer);
-    connect_theme_colors(&rich_buffer);
-    install_list_continuation(&rich, &rich_buffer);
-    install_editor_shortcuts(&rich, &rich_buffer);
     install_source_shortcuts(&source, &source_buffer);
     let pages = add_editor_pages(
         &editor_stack,
-        &rich,
+        rich.view(),
         &source,
         &split_preview,
         &rendered_preview,
@@ -132,13 +128,18 @@ pub(crate) fn build_editor(
         &editor_stack,
         &format_stack,
         &rich,
-        &rich_buffer,
         &source_buffer,
         &split_preview,
         &rendered_preview,
         &split_toggle,
         &pages.split_supported,
-        toast_overlay,
+    );
+    connect_rich_fallback(
+        state,
+        &rich,
+        &rendered_mode,
+        &source_buffer,
+        &rendered_preview,
     );
     connect_split_toggle(state, &split_toggle, &editor_stack, &source, &split_preview);
     connect_split_availability(
@@ -148,21 +149,20 @@ pub(crate) fn build_editor(
         &split_toggle,
         &pages.split_supported,
     );
-    connect_source_scroll_sync(&pages.source_scroll, &split_preview);
-    connect_preview_theme_refresh(state, &source_buffer, &split_preview, &rendered_preview);
-    connect_trash_action(state, stack, toast_overlay, &trash);
-    connect_back_action(
+    connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
+    connect_preview_theme_refresh(
         state,
-        stack,
-        toast_overlay,
-        &back,
-        &rich_buffer,
         &source_buffer,
+        &split_preview,
+        &rendered_preview,
+        &rich,
     );
-    connect_autosave(state, toast_overlay, &rich_buffer, &source_buffer);
+    connect_trash_action(state, stack, toast_overlay, &trash);
+    connect_back_action(state, stack, toast_overlay, &back, &source_buffer);
+    connect_autosave(state, toast_overlay, &source_buffer);
     connect_source_preview(state, &source_buffer, &split_preview, &rendered_preview);
-    let _rich_image_paste = install_image_paste(&rich, &rich_buffer, state, toast_overlay);
-    let _source_image_paste = install_image_paste(&source, &source_buffer, state, toast_overlay);
+    let _source_image_paste =
+        render::install_image_paste(&source, &source_buffer, state, toast_overlay);
     connect_note_loading(
         state,
         stack,
@@ -172,12 +172,32 @@ pub(crate) fn build_editor(
         &format_stack,
         &editor_stack,
         &rich,
-        &rich_buffer,
         &source_buffer,
         &split_preview,
         &rendered_preview,
     );
     view.upcast()
+}
+
+/// Falls back to the lossless read-only renderer when the web adapter reports
+/// a construct it cannot faithfully edit.
+fn connect_rich_fallback(
+    state: &Rc<AppState>,
+    rich: &RichEditor,
+    rendered_mode: &gtk::ToggleButton,
+    source_buffer: &gtk::TextBuffer,
+    rendered_preview: &webkit6::WebView,
+) {
+    let state = Rc::clone(state);
+    let rendered_mode = rendered_mode.clone();
+    let source_buffer = source_buffer.clone();
+    let rendered_preview = rendered_preview.clone();
+    rich.connect_unsupported(move || {
+        let source = buffer_text(&source_buffer);
+        let remote = state.config.borrow().images.load_remote_automatically;
+        load_preview(&rendered_preview, &source, remote);
+        rendered_mode.set_active(true);
+    });
 }
 
 fn editor_mode_button(
@@ -225,7 +245,7 @@ struct EditorPages {
 
 fn add_editor_pages(
     editor_stack: &gtk::Stack,
-    rich: &gtk::TextView,
+    rich: &webkit6::WebView,
     source: &gtk::TextView,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
@@ -301,40 +321,31 @@ fn connect_mode_buttons(
     rendered_mode: &gtk::ToggleButton,
     editor_stack: &gtk::Stack,
     format_stack: &gtk::Stack,
-    rich_view: &gtk::TextView,
-    rich_buffer: &gtk::TextBuffer,
+    rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
-    toast_overlay: &adw::ToastOverlay,
 ) {
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let state = Rc::clone(state);
         let stack = editor_stack.clone();
         let formats = format_stack.clone();
-        let rich_view = rich_view.clone();
-        let rich = rich_buffer.clone();
+        let rich = rich.clone();
         let source = source_buffer.clone();
         let split_preview = split_preview.clone();
         let rendered_preview = rendered_preview.clone();
-        let rendered_mode = rendered_mode.clone();
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
-        let toast_overlay = toast_overlay.clone();
         button.connect_toggled(move |button| {
             if !button.is_active() {
                 return;
             }
             let persist_selection = !state.synchronizing_editor.get();
             state.synchronizing_editor.set(true);
-            let rich_is_active = !state.source_mode.get() && !state.rendered_mode.get();
             match surface {
                 EditorMode::Source => {
-                    if rich_is_active {
-                        source.set_text(&buffer_text(&rich));
-                    }
                     state.source_mode.set(true);
                     state.rendered_mode.set(false);
                     stack.set_visible_child_name("source");
@@ -344,9 +355,6 @@ fn connect_mode_buttons(
                     split_toggle.set_sensitive(split_supported.get());
                 }
                 EditorMode::Rendered => {
-                    if rich_is_active {
-                        source.set_text(&buffer_text(&rich));
-                    }
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
                     let remote = state.config.borrow().images.load_remote_automatically;
                     load_preview(&rendered_preview, &source_text, remote);
@@ -359,31 +367,14 @@ fn connect_mode_buttons(
                 }
                 EditorMode::Rich => {
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
-                    if matches!(editor_projection(&source_text), EditorProjection::Native(_)) {
-                        render_rich_markup(&rich_view, &rich, &source_text, Some(&state));
-                        state.source_mode.set(false);
-                        state.rendered_mode.set(false);
-                        stack.set_visible_child_name("rich");
-                        formats.set_sensitive(true);
-                        formats.set_visible_child_name("rich");
-                        split_toggle.set_active(false);
-                        split_toggle.set_sensitive(false);
-                    } else {
-                        let remote = state.config.borrow().images.load_remote_automatically;
-                        load_preview(&rendered_preview, &source_text, remote);
-                        state.source_mode.set(false);
-                        state.rendered_mode.set(true);
-                        stack.set_visible_child_name("rendered");
-                        formats.set_sensitive(false);
-                        split_toggle.set_active(false);
-                        split_toggle.set_sensitive(false);
-                        // Keep the control honest about the effective surface,
-                        // without overwriting the user's saved Edit preference.
-                        toast_overlay.add_toast(adw::Toast::new(
-                            "This note uses Carve features unavailable in Edit. Use Source to edit it.",
-                        ));
-                        rendered_mode.set_active(true);
-                    }
+                    rich.load_source(&source_text);
+                    state.source_mode.set(false);
+                    state.rendered_mode.set(false);
+                    stack.set_visible_child_name("rich");
+                    formats.set_sensitive(true);
+                    formats.set_visible_child_name("rich");
+                    split_toggle.set_active(false);
+                    split_toggle.set_sensitive(false);
                 }
             }
             if surface == EditorMode::Source {
@@ -461,26 +452,125 @@ fn connect_split_toggle(
 }
 
 /// Keeps the rendered split preview aligned to the source editor's scroll position.
-fn connect_source_scroll_sync(source_scroll: &gtk::ScrolledWindow, preview: &webkit6::WebView) {
-    let preview = preview.clone();
+///
+/// GTK reports every pixel-level adjustment while the user scrolls. Coalesce
+/// those signals and allow only one `WebKit` evaluation at a time: otherwise
+/// slow preview script processing creates a growing queue and makes scrolling
+/// feel delayed. The bridge is dormant unless the split preview is visible.
+fn connect_source_scroll_sync(
+    source_scroll: &gtk::ScrolledWindow,
+    preview: &webkit6::WebView,
+    split_toggle: &gtk::ToggleButton,
+) {
+    let sync = PreviewScrollSync::new(preview, split_toggle);
+    let sync_for_adjustment = sync.clone();
     source_scroll
         .vadjustment()
-        .connect_value_changed(move |adjustment| {
-            let denominator = adjustment.upper() - adjustment.page_size();
-            let fraction = if denominator > 0.0 {
-                (adjustment.value() / denominator).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let script = preview_scroll_script(fraction);
-            preview.evaluate_javascript(
-                &script,
-                None,
-                None,
-                None::<&gtk::gio::Cancellable>,
-                |_| {},
-            );
+        .connect_value_changed(move |source_adjustment| {
+            sync_for_adjustment.request(scroll_fraction(source_adjustment));
         });
+
+    // A source change reloads the preview document. Apply the latest source
+    // position after that replacement document exists, rather than sending a
+    // scroll command to the outgoing one.
+    let sync_for_preview_load = sync.clone();
+    preview.connect_load_changed(move |_preview, event| {
+        if event == webkit6::LoadEvent::Finished {
+            sync_for_preview_load.request_current();
+        }
+    });
+
+    let adjustment = source_scroll.vadjustment();
+    split_toggle.connect_toggled(move |toggle| {
+        if toggle.is_active() {
+            sync.request(scroll_fraction(&adjustment));
+        }
+    });
+}
+
+#[derive(Clone)]
+struct PreviewScrollSync {
+    preview: webkit6::WebView,
+    split_toggle: gtk::ToggleButton,
+    fraction: Rc<Cell<f64>>,
+    dirty: Rc<Cell<bool>>,
+    in_flight: Rc<Cell<bool>>,
+    dispatch_scheduled: Rc<Cell<bool>>,
+}
+
+impl PreviewScrollSync {
+    fn new(preview: &webkit6::WebView, split_toggle: &gtk::ToggleButton) -> Self {
+        Self {
+            preview: preview.clone(),
+            split_toggle: split_toggle.clone(),
+            fraction: Rc::new(Cell::new(0.0)),
+            dirty: Rc::new(Cell::new(false)),
+            in_flight: Rc::new(Cell::new(false)),
+            dispatch_scheduled: Rc::new(Cell::new(false)),
+        }
+    }
+
+    fn request_current(&self) {
+        self.request(self.fraction.get());
+    }
+
+    fn request(&self, fraction: f64) {
+        self.fraction.set(fraction);
+        self.dirty.set(true);
+        self.schedule_dispatch();
+    }
+
+    fn schedule_dispatch(&self) {
+        if !self.split_toggle.is_active()
+            || self.in_flight.get()
+            || self.dispatch_scheduled.replace(true)
+        {
+            return;
+        }
+        let sync = self.clone();
+        glib::timeout_add_local_once(StdDuration::from_millis(16), move || {
+            sync.dispatch_scheduled.set(false);
+            sync.flush();
+        });
+    }
+
+    fn flush(&self) {
+        if !self.split_toggle.is_active() || self.in_flight.get() || !self.dirty.replace(false) {
+            return;
+        }
+        self.in_flight.set(true);
+        let script = preview_scroll_script(self.fraction.get());
+        let sync = self.clone();
+        self.preview.evaluate_javascript(
+            &script,
+            None,
+            None,
+            None::<&gtk::gio::Cancellable>,
+            move |_| {
+                sync.in_flight.set(false);
+                if sync.dirty.get() {
+                    sync.schedule_dispatch();
+                }
+            },
+        );
+    }
+}
+
+fn adjustment_fraction(value: f64, upper: f64, page_size: f64) -> f64 {
+    let denominator = upper - page_size;
+    if denominator > 0.0 {
+        (value / denominator).clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+fn scroll_fraction(adjustment: &gtk::Adjustment) -> f64 {
+    adjustment_fraction(
+        adjustment.value(),
+        adjustment.upper(),
+        adjustment.page_size(),
+    )
 }
 
 fn preview_scroll_script(fraction: f64) -> String {
@@ -548,12 +638,10 @@ fn connect_back_action(
     stack: &gtk::Stack,
     toast_overlay: &adw::ToastOverlay,
     back: &gtk::Button,
-    rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
 ) {
     let state_for_back = Rc::clone(state);
     let stack_for_back = stack.clone();
-    let rich_for_back = rich_buffer.clone();
     let source_for_back = source_buffer.clone();
     let toast_for_back = toast_overlay.clone();
     back.connect_clicked(move |_| {
@@ -561,11 +649,7 @@ fn connect_back_action(
             stack_for_back.set_visible_child_name("browser");
             return;
         }
-        let source = if state_for_back.source_mode.get() || state_for_back.rendered_mode.get() {
-            buffer_text(&source_for_back)
-        } else {
-            buffer_text(&rich_for_back)
-        };
+        let source = buffer_text(&source_for_back);
         let Some(note) = state_for_back.current_note.borrow().clone() else {
             return;
         };
@@ -602,32 +686,15 @@ fn connect_back_action(
 fn connect_autosave(
     state: &Rc<AppState>,
     toast_overlay: &adw::ToastOverlay,
-    rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
 ) {
-    let state_for_rich_save = Rc::clone(state);
-    let rich_for_save = rich_buffer.clone();
-    let source_for_rich_save = source_buffer.clone();
-    let toast_for_rich_save = toast_overlay.clone();
-    rich_buffer.connect_changed(move |_| {
-        if !state_for_rich_save.synchronizing_editor.get() {
-            schedule_autosave(
-                &state_for_rich_save,
-                &rich_for_save,
-                &source_for_rich_save,
-                &toast_for_rich_save,
-            );
-        }
-    });
     let state_for_source_save = Rc::clone(state);
-    let rich_for_source_save = rich_buffer.clone();
     let source_for_source_save = source_buffer.clone();
     let toast_for_source_save = toast_overlay.clone();
     source_buffer.connect_changed(move |_| {
         if !state_for_source_save.synchronizing_editor.get() {
             schedule_autosave(
                 &state_for_source_save,
-                &rich_for_source_save,
                 &source_for_source_save,
                 &toast_for_source_save,
             );
@@ -647,15 +714,13 @@ fn connect_note_loading(
     rendered_mode: &gtk::ToggleButton,
     format_stack: &gtk::Stack,
     editor_stack: &gtk::Stack,
-    rich_view: &gtk::TextView,
-    rich_buffer: &gtk::TextBuffer,
+    rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
 ) {
     let state_for_visible = Rc::clone(state);
-    let rich_for_visible = rich_buffer.clone();
-    let rich_view_for_visible = rich_view.clone();
+    let rich_for_visible = rich.clone();
     let source_for_visible = source_buffer.clone();
     let rich_mode_for_visible = rich_mode.clone();
     let source_mode_for_visible = source_mode.clone();
@@ -677,34 +742,21 @@ fn connect_note_loading(
                 .load_remote_automatically;
             load_preview(&split_preview_for_visible, &note.source, remote);
             load_preview(&rendered_preview_for_visible, &note.source, remote);
-            if matches!(editor_projection(&note.source), EditorProjection::Native(_)) {
-                render_rich_markup(
-                    &rich_view_for_visible,
-                    &rich_for_visible,
-                    &note.source,
-                    Some(&state_for_visible),
-                );
-                if state_for_visible.source_mode.get() {
-                    source_mode_for_visible.set_active(true);
-                    editor_stack_for_visible.set_visible_child_name("source");
-                    format_stack_for_visible.set_sensitive(true);
-                    format_stack_for_visible.set_visible_child_name("source");
-                } else if state_for_visible.rendered_mode.get() {
-                    rendered_mode_for_visible.set_active(true);
-                    editor_stack_for_visible.set_visible_child_name("rendered");
-                    format_stack_for_visible.set_sensitive(false);
-                } else {
-                    rich_mode_for_visible.set_active(true);
-                    editor_stack_for_visible.set_visible_child_name("rich");
-                    format_stack_for_visible.set_sensitive(true);
-                    format_stack_for_visible.set_visible_child_name("rich");
-                }
-            } else {
+            rich_for_visible.load_source(&note.source);
+            if state_for_visible.source_mode.get() {
+                source_mode_for_visible.set_active(true);
+                editor_stack_for_visible.set_visible_child_name("source");
+                format_stack_for_visible.set_sensitive(true);
+                format_stack_for_visible.set_visible_child_name("source");
+            } else if state_for_visible.rendered_mode.get() {
                 rendered_mode_for_visible.set_active(true);
                 editor_stack_for_visible.set_visible_child_name("rendered");
                 format_stack_for_visible.set_sensitive(false);
-                state_for_visible.source_mode.set(false);
-                state_for_visible.rendered_mode.set(true);
+            } else {
+                rich_mode_for_visible.set_active(true);
+                editor_stack_for_visible.set_visible_child_name("rich");
+                format_stack_for_visible.set_sensitive(true);
+                format_stack_for_visible.set_visible_child_name("rich");
             }
             state_for_visible.synchronizing_editor.set(false);
         }
@@ -750,128 +802,30 @@ fn connect_preview_theme_refresh(
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
+    rich: &RichEditor,
 ) {
     let state = Rc::clone(state);
     let source = source_buffer.clone();
     let split_preview = split_preview.clone();
     let rendered_preview = rendered_preview.clone();
+    let rich_for_dark_theme = rich.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
         let source_text = buffer_text(&source);
         let remote = state.config.borrow().images.load_remote_automatically;
         load_preview(&split_preview, &source_text, remote);
         load_preview(&rendered_preview, &source_text, remote);
+        refresh_rich_theme(&rich_for_dark_theme);
+    });
+    let rich = rich.clone();
+    adw::StyleManager::default().connect_accent_color_notify(move |_| {
+        refresh_rich_theme(&rich);
     });
 }
 
-/// Renders supported Carve source into the native rich text buffer.
-pub(crate) fn install_list_continuation(
-    view: &gtk::TextView,
-    buffer: &gtk::TextBuffer,
-) -> gtk::EventControllerKey {
-    let controller = gtk::EventControllerKey::new();
-    let buffer = buffer.clone();
-    controller.connect_key_pressed(move |_controller, key, _keycode, _modifiers| {
-        if key != gtk::gdk::Key::Return {
-            return glib::Propagation::Proceed;
-        }
-        let insert = buffer.get_insert();
-        let cursor = buffer.iter_at_mark(&insert);
-        let mut line_start = cursor;
-        line_start.set_line_offset(0);
-        let marker = if has_tag(&line_start, "rich-list-bullet") {
-            Some(("• ", "rich-list-bullet", 2))
-        } else if has_tag(&line_start, "rich-list-ordered") {
-            Some(("1. ", "rich-list-ordered", 3))
-        } else if has_tag(&line_start, "rich-list-task") {
-            Some(("☐ ", "rich-list-task", 2))
-        } else {
-            None
-        };
-        let Some((prefix, tag, prefix_width)) = marker else {
-            return glib::Propagation::Proceed;
-        };
-        let mut line_end = line_start;
-        line_end.forward_to_line_end();
-        if line_is_empty_list_item(&line_start, &line_end) {
-            buffer.remove_tag_by_name(tag, &line_start, &line_end);
-            remove_structural_prefix(&buffer, &mut line_start, &mut line_end);
-            return glib::Propagation::Stop;
-        }
-        let mut insertion = cursor;
-        buffer.insert(&mut insertion, "\n");
-        let start_offset = insertion.offset();
-        buffer.insert(&mut insertion, prefix);
-        let marker_start = buffer.iter_at_offset(start_offset);
-        let marker_end = buffer.iter_at_offset(start_offset + prefix_width);
-        buffer.apply_tag_by_name("rich-structural", &marker_start, &marker_end);
-        buffer.apply_tag_by_name(tag, &marker_start, &insertion);
-        glib::Propagation::Stop
-    });
-    view.add_controller(controller.clone());
-    controller
-}
-
-/// Installs the standard keyboard shortcuts supported by the rich editor.
-pub(crate) fn install_editor_shortcuts(
-    view: &gtk::TextView,
-    buffer: &gtk::TextBuffer,
-) -> gtk::EventControllerKey {
-    let controller = gtk::EventControllerKey::new();
-    let buffer = buffer.clone();
-    controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
-        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-            return glib::Propagation::Proceed;
-        }
-
-        let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
-        let handled = match key {
-            gtk::gdk::Key::b if !shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-bold");
-                true
-            }
-            gtk::gdk::Key::i if !shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-italic");
-                true
-            }
-            gtk::gdk::Key::x if shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-strike");
-                true
-            }
-            gtk::gdk::Key::u if !shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-underline");
-                true
-            }
-            gtk::gdk::Key::h if shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-highlight");
-                true
-            }
-            gtk::gdk::Key::period if shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-superscript");
-                true
-            }
-            gtk::gdk::Key::comma if shift => {
-                formatting::toggle_tag_on_selection(&buffer, "rich-subscript");
-                true
-            }
-            gtk::gdk::Key::_8 if shift => {
-                formatting::toggle_selected_blocks(&buffer, "rich-list-bullet", "• ");
-                true
-            }
-            gtk::gdk::Key::_7 if shift => {
-                formatting::toggle_selected_blocks(&buffer, "rich-list-ordered", "1. ");
-                true
-            }
-            _ => false,
-        };
-
-        if handled {
-            glib::Propagation::Stop
-        } else {
-            glib::Propagation::Proceed
-        }
-    });
-    view.add_controller(controller.clone());
-    controller
+fn refresh_rich_theme(rich: &RichEditor) {
+    let style_manager = adw::StyleManager::default();
+    let dark = style_manager.is_dark();
+    rich.set_theme(dark, &style_manager.accent_color().to_standalone_rgba(dark));
 }
 
 /// Installs source-mode equivalents of the common Rich Text keyboard shortcuts.
@@ -935,36 +889,8 @@ pub(crate) fn install_source_shortcuts(
     controller
 }
 
-fn line_is_empty_list_item(start: &gtk::TextIter, end: &gtk::TextIter) -> bool {
-    let mut current = *start;
-    while current.offset() < end.offset() {
-        if !has_tag(&current, "rich-structural") && !current.char().is_whitespace() {
-            return false;
-        }
-        current.forward_char();
-    }
-    true
-}
-
-fn remove_structural_prefix(
-    buffer: &gtk::TextBuffer,
-    start: &mut gtk::TextIter,
-    end: &mut gtk::TextIter,
-) {
-    let mut prefix_end = *start;
-    while prefix_end.offset() < end.offset() && has_tag(&prefix_end, "rich-structural") {
-        prefix_end.forward_char();
-    }
-    if prefix_end.offset() > start.offset() {
-        buffer.delete(start, &mut prefix_end);
-        *end = *start;
-        end.forward_to_line_end();
-    }
-}
-
 fn schedule_autosave(
     state: &Rc<AppState>,
-    rich_buffer: &gtk::TextBuffer,
     source_buffer: &gtk::TextBuffer,
     toast_overlay: &adw::ToastOverlay,
 ) {
@@ -972,7 +898,6 @@ fn schedule_autosave(
     let generation = state.autosave_generation.get().saturating_add(1);
     state.autosave_generation.set(generation);
     let state = Rc::clone(state);
-    let rich_buffer = rich_buffer.clone();
     let source_buffer = source_buffer.clone();
     let toast_overlay = toast_overlay.clone();
     glib::timeout_add_local_once(StdDuration::from_millis(delay), move || {
@@ -982,11 +907,7 @@ fn schedule_autosave(
         let Some(note) = state.current_note.borrow().clone() else {
             return;
         };
-        let source = if state.source_mode.get() || state.rendered_mode.get() {
-            buffer_text(&source_buffer)
-        } else {
-            buffer_text(&rich_buffer)
-        };
+        let source = buffer_text(&source_buffer);
         if source.as_str() == note.source {
             return;
         }
@@ -1010,7 +931,7 @@ fn schedule_autosave(
             }
             state.save_in_flight.set(false);
             if state.autosave_generation.get() != generation {
-                schedule_autosave(&state, &rich_buffer, &source_buffer, &toast_overlay);
+                schedule_autosave(&state, &source_buffer, &toast_overlay);
             }
         });
     });

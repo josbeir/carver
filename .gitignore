@@ -4,6 +4,7 @@
 *.sqlite3-wal
 *.partial
 coverage/
+apps/carver-gtk/web/node_modules/
 .agents/
 default_*
 AGENTS.md

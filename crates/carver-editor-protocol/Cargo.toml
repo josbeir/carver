@@ -1,0 +1,16 @@
+[package]
+name = "carver-editor-protocol"
+description = "Format-neutral host protocol for Carver rich-text editor surfaces"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

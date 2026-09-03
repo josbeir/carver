@@ -7,12 +7,26 @@ use std::{
 
 use webkit6::prelude::*;
 
+const PREVIEW_STYLESHEET: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/preview.css"));
+
 /// Builds a non-editable `WebKitGTK` view for trusted Carve renderer output.
 pub(super) fn build_preview(assets_dir: Option<&Path>) -> webkit6::WebView {
     let context = webkit6::WebContext::new();
-    install_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
+    install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
+    let manager = webkit6::UserContentManager::new();
+    manager.add_style_sheet(&webkit6::UserStyleSheet::new(
+        PREVIEW_STYLESHEET,
+        webkit6::UserContentInjectedFrames::TopFrame,
+        webkit6::UserStyleLevel::User,
+        &[],
+        &[],
+    ));
     let settings = webkit6::Settings::new();
-    settings.set_enable_javascript(false);
+    // The preview document's CSP keeps document markup scriptless. JavaScript
+    // stays enabled solely for the native split-preview scroll bridge, which
+    // invokes a fixed host script through `WebView::evaluate_javascript`.
+    settings.set_enable_javascript(true);
     settings.set_enable_javascript_markup(false);
     settings.set_enable_media(false);
     settings.set_enable_html5_database(false);
@@ -20,6 +34,7 @@ pub(super) fn build_preview(assets_dir: Option<&Path>) -> webkit6::WebView {
     settings.set_auto_load_images(true);
     let view = webkit6::WebView::builder()
         .web_context(&context)
+        .user_content_manager(&manager)
         .settings(&settings)
         .build();
     view.set_editable(false);
@@ -27,7 +42,11 @@ pub(super) fn build_preview(assets_dir: Option<&Path>) -> webkit6::WebView {
     view
 }
 
-fn install_asset_scheme(context: &webkit6::WebContext, assets_dir: Option<PathBuf>) {
+/// Installs the managed-asset scheme shared by read-only previews and the editor.
+pub(super) fn install_editor_asset_scheme(
+    context: &webkit6::WebContext,
+    assets_dir: Option<PathBuf>,
+) {
     context.register_uri_scheme("carver-asset", move |request| {
         let bytes = request
             .path()
@@ -96,15 +115,9 @@ fn rendered_document_for_theme(source: &str, allow_remote_images: bool, dark: bo
     } else {
         "img-src data: carver-asset:"
     };
-    let body = carver_richtext::render_html(source)
-        .replace("src=\"assets/", "src=\"carver-asset:///assets/");
-    let (background, foreground, code_background, border) = if dark {
-        ("#1e1e1e", "#f6f5f4", "#303036", "#5b5b63")
-    } else {
-        ("#fafafa", "#242424", "#ededf1", "#b7b7c0")
-    };
+    let body = carve::to_html(source).replace("src=\"assets/", "src=\"carver-asset:///assets/");
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>:root{{color-scheme:{color_scheme}}}html,body{{min-height:100%;margin:0;background:{background};color:{foreground}}}body{{font:12pt Cantarell,sans-serif;line-height:1.55;padding:24px;box-sizing:border-box}}img{{max-width:100%;height:auto}}pre{{overflow:auto;padding:12px;border-radius:8px;background:{code_background}}}table{{border-collapse:collapse;max-width:100%}}th,td{{padding:6px;border:1px solid {border}}}a{{color:inherit}}</style></head><body>{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'none'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview>{body}</body></html>",
         color_scheme = if dark { "dark" } else { "light" },
     )
 }

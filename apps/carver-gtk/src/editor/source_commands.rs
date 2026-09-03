@@ -172,11 +172,4 @@ fn selected_line_range(buffer: &gtk::TextBuffer) -> (i32, i32) {
 }
 
 #[cfg(test)]
-fn buffer_text(buffer: &gtk::TextBuffer) -> String {
-    buffer
-        .text(&buffer.start_iter(), &buffer.end_iter(), false)
-        .to_string()
-}
-
-#[cfg(test)]
 pub(crate) mod tests;

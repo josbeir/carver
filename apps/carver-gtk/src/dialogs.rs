@@ -178,3 +178,19 @@ pub(crate) fn category_trash_dialog(
     });
     dialog
 }
+
+/// Presents every window-scoped dialog in the shared GTK integration scenario.
+///
+/// Libadwaita requires a single initialized display thread in tests, so these
+/// private constructors are exercised by the Weston-backed surface test.
+#[cfg(test)]
+pub(crate) fn present_dialogs_for_test(
+    parent: &adw::ApplicationWindow,
+    state: &Rc<AppState>,
+    config_path: &Path,
+) {
+    show_preferences_dialog(parent, state, config_path);
+    show_about_window(parent);
+    show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
+    show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
+}

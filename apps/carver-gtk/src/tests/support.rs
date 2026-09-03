@@ -49,27 +49,16 @@ pub(crate) fn widget_as<T: glib::prelude::IsA<gtk::Widget> + glib::object::Objec
     find_widget(root, name).and_then(|widget| widget.downcast::<T>().ok())
 }
 
-pub(crate) fn note_row_count(root: &gtk::Widget) -> usize {
-    let own_count = usize::from(root.widget_name().starts_with("note:"));
-    let mut child = root.first_child();
-    let mut descendants = 0;
-    while let Some(widget) = child {
-        descendants += note_row_count(&widget);
-        child = widget.next_sibling();
-    }
-    own_count + descendants
-}
-
 pub(crate) fn run_main_context_until(predicate: impl Fn() -> bool) -> bool {
     let context = glib::MainContext::default();
-    for _ in 0..20 {
+    for _ in 0..100 {
         while context.pending() {
             context.iteration(false);
         }
         if predicate() {
             return true;
         }
-        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
     false
 }

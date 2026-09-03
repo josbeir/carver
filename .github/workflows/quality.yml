@@ -15,6 +15,11 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/carver-gtk/web/package-lock.json
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -28,16 +33,19 @@ jobs:
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
-          libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev xvfb
+          libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev weston
       - name: Format
         run: cargo fmt --all -- --check
+      - name: Build the bundled editor
+        working-directory: apps/carver-gtk/web
+        run: npm ci && npm test && npm run build
       - name: Lint
         run: >-
           cargo clippy --workspace --all-targets --all-features --locked --
           -D warnings -D clippy::perf
       - name: Test
         run: >-
-          xvfb-run -a cargo test --workspace --locked --
+          ./scripts/with-weston.sh cargo test --workspace --locked --
           --include-ignored --test-threads=1
       - name: Install coverage tool
         run: >-
@@ -46,7 +54,7 @@ jobs:
       - name: Coverage
         run: |
           mkdir -p coverage
-          xvfb-run -a cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 \
+          ./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 \
             --lcov --output-path coverage/lcov.info -- --include-ignored --test-threads=1
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -67,6 +75,11 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/carver-gtk/web/package-lock.json
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.92"
@@ -79,4 +92,4 @@ jobs:
           sudo apt-get update && sudo apt-get install -y
           libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev
       - name: Check MSRV compatibility
-        run: cargo check --workspace --all-targets --all-features --locked
+        run: npm ci --prefix apps/carver-gtk/web && npm run build --prefix apps/carver-gtk/web && cargo check --workspace --all-targets --all-features --locked

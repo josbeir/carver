@@ -1,0 +1,120 @@
+:root {
+  color-scheme: dark;
+  --document-background: #1e1e1e;
+  --document-foreground: #f6f5f4;
+  --code-background: #303036;
+  --code-language-background: #25252a;
+  --border-color: #5b5b63;
+  --selection-background: #358e45;
+  --selection-foreground: #ffffff;
+}
+
+html, body { min-height: 100%; margin: 0; }
+body { background: var(--document-background); color: var(--document-foreground); font: 12pt Cantarell, sans-serif; }
+
+.ProseMirror,
+body[data-preview] { box-sizing: border-box; line-height: 1.55; }
+
+.ProseMirror { min-height: 100%; outline: none; padding: 24px; }
+body[data-preview] { padding: 24px; }
+
+:where(.ProseMirror, body[data-preview]) > :first-child { margin-top: 0; }
+:where(.ProseMirror, body[data-preview]) p,
+:where(.ProseMirror, body[data-preview]) h1,
+:where(.ProseMirror, body[data-preview]) h2,
+:where(.ProseMirror, body[data-preview]) h3,
+:where(.ProseMirror, body[data-preview]) h4,
+:where(.ProseMirror, body[data-preview]) h5,
+:where(.ProseMirror, body[data-preview]) h6,
+:where(.ProseMirror, body[data-preview]) pre,
+:where(.ProseMirror, body[data-preview]) blockquote,
+:where(.ProseMirror, body[data-preview]) ul,
+:where(.ProseMirror, body[data-preview]) ol,
+:where(.ProseMirror, body[data-preview]) table { margin: 0 0 1rem; }
+
+:where(.ProseMirror, body[data-preview]) h1 { font-size: 2em; }
+:where(.ProseMirror, body[data-preview]) h2 { font-size: 1.5em; }
+:where(.ProseMirror, body[data-preview]) h3 { font-size: 1.25em; }
+
+:where(.ProseMirror, body[data-preview]) pre {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--code-background);
+  font: 0.9em monospace;
+  line-height: 1.35;
+}
+
+:where(.ProseMirror, body[data-preview]) pre > code { display: block; }
+:where(.ProseMirror, body[data-preview]) img { display: block; max-width: 100%; height: auto; margin-block: .5rem; }
+:where(.ProseMirror, body[data-preview]) img[style] { height: auto !important; }
+/* Carve block images render directly in the preview document, whereas the
+ * editable ProseMirror document keeps them in a paragraph. Give that direct
+ * form the same block separation without changing inline images. */
+body[data-preview] > img { margin-block-end: 3rem; }
+:where(.ProseMirror, body[data-preview]) ul,
+:where(.ProseMirror, body[data-preview]) ol { padding-inline-start: 1.5rem; }
+:where(.ProseMirror, body[data-preview]) ul li,
+:where(.ProseMirror, body[data-preview]) ol li { margin-block: .25rem; }
+:where(.ProseMirror, body[data-preview]) li > p { margin: 0; }
+
+:where(.ProseMirror, body[data-preview]) table { border-collapse: collapse; width: 100%; max-width: 100%; }
+:where(.ProseMirror, body[data-preview]) th,
+:where(.ProseMirror, body[data-preview]) td { border: 1px solid var(--border-color); min-width: 4rem; padding: 6px; overflow-wrap: anywhere; }
+/* Table cells in ProseMirror contain paragraphs, so their block rhythm makes
+ * them taller than Carve's text-only cells. Match that comfortable editor
+ * density in Preview instead of relying on the renderer's incidental DOM. */
+body[data-preview] th,
+body[data-preview] td { padding-block: 18px; }
+
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"],
+body[data-preview] ul.task-list,
+body[data-preview] ul:has(> li > input[type="checkbox"]) {
+  list-style: none;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+}
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] li,
+body[data-preview] ul.task-list li { display: flex; align-items: flex-start; margin-block: .4rem; }
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] li > label,
+body[data-preview] ul.task-list li > label { flex: 0 0 auto; margin: .3rem .55rem 0 0; user-select: none; }
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] input[type="checkbox"],
+body[data-preview] ul.task-list input[type="checkbox"] { accent-color: var(--selection-background); inline-size: 1rem; block-size: 1rem; margin: 0; }
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] li > div,
+body[data-preview] ul.task-list li > div { flex: 1 1 auto; min-width: 0; }
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] li > div > p,
+body[data-preview] ul.task-list li > div > p { margin: 0; }
+:where(.ProseMirror, body[data-preview]) ul[data-type="taskList"] li > div > ul[data-type="taskList"] { margin: .4rem 0 0; padding-inline-start: 1.5rem; }
+
+/* Carve's renderer deliberately uses standard list HTML: a task is an <li>
+ * whose first child is a disabled checkbox. Preserve that semantic HTML while
+ * presenting it just like Tiptap's explicit task-list nodes above. */
+body[data-preview] ul:has(> li > input[type="checkbox"]) li { margin-block: .5rem; }
+body[data-preview] ul:has(> li > input[type="checkbox"]) input[type="checkbox"] {
+  accent-color: var(--selection-background);
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin: 0 .55rem 0 0;
+  vertical-align: -.1em;
+}
+body[data-preview] ul:has(> li > input[type="checkbox"]) input[type="checkbox"]:disabled {
+  opacity: 1;
+  filter: none;
+}
+body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
+  margin: .4rem 0 0;
+  /* The editor's nested list starts after its checkbox label and then its
+   * usual list indent. Carve has no label wrapper, so reserve both widths. */
+  padding-inline-start: 3rem;
+}
+
+:where(.ProseMirror, body[data-preview]) a { color: inherit; }
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --document-background: #fafafa;
+  --document-foreground: #242424;
+  --code-background: #ededf1;
+  --code-language-background: #ffffff;
+  --border-color: #b7b7c0;
+}

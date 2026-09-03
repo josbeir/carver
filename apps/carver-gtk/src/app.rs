@@ -132,3 +132,22 @@ fn build_window(
     window.present();
     window
 }
+
+/// Builds the complete application window inside the shared GTK integration scenario.
+///
+/// Keeping this test-only seam here lets the scenario exercise private startup wiring
+/// on its one initialized GTK thread.
+#[cfg(test)]
+pub(crate) fn build_window_for_test(
+    application: &adw::Application,
+    state: &Rc<AppState>,
+    config_path: PathBuf,
+) -> adw::ApplicationWindow {
+    load_styles();
+    build_window(application, state, config_path)
+}
+
+#[cfg(test)]
+pub(crate) fn open_library_for_test(paths: &AppPaths) -> Result<AppLibraryClient, String> {
+    open_library(paths)
+}

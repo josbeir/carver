@@ -1,9 +1,9 @@
 [workspace]
 members = [
   "apps/carver-gtk",
+  "crates/carver-editor-protocol",
   "crates/carver-config",
   "crates/carver-domain",
-  "crates/carver-richtext",
   "crates/carver-sdk",
   "crates/carver-storage-sqlite",
 ]
@@ -18,6 +18,7 @@ authors = ["Carver contributors"]
 
 [workspace.dependencies]
 async-channel = "2.5"
+base64 = "0.22"
 carve-lang = "0.1.4"
 directories = "6.0"
 glib = "0.22"
@@ -25,6 +26,7 @@ gtk = { package = "gtk4", version = "0.11", features = ["v4_22"] }
 libadwaita = { package = "libadwaita", version = "0.9", features = ["gtk_v4_22", "v1_9"] }
 rusqlite = { version = "0.37", features = ["bundled", "modern_sqlite"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 sha2 = "0.10"
 tempfile = "3.20"
 thiserror = "2.0"

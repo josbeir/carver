@@ -34,8 +34,10 @@ Carver is a Cargo workspace with clear dependency boundaries:
 - `carver-config` handles XDG paths and TOML configuration.
 - `carver-storage-sqlite` owns migrations, FTS5 search, notes, and managed assets.
 - `carver-sdk` exposes a UI-neutral asynchronous facade.
-- `carver-richtext` projects supported Carve markup into the native editor.
+- `carver-editor-protocol` defines the small, format-neutral host/editor bridge.
 - `carver-gtk` is the GTK4/Libadwaita desktop application.
+  Its sandboxed Tiptap surface uses [Carve Grammars](https://github.com/markup-carve/carve-grammars)
+  for faithful Carve editing, while native WebKit preview uses the canonical Carve renderer.
 
 ## Getting started
 
@@ -59,18 +61,19 @@ cargo test --workspace --locked
 RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
 ```
 
-GTK interaction tests need a display server and run serially. On a Linux CI runner or desktop
-with Xvfb available:
+GTK interaction tests run serially against an isolated, native Wayland compositor. Install
+[Weston](https://gitlab.freedesktop.org/wayland/weston) (`pacman -S weston` on Arch; CI installs
+the `weston` package) and use the included harness:
 
 ```sh
-xvfb-run -a cargo test --workspace --locked -- --include-ignored --test-threads=1
+./scripts/with-weston.sh cargo test --workspace --locked -- --include-ignored --test-threads=1
 ```
 
 Coverage is measured with `cargo-llvm-cov`; CI enforces at least 80% line coverage and uploads
 the LCOV report to Codecov:
 
 ```sh
-xvfb-run -a cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 -- \
+./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 -- \
   --include-ignored --test-threads=1
 ```
 
