@@ -413,9 +413,7 @@ impl Toolbar {
         self.set_state(&source_commands::toolbar_state_from_context(
             context.cloned(),
         ));
-        let breadcrumb = context
-            .filter(|context| !context.is_plain_paragraph())
-            .map(SourceContext::breadcrumb);
+        let breadcrumb = context.map(SourceContext::breadcrumb);
         self.source_path
             .set_text(breadcrumb.as_deref().unwrap_or_default());
         self.source_path.set_visible(breadcrumb.is_some());

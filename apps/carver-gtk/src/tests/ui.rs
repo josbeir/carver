@@ -208,11 +208,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(
         source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(1), "carve-heading")
     );
+    source.buffer().set_text("1. list item");
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(4));
+    assert!(run_main_context_until(|| {
+        source_path.is_visible() && source_path.text() == "ol › li"
+    }));
     source.buffer().set_text("plain text");
     source
         .buffer()
         .place_cursor(&source.buffer().iter_at_offset(3));
-    assert!(run_main_context_until(|| !source_path.is_visible()));
+    assert!(run_main_context_until(|| {
+        source_path.is_visible() && source_path.text() == "p"
+    }));
     let rendered_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
     rendered_mode.set_active(true);

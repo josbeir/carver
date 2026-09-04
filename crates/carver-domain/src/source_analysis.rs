@@ -112,18 +112,25 @@ impl SourceContext {
         &self.path
     }
 
-    /// Returns whether this context contains only an ordinary paragraph.
-    #[must_use]
-    pub fn is_plain_paragraph(&self) -> bool {
-        self.path.as_slice() == [SourceNodeKind::Paragraph]
-    }
-
     /// Renders the compact source breadcrumb.
+    ///
+    /// Carve represents the inline content of a list item as a paragraph. That
+    /// paragraph is implicit in the authored list syntax, so it is omitted from
+    /// the visible outline while standalone and other nested paragraphs remain
+    /// explicit.
     #[must_use]
     pub fn breadcrumb(&self) -> String {
         self.path
             .iter()
-            .map(|node| node.label())
+            .enumerate()
+            .filter(|(index, node)| {
+                !matches!(node, SourceNodeKind::Paragraph)
+                    || !matches!(
+                        self.path.get(index.saturating_sub(1)),
+                        Some(SourceNodeKind::ListItem { .. })
+                    )
+            })
+            .map(|(_, node)| node.label())
             .collect::<Vec<_>>()
             .join(" › ")
     }

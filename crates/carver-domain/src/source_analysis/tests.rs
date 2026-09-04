@@ -18,6 +18,25 @@ fn context_should_report_paragraph_and_bold_at_a_bold_cursor() {
 }
 
 #[test]
+fn breadcrumb_should_show_authored_paragraphs_without_implicit_list_item_paragraphs() {
+    let paragraph = SourceAnalysis::parse("plain text");
+    assert_eq!(
+        paragraph
+            .context_for(3..3)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("p"))
+    );
+
+    let ordered_list = SourceAnalysis::parse("1. list item");
+    assert_eq!(
+        ordered_list
+            .context_for(4..4)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("ol › li"))
+    );
+}
+
+#[test]
 fn context_should_report_heading_and_bold_for_nested_markup() {
     assert_eq!(
         context("# *bold*", 4..4),
