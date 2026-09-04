@@ -22,7 +22,7 @@ pub(crate) fn install_window_actions(
     let window_for_preferences = window.clone();
     preferences.connect_activate(move |_, _| {
         let config = runtime_for_preferences.model().config;
-        show_preferences_dialog(
+        let _ = show_preferences_dialog(
             &window_for_preferences,
             &dispatcher_for_preferences,
             &config,
@@ -109,7 +109,7 @@ fn show_preferences_dialog(
     parent: &adw::ApplicationWindow,
     dispatcher: &AppDispatcher,
     config: &carver_config::Config,
-) {
+) -> adw::PreferencesDialog {
     let dialog = adw::PreferencesDialog::new();
     dialog.set_search_enabled(false);
     let page = adw::PreferencesPage::new();
@@ -118,33 +118,30 @@ fn show_preferences_dialog(
     group.set_title("Editing");
 
     let remote_images = adw::SwitchRow::new();
+    remote_images.set_widget_name("remote-images-setting");
     remote_images.set_title("Load remote images automatically");
+    remote_images.set_subtitle("Download images referenced by notes when they are displayed.");
     remote_images.set_active(config.images.load_remote_automatically);
     group.add(&remote_images);
-
-    let autosave_row = adw::ActionRow::new();
-    autosave_row.set_title("Autosave delay");
-    autosave_row.set_subtitle("Milliseconds before changes are saved");
-    let autosave = gtk::SpinButton::with_range(100.0, 10_000.0, 100.0);
-    let initial_delay = u32::try_from(config.editor.autosave_delay_ms.clamp(100, 10_000))
-        .map_or(10_000.0, f64::from);
-    autosave.set_value(initial_delay);
-    autosave_row.add_suffix(&autosave);
-    group.add(&autosave_row);
 
     let source_group = adw::PreferencesGroup::new();
     source_group.set_title("Source editor");
     let line_numbers = adw::SwitchRow::new();
+    line_numbers.set_widget_name("source-line-numbers-setting");
     line_numbers.set_title("Show line numbers");
+    line_numbers.set_subtitle("Show source line positions in the editor gutter.");
     line_numbers.set_active(config.editor.source_line_numbers);
     source_group.add(&line_numbers);
     let current_line = adw::SwitchRow::new();
+    current_line.set_widget_name("source-current-line-setting");
     current_line.set_title("Highlight current line");
+    current_line.set_subtitle("Shade the line containing the cursor in Source mode.");
     current_line.set_active(config.editor.source_highlight_current_line);
     source_group.add(&current_line);
     let syntax_highlighting = adw::SwitchRow::new();
     syntax_highlighting.set_widget_name("source-syntax-highlighting-setting");
     syntax_highlighting.set_title("Syntax highlighting");
+    syntax_highlighting.set_subtitle("Colour Carve markup in Source mode.");
     syntax_highlighting.set_active(config.editor.source_syntax_highlighting);
     source_group.add(&syntax_highlighting);
     page.add(&group);
@@ -155,13 +152,6 @@ fn show_preferences_dialog(
     remote_images.connect_active_notify(move |remote_images| {
         let _ = dispatcher_for_images.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetRemoteImages(remote_images.is_active()),
-        ));
-    });
-    let dispatcher_for_delay = dispatcher.clone();
-    autosave.connect_value_changed(move |autosave| {
-        let delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
-        let _ = dispatcher_for_delay.dispatch(AppMsg::Preferences(
-            PreferencesMsg::SetAutosaveDelay(delay_ms),
         ));
     });
     let dispatcher_for_line_numbers = dispatcher.clone();
@@ -183,6 +173,7 @@ fn show_preferences_dialog(
         ));
     });
     dialog.present(Some(parent));
+    dialog
 }
 
 #[cfg(test)]
@@ -190,11 +181,12 @@ pub(crate) fn present_dialogs_for_test(
     parent: &adw::ApplicationWindow,
     config: &carver_config::Config,
     dispatcher: &AppDispatcher,
-) {
-    show_preferences_dialog(parent, dispatcher, config);
+) -> adw::PreferencesDialog {
+    let preferences = show_preferences_dialog(parent, dispatcher, config);
     show_about_window(parent);
     show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
     show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
+    preferences
 }
 
 fn show_about_window(parent: &adw::ApplicationWindow) {

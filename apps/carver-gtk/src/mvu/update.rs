@@ -84,10 +84,6 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.load_remote_images = enabled;
             model.config.images.load_remote_automatically = enabled;
         }
-        PreferencesMsg::SetAutosaveDelay(delay_ms) => {
-            model.preferences.autosave_delay_ms = delay_ms;
-            model.config.editor.autosave_delay_ms = delay_ms;
-        }
         PreferencesMsg::SetEditorMode(mode) => {
             model.preferences.editor_mode = mode;
             model.config.editor.last_mode = mode;

@@ -141,8 +141,6 @@ pub enum EditorMsg {
 pub enum PreferencesMsg {
     /// Set the remote-image loading policy.
     SetRemoteImages(bool),
-    /// Set the delay before an unsaved editor source is persisted.
-    SetAutosaveDelay(u64),
     /// Set the preferred editor surface.
     SetEditorMode(EditorMode),
     /// Set source split-preview visibility.

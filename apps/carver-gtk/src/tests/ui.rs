@@ -3,6 +3,7 @@
 use carver_config::Config;
 use gtk::prelude::*;
 use libadwaita as adw;
+use libadwaita::prelude::ActionRowExt;
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
@@ -34,10 +35,45 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.source_highlight_current_line = true;
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
-    crate::dialogs::present_dialogs_for_test(
+    let preferences_dialog = crate::dialogs::present_dialogs_for_test(
         &window,
         &config,
         &crate::mvu::AppDispatcher::default(),
+    );
+    assert_eq!(
+        widget_as::<adw::SwitchRow>(preferences_dialog.upcast_ref(), "remote-images-setting")
+            .map(|row| row.subtitle()),
+        Some(Some(
+            "Download images referenced by notes when they are displayed.".into()
+        ))
+    );
+    assert_eq!(
+        widget_as::<adw::SwitchRow>(
+            preferences_dialog.upcast_ref(),
+            "source-line-numbers-setting"
+        )
+        .map(|row| row.subtitle()),
+        Some(Some(
+            "Show source line positions in the editor gutter.".into()
+        ))
+    );
+    assert_eq!(
+        widget_as::<adw::SwitchRow>(
+            preferences_dialog.upcast_ref(),
+            "source-current-line-setting"
+        )
+        .map(|row| row.subtitle()),
+        Some(Some(
+            "Shade the line containing the cursor in Source mode.".into()
+        ))
+    );
+    assert_eq!(
+        widget_as::<adw::SwitchRow>(
+            preferences_dialog.upcast_ref(),
+            "source-syntax-highlighting-setting"
+        )
+        .map(|row| row.subtitle()),
+        Some(Some("Colour Carve markup in Source mode.".into()))
     );
     assert_eq!(
         window.icon_name().as_deref(),
