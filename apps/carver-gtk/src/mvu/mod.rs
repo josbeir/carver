@@ -6,6 +6,7 @@
 mod effect;
 mod model;
 mod msg;
+mod runtime;
 mod update;
 
 pub use effect::Effect;
@@ -17,7 +18,8 @@ pub use msg::{
     AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg,
     TrashMsg,
 };
+pub use runtime::AppRuntime;
 pub use update::update;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

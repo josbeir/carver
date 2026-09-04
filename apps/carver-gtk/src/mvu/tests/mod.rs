@@ -1,9 +1,11 @@
-use carver_config::Config;
+use carver_config::{AppPaths, Config};
 use carver_sdk::CategoryId;
+use carver_sdk::LibraryClient;
+use carver_storage_sqlite::SqliteLibrary;
 
 use super::{
-    AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, LoadState, NavigationMsg,
-    RequestId, Route, UiError, update,
+    AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect, LibraryReply, LoadState,
+    NavigationMsg, RequestId, Route, SidebarMsg, UiError, update,
 };
 
 #[test]
@@ -109,4 +111,67 @@ fn stale_editor_close_should_not_close_a_newer_session() {
 
     assert_eq!(model.route, Route::Editor);
     assert_ne!(model.editor_session, Some(first_session));
+}
+
+pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let paths = AppPaths {
+        config_dir: temporary_directory.path().join("config"),
+        data_dir: temporary_directory.path().join("data"),
+        cache_dir: temporary_directory.path().join("cache"),
+    };
+    paths.ensure_exists()?;
+    let client = LibraryClient::spawn(SqliteLibrary::open(
+        &paths.database_file(),
+        &paths.assets_dir(),
+    )?)?;
+    crate::app::ensure_first_category(&client);
+
+    let stack = gtk::Stack::new();
+    for name in ["browser", "editor", "trash"] {
+        stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
+    }
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&Config::default()),
+        crate::view::ViewRefs::new(
+            stack,
+            libadwaita::StatusPage::new(),
+            libadwaita::StatusPage::new(),
+            libadwaita::StatusPage::new(),
+        ),
+    );
+
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
+    assert!(crate::tests::support::run_main_context_until(|| {
+        matches!(runtime.model().sidebar, LoadState::Ready(_))
+            && matches!(runtime.model().browser.notes, LoadState::Ready(_))
+    }));
+
+    runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
+        "needle".to_owned(),
+    )));
+    assert!(crate::tests::support::run_main_context_until(|| {
+        matches!(runtime.model().browser.notes, LoadState::Ready(_))
+    }));
+
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::ShowTrash));
+    assert!(crate::tests::support::run_main_context_until(|| {
+        matches!(runtime.model().trash, LoadState::Ready(_))
+    }));
+
+    runtime.dispatch(AppMsg::Sidebar(SidebarMsg::Reload));
+    let LoadState::Loading(request_id) = runtime.model().sidebar else {
+        return Err("sidebar should be loading".into());
+    };
+    runtime.dispatch(AppMsg::Library(LibraryReply::SidebarLoaded {
+        request_id,
+        result: Err(UiError::new("offline")),
+    }));
+    assert_eq!(
+        runtime.model().sidebar,
+        LoadState::Failed(UiError::new("offline"))
+    );
+    Ok(())
 }

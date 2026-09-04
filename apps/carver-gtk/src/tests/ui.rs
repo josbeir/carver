@@ -26,6 +26,7 @@ use super::support::{TestResult, find_widget, run_main_context_until, test_state
 )]
 fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     gtk::init()?;
+    crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
     let (_temporary_directory, state) = test_state()?;

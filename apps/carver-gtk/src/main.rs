@@ -12,6 +12,7 @@ pub mod mvu;
 mod note_move;
 mod sidebar;
 mod trash;
+pub mod view;
 
 fn main() -> glib::ExitCode {
     app::run()
