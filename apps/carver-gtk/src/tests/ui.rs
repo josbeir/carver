@@ -173,6 +173,26 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
+    let editor_surface =
+        widget_as::<adw::ToolbarView>(&root, "editor-surface").ok_or("editor surface")?;
+    let controllers = editor_surface.observe_controllers();
+    let mouse_back = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .find_map(|controller| controller.downcast::<gtk::GestureClick>().ok())
+        .filter(|controller| controller.name().as_deref() == Some("editor-mouse-back-controller"))
+        .ok_or("editor mouse back controller")?;
+    assert_eq!(mouse_back.button(), 8);
+    mouse_back.emit_by_name::<()>("released", &[&1_i32, &0.0_f64, &0.0_f64]);
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+    }));
+    let reopened_note_row = find_widget(&root, &format!("note:{}", note.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("reopened note row")?;
+    reopened_note_row.activate();
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("editor")
+    }));
     let source = widget_as::<gtk::TextView>(&root, "source-editor").ok_or("source editor")?;
     let source_view =
         widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
