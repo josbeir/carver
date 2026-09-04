@@ -222,6 +222,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(source_view.shows_line_numbers());
     assert!(source_view.is_highlight_current_line());
     assert!(source_buffer.is_highlight_syntax());
+    assert_eq!(source_view.pixels_above_lines(), 3);
+    assert_eq!(source_view.pixels_below_lines(), 3);
     let source_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-source").ok_or("source mode")?;
     let rich_mode = widget_as::<gtk::ToggleButton>(&root, "editor-mode-rich").ok_or("rich mode")?;

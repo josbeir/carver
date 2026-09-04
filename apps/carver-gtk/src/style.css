@@ -104,9 +104,8 @@
   font-weight: 700;
 }
 
-textview {
+#source-editor {
   font-size: 12pt;
-  line-height: 1.55;
 }
 
 textview text {

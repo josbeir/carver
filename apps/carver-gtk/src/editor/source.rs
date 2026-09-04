@@ -108,6 +108,9 @@ impl SourceEditor {
         view.set_widget_name("source-editor");
         view.set_monospace(true);
         view.set_wrap_mode(gtk::WrapMode::WordChar);
+        // Keep relaxed source spacing without CSS line-height changing Pango glyph metrics.
+        view.set_pixels_above_lines(3);
+        view.set_pixels_below_lines(3);
         view.set_top_margin(24);
         view.set_bottom_margin(24);
         view.set_left_margin(24);
