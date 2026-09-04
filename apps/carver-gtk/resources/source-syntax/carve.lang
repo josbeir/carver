@@ -22,6 +22,8 @@
     <style id="frontmatter-fence" name="Front matter fence" map-to="def:preprocessor"/>
     <style id="frontmatter-key" name="Front matter key" map-to="def:identifier"/>
     <style id="frontmatter-value" name="Front matter value" map-to="def:string"/>
+    <style id="definition-term" name="Definition term" map-to="def:heading"/>
+    <style id="definition-marker" name="Definition description marker" map-to="def:list-marker"/>
   </styles>
   <definitions>
     <context id="heading" style-ref="heading" class="carve-heading">
@@ -53,6 +55,12 @@
         <context ref="frontmatter-key"/>
         <context ref="frontmatter-value"/>
       </include>
+    </context>
+    <context id="definition-term" style-ref="definition-term" class="carve-definition-term">
+      <match>^[ \t]*:: [^\r\n]*\S[^\r\n]*$</match>
+    </context>
+    <context id="definition-marker" style-ref="definition-marker" class="carve-definition-marker">
+      <match>^[ \t]*: +(?=.)</match>
     </context>
     <context id="inline-code" style-ref="code" class="carve-inline-code">
       <match>`[^`\n]+`</match>
@@ -109,6 +117,8 @@
         <context ref="quote-marker"/>
         <context ref="table-marker"/>
         <context ref="frontmatter"/>
+        <context ref="definition-term"/>
+        <context ref="definition-marker"/>
         <context ref="fenced-code"/>
         <context ref="inline-code"/>
         <context ref="image"/>

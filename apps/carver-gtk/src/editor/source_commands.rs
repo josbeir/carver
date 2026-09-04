@@ -279,6 +279,9 @@ pub(crate) fn toolbar_state_from_context(context: Option<SourceContext>) -> Tool
             SourceNodeKind::Subscript => state.activate(ToolbarCommand::Subscript),
             SourceNodeKind::InlineCode => state.activate(ToolbarCommand::InlineCode),
             SourceNodeKind::Frontmatter
+            | SourceNodeKind::DefinitionList
+            | SourceNodeKind::DefinitionTerm
+            | SourceNodeKind::DefinitionDescription
             | SourceNodeKind::Paragraph
             | SourceNodeKind::ListItem { task: false }
             | SourceNodeKind::BlockQuote

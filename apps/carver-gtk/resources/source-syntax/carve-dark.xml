@@ -17,4 +17,6 @@
   <style name="carve:frontmatter-fence" foreground="#c5bdcf" bold="true"/>
   <style name="carve:frontmatter-key" foreground="#d8a8ff"/>
   <style name="carve:frontmatter-value" foreground="#b9b3c0"/>
+  <style name="carve:definition-term" foreground="#78c5ff" bold="true"/>
+  <style name="carve:definition-marker" foreground="#67dc91"/>
 </style-scheme>

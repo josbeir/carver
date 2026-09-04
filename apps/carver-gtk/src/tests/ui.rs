@@ -317,6 +317,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         source_buffer
             .iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-frontmatter-key")
     );
+    source
+        .buffer()
+        .set_text(":: Carve\n: A post-Markdown lightweight markup language.");
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(13));
+    assert!(run_main_context_until(|| {
+        source_path.is_visible() && source_path.text() == "dl › dd"
+    }));
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(1), "carve-definition-term")
+    );
+    assert!(source_buffer.iter_has_context_class(
+        &source.buffer().iter_at_offset(9),
+        "carve-definition-marker"
+    ));
     source.buffer().set_text("1. list item");
     source
         .buffer()

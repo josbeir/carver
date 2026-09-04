@@ -9,6 +9,12 @@ use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_option
 pub enum SourceNodeKind {
     /// The document-level front matter block.
     Frontmatter,
+    /// A definition list.
+    DefinitionList,
+    /// A definition-list term.
+    DefinitionTerm,
+    /// A definition-list description.
+    DefinitionDescription,
     /// A paragraph block.
     Paragraph,
     /// A heading with its authored level.
@@ -73,6 +79,9 @@ impl SourceNodeKind {
     pub fn label(self) -> String {
         match self {
             Self::Frontmatter => "frontmatter".to_owned(),
+            Self::DefinitionList => "dl".to_owned(),
+            Self::DefinitionTerm => "dt".to_owned(),
+            Self::DefinitionDescription => "dd".to_owned(),
             Self::Paragraph => "p".to_owned(),
             Self::Heading(level) => format!("h{level}"),
             Self::UnorderedList => "ul".to_owned(),
@@ -117,10 +126,10 @@ impl SourceContext {
 
     /// Renders the compact source breadcrumb.
     ///
-    /// Carve represents the inline content of a list item as a paragraph. That
-    /// paragraph is implicit in the authored list syntax, so it is omitted from
-    /// the visible outline while standalone and other nested paragraphs remain
-    /// explicit.
+    /// Carve represents list-item and definition-description text as a paragraph.
+    /// Those paragraphs are implicit in the authored syntax, so they are omitted
+    /// from the visible outline while standalone and other nested paragraphs
+    /// remain explicit.
     #[must_use]
     pub fn breadcrumb(&self) -> String {
         self.path
@@ -130,7 +139,9 @@ impl SourceContext {
                 !matches!(node, SourceNodeKind::Paragraph)
                     || !matches!(
                         self.path.get(index.saturating_sub(1)),
-                        Some(SourceNodeKind::ListItem { .. })
+                        Some(
+                            SourceNodeKind::ListItem { .. } | SourceNodeKind::DefinitionDescription
+                        )
                     )
             })
             .map(|(_, node)| node.label())
@@ -214,6 +225,28 @@ impl SourceAnalysis {
             }
             BlockNode::CodeBlock(node) => {
                 self.leaf(node.pos.as_ref(), SourceNodeKind::CodeBlock, path);
+            }
+            BlockNode::DefinitionList(node) => {
+                self.push(node.pos.as_ref(), SourceNodeKind::DefinitionList, path);
+                for item in &node.items {
+                    for term in &item.terms {
+                        self.push(term.pos.as_ref(), SourceNodeKind::DefinitionTerm, path);
+                        self.visit_inlines(&term.children, path);
+                        Self::pop(path);
+                    }
+                    for description in &item.definitions {
+                        self.push(
+                            description.pos.as_ref(),
+                            SourceNodeKind::DefinitionDescription,
+                            path,
+                        );
+                        for child in &description.children {
+                            self.visit_block(child, path);
+                        }
+                        Self::pop(path);
+                    }
+                }
+                Self::pop(path);
             }
             BlockNode::List(node) => {
                 let kind = if node.ordered {

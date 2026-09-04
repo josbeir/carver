@@ -62,6 +62,25 @@ fn context_should_report_document_frontmatter_from_the_carve_ast() {
 }
 
 #[test]
+fn context_should_report_definition_list_terms_and_descriptions() {
+    let source = ":: Carve\n: A post-Markdown lightweight markup language.\n\n:: Djot\n: The markup language Carve evolves from.";
+    let analysis = SourceAnalysis::parse(source);
+
+    assert_eq!(
+        analysis
+            .context_for(4..4)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("dl › dt"))
+    );
+    assert_eq!(
+        analysis
+            .context_for(14..14)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("dl › dd"))
+    );
+}
+
+#[test]
 fn context_should_report_heading_and_bold_for_nested_markup() {
     assert_eq!(
         context("# *bold*", 4..4),
