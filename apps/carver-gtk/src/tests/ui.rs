@@ -172,6 +172,13 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     }));
     move_search.set_text("");
     move_search.emit_by_name::<()>("search-changed", &[]);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::ListBox>(move_dialog.upcast_ref(), "move-note-category-list")
+            .and_then(|list| list.first_child())
+            .and_then(|row| row.downcast::<gtk::ListBoxRow>().ok())
+            .and_then(|row| row.child())
+            .is_some_and(|child| child.is::<gtk::Button>())
+    }));
     let move_list = widget_as::<gtk::ListBox>(move_dialog.upcast_ref(), "move-note-category-list")
         .ok_or("move category list")?;
     let destination_button = move_list

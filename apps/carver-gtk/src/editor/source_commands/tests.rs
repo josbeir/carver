@@ -62,6 +62,53 @@ fn image_span_accepts_a_cursor_in_presentation_attributes() {
     );
 }
 
+#[test]
+fn pure_inline_edit_should_preserve_character_based_unicode_selection() {
+    let mut edit = SourceEdit::new("Café", 3..4);
+
+    edit.toggle_inline("*", "*");
+
+    assert_eq!(edit.source(), "Caf*é*");
+    assert_eq!(edit.selection(), 3..6);
+}
+
+#[test]
+fn pure_line_edit_should_transform_only_selected_lines() {
+    let mut edit = SourceEdit::new("# One\nTwo\nThree", 0..9);
+
+    edit.set_heading(2);
+
+    assert_eq!(edit.source(), "## One\n## Two\nThree");
+    assert_eq!(edit.selection(), 0..13);
+}
+
+#[test]
+fn pure_list_and_code_edits_should_round_trip_canonical_source() {
+    let mut edit = SourceEdit::new("One\nTwo", 0..7);
+    edit.toggle_list("- ");
+    assert_eq!(edit.source(), "- One\n- Two");
+
+    edit.toggle_code_block();
+    assert_eq!(edit.source(), "```\n- One\n- Two\n```");
+    edit.toggle_code_block();
+    assert_eq!(edit.source(), "- One\n- Two");
+}
+
+#[test]
+fn pure_insert_and_image_width_edits_should_update_selection() {
+    let mut link = SourceEdit::new("Read ", 5..5);
+    link.insert_link("more", "https://example.com");
+    assert_eq!(link.source(), "Read [more](https://example.com)");
+    assert_eq!(link.selection(), 32..32);
+
+    let mut image = SourceEdit::new("![Diagram](assets/diagram.png){width=\"25%\"}", 30..30);
+    assert!(image.set_image_width(Some(50)));
+    assert_eq!(
+        image.source(),
+        "![Diagram](assets/diagram.png){width=\"50%\"}"
+    );
+}
+
 fn inline_command_inserts_an_empty_pair_at_the_cursor() {
     let buffer = buffer_with("word");
     let end = buffer.end_iter();

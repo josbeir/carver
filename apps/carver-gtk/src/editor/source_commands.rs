@@ -1,151 +1,297 @@
 //! Carve-source formatting commands shared by the source toolbar and shortcuts.
 
+use std::ops::Range;
+
 use gtk::prelude::*;
+
+/// Canonical source plus a character-based selection for pure editing commands.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SourceEdit {
+    source: String,
+    selection: Range<usize>,
+}
+
+impl SourceEdit {
+    /// Creates an edit snapshot, clamping the selection to valid character boundaries.
+    #[must_use]
+    pub(crate) fn new(source: impl Into<String>, selection: Range<usize>) -> Self {
+        let source = source.into();
+        let length = source.chars().count();
+        let start = selection.start.min(length);
+        let end = selection.end.clamp(start, length);
+        Self {
+            source,
+            selection: start..end,
+        }
+    }
+
+    /// Returns the canonical Carve source.
+    #[must_use]
+    pub(crate) fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Returns the current character-based selection.
+    #[must_use]
+    pub(crate) fn selection(&self) -> Range<usize> {
+        self.selection.clone()
+    }
+
+    /// Applies an inline delimiter command.
+    pub(crate) fn toggle_inline(&mut self, opening: &str, closing: &str) {
+        if self.selection.is_empty() {
+            let cursor = self.selection.start;
+            self.replace(cursor..cursor, &format!("{opening}{closing}"), 0);
+            let cursor = cursor.saturating_add(opening.chars().count());
+            self.selection = cursor..cursor;
+            return;
+        }
+        let selected = self.selected_text();
+        let replacement = inline_replacement(&selected, opening, closing);
+        let length = replacement.chars().count();
+        let range = self.selection.clone();
+        self.replace(range, &replacement, length);
+    }
+
+    /// Sets a heading level for the selected lines.
+    pub(crate) fn set_heading(&mut self, level: u8) {
+        let prefix = if level == 0 {
+            String::new()
+        } else {
+            format!("{} ", "#".repeat(usize::from(level.min(6))))
+        };
+        self.transform_selected_lines(|line| heading_replacement(line, &prefix));
+    }
+
+    /// Toggles a supported list marker across selected lines.
+    pub(crate) fn toggle_list(&mut self, prefix: &str) {
+        let lines = self.selected_lines();
+        let remove = lines.iter().all(|line| line.starts_with(prefix));
+        self.transform_selected_lines(|line| {
+            list_replacement(strip_list_marker(line), prefix, remove)
+        });
+    }
+
+    /// Toggles a fenced code block around the selected source.
+    pub(crate) fn toggle_code_block(&mut self) {
+        if self.selection.is_empty() {
+            self.toggle_inline("`", "`");
+            return;
+        }
+        let selected = self.selected_text();
+        let replacement = if selected.starts_with("```") && selected.ends_with("\n```") {
+            selected
+                .strip_prefix("```")
+                .and_then(|text| text.strip_prefix('\n'))
+                .and_then(|text| text.strip_suffix("\n```"))
+                .unwrap_or(&selected)
+                .to_owned()
+        } else {
+            format!("```\n{selected}\n```")
+        };
+        let length = replacement.chars().count();
+        let range = self.selection.clone();
+        self.replace(range, &replacement, length);
+    }
+
+    /// Inserts a direct Carve link at the selection or cursor.
+    pub(crate) fn insert_link(&mut self, text: &str, destination: &str) {
+        let markup = format!("[{text}]({destination})");
+        let length = markup.chars().count();
+        let range = self.selection.clone();
+        self.replace(range.clone(), &markup, 0);
+        let cursor = range.start.saturating_add(length);
+        self.selection = cursor..cursor;
+    }
+
+    /// Inserts a Carve table at the cursor.
+    pub(crate) fn insert_table(&mut self, rows: u8, columns: u8, header: bool) {
+        if rows == 0 || columns == 0 {
+            return;
+        }
+        let mut table = String::new();
+        for row in 0..rows {
+            for _ in 0..columns {
+                table.push('|');
+                if header && row == 0 {
+                    table.push('=');
+                }
+                table.push(' ');
+            }
+            table.push('|');
+            if row + 1 != rows {
+                table.push('\n');
+            }
+        }
+        let markup = format!("\n{table}\n");
+        let length = markup.chars().count();
+        let cursor = self.selection.end;
+        self.replace(cursor..cursor, &markup, 0);
+        let cursor = cursor.saturating_add(length);
+        self.selection = cursor..cursor;
+    }
+
+    /// Inserts a managed image at the cursor.
+    pub(crate) fn insert_image(&mut self, alt: &str, path: &str) {
+        let markup = format!("\n![{}]({path})\n", alt.replace(']', "\\]"));
+        let length = markup.chars().count();
+        let cursor = self.selection.end;
+        self.replace(cursor..cursor, &markup, 0);
+        let cursor = cursor.saturating_add(length);
+        self.selection = cursor..cursor;
+    }
+
+    /// Updates the width attribute of the direct image containing the cursor.
+    pub(crate) fn set_image_width(&mut self, width: Option<u8>) -> bool {
+        let cursor = character_to_byte(&self.source, self.selection.end);
+        let Some((start, end)) = cursor.and_then(|cursor| image_span_at(&self.source, cursor))
+        else {
+            return false;
+        };
+        let replacement = image_with_width(&self.source[start..end], width);
+        let Some(start) = character_offset_at_byte(&self.source, start) else {
+            return false;
+        };
+        let Some(end) = character_offset_at_byte(&self.source, end) else {
+            return false;
+        };
+        let length = replacement.chars().count();
+        self.replace(start..end, &replacement, length);
+        true
+    }
+
+    fn selected_text(&self) -> String {
+        let start =
+            character_to_byte(&self.source, self.selection.start).unwrap_or(self.source.len());
+        let end = character_to_byte(&self.source, self.selection.end).unwrap_or(self.source.len());
+        self.source[start..end].to_owned()
+    }
+
+    fn selected_lines(&self) -> Vec<String> {
+        let range = self.selected_line_range();
+        self.source[character_to_byte(&self.source, range.start).unwrap_or(self.source.len())
+            ..character_to_byte(&self.source, range.end).unwrap_or(self.source.len())]
+            .split('\n')
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn transform_selected_lines(&mut self, transform: impl Fn(&str) -> String) {
+        let range = self.selected_line_range();
+        let replacement = self
+            .selected_lines()
+            .iter()
+            .map(|line| transform(line))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let length = replacement.chars().count();
+        self.replace(range, &replacement, length);
+    }
+
+    fn selected_line_range(&self) -> Range<usize> {
+        let start =
+            character_to_byte(&self.source, self.selection.start).unwrap_or(self.source.len());
+        let end = character_to_byte(&self.source, self.selection.end).unwrap_or(self.source.len());
+        let start = self.source[..start]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let end = self.source[end..]
+            .find('\n')
+            .map_or(self.source.len(), |index| end + index);
+        character_offset_at_byte(&self.source, start).unwrap_or_default()
+            ..character_offset_at_byte(&self.source, end).unwrap_or_default()
+    }
+
+    fn replace(&mut self, range: Range<usize>, replacement: &str, selected_length: usize) {
+        let start = character_to_byte(&self.source, range.start).unwrap_or(self.source.len());
+        let end = character_to_byte(&self.source, range.end).unwrap_or(self.source.len());
+        self.source.replace_range(start..end, replacement);
+        let selection_start = range.start;
+        self.selection = selection_start..selection_start.saturating_add(selected_length);
+    }
+}
 
 /// Wraps the selection in a Carve inline delimiter, or inserts an empty pair.
 pub(crate) fn toggle_inline(buffer: &gtk::TextBuffer, opening: &str, closing: &str) {
-    let Some((start, end)) = buffer.selection_bounds() else {
-        let mut cursor = buffer.iter_at_mark(&buffer.get_insert());
-        buffer.insert(&mut cursor, opening);
-        buffer.insert(&mut cursor, closing);
-        let mut inside = cursor;
-        inside.backward_chars(i32::try_from(closing.chars().count()).unwrap_or_default());
-        buffer.place_cursor(&inside);
-        return;
-    };
-    let selected = buffer.text(&start, &end, false).to_string();
-    let replacement = inline_replacement(&selected, opening, closing);
-    let mut start = start;
-    let mut end = end;
-    buffer.delete(&mut start, &mut end);
-    buffer.insert(&mut start, &replacement);
-    let selection_end = start;
-    let selection_start = buffer.iter_at_offset(
-        selection_end.offset() - i32::try_from(replacement.chars().count()).unwrap_or_default(),
-    );
-    buffer.select_range(&selection_start, &selection_end);
+    apply_buffer_edit(buffer, |edit| edit.toggle_inline(opening, closing));
 }
 
 /// Sets a heading level for every selected line, replacing any existing heading.
 /// A zero level returns the lines to ordinary paragraph text.
 pub(crate) fn set_heading(buffer: &gtk::TextBuffer, level: u8) {
-    let prefix = if level == 0 {
-        String::new()
-    } else {
-        format!("{} ", "#".repeat(usize::from(level.min(6))))
-    };
-    replace_selected_lines(buffer, |line| heading_replacement(line, &prefix));
+    apply_buffer_edit(buffer, |edit| edit.set_heading(level));
 }
 
 /// Switches every selected line between a Carve list marker and ordinary text.
 /// Existing supported list markers are replaced instead of nesting prefixes.
 pub(crate) fn toggle_list(buffer: &gtk::TextBuffer, prefix: &str) {
-    let (first, last) = selected_line_range(buffer);
-    let lines = selected_lines(buffer, first, last);
-    let remove = lines.iter().all(|line| line.starts_with(prefix));
-    replace_selected_lines(buffer, |line| {
-        let bare = strip_list_marker(line);
-        list_replacement(bare, prefix, remove)
-    });
+    apply_buffer_edit(buffer, |edit| edit.toggle_list(prefix));
 }
 
 /// Wraps selected lines in a fenced Carve code block.
 pub(crate) fn toggle_code_block(buffer: &gtk::TextBuffer) {
-    let Some((start, end)) = buffer.selection_bounds() else {
-        toggle_inline(buffer, "`", "`");
-        return;
-    };
-    let selected = buffer.text(&start, &end, false).to_string();
-    let replacement = if selected.starts_with("```") && selected.ends_with("\n```") {
-        selected
-            .strip_prefix("```")
-            .and_then(|text| text.strip_prefix('\n'))
-            .and_then(|text| text.strip_suffix("\n```"))
-            .unwrap_or(&selected)
-            .to_owned()
-    } else {
-        format!("```\n{selected}\n```")
-    };
-    replace_selection(buffer, &start, &end, &replacement);
+    apply_buffer_edit(buffer, SourceEdit::toggle_code_block);
 }
 
 /// Inserts a direct Carve link using already collected dialog values.
 pub(crate) fn insert_link(buffer: &gtk::TextBuffer, text: &str, destination: &str) {
-    let markup = format!("[{text}]({destination})");
-    if let Some((start, end)) = buffer.selection_bounds() {
-        replace_selection(buffer, &start, &end, &markup);
-    } else {
-        buffer.insert_at_cursor(&markup);
-    }
+    apply_buffer_edit(buffer, |edit| edit.insert_link(text, destination));
 }
 
 /// Inserts a Carve table with the selected dimensions at the source cursor.
 pub(crate) fn insert_table(buffer: &gtk::TextBuffer, rows: u8, columns: u8, header: bool) {
-    if rows == 0 || columns == 0 {
-        return;
-    }
-    let mut table = String::new();
-    for row in 0..rows {
-        for _ in 0..columns {
-            table.push('|');
-            if header && row == 0 {
-                table.push('=');
-            }
-            table.push(' ');
-        }
-        table.push('|');
-        if row + 1 != rows {
-            table.push('\n');
-        }
-    }
-    buffer.insert_at_cursor(&format!("\n{table}\n"));
+    apply_buffer_edit(buffer, |edit| edit.insert_table(rows, columns, header));
 }
 
 /// Inserts a managed image as a stand-alone Carve block.
 pub(crate) fn insert_image(buffer: &gtk::TextBuffer, alt: &str, path: &str) {
-    let alt = alt.replace(']', "\\]");
-    buffer.insert_at_cursor(&format!("\n![{alt}]({path})\n"));
+    apply_buffer_edit(buffer, |edit| edit.insert_image(alt, path));
 }
 
 /// Updates the width attribute of the direct Carve image containing the cursor.
 ///
 /// Returns `false` when the cursor does not point at a direct image form.
 pub(crate) fn set_image_width(buffer: &gtk::TextBuffer, width: Option<u8>) -> bool {
-    let source = buffer
-        .text(&buffer.start_iter(), &buffer.end_iter(), false)
-        .to_string();
-    let cursor = buffer.iter_at_mark(&buffer.get_insert()).offset();
-    let Some(cursor) = byte_offset_at_character(&source, cursor) else {
-        return false;
-    };
-    let Some((start, end)) = image_span_at(&source, cursor) else {
-        return false;
-    };
-    let replacement = image_with_width(&source[start..end], width);
-    let Some(start_offset) = character_offset_at_byte(&source, start) else {
-        return false;
-    };
-    let Some(end_offset) = character_offset_at_byte(&source, end) else {
-        return false;
-    };
-    let mut start = buffer.iter_at_offset(start_offset);
-    let mut end = buffer.iter_at_offset(end_offset);
-    buffer.delete(&mut start, &mut end);
-    buffer.insert(&mut start, &replacement);
-    true
+    let mut edit = source_edit_from_buffer(buffer);
+    let changed = edit.set_image_width(width);
+    if changed {
+        apply_source_edit(buffer, &edit);
+    }
+    changed
 }
 
-fn replace_selection(
-    buffer: &gtk::TextBuffer,
-    start: &gtk::TextIter,
-    end: &gtk::TextIter,
-    replacement: &str,
-) {
-    let mut start = *start;
-    let mut end = *end;
-    buffer.delete(&mut start, &mut end);
-    buffer.insert(&mut start, replacement);
-    buffer.place_cursor(&start);
+fn apply_buffer_edit(buffer: &gtk::TextBuffer, command: impl FnOnce(&mut SourceEdit)) {
+    let mut edit = source_edit_from_buffer(buffer);
+    command(&mut edit);
+    apply_source_edit(buffer, &edit);
+}
+
+fn source_edit_from_buffer(buffer: &gtk::TextBuffer) -> SourceEdit {
+    let source = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+    let selection = buffer.selection_bounds().map_or_else(
+        || {
+            let cursor = usize::try_from(buffer.iter_at_mark(&buffer.get_insert()).offset())
+                .unwrap_or_default();
+            cursor..cursor
+        },
+        |(start, end)| {
+            usize::try_from(start.offset()).unwrap_or_default()
+                ..usize::try_from(end.offset()).unwrap_or_default()
+        },
+    );
+    SourceEdit::new(source, selection)
+}
+
+fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
+    buffer.set_text(edit.source());
+    let selection = edit.selection();
+    let start = buffer.iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
+    let end = buffer.iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
+    if selection.is_empty() {
+        buffer.place_cursor(&start);
+    } else {
+        buffer.select_range(&start, &end);
+    }
 }
 
 fn image_span_at(source: &str, cursor: usize) -> Option<(usize, usize)> {
@@ -229,42 +375,16 @@ fn image_attributes_without_width(attributes: &str) -> Vec<String> {
     entries
 }
 
-fn byte_offset_at_character(source: &str, character_offset: i32) -> Option<usize> {
-    usize::try_from(character_offset)
-        .ok()
-        .and_then(|offset| source.char_indices().nth(offset).map(|(byte, _)| byte))
-        .or_else(|| (character_offset >= 0).then_some(source.len()))
+fn character_to_byte(source: &str, character_offset: usize) -> Option<usize> {
+    source
+        .char_indices()
+        .nth(character_offset)
+        .map(|(byte, _)| byte)
+        .or_else(|| (character_offset == source.chars().count()).then_some(source.len()))
 }
 
-fn character_offset_at_byte(source: &str, byte_offset: usize) -> Option<i32> {
-    i32::try_from(source[..byte_offset].chars().count()).ok()
-}
-
-fn replace_selected_lines(buffer: &gtk::TextBuffer, transform: impl Fn(&str) -> String) {
-    let (first, last) = selected_line_range(buffer);
-    let replacement = selected_lines(buffer, first, last)
-        .iter()
-        .map(|line| transform(line))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let Some(mut start) = buffer.iter_at_line(first) else {
-        return;
-    };
-    let mut end = buffer.iter_at_line(last).unwrap_or(start);
-    end.forward_to_line_end();
-    buffer.delete(&mut start, &mut end);
-    buffer.insert(&mut start, &replacement);
-}
-
-fn selected_lines(buffer: &gtk::TextBuffer, first: i32, last: i32) -> Vec<String> {
-    (first..=last)
-        .filter_map(|line| buffer.iter_at_line(line))
-        .map(|start| {
-            let mut end = start;
-            end.forward_to_line_end();
-            buffer.text(&start, &end, false).to_string()
-        })
-        .collect()
+fn character_offset_at_byte(source: &str, byte_offset: usize) -> Option<usize> {
+    (byte_offset <= source.len()).then(|| source[..byte_offset].chars().count())
 }
 
 fn strip_list_marker(line: &str) -> &str {
@@ -305,18 +425,6 @@ fn list_replacement(line: &str, prefix: &str, remove: bool) -> String {
     } else {
         format!("{prefix}{line}")
     }
-}
-
-fn selected_line_range(buffer: &gtk::TextBuffer) -> (i32, i32) {
-    let Some((mut start, mut end)) = buffer.selection_bounds() else {
-        let cursor = buffer.iter_at_mark(&buffer.get_insert());
-        return (cursor.line(), cursor.line());
-    };
-    start.set_line_offset(0);
-    if end.starts_line() && end.line() > start.line() {
-        end.backward_char();
-    }
-    (start.line(), end.line())
 }
 
 #[cfg(test)]

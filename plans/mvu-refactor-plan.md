@@ -211,14 +211,20 @@ Each part is independently reviewable and must preserve behavior unless it is ex
 
 **Required tests:** move and Undo each invalidate dependent resources once; duplicate actions do not duplicate mutations; a failed Undo preserves the retryable move state.
 
-### Part 9: Canonical editor model and source commands
+### Part 9a: Pure source commands
 
-- Add `EditorDocument`: session, persisted note/revision, canonical source, mode, and dirty/save state.
 - Refactor source commands into pure source/selection transforms.
 - Retain a small GTK `TextBuffer` adapter for rendering and cursor handling.
-- Translate source changes to `EditorMsg::SourceChanged`.
 
-**Required tests:** formatting transforms are pure module tests; rich/source round trips preserve canonical Carve; unsupported rich constructs remain source-preserved and preview-only.
+**Required tests:** formatting transforms are pure module tests; GTK adapters preserve source and selection behavior.
+
+### Part 9b: Canonical editor document model
+
+- Add `EditorDocument`: session, persisted note/revision, canonical source, mode, and dirty/save state.
+- Translate source changes to `EditorMsg::SourceChanged`.
+- Make rich/source round trips use the canonical source as their only shared representation.
+
+**Required tests:** rich/source round trips preserve canonical Carve; unsupported rich constructs remain source-preserved and preview-only.
 
 ### Part 10: Editor save coordinator
 
