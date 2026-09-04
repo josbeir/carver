@@ -171,8 +171,7 @@ pub(crate) fn build_editor(
         &rich,
     );
     connect_trash_action(state, stack, toast_overlay, &trash);
-    connect_back_action(state, stack, toast_overlay, &back, &source_buffer);
-    connect_autosave(state, toast_overlay, &source_buffer);
+    connect_back_action(state, stack, &back);
     connect_source_preview(state, &source_buffer, &split_preview, &rendered_preview);
     let _source_image_paste =
         render::install_image_paste(&source, &source_buffer, state, toast_overlay);
@@ -618,15 +617,14 @@ fn connect_trash_action(
         let Some(note) = note_for_undo.clone() else {
             return;
         };
+        close_editor(&state_for_trash, &stack_for_trash);
         let state = Rc::clone(&state_for_trash);
-        let stack = stack_for_trash.clone();
         let toast_overlay = toast_for_trash.clone();
         let client = state.client.clone();
         glib::spawn_future_local(async move {
             match client.trash_note_async(note.id).await {
                 Ok(()) => {
                     state.current_note.take();
-                    close_editor(&state, &stack);
                     refresh_browser(&state);
                     refresh_sidebar(&state);
                     refresh_trash(&state);
@@ -658,53 +656,14 @@ fn connect_trash_action(
     });
 }
 
-fn connect_back_action(
-    state: &Rc<AppState>,
-    stack: &gtk::Stack,
-    toast_overlay: &adw::ToastOverlay,
-    back: &gtk::Button,
-    source_buffer: &gtk::TextBuffer,
-) {
+fn connect_back_action(state: &Rc<AppState>, stack: &gtk::Stack, back: &gtk::Button) {
     let state_for_back = Rc::clone(state);
     let stack_for_back = stack.clone();
-    let source_for_back = source_buffer.clone();
-    let toast_for_back = toast_overlay.clone();
     back.connect_clicked(move |_| {
-        if state_for_back.current_note.borrow().is_none() {
-            close_editor(&state_for_back, &stack_for_back);
+        if state_for_back.dispatch_mvu(AppMsg::Editor(EditorMsg::BackRequested)) {
             return;
         }
-        let source = buffer_text(&source_for_back);
-        let Some(note) = state_for_back.current_note.borrow().clone() else {
-            return;
-        };
-        if source.as_str() == note.source {
-            close_editor(&state_for_back, &stack_for_back);
-            refresh_browser(&state_for_back);
-            return;
-        }
-        state_for_back
-            .autosave_generation
-            .set(state_for_back.autosave_generation.get().saturating_add(1));
-        let state = Rc::clone(&state_for_back);
-        let stack = stack_for_back.clone();
-        let toast = toast_for_back.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            match client
-                .save_note_async(note.id, note.revision, source.to_string())
-                .await
-            {
-                Ok(saved) => {
-                    state.current_note.replace(Some(saved));
-                    close_editor(&state, &stack);
-                    refresh_browser(&state);
-                }
-                Err(error) => {
-                    toast.add_toast(adw::Toast::new(&format!("Could not save note: {error}")));
-                }
-            }
-        });
+        close_editor(&state_for_back, &stack_for_back);
     });
 }
 
@@ -721,25 +680,6 @@ fn close_editor(state: &AppState, stack: &gtk::Stack) {
     if !state.dispatch_mvu(AppMsg::Editor(EditorMsg::Close(session))) {
         stack.set_visible_child_name("browser");
     }
-}
-
-fn connect_autosave(
-    state: &Rc<AppState>,
-    toast_overlay: &adw::ToastOverlay,
-    source_buffer: &gtk::TextBuffer,
-) {
-    let state_for_source_save = Rc::clone(state);
-    let source_for_source_save = source_buffer.clone();
-    let toast_for_source_save = toast_overlay.clone();
-    source_buffer.connect_changed(move |_| {
-        if !state_for_source_save.synchronizing_editor.get() {
-            schedule_autosave(
-                &state_for_source_save,
-                &source_for_source_save,
-                &toast_for_source_save,
-            );
-        }
-    });
 }
 
 #[expect(
@@ -840,6 +780,7 @@ fn connect_source_preview(
         let _ = state.dispatch_mvu(AppMsg::Editor(EditorMsg::SourceChanged(
             source_text.clone(),
         )));
+        let _ = state.dispatch_mvu(AppMsg::Editor(EditorMsg::AutosaveRequested));
         let remote = state.config.borrow().images.load_remote_automatically;
         let generation = state.preview_generation.get().saturating_add(1);
         state.preview_generation.set(generation);
@@ -963,54 +904,6 @@ pub(crate) fn install_source_shortcuts(
     });
     view.add_controller(controller.clone());
     controller
-}
-
-fn schedule_autosave(
-    state: &Rc<AppState>,
-    source_buffer: &gtk::TextBuffer,
-    toast_overlay: &adw::ToastOverlay,
-) {
-    let delay = state.config.borrow().editor.autosave_delay_ms;
-    let generation = state.autosave_generation.get().saturating_add(1);
-    state.autosave_generation.set(generation);
-    let state = Rc::clone(state);
-    let source_buffer = source_buffer.clone();
-    let toast_overlay = toast_overlay.clone();
-    glib::timeout_add_local_once(StdDuration::from_millis(delay), move || {
-        if state.autosave_generation.get() != generation {
-            return;
-        }
-        let Some(note) = state.current_note.borrow().clone() else {
-            return;
-        };
-        let source = buffer_text(&source_buffer);
-        if source.as_str() == note.source {
-            return;
-        }
-        if state.save_in_flight.get() {
-            return;
-        }
-        state.save_in_flight.set(true);
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            match client
-                .save_note_async(note.id, note.revision, source.to_string())
-                .await
-            {
-                Ok(saved) => {
-                    state.current_note.replace(Some(saved));
-                }
-                Err(error) => {
-                    toast_overlay
-                        .add_toast(adw::Toast::new(&format!("Could not save note: {error}")));
-                }
-            }
-            state.save_in_flight.set(false);
-            if state.autosave_generation.get() != generation {
-                schedule_autosave(&state, &source_buffer, &toast_overlay);
-            }
-        });
-    });
 }
 
 #[cfg(test)]

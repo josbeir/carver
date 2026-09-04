@@ -202,6 +202,7 @@ pub struct EditorDocument {
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
     save_timer: Option<TimerId>,
+    close_after_save: bool,
 }
 
 impl EditorDocument {
@@ -220,6 +221,7 @@ impl EditorDocument {
             mode,
             save_state: EditorSaveState::Clean,
             save_timer: None,
+            close_after_save: false,
         }
     }
 
@@ -258,6 +260,14 @@ impl EditorDocument {
 
     pub(super) fn is_current_timer(&self, timer_id: TimerId) -> bool {
         self.save_timer == Some(timer_id)
+    }
+
+    pub(super) fn request_close(&mut self) {
+        self.close_after_save = true;
+    }
+
+    pub(super) fn closes_after_save(&self) -> bool {
+        self.close_after_save
     }
 }
 

@@ -2,10 +2,14 @@
 
 use std::cell::{Cell, RefCell};
 
+use carver_sdk::{CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::mvu::{AppModel, LoadState, MoveUndo, Route};
+use crate::mvu::{AppModel, EditorSaveState, LoadState, MoveUndo, Route};
+
+type SidebarRenderer = Box<dyn Fn(&AppModel)>;
+type SidebarSnapshot = (LoadState<Vec<CategorySummary>>, Option<CategoryId>);
 
 /// GTK references used to render the high-level MVU resources.
 ///
@@ -25,7 +29,10 @@ pub struct ViewRefs {
     trash_status: adw::StatusPage,
     toast_overlay: Option<adw::ToastOverlay>,
     last_notice: RefCell<Option<String>>,
+    last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
+    sidebar_renderer: Option<SidebarRenderer>,
+    last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
 }
 
@@ -52,7 +59,10 @@ impl ViewRefs {
             trash_status,
             toast_overlay: None,
             last_notice: RefCell::new(None),
+            last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
+            sidebar_renderer: None,
+            last_sidebar_snapshot: RefCell::new(None),
             rendering: Cell::new(false),
         }
     }
@@ -98,6 +108,13 @@ impl ViewRefs {
         self
     }
 
+    /// Uses the composition shell's full category-row renderer for changed MVU snapshots.
+    #[must_use]
+    pub fn with_sidebar_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
+        self.sidebar_renderer = Some(Box::new(renderer));
+        self
+    }
+
     /// Renders one immutable model snapshot without invoking application actions.
     pub fn render(&self, model: &AppModel) {
         self.rendering.set(true);
@@ -110,6 +127,7 @@ impl ViewRefs {
         self.render_browser(model);
         self.render_trash(model);
         self.render_notice(model);
+        self.render_editor_save_error(model);
         self.render_undo_move(model);
         self.rendering.set(false);
     }
@@ -121,6 +139,15 @@ impl ViewRefs {
     }
 
     fn render_sidebar(&self, model: &AppModel) {
+        if let Some(renderer) = &self.sidebar_renderer {
+            let snapshot = (model.sidebar.state.clone(), model.selected_category);
+            let mut last_snapshot = self.last_sidebar_snapshot.borrow_mut();
+            if last_snapshot.as_ref() != Some(&snapshot) {
+                renderer(model);
+                *last_snapshot = Some(snapshot);
+            }
+            return;
+        }
         let Some(list) = self.sidebar_list.as_ref() else {
             return;
         };
@@ -284,6 +311,31 @@ impl ViewRefs {
         if let Some(toast_overlay) = &self.toast_overlay {
             toast_overlay.add_toast(adw::Toast::new(&error.message));
             self.last_notice.replace(Some(error.message.clone()));
+        }
+    }
+
+    fn render_editor_save_error(&self, model: &AppModel) {
+        let error = model.editor.as_ref().and_then(|document| {
+            if let EditorSaveState::Failed(error) = &document.save_state {
+                Some(error)
+            } else {
+                None
+            }
+        });
+        let Some(error) = error else {
+            self.last_editor_save_error.replace(None);
+            return;
+        };
+        if self.last_editor_save_error.borrow().as_deref() == Some(error.message.as_str()) {
+            return;
+        }
+        if let Some(toast_overlay) = &self.toast_overlay {
+            let toast = adw::Toast::new(&format!("Could not save note: {}", error.message));
+            toast.set_button_label(Some("Retry"));
+            toast.set_action_name(Some("mvu.retry-save"));
+            toast_overlay.add_toast(toast);
+            self.last_editor_save_error
+                .replace(Some(error.message.clone()));
         }
     }
 

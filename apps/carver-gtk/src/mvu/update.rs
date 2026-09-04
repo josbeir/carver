@@ -117,6 +117,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .as_mut()
             .and_then(super::EditorDocument::begin_save)
             .map_or_else(Vec::new, save_note_effect),
+        EditorMsg::BackRequested => request_editor_close(model),
         EditorMsg::Close(session_id)
             if model
                 .editor
@@ -259,41 +260,62 @@ fn update_editor_save(
     request: &EditorSaveRequest,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
+    let close_after_save = {
+        let Some(document) = model.editor.as_mut() else {
+            return Vec::new();
+        };
+        if document.session != request.session
+            || document.note_id != request.note_id
+            || document.revision != request.expected_revision
+            || document.save_state != super::EditorSaveState::Saving(request.clone())
+        {
+            return Vec::new();
+        }
+        match result {
+            Ok(revision) => {
+                document.revision = revision;
+                if document.source == request.source {
+                    document.save_state = super::EditorSaveState::Clean;
+                    document.closes_after_save()
+                } else {
+                    document.save_state = super::EditorSaveState::Dirty;
+                    return document
+                        .begin_save()
+                        .map_or_else(Vec::new, save_note_effect);
+                }
+            }
+            Err(error) if document.source == request.source => {
+                document.save_state = super::EditorSaveState::Failed(error);
+                return Vec::new();
+            }
+            Err(_) => {
+                document.save_state = super::EditorSaveState::Dirty;
+                return document
+                    .begin_save()
+                    .map_or_else(Vec::new, save_note_effect);
+            }
+        }
+    };
+    if close_after_save {
+        model.route = super::Route::Browser;
+        model.editor = None;
+    }
+    reload_browser(model).into_iter().collect()
+}
+
+fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
-    if document.session != request.session
-        || document.note_id != request.note_id
-        || document.revision != request.expected_revision
-        || document.save_state != super::EditorSaveState::Saving(request.clone())
-    {
+    document.request_close();
+    if matches!(&document.save_state, super::EditorSaveState::Clean) {
+        model.route = super::Route::Browser;
+        model.editor = None;
         return Vec::new();
     }
-    match result {
-        Ok(revision) => {
-            document.revision = revision;
-            if document.source == request.source {
-                document.save_state = super::EditorSaveState::Clean;
-                Vec::new()
-            } else {
-                document.save_state = super::EditorSaveState::Dirty;
-                document
-                    .begin_save()
-                    .map_or_else(Vec::new, save_note_effect)
-            }
-        }
-        Err(error) if document.source == request.source => {
-            document.save_state = super::EditorSaveState::Failed(error.clone());
-            model.notice = Some(error);
-            Vec::new()
-        }
-        Err(_) => {
-            document.save_state = super::EditorSaveState::Dirty;
-            document
-                .begin_save()
-                .map_or_else(Vec::new, save_note_effect)
-        }
-    }
+    document
+        .begin_save()
+        .map_or_else(Vec::new, save_note_effect)
 }
 
 fn update_undo_state(model: &mut AppModel, action: ActionKey) {

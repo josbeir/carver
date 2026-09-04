@@ -13,7 +13,7 @@ use crate::{
     controller::{AppLibraryClient, AppState},
     dialogs::{install_window_actions, persist_window_config},
     mvu::{AppModel, AppMsg, AppRuntime, NavigationMsg},
-    sidebar::build_sidebar,
+    sidebar::{build_sidebar, render_mvu_sidebar},
     view::ViewRefs,
 };
 
@@ -177,6 +177,7 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
     ) else {
         return;
     };
+    let state_for_sidebar_renderer = Rc::downgrade(state);
     let view = ViewRefs::new(route_stack, browser_status, trash_status)
         .with_browser_and_sidebar(
             sidebar_list,
@@ -186,6 +187,11 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
             browser_empty_new_note_button,
             browser_title,
         )
+        .with_sidebar_renderer(move |model| {
+            if let Some(state) = state_for_sidebar_renderer.upgrade() {
+                render_mvu_sidebar(&state, model);
+            }
+        })
         .with_trash(trash_list, trash_pages, empty_trash_button)
         .with_toast_overlay(toast_overlay);
     let model = AppModel::new(&state.config.borrow());

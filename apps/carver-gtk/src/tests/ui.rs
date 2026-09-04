@@ -122,6 +122,11 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
 
     crate::app::install_mvu_runtime_for_test(&state);
     crate::dialogs::install_trash_actions_for_test(&window, &state);
+    assert!(run_main_context_until(|| {
+        state
+            .mvu_model()
+            .is_some_and(|model| matches!(model.sidebar.state, crate::mvu::LoadState::Ready(_)))
+    }));
     assert!(run_main_context_until(|| find_widget(
         category_list.upcast_ref(),
         &format!("category:{}", second.id)
@@ -142,6 +147,15 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
                 .as_ref()
                 .is_some_and(|title| title.title() == "Projects")
     }));
+    assert!(runtime_project_row.has_css_class("category-card"));
+    assert!(
+        find_widget(
+            category_list.upcast_ref(),
+            &format!("rename-category:{}", second.id)
+        )
+        .is_some()
+    );
+    assert!(find_widget(category_list.upcast_ref(), "all-notes-count").is_some());
     let all_notes_row = category_list
         .first_child()
         .and_downcast::<gtk::ListBoxRow>()
@@ -285,6 +299,9 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
             .is_ok_and(|categories| categories.iter().any(|category| category.id == archived.id))
     }));
 
+    let editor_note = state.client.note(note.id)?.ok_or("editor note")?;
+    state.current_note.replace(Some(editor_note));
+
     stack.remove(&editor_placeholder);
     let editor = build_editor(&state, &stack, &toast, &split_view);
     stack.add_named(&editor, Some("editor"));
@@ -312,10 +329,20 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         state
             .mvu_model()
             .and_then(|model| model.editor)
-            .is_some_and(|document| {
-                document.source == "# Source\n\nA paragraph"
-                    && document.save_state == crate::mvu::EditorSaveState::Dirty
-            })
+            .is_some_and(|document| document.source == "# Source\n\nA paragraph")
+    }));
+    let editor_note_id = state
+        .mvu_model()
+        .and_then(|model| model.editor)
+        .map(|document| document.note_id)
+        .ok_or("active MVU editor document")?;
+    assert!(run_main_context_until(|| {
+        state
+            .client
+            .note(editor_note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|saved| saved.source == "# Source\n\nA paragraph")
     }));
     preview.set_active(true);
     let rendered_preview =

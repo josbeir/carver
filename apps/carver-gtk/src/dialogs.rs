@@ -10,7 +10,7 @@ use libadwaita as adw;
 
 use crate::{
     controller::AppState,
-    mvu::{ActionMsg, AppMsg, TrashMsg},
+    mvu::{ActionMsg, AppMsg, EditorMsg, TrashMsg},
 };
 
 /// Installs actions exposed from the application menu.
@@ -49,6 +49,12 @@ fn install_mvu_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
         let _ = state_for_undo.dispatch_mvu(AppMsg::Action(ActionMsg::UndoMove));
     });
     actions.add_action(&undo_move);
+    let retry_save = gtk::gio::SimpleAction::new("retry-save", None);
+    let state_for_retry = Rc::clone(state);
+    retry_save.connect_activate(move |_, _| {
+        let _ = state_for_retry.dispatch_mvu(AppMsg::Editor(EditorMsg::RetrySave));
+    });
+    actions.add_action(&retry_save);
     window.insert_action_group("mvu", Some(&actions));
 }
 

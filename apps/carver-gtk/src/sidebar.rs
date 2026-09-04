@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use carver_sdk::{Category, CategoryId};
+use carver_sdk::{Category, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -10,7 +10,7 @@ use crate::{
     browser::refresh_browser,
     controller::AppState,
     dialogs::{show_category_name_dialog, show_category_trash_confirmation},
-    mvu::{ActionMsg, AppMsg, NavigationMsg, SidebarMsg},
+    mvu::{ActionMsg, AppModel, AppMsg, LoadState, NavigationMsg, SidebarMsg},
     trash::refresh_trash,
 };
 
@@ -222,6 +222,46 @@ pub(crate) fn refresh_sidebar(state: &Rc<AppState>) {
         state.categories.replace(categories);
         populate_sidebar(&list, &state, categories_with_counts);
     });
+}
+
+/// Renders the ready MVU sidebar snapshot with the application's complete category rows.
+///
+/// The composition shell owns category row gestures and contextual actions, while the MVU
+/// model owns their data. Keeping this bridge here prevents a second, visually divergent row
+/// implementation from replacing the shell's sidebar after a selection or reload.
+pub(crate) fn render_mvu_sidebar(state: &Rc<AppState>, model: &AppModel) {
+    let LoadState::Ready(categories) = &model.sidebar.state else {
+        return;
+    };
+
+    state.selected_category.set(model.selected_category);
+    state
+        .selected_category_name
+        .replace(model.selected_category.and_then(|category_id| {
+            categories
+                .iter()
+                .find(|summary| summary.category.id == category_id)
+                .map(|summary| summary.category.name.clone())
+        }));
+    state.categories.replace(
+        categories
+            .iter()
+            .map(|summary| summary.category.clone())
+            .collect(),
+    );
+
+    let Some(list) = state.sidebar_list.borrow().clone() else {
+        return;
+    };
+    let categories_with_counts = categories_with_counts(categories);
+    populate_sidebar(&list, state, categories_with_counts);
+}
+
+fn categories_with_counts(categories: &[CategorySummary]) -> Vec<(Category, usize)> {
+    categories
+        .iter()
+        .map(|summary| (summary.category.clone(), summary.note_count))
+        .collect()
 }
 
 fn populate_sidebar(list: &gtk::ListBox, state: &Rc<AppState>, categories: Vec<(Category, usize)>) {

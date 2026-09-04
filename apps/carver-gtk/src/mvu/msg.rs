@@ -97,6 +97,8 @@ pub enum EditorMsg {
     },
     /// Retry the current failed save without changing canonical source.
     RetrySave,
+    /// Return to the browser after saving the latest canonical source.
+    BackRequested,
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }
