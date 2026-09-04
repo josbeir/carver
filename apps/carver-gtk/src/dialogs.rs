@@ -1,7 +1,7 @@
 //! GNOME dialogs and window-scoped actions.
 
 use adw::prelude::*;
-use carver_sdk::{CategoryId, NoteId};
+use carver_sdk::{CategoryId, CategorySummary, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -205,6 +205,209 @@ pub(crate) fn show_category_name_dialog(
         }
     });
     dialog.present(parent);
+}
+
+/// Presents a searchable category picker for moving one note.
+///
+/// The dialog retains only transient widget state. Selecting a destination or creating one
+/// dispatches a typed action; the MVU runtime owns all persistence and subsequent reloads.
+pub(crate) fn show_move_note_dialog(
+    parent: Option<&gtk::Window>,
+    dispatcher: &AppDispatcher,
+    note_id: NoteId,
+    source_category_id: CategoryId,
+    note_title: &str,
+    categories: &[CategorySummary],
+) -> adw::Dialog {
+    let dialog = adw::Dialog::builder()
+        .title(format!("Move “{note_title}”"))
+        .content_width(420)
+        .content_height(460)
+        .build();
+    dialog.set_widget_name("move-note-dialog");
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    let title = gtk::Label::new(Some(&format!("Move “{note_title}”")));
+    title.add_css_class("title-3");
+    title.set_xalign(0.0);
+    content.append(&title);
+    let search = gtk::SearchEntry::new();
+    search.set_widget_name("move-note-search");
+    search.set_placeholder_text(Some("Search categories"));
+    content.append(&search);
+    let list = gtk::ListBox::new();
+    list.set_widget_name("move-note-category-list");
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_vexpand(true);
+    scroll.set_child(Some(&list));
+    content.append(&scroll);
+    let new_category = gtk::Button::with_label("New Category…");
+    new_category.set_widget_name("move-note-new-category-button");
+    new_category.add_css_class("flat");
+    new_category.set_halign(gtk::Align::Start);
+    content.append(&new_category);
+    let cancel = gtk::Button::with_label("Cancel");
+    cancel.set_halign(gtk::Align::End);
+    content.append(&cancel);
+    dialog.set_child(Some(&content));
+
+    let categories = std::rc::Rc::new(categories.to_vec());
+    populate_move_categories(
+        &list,
+        &categories,
+        "",
+        dispatcher,
+        note_id,
+        source_category_id,
+        &dialog,
+    );
+    connect_move_picker_search(
+        &search,
+        &list,
+        &categories,
+        dispatcher,
+        note_id,
+        source_category_id,
+        &dialog,
+    );
+    connect_move_picker_new_category(
+        &new_category,
+        parent,
+        dispatcher,
+        note_id,
+        source_category_id,
+        &dialog,
+    );
+    let dialog_for_cancel = dialog.clone();
+    cancel.connect_clicked(move |_| {
+        dialog_for_cancel.close();
+    });
+    dialog.present(parent);
+    dialog
+}
+
+fn connect_move_picker_search(
+    search: &gtk::SearchEntry,
+    list: &gtk::ListBox,
+    categories: &std::rc::Rc<Vec<CategorySummary>>,
+    dispatcher: &AppDispatcher,
+    note_id: NoteId,
+    source_category_id: CategoryId,
+    dialog: &adw::Dialog,
+) {
+    let list = list.clone();
+    let categories = std::rc::Rc::clone(categories);
+    let dispatcher = dispatcher.clone();
+    let dialog = dialog.clone();
+    search.connect_search_changed(move |search| {
+        populate_move_categories(
+            &list,
+            &categories,
+            search.text().as_str(),
+            &dispatcher,
+            note_id,
+            source_category_id,
+            &dialog,
+        );
+    });
+}
+
+fn connect_move_picker_new_category(
+    button: &gtk::Button,
+    parent: Option<&gtk::Window>,
+    dispatcher: &AppDispatcher,
+    note_id: NoteId,
+    source_category_id: CategoryId,
+    dialog: &adw::Dialog,
+) {
+    let parent = parent.cloned();
+    let dispatcher = dispatcher.clone();
+    let dialog = dialog.clone();
+    button.connect_clicked(move |_| {
+        dialog.close();
+        let dispatcher = dispatcher.clone();
+        show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
+            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryAndMoveNote {
+                name,
+                note_id,
+                source_category_id,
+            }));
+        });
+    });
+}
+
+fn populate_move_categories(
+    list: &gtk::ListBox,
+    categories: &[CategorySummary],
+    query: &str,
+    dispatcher: &AppDispatcher,
+    note_id: NoteId,
+    source_category_id: CategoryId,
+    dialog: &adw::Dialog,
+) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    let query = query.trim().to_lowercase();
+    let mut matching_categories = 0;
+    for summary in categories {
+        let category = &summary.category;
+        if !query.is_empty() && !category.name.to_lowercase().contains(&query) {
+            continue;
+        }
+        matching_categories += 1;
+        let row = gtk::ListBoxRow::new();
+        row.set_widget_name(&format!("move-note-category:{}", category.id));
+        let button = gtk::Button::new();
+        button.add_css_class("flat");
+        button.set_hexpand(true);
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        content.set_margin_start(12);
+        content.set_margin_end(12);
+        content.set_margin_top(8);
+        content.set_margin_bottom(8);
+        content.append(&gtk::Image::from_icon_name("folder-symbolic"));
+        let label = gtk::Label::new(Some(&category.name));
+        label.set_xalign(0.0);
+        label.set_hexpand(true);
+        content.append(&label);
+        if category.id == source_category_id {
+            let current = gtk::Label::new(Some("Current"));
+            current.add_css_class("dim-label");
+            content.append(&current);
+            button.set_sensitive(false);
+        } else {
+            let dispatcher = dispatcher.clone();
+            let dialog = dialog.clone();
+            let category_id = category.id;
+            button.connect_clicked(move |_| {
+                dialog.close();
+                let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::MoveNote {
+                    note_id,
+                    source_category_id,
+                    category_id,
+                }));
+            });
+        }
+        button.set_child(Some(&content));
+        row.set_child(Some(&button));
+        list.append(&row);
+    }
+    if matching_categories == 0 {
+        let row = gtk::ListBoxRow::new();
+        row.set_selectable(false);
+        let label = gtk::Label::new(Some("No categories found"));
+        label.add_css_class("dim-label");
+        label.set_margin_top(12);
+        label.set_margin_bottom(12);
+        row.set_child(Some(&label));
+        list.append(&row);
+    }
 }
 
 /// Presents a destructive confirmation before a category is moved to Trash.

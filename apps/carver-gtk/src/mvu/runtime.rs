@@ -195,6 +195,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::CreateCategory { name } => {
                 self.create_category(name);
             }
+            Effect::CreateCategoryAndMoveNote {
+                action,
+                name,
+                note_id,
+            } => {
+                self.create_category_and_move_note(action, name, note_id);
+            }
             Effect::RenameCategory { category_id, name } => {
                 self.rename_category(category_id, name);
             }
@@ -324,6 +331,22 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         self.complete_action(ActionKey::CreateCategory, async move {
             client.create_category_async(name).await.map(|_| ())
+        });
+    }
+
+    fn create_category_and_move_note(
+        &self,
+        action: ActionKey,
+        name: String,
+        note_id: carver_sdk::NoteId,
+    ) {
+        let client = self.inner.client.clone();
+        self.complete_action(action, async move {
+            let category = client.create_category_async(name).await?;
+            client
+                .move_note_async(note_id, category.id)
+                .await
+                .map(|_| ())
         });
     }
 

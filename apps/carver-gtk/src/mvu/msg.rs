@@ -168,6 +168,15 @@ pub enum WindowMsg {
 pub enum ActionMsg {
     /// Create a category with a user-entered name.
     CreateCategory(String),
+    /// Create a category, then move a note into it.
+    CreateCategoryAndMoveNote {
+        /// User-entered category name.
+        name: String,
+        /// Note to move after creation succeeds.
+        note_id: NoteId,
+        /// Current category, retained for Undo.
+        source_category_id: CategoryId,
+    },
     /// Rename a category with a user-entered name.
     RenameCategory {
         /// Category to rename.
@@ -196,9 +205,12 @@ impl ActionMsg {
     pub(super) fn key(&self) -> Option<ActionKey> {
         Some(match self {
             Self::CreateCategory(_) => ActionKey::CreateCategory,
-            Self::RenameCategory { category_id, .. } => ActionKey::RenameCategory(*category_id),
-            Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
-            Self::MoveNote {
+            Self::CreateCategoryAndMoveNote {
+                note_id,
+                source_category_id,
+                ..
+            }
+            | Self::MoveNote {
                 note_id,
                 source_category_id,
                 ..
@@ -206,6 +218,8 @@ impl ActionMsg {
                 note_id: *note_id,
                 source_category_id: *source_category_id,
             },
+            Self::RenameCategory { category_id, .. } => ActionKey::RenameCategory(*category_id),
+            Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
             Self::UndoMove => return None,
             Self::TrashNote(note_id) => ActionKey::TrashNote(*note_id),
         })

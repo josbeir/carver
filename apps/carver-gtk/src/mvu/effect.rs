@@ -102,6 +102,15 @@ pub enum Effect {
         /// User-entered category name.
         name: String,
     },
+    /// Create a category, then move a note into it as one user action.
+    CreateCategoryAndMoveNote {
+        /// Mutation identity used by the completion reply and Undo state.
+        action: ActionKey,
+        /// User-entered category name.
+        name: String,
+        /// Note to move after creation succeeds.
+        note_id: NoteId,
+    },
     /// Rename a category.
     RenameCategory {
         /// Category to rename.

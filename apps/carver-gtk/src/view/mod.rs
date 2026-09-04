@@ -5,8 +5,11 @@ use std::cell::{Cell, RefCell};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::mvu::{
-    ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, LoadState, MoveUndo, Route,
+use crate::{
+    dialogs::show_move_note_dialog,
+    mvu::{
+        ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, LoadState, MoveUndo, Route,
+    },
 };
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
@@ -430,25 +433,30 @@ fn note_actions(
     menu.add_css_class("flat");
     let popover = gtk::Popover::new();
     let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    for category in categories {
-        if category.category.id == note.category_id {
-            continue;
-        }
-        let move_button = gtk::Button::with_label(&format!("Move to {}", category.category.name));
-        move_button.add_css_class("flat");
-        let dispatcher = dispatcher.clone();
-        let note_id = note.id;
-        let source_category_id = note.category_id;
-        let category_id = category.category.id;
-        move_button.connect_clicked(move |_| {
-            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::MoveNote {
-                note_id,
-                source_category_id,
-                category_id,
-            }));
-        });
-        actions.append(&move_button);
-    }
+    let move_button = gtk::Button::with_label("Move…");
+    move_button.set_widget_name(&format!("move-note-button:{}", note.id));
+    move_button.add_css_class("flat");
+    let dispatcher_for_move = dispatcher.clone();
+    let note_id = note.id;
+    let source_category_id = note.category_id;
+    let note_title = note.title.clone();
+    let categories = categories.to_vec();
+    let popover_for_move = popover.clone();
+    move_button.connect_clicked(move |button| {
+        popover_for_move.popdown();
+        let parent = button
+            .root()
+            .and_then(|root| root.downcast::<gtk::Window>().ok());
+        show_move_note_dialog(
+            parent.as_ref(),
+            &dispatcher_for_move,
+            note_id,
+            source_category_id,
+            &note_title,
+            &categories,
+        );
+    });
+    actions.append(&move_button);
     let trash_button = gtk::Button::with_label("Move to Trash");
     trash_button.add_css_class("flat");
     trash_button.add_css_class("destructive-action");

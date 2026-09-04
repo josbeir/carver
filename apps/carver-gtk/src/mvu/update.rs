@@ -268,6 +268,13 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::CreateCategory(name) => {
             category_name_effect(&name, |name| Effect::CreateCategory { name })
         }
+        ActionMsg::CreateCategoryAndMoveNote { name, note_id, .. } => {
+            category_name_effect(&name, |name| Effect::CreateCategoryAndMoveNote {
+                action: key,
+                name,
+                note_id,
+            })
+        }
         ActionMsg::RenameCategory { category_id, name } => {
             category_name_effect(&name, |name| Effect::RenameCategory { category_id, name })
         }

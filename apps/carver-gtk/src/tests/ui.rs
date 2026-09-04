@@ -69,16 +69,43 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let move_button = note_menu
         .popover()
         .and_then(|popover| popover.child())
-        .and_then(|actions| actions.first_child())
+        .and_then(|actions| find_widget(&actions, &format!("move-note-button:{}", note.id)))
         .and_downcast::<gtk::Button>()
         .ok_or("move note action")?;
     move_button.emit_clicked();
+    let move_search =
+        widget_as::<gtk::SearchEntry>(&root, "move-note-search").ok_or("move picker search")?;
+    let source_row = find_widget(&root, &format!("move-note-category:{}", category.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("current move category")?;
+    assert!(
+        source_row
+            .child()
+            .and_downcast::<gtk::Button>()
+            .is_some_and(|button| !button.is_sensitive())
+    );
+    move_search.set_text("missing");
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("move-note-category:{}", destination.id)).is_none()
+    }));
+    move_search.set_text("pro");
+    let destination_row = find_widget(&root, &format!("move-note-category:{}", destination.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("filtered move destination")?;
+    let destination_button = destination_row
+        .child()
+        .and_downcast::<gtk::Button>()
+        .ok_or("move destination button")?;
+    assert!(destination_button.is_sensitive());
+    destination_button.emit_clicked();
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
         .flatten()
         .is_some_and(|moved| moved.category_id == destination.id)));
-
+    assert!(run_main_context_until(|| {
+        find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
+    }));
     let category_row = find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
         .and_downcast::<gtk::ListBoxRow>()
         .ok_or("category row")?;
