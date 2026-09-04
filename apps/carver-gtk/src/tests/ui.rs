@@ -477,6 +477,31 @@ fn assert_split_preview_tracks_source_scroll(
         || adjustment.upper() > adjustment.page_size()
     ));
     adjustment.set_value((adjustment.upper() - adjustment.page_size()) * 0.5);
+    let scroll_before_format = adjustment.value();
+    let paragraph = source.buffer().text(
+        &source.buffer().start_iter(),
+        &source.buffer().end_iter(),
+        false,
+    );
+    let cursor = paragraph.find("Paragraph 90").ok_or("formatting cursor")?;
+    let cursor = i32::try_from(cursor).map_err(|_| "formatting cursor offset")?;
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(cursor));
+    let bold =
+        widget_as::<gtk::ToggleButton>(editor, "format-bold-button").ok_or("source bold button")?;
+    bold.emit_clicked();
+    assert!(run_main_context_until(|| {
+        (adjustment.value() - scroll_before_format).abs() < 1.0
+            && source
+                .buffer()
+                .text(
+                    &source.buffer().start_iter(),
+                    &source.buffer().end_iter(),
+                    false,
+                )
+                .contains("**Paragraph 90")
+    }));
     split_toggle.set_active(false);
     Ok(())
 }

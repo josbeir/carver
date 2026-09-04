@@ -5,7 +5,10 @@ use std::ops::Range;
 use carver_domain::source_analysis::{SourceContext, SourceNodeKind};
 use gtk::prelude::*;
 
-use super::toolbar::{ToolbarCommand, ToolbarState};
+use super::{
+    buffer_text,
+    toolbar::{ToolbarCommand, ToolbarState},
+};
 
 /// Canonical source plus a character-based selection for pure editing commands.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -317,7 +320,7 @@ pub(crate) fn selection_from_buffer(buffer: &gtk::TextBuffer) -> Range<usize> {
 }
 
 fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
-    buffer.set_text(edit.source());
+    replace_changed_buffer_range(buffer, edit.source());
     let selection = edit.selection();
     let start = buffer.iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
     let end = buffer.iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
@@ -326,6 +329,44 @@ fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
     } else {
         buffer.select_range(&start, &end);
     }
+}
+
+/// Replaces only the changed span so `GtkTextView` retains its scroll anchor.
+fn replace_changed_buffer_range(buffer: &gtk::TextBuffer, replacement: &str) {
+    let current = buffer_text(buffer);
+    if current == replacement {
+        return;
+    }
+    let current_length = current.chars().count();
+    let replacement_length = replacement.chars().count();
+    let common_prefix = current
+        .chars()
+        .zip(replacement.chars())
+        .take_while(|(current, replacement)| current == replacement)
+        .count();
+    let remaining_current = current_length.saturating_sub(common_prefix);
+    let remaining_replacement = replacement_length.saturating_sub(common_prefix);
+    let common_suffix = current
+        .chars()
+        .rev()
+        .zip(replacement.chars().rev())
+        .take(remaining_current.min(remaining_replacement))
+        .take_while(|(current, replacement)| current == replacement)
+        .count();
+    let replacement_span = replacement
+        .chars()
+        .skip(common_prefix)
+        .take(remaining_replacement.saturating_sub(common_suffix))
+        .collect::<String>();
+    let mut start = buffer.iter_at_offset(i32::try_from(common_prefix).unwrap_or(i32::MAX));
+    let mut end = buffer.iter_at_offset(
+        i32::try_from(current_length.saturating_sub(common_suffix)).unwrap_or(i32::MAX),
+    );
+
+    buffer.begin_user_action();
+    buffer.delete(&mut start, &mut end);
+    buffer.insert(&mut start, &replacement_span);
+    buffer.end_user_action();
 }
 
 fn image_span_at(source: &str, cursor: usize) -> Option<(usize, usize)> {
