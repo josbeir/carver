@@ -3,7 +3,6 @@
 use std::{path::Path, rc::Rc};
 
 use adw::prelude::*;
-use carver_config::{ConfigError, save};
 use carver_sdk::{CategoryId, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -114,7 +113,7 @@ pub(crate) fn install_trash_actions_for_test(window: &impl IsA<gtk::Widget>, sta
 fn show_preferences_dialog(
     parent: &adw::ApplicationWindow,
     state: &Rc<AppState>,
-    config_path: &Path,
+    _config_path: &Path,
 ) {
     let config = state.config.borrow().clone();
     let dialog = adw::PreferencesDialog::new();
@@ -142,25 +141,17 @@ fn show_preferences_dialog(
     dialog.add(&page);
 
     let state_for_images = Rc::clone(state);
-    let path_for_images = config_path.to_owned();
     remote_images.connect_active_notify(move |remote_images| {
-        let mut updated = state_for_images.config.borrow().clone();
-        updated.images.load_remote_automatically = remote_images.is_active();
-        if save(&path_for_images, &updated).is_ok() {
-            state_for_images.config.replace(updated);
-            let _ = state_for_images.dispatch_mvu(AppMsg::Preferences(
-                PreferencesMsg::SetRemoteImages(remote_images.is_active()),
-            ));
-        }
+        let _ = state_for_images.dispatch_mvu(AppMsg::Preferences(
+            PreferencesMsg::SetRemoteImages(remote_images.is_active()),
+        ));
     });
     let state_for_delay = Rc::clone(state);
-    let path_for_delay = config_path.to_owned();
     autosave.connect_value_changed(move |autosave| {
-        let mut updated = state_for_delay.config.borrow().clone();
-        updated.editor.autosave_delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
-        if save(&path_for_delay, &updated).is_ok() {
-            state_for_delay.config.replace(updated);
-        }
+        let delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
+        let _ = state_for_delay.dispatch_mvu(AppMsg::Preferences(
+            PreferencesMsg::SetAutosaveDelay(delay_ms),
+        ));
     });
     dialog.present(Some(parent));
 }
@@ -174,21 +165,6 @@ fn show_about_window(parent: &adw::ApplicationWindow) {
         .license_type(gtk::License::MitX11)
         .build();
     about.present(Some(parent));
-}
-
-/// Saves window geometry supplied by the close-request interaction.
-pub(crate) fn persist_window_config(
-    state: &AppState,
-    config_path: &Path,
-    width: i32,
-    height: i32,
-    maximized: bool,
-) -> Result<(), ConfigError> {
-    let mut config = state.config.borrow().clone();
-    config.window.width = width;
-    config.window.height = height;
-    config.window.maximized = maximized;
-    save(config_path, &config)
 }
 
 /// Presents a validated single-line category name dialog.

@@ -1,6 +1,9 @@
 //! Application bootstrap and top-level window composition.
 
-use std::{path::PathBuf, rc::Rc};
+use std::{
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use adw::prelude::*;
 use carver_config::{AppPaths, load, save};
@@ -11,8 +14,8 @@ use libadwaita as adw;
 use crate::{
     browser::build_content,
     controller::{AppLibraryClient, AppState},
-    dialogs::{install_window_actions, persist_window_config},
-    mvu::{AppModel, AppMsg, AppRuntime, NavigationMsg},
+    dialogs::install_window_actions,
+    mvu::{AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
     sidebar::{build_sidebar, render_mvu_sidebar},
     view::ViewRefs,
 };
@@ -51,7 +54,7 @@ fn build_application(application: &adw::Application) {
         config,
         Some(paths.assets_dir()),
     ));
-    build_window(application, &state, config_path.clone());
+    build_window(application, &state, &config_path);
 }
 
 fn load_styles() {
@@ -89,7 +92,7 @@ fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {
 fn build_window(
     application: &adw::Application,
     state: &Rc<AppState>,
-    config_path: PathBuf,
+    config_path: &Path,
 ) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
@@ -97,7 +100,7 @@ fn build_window(
     let window_config = state.config.borrow().window.clone();
     window.set_default_size(window_config.width, window_config.height);
     window.set_maximized(window_config.maximized);
-    install_window_actions(&window, state, &config_path);
+    install_window_actions(&window, state, config_path);
 
     let toast_overlay = adw::ToastOverlay::new();
     let split_view = adw::NavigationSplitView::new();
@@ -116,23 +119,25 @@ fn build_window(
 
     toast_overlay.set_child(Some(&split_view));
     window.set_content(Some(&toast_overlay));
-    install_mvu_runtime(state, editor_view);
+    install_mvu_runtime(state, editor_view, Some(config_path.to_path_buf()));
     let state_for_close = Rc::clone(state);
     window.connect_close_request(move |window| {
-        let _ = persist_window_config(
-            &state_for_close,
-            &config_path,
-            window.default_width(),
-            window.default_height(),
-            window.is_maximized(),
-        );
+        let _ = state_for_close.dispatch_mvu(AppMsg::Window(WindowMsg::SaveGeometry {
+            width: window.default_width(),
+            height: window.default_height(),
+            maximized: window.is_maximized(),
+        }));
         glib::Propagation::Proceed
     });
     window.present();
     window
 }
 
-fn install_mvu_runtime(state: &Rc<AppState>, editor_view: crate::editor::EditorViewRefs) {
+fn install_mvu_runtime(
+    state: &Rc<AppState>,
+    editor_view: crate::editor::EditorViewRefs,
+    config_path: Option<PathBuf>,
+) {
     let (
         Some(route_stack),
         Some(sidebar_list),
@@ -185,7 +190,12 @@ fn install_mvu_runtime(state: &Rc<AppState>, editor_view: crate::editor::EditorV
         .with_trash(trash_list, trash_pages, empty_trash_button)
         .with_toast_overlay(toast_overlay);
     let model = AppModel::new(&state.config.borrow());
-    if state.install_mvu_runtime(AppRuntime::new(state.client.clone(), model, view)) {
+    if state.install_mvu_runtime(AppRuntime::new_with_config_path(
+        state.client.clone(),
+        model,
+        view,
+        config_path,
+    )) {
         let _ = state.dispatch_mvu(AppMsg::Navigation(NavigationMsg::Started));
     }
 }
@@ -195,7 +205,7 @@ pub(crate) fn install_mvu_runtime_for_test(
     state: &Rc<AppState>,
     editor_view: crate::editor::EditorViewRefs,
 ) {
-    install_mvu_runtime(state, editor_view);
+    install_mvu_runtime(state, editor_view, None);
 }
 
 /// Builds the complete application window inside the shared GTK integration scenario.
@@ -206,7 +216,7 @@ pub(crate) fn install_mvu_runtime_for_test(
 pub(crate) fn build_window_for_test(
     application: &adw::Application,
     state: &Rc<AppState>,
-    config_path: PathBuf,
+    config_path: &Path,
 ) -> adw::ApplicationWindow {
     load_styles();
     build_window(application, state, config_path)

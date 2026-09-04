@@ -1,13 +1,8 @@
 //! State, persistence, and storage-facing GTK tests.
 
-use carver_config::load;
-
-use crate::{
-    controller::{
-        active_category, create_next_category, create_note_for_active_category, open_note,
-        rename_category, save_current_note, store_pasted_image, trash_current_note,
-    },
-    dialogs::persist_window_config,
+use crate::controller::{
+    active_category, create_next_category, create_note_for_active_category, open_note,
+    rename_category, save_current_note, store_pasted_image, trash_current_note,
 };
 
 use super::support::{TestResult, test_state};
@@ -97,20 +92,5 @@ fn state_action_stores_pasted_images_for_the_active_note() -> TestResult {
             .join(&image_path)
             .is_file()
     );
-    Ok(())
-}
-
-#[test]
-fn close_action_persists_window_configuration() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let config_path = temporary_directory
-        .path()
-        .join("config")
-        .join("config.toml");
-    persist_window_config(&state, &config_path, 900, 640, true)?;
-    let persisted = load(&config_path)?;
-    assert_eq!(persisted.window.width, 900);
-    assert_eq!(persisted.window.height, 640);
-    assert!(persisted.window.maximized);
     Ok(())
 }

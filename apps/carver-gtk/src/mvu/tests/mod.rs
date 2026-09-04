@@ -435,6 +435,46 @@ fn theme_change_should_request_an_editor_projection_refresh() {
 }
 
 #[test]
+fn preference_changes_should_persist_complete_config_snapshots() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetAutosaveDelay(900)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.autosave_delay_ms == 900)
+    );
+    assert_eq!(model.preferences.autosave_delay_ms, 900);
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::ConfigPersisted {
+            result: Err(UiError::new("config write failed")),
+        }),
+    );
+    assert_eq!(model.notice, Some(UiError::new("config write failed")));
+}
+
+#[test]
+fn close_geometry_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Window(super::WindowMsg::SaveGeometry {
+            width: 900,
+            height: 640,
+            maximized: true,
+        }),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.window.width == 900 && config.window.height == 640 && config.window.maximized)
+    );
+}
+
+#[test]
 fn source_change_while_saving_should_start_one_follow_up_save() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

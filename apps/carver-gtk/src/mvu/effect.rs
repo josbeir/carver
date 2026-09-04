@@ -1,5 +1,6 @@
 //! Side effects requested by the pure reducer.
 
+use carver_config::Config;
 use carver_sdk::{CategoryId, NoteId};
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId};
@@ -7,6 +8,11 @@ use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId};
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Atomically persist an immutable configuration snapshot.
+    PersistConfig {
+        /// Complete configuration to write.
+        config: Config,
+    },
     /// Create the initial default category when a new library is empty.
     EnsureDefaultCategory,
     /// Wait before dispatching the current search timer identity.

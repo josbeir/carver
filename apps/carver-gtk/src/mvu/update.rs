@@ -3,6 +3,7 @@
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
     LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
+    WindowMsg,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -62,18 +63,36 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) => Vec::new(),
         AppMsg::Preferences(PreferencesMsg::SetRemoteImages(enabled)) => {
             model.preferences.load_remote_images = enabled;
-            Vec::new()
+            model.config.images.load_remote_automatically = enabled;
+            persist_config_effect(model)
+        }
+        AppMsg::Preferences(PreferencesMsg::SetAutosaveDelay(delay_ms)) => {
+            model.preferences.autosave_delay_ms = delay_ms;
+            model.config.editor.autosave_delay_ms = delay_ms;
+            persist_config_effect(model)
         }
         AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)) => {
             model.preferences.editor_mode = mode;
+            model.config.editor.last_mode = mode;
             if let Some(document) = model.editor.as_mut() {
                 document.mode = mode;
             }
-            Vec::new()
+            persist_config_effect(model)
         }
         AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(visible)) => {
             model.preferences.source_split_view = visible;
-            Vec::new()
+            model.config.editor.source_split_view = visible;
+            persist_config_effect(model)
+        }
+        AppMsg::Window(WindowMsg::SaveGeometry {
+            width,
+            height,
+            maximized,
+        }) => {
+            model.config.window.width = width;
+            model.config.window.height = height;
+            model.config.window.maximized = maximized;
+            persist_config_effect(model)
         }
         AppMsg::Action(action) => update_action(model, action),
         AppMsg::Library(reply) => update_library(model, reply),
@@ -181,6 +200,12 @@ fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
     Some(Effect::SchedulePreview { session, timer_id })
 }
 
+fn persist_config_effect(model: &AppModel) -> Vec<Effect> {
+    vec![Effect::PersistConfig {
+        config: model.config.clone(),
+    }]
+}
+
 fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
@@ -275,6 +300,12 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::ConfigPersisted { result } => {
+            if let Err(error) = result {
+                model.notice = Some(error);
+            }
+            Vec::new()
+        }
         LibraryReply::DefaultCategoryEnsured { result } => update_default_category(model, result),
         LibraryReply::ActionFinished { action, result } => {
             model.finish_action(action);

@@ -22,6 +22,8 @@ pub enum AppMsg {
     Editor(EditorMsg),
     /// Preference intent.
     Preferences(PreferencesMsg),
+    /// Window lifecycle intent.
+    Window(WindowMsg),
     /// Note and category mutation intent.
     Action(ActionMsg),
     /// Completion from an effect that accessed the library.
@@ -137,10 +139,26 @@ pub enum EditorMsg {
 pub enum PreferencesMsg {
     /// Set the remote-image loading policy.
     SetRemoteImages(bool),
+    /// Set the delay before an unsaved editor source is persisted.
+    SetAutosaveDelay(u64),
     /// Set the preferred editor surface.
     SetEditorMode(EditorMode),
     /// Set source split-preview visibility.
     SetSourceSplitView(bool),
+}
+
+/// Window state that must survive the next launch.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WindowMsg {
+    /// Persist the geometry reported by GTK during a close request.
+    SaveGeometry {
+        /// Window width in logical pixels.
+        width: i32,
+        /// Window height in logical pixels.
+        height: i32,
+        /// Whether the window is maximized.
+        maximized: bool,
+    },
 }
 
 /// Note and category mutations requested by a view.
@@ -195,6 +213,11 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A configuration save completed.
+    ConfigPersisted {
+        /// Successful completion or an error that must remain visible.
+        result: Result<(), UiError>,
+    },
     /// Startup default-category initialization completed.
     DefaultCategoryEnsured {
         /// Successful completion or a displayable failure.

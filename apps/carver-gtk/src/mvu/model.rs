@@ -283,6 +283,8 @@ impl EditorDocument {
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
+    /// Full persisted configuration used to create atomic save snapshots.
+    pub config: Config,
     /// Current high-level surface.
     pub route: Route,
     /// Category selected by the user, or all categories when absent.
@@ -323,6 +325,7 @@ impl AppModel {
     #[must_use]
     pub fn new(config: &Config) -> Self {
         Self {
+            config: config.clone(),
             route: Route::Browser,
             selected_category: None,
             sidebar: Resource::default(),

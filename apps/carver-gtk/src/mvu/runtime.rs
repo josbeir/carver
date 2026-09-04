@@ -3,6 +3,7 @@
 use std::{
     cell::RefCell,
     future::Future,
+    path::PathBuf,
     rc::{Rc, Weak},
 };
 
@@ -53,6 +54,7 @@ pub struct AppRuntime<B: LibraryBackend> {
 
 struct RuntimeInner<B: LibraryBackend> {
     client: LibraryClient<B>,
+    config_path: Option<PathBuf>,
     model: RefCell<AppModel>,
     view: ViewRefs,
 }
@@ -69,9 +71,21 @@ impl<B: LibraryBackend> AppRuntime<B> {
     /// Creates a local runtime from a worker-backed SDK client and GTK view references.
     #[must_use]
     pub fn new(client: LibraryClient<B>, model: AppModel, view: ViewRefs) -> Self {
+        Self::new_with_config_path(client, model, view, None)
+    }
+
+    /// Creates a runtime that can persist configuration snapshots at `config_path`.
+    #[must_use]
+    pub fn new_with_config_path(
+        client: LibraryClient<B>,
+        model: AppModel,
+        view: ViewRefs,
+        config_path: Option<PathBuf>,
+    ) -> Self {
         Self {
             inner: Rc::new(RuntimeInner {
                 client,
+                config_path,
                 model: RefCell::new(model),
                 view,
             }),
@@ -110,6 +124,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
+            Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
             Effect::ScheduleEditorSave {
@@ -128,20 +143,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 bytes,
                 alt,
             } => self.store_editor_asset(session, note_id, extension, bytes, alt),
-            Effect::LoadSidebar { request_id } => {
-                let client = self.inner.client.clone();
-                let runtime = self.clone();
-                glib::spawn_future_local(async move {
-                    let result = client
-                        .categories_with_note_counts_async()
-                        .await
-                        .map_err(display_error);
-                    runtime.dispatch(AppMsg::Library(LibraryReply::SidebarLoaded {
-                        request_id,
-                        result,
-                    }));
-                });
-            }
+            Effect::LoadSidebar { request_id } => self.load_sidebar(request_id),
             Effect::LoadBrowser {
                 request_id,
                 category_id,
@@ -238,6 +240,28 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 result,
             }));
         });
+    }
+
+    fn load_sidebar(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .categories_with_note_counts_async()
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::SidebarLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn persist_config(&self, config: &carver_config::Config) {
+        let result = self.inner.config_path.as_deref().map_or(Ok(()), |path| {
+            carver_config::save(path, config).map_err(display_error)
+        });
+        self.dispatch(AppMsg::Library(LibraryReply::ConfigPersisted { result }));
     }
 
     fn schedule_editor_save(

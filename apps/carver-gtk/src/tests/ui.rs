@@ -670,11 +670,8 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     );
     application.register(None::<&gtk::gio::Cancellable>)?;
     let application_config = application_directory.path().join("application-config.toml");
-    let application_window = crate::app::build_window_for_test(
-        &application,
-        &application_state,
-        application_config.clone(),
-    );
+    let application_window =
+        crate::app::build_window_for_test(&application, &application_state, &application_config);
     assert_eq!(
         application_window.icon_name().as_deref(),
         Some(crate::app::APPLICATION_ICON)
