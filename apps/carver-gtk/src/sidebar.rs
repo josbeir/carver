@@ -36,7 +36,8 @@ pub(crate) fn build_sidebar(
     let new_category = gtk::Button::from_icon_name("folder-new-symbolic");
     new_category.set_widget_name("new-category-button");
     new_category.set_tooltip_text(Some("New Category"));
-    header.pack_end(&new_category);
+    header.pack_start(&new_category);
+    header.pack_end(&settings_menu_button());
     container.append(&header);
 
     let list = gtk::ListBox::new();
@@ -61,6 +62,19 @@ pub(crate) fn build_sidebar(
         rendering,
         route,
     }
+}
+
+/// Builds the window-level settings menu shown in the persistent sidebar.
+fn settings_menu_button() -> gtk::MenuButton {
+    let menu = gtk::gio::Menu::new();
+    menu.append(Some("Preferences"), Some("win.preferences"));
+    menu.append(Some("About Carver"), Some("win.about"));
+    let settings = gtk::MenuButton::new();
+    settings.set_widget_name("sidebar-settings-menu-button");
+    settings.set_icon_name("open-menu-symbolic");
+    settings.set_tooltip_text(Some("Settings"));
+    settings.set_menu_model(Some(&menu));
+    settings
 }
 
 impl SidebarSurface {

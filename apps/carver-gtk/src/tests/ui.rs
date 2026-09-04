@@ -45,6 +45,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     let root = window.child().ok_or("window content")?;
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
+    assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
+    assert!(widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button").is_some());
+    assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());
     assert!(run_main_context_until(|| {
         find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
     }));

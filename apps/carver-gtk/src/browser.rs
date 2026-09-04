@@ -81,15 +81,6 @@ pub(crate) fn build_browser(
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
-    let menu = gtk::gio::Menu::new();
-    menu.append(Some("Preferences"), Some("win.preferences"));
-    menu.append(Some("About Carver"), Some("win.about"));
-    let app_menu = gtk::MenuButton::new();
-    app_menu.set_widget_name("app-menu-button");
-    app_menu.set_icon_name("open-menu-symbolic");
-    app_menu.set_tooltip_text(Some("Main Menu"));
-    app_menu.set_menu_model(Some(&menu));
-    header.pack_end(&app_menu);
     header.pack_end(&new_note);
     header.pack_start(&sidebar_toggle_button(
         split_view,
