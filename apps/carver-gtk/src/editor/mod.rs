@@ -238,6 +238,7 @@ pub(crate) fn build_editor(
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_source = Rc::new(RefCell::new(None));
+    refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(state.assets_dir.as_deref());
@@ -317,7 +318,7 @@ pub(crate) fn build_editor(
         rendering,
         remote_images,
         preview_source,
-        rendered_theme_revision: RefCell::new(None),
+        rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
     };
     EditorSurface {

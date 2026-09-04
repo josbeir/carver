@@ -7,6 +7,8 @@ use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId};
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Create the initial default category when a new library is empty.
+    EnsureDefaultCategory,
     /// Wait before dispatching the current search timer identity.
     ScheduleSearch {
         /// Identity used to ignore a superseded debounce timer.

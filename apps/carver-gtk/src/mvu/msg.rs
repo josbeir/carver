@@ -195,6 +195,11 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// Startup default-category initialization completed.
+    DefaultCategoryEnsured {
+        /// Successful completion or a displayable failure.
+        result: Result<(), UiError>,
+    },
     /// A note or category mutation completed.
     ActionFinished {
         /// Identity of the mutation admitted by the reducer.

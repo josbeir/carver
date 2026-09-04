@@ -10,10 +10,7 @@ use super::{
 pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     match message {
         AppMsg::Navigation(NavigationMsg::Started) => {
-            [reload_sidebar(model), reload_browser(model)]
-                .into_iter()
-                .flatten()
-                .collect()
+            vec![Effect::EnsureDefaultCategory]
         }
         AppMsg::Navigation(NavigationMsg::SelectCategory(category_id)) => {
             model.route = super::Route::Browser;
@@ -278,6 +275,7 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::DefaultCategoryEnsured { result } => update_default_category(model, result),
         LibraryReply::ActionFinished { action, result } => {
             model.finish_action(action);
             match result {
@@ -368,6 +366,19 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         },
         LibraryReply::EditorSaved { request, result } => {
             update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
+    match result {
+        Ok(()) => [reload_sidebar(model), reload_browser(model)]
+            .into_iter()
+            .flatten()
+            .collect(),
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
         }
     }
 }

@@ -8,7 +8,7 @@ use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use tempfile::TempDir;
 
-use crate::{app::ensure_first_category, controller::AppState};
+use crate::controller::AppState;
 
 pub(crate) type TestResult = Result<(), Box<dyn Error>>;
 pub(crate) type TestState = (TempDir, Rc<AppState>);
@@ -23,7 +23,7 @@ pub(crate) fn test_state() -> Result<TestState, Box<dyn Error>> {
     paths.ensure_exists()?;
     let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())?;
     let client = LibraryClient::spawn(storage)?;
-    ensure_first_category(&client);
+    let _ = client.create_category("Notes")?;
     let state = Rc::new(AppState::new(client, Config::default()));
     Ok((temporary_directory, state))
 }

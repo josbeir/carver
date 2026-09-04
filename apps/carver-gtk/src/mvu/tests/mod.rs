@@ -11,11 +11,16 @@ use super::{
 };
 
 #[test]
-fn startup_should_request_sidebar_and_browser_data() {
+fn startup_should_initialize_then_request_sidebar_and_browser_data() {
     let mut model = AppModel::new(&Config::default());
 
     let effects = update(&mut model, AppMsg::Navigation(NavigationMsg::Started));
 
+    assert_eq!(effects, vec![Effect::EnsureDefaultCategory]);
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::DefaultCategoryEnsured { result: Ok(()) }),
+    );
     assert_eq!(
         effects,
         vec![
@@ -865,8 +870,6 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         &paths.database_file(),
         &paths.assets_dir(),
     )?)?;
-    crate::app::ensure_first_category(&client);
-
     let stack = gtk::Stack::new();
     for name in ["browser", "editor", "trash"] {
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
@@ -901,6 +904,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         matches!(runtime.model().sidebar.state, LoadState::Ready(_))
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
+    assert_eq!(client.categories()?.len(), 1);
     assert!(sidebar_list.first_child().is_some());
 
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(

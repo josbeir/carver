@@ -663,8 +663,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         cache_dir: application_directory.path().join("application-cache"),
     };
     let application_client = crate::app::open_library_for_test(&application_paths)?;
-    crate::app::ensure_first_category(&application_client);
-    assert_eq!(application_client.categories()?.len(), 1);
+    assert!(application_client.categories()?.is_empty());
     let application = adw::Application::new(
         Some("io.github.josbeir.Carver.Tests"),
         gtk::gio::ApplicationFlags::empty(),

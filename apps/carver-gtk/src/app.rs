@@ -46,7 +46,6 @@ fn build_application(application: &adw::Application) {
         }
     };
 
-    ensure_first_category(&client);
     let state = Rc::new(AppState::new_with_assets(
         client,
         config,
@@ -78,15 +77,6 @@ fn show_startup_error(application: &adw::Application, error: &str) {
         .build();
     window.set_content(Some(&status));
     window.present();
-}
-
-/// Ensures a newly created library has a default category.
-pub(crate) fn ensure_first_category(client: &AppLibraryClient) {
-    if let Ok(categories) = client.categories()
-        && categories.is_empty()
-    {
-        let _ = client.create_category("Notes");
-    }
 }
 
 fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {

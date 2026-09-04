@@ -110,6 +110,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
+            Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
             Effect::ScheduleEditorSave {
                 session,
@@ -217,6 +218,25 @@ impl<B: LibraryBackend> AppRuntime<B> {
             runtime.dispatch(AppMsg::Browser(super::BrowserMsg::SearchTimerFired(
                 timer_id,
             )));
+        });
+    }
+
+    fn ensure_default_category(&self) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.categories_async().await {
+                Ok(categories) if categories.is_empty() => client
+                    .create_category_async(String::from("Notes"))
+                    .await
+                    .map(|_| ()),
+                Ok(_) => Ok(()),
+                Err(error) => Err(error),
+            }
+            .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::DefaultCategoryEnsured {
+                result,
+            }));
         });
     }
 
