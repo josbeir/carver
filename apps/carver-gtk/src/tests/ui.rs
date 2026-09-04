@@ -335,6 +335,25 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         &source.buffer().iter_at_offset(9),
         "carve-definition-marker"
     ));
+    source
+        .buffer()
+        .set_text("|= Fruit |=> Price |=~ Stock |\n| Apple | 1.20 | In |");
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(10), "carve-table-marker")
+    );
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(11), "carve-table-marker")
+    );
+    assert!(
+        !source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-emphasis")
+    );
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(39), "carve-table-marker")
+    );
     source.buffer().set_text("1. list item");
     source
         .buffer()

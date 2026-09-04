@@ -8,7 +8,9 @@
     <style id="heading" name="Heading" map-to="def:heading"/>
     <style id="list-marker" name="List marker" map-to="def:list-marker"/>
     <style id="quote-marker" name="Quote marker" map-to="def:shebang"/>
-    <style id="table-marker" name="Table marker" map-to="def:preprocessor"/>
+    <style id="table-divider" name="Table divider" map-to="def:preprocessor"/>
+    <style id="table-header" name="Table header marker" map-to="def:heading"/>
+    <style id="table-alignment" name="Table alignment marker" map-to="def:operator"/>
     <style id="code" name="Code" map-to="def:inline-code"/>
     <style id="code-block" name="Code block" map-to="def:preformatted-section"/>
     <style id="link-text" name="Link text" map-to="def:link-text"/>
@@ -35,8 +37,23 @@
     <context id="quote-marker" style-ref="quote-marker" class="carve-quote">
       <match>^[ \t]*&gt;+[ \t]?</match>
     </context>
-    <context id="table-marker" style-ref="table-marker" class="carve-table">
-      <match>^\|(?:=?[^|]*)+\|[ \t]*$</match>
+    <context id="table-cell-marker" style-ref="table-divider" class="carve-table-marker">
+      <match>\|(=)?([>&lt;~^v?]+)?(?=[ \{])</match>
+      <include>
+        <context sub-pattern="1" style-ref="table-header"/>
+        <context sub-pattern="2" style-ref="table-alignment"/>
+      </include>
+    </context>
+    <context id="table-divider" style-ref="table-divider" class="carve-table-divider">
+      <match>\|</match>
+    </context>
+    <context id="table-row" class="carve-table">
+      <start>^\|(?=[^\r\n]*\|(?:\{[^}\r\n]*\})?[ \t]*$)</start>
+      <end>$</end>
+      <include>
+        <context ref="table-cell-marker"/>
+        <context ref="table-divider"/>
+      </include>
     </context>
     <context id="fenced-code" style-ref="code-block" class="carve-code-block">
       <start>^```.*$</start>
@@ -96,7 +113,7 @@
       <match>~[^~\n]+~</match>
     </context>
     <context id="highlight" style-ref="emphasis" class="carve-emphasis">
-      <match>=[^=\n]+=</match>
+      <match>=(?![>&lt;~^v?]*[ \{])[^=\n]+=</match>
     </context>
     <context id="superscript" style-ref="emphasis" class="carve-emphasis">
       <match>\{\^[^^\n]+\^\}</match>
@@ -115,7 +132,7 @@
         <context ref="heading"/>
         <context ref="list-marker"/>
         <context ref="quote-marker"/>
-        <context ref="table-marker"/>
+        <context ref="table-row"/>
         <context ref="frontmatter"/>
         <context ref="definition-term"/>
         <context ref="definition-marker"/>

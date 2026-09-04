@@ -3,7 +3,9 @@
   <style name="carve:heading" foreground="#1a73b8" bold="true"/>
   <style name="carve:list-marker" foreground="#2e9b5f"/>
   <style name="carve:quote-marker" foreground="#7a7285"/>
-  <style name="carve:table-marker" foreground="#2e9b5f"/>
+  <style name="carve:table-divider" foreground="#2e9b5f"/>
+  <style name="carve:table-header" foreground="#1a73b8" bold="true"/>
+  <style name="carve:table-alignment" foreground="#8d4da5"/>
   <style name="carve:code" foreground="#c44d00"/>
   <style name="carve:code-block" foreground="#c44d00"/>
   <style name="carve:link-text" foreground="#1a73b8" underline="single"/>
