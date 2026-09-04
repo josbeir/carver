@@ -783,13 +783,20 @@ pub(crate) fn install_source_shortcuts(
     toolbar: &Toolbar,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("source-format-shortcuts"));
     let toolbar = toolbar.clone();
     let anchor = view.clone().upcast::<gtk::Widget>();
+    let source_buffer = view.buffer();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
-        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+        let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
+        let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+        if shift && !control && matches!(key, gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter) {
+            source_commands::insert_hard_break(&source_buffer);
+            return glib::Propagation::Stop;
+        }
+        if !control {
             return glib::Propagation::Proceed;
         }
-        let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
         let command = match key {
             gtk::gdk::Key::b if !shift => Some(toolbar::ToolbarCommand::Bold),
             gtk::gdk::Key::i if !shift => Some(toolbar::ToolbarCommand::Italic),

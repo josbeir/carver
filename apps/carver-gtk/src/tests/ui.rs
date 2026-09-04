@@ -261,6 +261,31 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?
     );
     assert_shared_toolbar_controls(&root)?;
+    let source_controllers = source_view.observe_controllers();
+    let source_shortcuts = (0..source_controllers.n_items())
+        .filter_map(|index| source_controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("source-format-shortcuts"))
+        .ok_or("source format shortcuts")?;
+    source.buffer().set_text("First line");
+    source.buffer().place_cursor(&source.buffer().end_iter());
+    let handled = source_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Return,
+            &0_u32,
+            &gtk::gdk::ModifierType::SHIFT_MASK,
+        ],
+    );
+    assert!(handled);
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        "First line\\\n"
+    );
     let find_bar = widget_as::<gtk::SearchBar>(&root, "editor-find-bar").ok_or("find bar")?;
     let find_entry =
         widget_as::<gtk::SearchEntry>(&root, "editor-find-entry").ok_or("find entry")?;

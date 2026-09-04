@@ -105,6 +105,15 @@ fn pure_line_edit_should_transform_only_selected_lines() {
 }
 
 #[test]
+fn hard_break_command_should_insert_a_backslash_before_the_newline() {
+    let mut edit = SourceEdit::new("First line", 5..5);
+
+    edit.insert_hard_break();
+
+    assert_eq!(edit.source(), "First\\\n line");
+}
+
+#[test]
 fn pure_list_and_code_edits_should_round_trip_canonical_source() {
     let mut edit = SourceEdit::new("One\nTwo", 0..7);
     edit.toggle_list("- ");

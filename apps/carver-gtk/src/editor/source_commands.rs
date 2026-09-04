@@ -122,6 +122,14 @@ impl SourceEdit {
         self.replace(range, &replacement, length);
     }
 
+    /// Replaces the selection with Carve's explicit hard-line-break marker.
+    pub(crate) fn insert_hard_break(&mut self) {
+        let range = self.selection.clone();
+        self.replace(range.clone(), "\\\n", 0);
+        let cursor = range.start.saturating_add(2);
+        self.selection = cursor..cursor;
+    }
+
     /// Inserts a direct Carve link at the selection or cursor.
     pub(crate) fn insert_link(&mut self, text: &str, destination: &str) {
         let markup = format!("[{text}]({destination})");
@@ -254,6 +262,11 @@ pub(crate) fn toggle_ordered_list(buffer: &gtk::TextBuffer) {
 /// Wraps selected lines in a fenced Carve code block.
 pub(crate) fn toggle_code_block(buffer: &gtk::TextBuffer) {
     apply_buffer_edit(buffer, SourceEdit::toggle_code_block);
+}
+
+/// Replaces the selection with a Carve hard line break and places the cursor on the next line.
+pub(crate) fn insert_hard_break(buffer: &gtk::TextBuffer) {
+    apply_buffer_edit(buffer, SourceEdit::insert_hard_break);
 }
 
 /// Inserts a direct Carve link using already collected dialog values.
