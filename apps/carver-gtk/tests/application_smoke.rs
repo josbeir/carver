@@ -15,7 +15,9 @@ fn application_should_create_an_isolated_library_on_startup()
     let data_home = directory.path().join("data");
     let cache_home = directory.path().join("cache");
     let database = data_home.join("carver/library.sqlite3");
+    let application_id = format!("io.github.josbeir.Carver.Test{}", std::process::id());
     let mut child = Command::new(env!("CARGO_BIN_EXE_carver-gtk"))
+        .env("CARVER_APPLICATION_ID", application_id)
         .env("XDG_CONFIG_HOME", config_home)
         .env("XDG_DATA_HOME", data_home)
         .env("XDG_CACHE_HOME", cache_home)

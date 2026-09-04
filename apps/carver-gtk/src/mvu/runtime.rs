@@ -70,15 +70,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
-            Effect::ScheduleSearch { timer_id } => {
-                let runtime = self.clone();
-                glib::spawn_future_local(async move {
-                    glib::timeout_future(std::time::Duration::from_millis(250)).await;
-                    runtime.dispatch(AppMsg::Browser(super::BrowserMsg::SearchTimerFired(
-                        timer_id,
-                    )));
-                });
-            }
+            Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
+            Effect::ScheduleEditorSave {
+                session,
+                timer_id,
+                delay_ms,
+            } => self.schedule_editor_save(session, timer_id, delay_ms),
+            Effect::SaveNote { request } => self.save_note(request),
             Effect::LoadSidebar { request_id } => {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();
@@ -158,10 +156,56 @@ impl<B: LibraryBackend> AppRuntime<B> {
         }
     }
 
+    fn schedule_search(&self, timer_id: super::TimerId) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(std::time::Duration::from_millis(250)).await;
+            runtime.dispatch(AppMsg::Browser(super::BrowserMsg::SearchTimerFired(
+                timer_id,
+            )));
+        });
+    }
+
+    fn schedule_editor_save(
+        &self,
+        session: super::EditorSessionId,
+        timer_id: super::TimerId,
+        delay_ms: u64,
+    ) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(std::time::Duration::from_millis(delay_ms)).await;
+            runtime.dispatch(AppMsg::Editor(super::EditorMsg::AutosaveElapsed {
+                session,
+                timer_id,
+            }));
+        });
+    }
+
     fn create_category(&self, name: String) {
         let client = self.inner.client.clone();
         self.complete_action(ActionKey::CreateCategory, async move {
             client.create_category_async(name).await.map(|_| ())
+        });
+    }
+
+    fn save_note(&self, request: super::EditorSaveRequest) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .save_note_async(
+                    request.note_id,
+                    request.expected_revision,
+                    request.source.clone(),
+                )
+                .await
+                .map(|note| note.revision)
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
+                request,
+                result,
+            }));
         });
     }
 

@@ -1,8 +1,8 @@
 //! Pure state transitions for the application model.
 
 use super::{
-    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, MoveUndo,
-    NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
+    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
+    LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -48,11 +48,35 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Trash(TrashMsg::RestoreNote(note_id)) => vec![Effect::RestoreNote { note_id }],
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
-        AppMsg::Editor(EditorMsg::Load {
+        AppMsg::Editor(message) => update_editor(model, message),
+        AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) => Vec::new(),
+        AppMsg::Preferences(PreferencesMsg::SetRemoteImages(enabled)) => {
+            model.preferences.load_remote_images = enabled;
+            Vec::new()
+        }
+        AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)) => {
+            model.preferences.editor_mode = mode;
+            if let Some(document) = model.editor.as_mut() {
+                document.mode = mode;
+            }
+            Vec::new()
+        }
+        AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(visible)) => {
+            model.preferences.source_split_view = visible;
+            Vec::new()
+        }
+        AppMsg::Action(action) => update_action(model, action),
+        AppMsg::Library(reply) => update_library(model, reply),
+    }
+}
+
+fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
+    match message {
+        EditorMsg::Load {
             note_id,
             revision,
             source,
-        }) => {
+        } => {
             model.route = super::Route::Editor;
             if model
                 .editor
@@ -71,13 +95,29 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             ));
             Vec::new()
         }
-        AppMsg::Editor(EditorMsg::SourceChanged(source)) => {
-            if let Some(document) = model.editor.as_mut() {
-                document.source_changed(source);
+        EditorMsg::SourceChanged(source) => {
+            let changed = model
+                .editor
+                .as_mut()
+                .is_some_and(|document| document.source_changed(source));
+            if changed {
+                model.notice = None;
             }
             Vec::new()
         }
-        AppMsg::Editor(EditorMsg::Close(session_id))
+        EditorMsg::AutosaveRequested => schedule_editor_save(model).into_iter().collect(),
+        EditorMsg::AutosaveElapsed { session, timer_id } => model
+            .editor
+            .as_mut()
+            .filter(|document| document.session == session && document.is_current_timer(timer_id))
+            .and_then(super::EditorDocument::begin_save)
+            .map_or_else(Vec::new, save_note_effect),
+        EditorMsg::RetrySave => model
+            .editor
+            .as_mut()
+            .and_then(super::EditorDocument::begin_save)
+            .map_or_else(Vec::new, save_note_effect),
+        EditorMsg::Close(session_id)
             if model
                 .editor
                 .as_ref()
@@ -87,26 +127,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.editor = None;
             Vec::new()
         }
-        AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) | AppMsg::Editor(EditorMsg::Close(_)) => {
-            Vec::new()
-        }
-        AppMsg::Preferences(PreferencesMsg::SetRemoteImages(enabled)) => {
-            model.preferences.load_remote_images = enabled;
-            Vec::new()
-        }
-        AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)) => {
-            model.preferences.editor_mode = mode;
-            if let Some(document) = model.editor.as_mut() {
-                document.mode = mode;
-            }
-            Vec::new()
-        }
-        AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(visible)) => {
-            model.preferences.source_split_view = visible;
-            Vec::new()
-        }
-        AppMsg::Action(action) => update_action(model, action),
-        AppMsg::Library(reply) => update_library(model, reply),
+        EditorMsg::Close(_) => Vec::new(),
     }
 }
 
@@ -208,6 +229,70 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 Vec::new()
             }
         },
+        LibraryReply::EditorSaved { request, result } => {
+            update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
+    let timer_id = model.next_timer_id();
+    let delay_ms = model.preferences.autosave_delay_ms;
+    let document = model.editor.as_mut()?;
+    if matches!(document.save_state, super::EditorSaveState::Saving(_)) {
+        return None;
+    }
+    document.schedule_save(timer_id);
+    Some(Effect::ScheduleEditorSave {
+        session: document.session,
+        timer_id,
+        delay_ms,
+    })
+}
+
+fn save_note_effect(request: EditorSaveRequest) -> Vec<Effect> {
+    vec![Effect::SaveNote { request }]
+}
+
+fn update_editor_save(
+    model: &mut AppModel,
+    request: &EditorSaveRequest,
+    result: Result<carver_sdk::Revision, UiError>,
+) -> Vec<Effect> {
+    let Some(document) = model.editor.as_mut() else {
+        return Vec::new();
+    };
+    if document.session != request.session
+        || document.note_id != request.note_id
+        || document.revision != request.expected_revision
+        || document.save_state != super::EditorSaveState::Saving(request.clone())
+    {
+        return Vec::new();
+    }
+    match result {
+        Ok(revision) => {
+            document.revision = revision;
+            if document.source == request.source {
+                document.save_state = super::EditorSaveState::Clean;
+                Vec::new()
+            } else {
+                document.save_state = super::EditorSaveState::Dirty;
+                document
+                    .begin_save()
+                    .map_or_else(Vec::new, save_note_effect)
+            }
+        }
+        Err(error) if document.source == request.source => {
+            document.save_state = super::EditorSaveState::Failed(error.clone());
+            model.notice = Some(error);
+            Vec::new()
+        }
+        Err(_) => {
+            document.save_state = super::EditorSaveState::Dirty;
+            document
+                .begin_save()
+                .map_or_else(Vec::new, save_note_effect)
+        }
     }
 }
 

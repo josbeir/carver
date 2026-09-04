@@ -226,13 +226,21 @@ Each part is independently reviewable and must preserve behavior unless it is ex
 
 **Required tests:** rich/source round trips preserve canonical Carve; unsupported rich constructs remain source-preserved and preview-only.
 
-### Part 10: Editor save coordinator
+### Part 10a: Editor save coordinator
 
-- Replace `save_in_flight` and independent save paths with the editor state machine.
-- Invalidate the editor session before changing/trashing notes.
-- Preserve dirty source on save failures and expose retry.
+- Add pure save-state transitions and revision/session-identified save effects.
+- Model one in-flight save and one coalesced follow-up source snapshot.
+- Preserve dirty source on save failures and expose a typed retry message.
 
-**Required tests:** an old autosave cannot replace a new/trashed note; Back during autosave causes no revision conflict; source changed while saving causes exactly one follow-up save; failures never discard source.
+**Required tests:** stale save completions are ignored; source changed while saving causes exactly one follow-up save; failures never discard source.
+
+### Part 10b: Editor save UI handoff
+
+- Replace `save_in_flight`, autosave generations, and direct save paths with the coordinator.
+- Invalidate the editor session before returning, changing, or trashing notes.
+- Surface save failures with a retry action.
+
+**Required tests:** an old autosave cannot replace a new/trashed note; Back during autosave causes no revision conflict; save failure preserves source and offers retry.
 
 ### Part 11: Rich editor, preview, and managed assets
 

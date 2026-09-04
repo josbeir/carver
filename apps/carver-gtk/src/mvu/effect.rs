@@ -2,7 +2,7 @@
 
 use carver_sdk::{CategoryId, NoteId};
 
-use super::{ActionKey, RequestId, TimerId};
+use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId};
 
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,6 +11,20 @@ pub enum Effect {
     ScheduleSearch {
         /// Identity used to ignore a superseded debounce timer.
         timer_id: TimerId,
+    },
+    /// Wait before attempting to persist the latest editor source.
+    ScheduleEditorSave {
+        /// Editor lifetime that scheduled the autosave.
+        session: EditorSessionId,
+        /// Identity used to ignore a superseded autosave timer.
+        timer_id: TimerId,
+        /// Debounce duration from persisted preferences.
+        delay_ms: u64,
+    },
+    /// Persist one immutable canonical editor source snapshot.
+    SaveNote {
+        /// Session, revision, and source to persist.
+        request: EditorSaveRequest,
     },
     /// Load sidebar categories and active-note counts.
     LoadSidebar {

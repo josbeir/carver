@@ -5,7 +5,7 @@ use carver_sdk::{
     CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
-use super::{ActionKey, EditorSessionId, RequestId, TimerId, UiError};
+use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
 
 /// A UI event or asynchronous completion accepted by the reducer.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,6 +86,17 @@ pub enum EditorMsg {
     },
     /// Replace the canonical source after a source or rich projection changed it.
     SourceChanged(String),
+    /// Debounce persistence after a source edit.
+    AutosaveRequested,
+    /// The latest editor autosave timer fired.
+    AutosaveElapsed {
+        /// Editor lifetime that scheduled the timer.
+        session: EditorSessionId,
+        /// Timer identity used to reject superseded source edits.
+        timer_id: TimerId,
+    },
+    /// Retry the current failed save without changing canonical source.
+    RetrySave,
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }
@@ -185,6 +196,13 @@ pub enum LibraryReply {
     TrashMutationFinished {
         /// Successful mutation result or a displayable failure.
         result: Result<TrashMutation, UiError>,
+    },
+    /// A session- and revision-identified editor save completed.
+    EditorSaved {
+        /// Save identity used to reject stale completion work.
+        request: EditorSaveRequest,
+        /// Persisted revision or a user-displayable failure.
+        result: Result<Revision, UiError>,
     },
 }
 

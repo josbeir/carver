@@ -113,7 +113,7 @@ impl<T> Resource<T> {
 }
 
 /// The currently visible high-level application surface.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum Route {
     /// The category browser and note list.
     #[default]
@@ -142,6 +142,8 @@ pub struct Preferences {
     pub load_remote_images: bool,
     /// The editor surface last explicitly selected by the user.
     pub editor_mode: EditorMode,
+    /// Milliseconds to wait after an edit before starting an autosave.
+    pub autosave_delay_ms: u64,
     /// Whether source mode restores its preview split.
     pub source_split_view: bool,
 }
@@ -151,19 +153,37 @@ impl From<&Config> for Preferences {
         Self {
             load_remote_images: config.images.load_remote_automatically,
             editor_mode: config.editor.last_mode,
+            autosave_delay_ms: config.editor.autosave_delay_ms,
             source_split_view: config.editor.source_split_view,
         }
     }
 }
 
 /// The save lifecycle of the active editor document.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum EditorSaveState {
     /// The canonical source matches the last persisted source.
     #[default]
     Clean,
     /// The canonical source has changed and needs to be persisted.
     Dirty,
+    /// A snapshot of the canonical source is being persisted.
+    Saving(EditorSaveRequest),
+    /// The last save failed; the canonical source remains available for retry.
+    Failed(UiError),
+}
+
+/// The identity and immutable source snapshot for one editor save.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorSaveRequest {
+    /// Editor lifetime that started this save.
+    pub session: EditorSessionId,
+    /// Note being saved.
+    pub note_id: NoteId,
+    /// Revision the save must still match.
+    pub expected_revision: Revision,
+    /// Canonical Carve source captured for this save.
+    pub source: String,
 }
 
 /// The UI-neutral, canonical representation of one note being edited.
@@ -181,6 +201,7 @@ pub struct EditorDocument {
     pub mode: EditorMode,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
+    save_timer: Option<TimerId>,
 }
 
 impl EditorDocument {
@@ -198,14 +219,45 @@ impl EditorDocument {
             source,
             mode,
             save_state: EditorSaveState::Clean,
+            save_timer: None,
         }
     }
 
-    pub(super) fn source_changed(&mut self, source: String) {
+    pub(super) fn source_changed(&mut self, source: String) -> bool {
         if self.source != source {
             self.source = source;
-            self.save_state = EditorSaveState::Dirty;
+            if !matches!(self.save_state, EditorSaveState::Saving(_)) {
+                self.save_state = EditorSaveState::Dirty;
+            }
+            return true;
         }
+        false
+    }
+
+    pub(super) fn schedule_save(&mut self, timer_id: TimerId) {
+        self.save_timer = Some(timer_id);
+    }
+
+    pub(super) fn begin_save(&mut self) -> Option<EditorSaveRequest> {
+        if !matches!(
+            self.save_state,
+            EditorSaveState::Dirty | EditorSaveState::Failed(_)
+        ) {
+            return None;
+        }
+        self.save_timer = None;
+        let request = EditorSaveRequest {
+            session: self.session,
+            note_id: self.note_id,
+            expected_revision: self.revision,
+            source: self.source.clone(),
+        };
+        self.save_state = EditorSaveState::Saving(request.clone());
+        Some(request)
+    }
+
+    pub(super) fn is_current_timer(&self, timer_id: TimerId) -> bool {
+        self.save_timer == Some(timer_id)
     }
 }
 

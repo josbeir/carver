@@ -24,8 +24,10 @@ pub(crate) const APPLICATION_ICON: &str = "io.github.josbeir.Carver";
 /// Runs the Libadwaita application.
 pub(crate) fn run() -> glib::ExitCode {
     glib::set_application_name(APPLICATION_NAME);
+    let application_id =
+        std::env::var("CARVER_APPLICATION_ID").unwrap_or_else(|_| APPLICATION_ID.to_owned());
     let application =
-        adw::Application::new(Some(APPLICATION_ID), gtk::gio::ApplicationFlags::empty());
+        adw::Application::new(Some(&application_id), gtk::gio::ApplicationFlags::empty());
     application.connect_activate(build_application);
     application.run()
 }
