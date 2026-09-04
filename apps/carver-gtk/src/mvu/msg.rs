@@ -110,6 +110,15 @@ pub enum EditorMsg {
         /// Decoded image bytes from the `WebKit` bridge.
         bytes: Vec<u8>,
     },
+    /// Store a native image selected outside the rich-editor bridge.
+    ImportImage {
+        /// Validated image extension.
+        extension: String,
+        /// Image content read by the GTK adapter.
+        bytes: Vec<u8>,
+        /// User-visible alternative text.
+        alt: String,
+    },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }
@@ -228,6 +237,8 @@ pub enum LibraryReply {
     EditorAssetStored {
         /// Editor lifetime that requested the asset.
         session: EditorSessionId,
+        /// Alternative text selected when the import began.
+        alt: String,
         /// Portable managed asset path or a user-displayable failure.
         result: Result<String, UiError>,
     },

@@ -9,13 +9,16 @@ use adw::prelude::*;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{controller::AppState, editor::source_commands};
+use crate::{
+    editor::source_commands,
+    mvu::{AppDispatcher, AppMsg, EditorMsg},
+};
 
 /// Appends Carve-source formatting controls to an editor toolbar.
 pub(crate) fn append_source_controls(
     toolbar: &gtk::Box,
     buffer: &gtk::TextBuffer,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
 ) {
     append_source_inline_controls(toolbar, buffer);
@@ -26,7 +29,7 @@ pub(crate) fn append_source_controls(
     append_source_code_block_button(toolbar, buffer);
     append_source_link_button(toolbar, buffer);
     append_source_table_picker(toolbar, buffer);
-    append_source_image_menu(toolbar, buffer, state, toast_overlay);
+    append_source_image_menu(toolbar, buffer, dispatcher, toast_overlay);
 }
 
 fn append_source_inline_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
@@ -198,7 +201,7 @@ fn append_source_table_picker(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
 fn append_source_image_menu(
     toolbar: &gtk::Box,
     buffer: &gtk::TextBuffer,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
 ) {
     let menu = gtk::MenuButton::new();
@@ -209,14 +212,10 @@ fn append_source_image_menu(
     let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let insert = gtk::Button::with_label("Insert image…");
     insert.add_css_class("flat");
-    let buffer_for_insert = buffer.clone();
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
     insert.connect_clicked(move |button| {
-        let buffer = buffer_for_insert.clone();
-        choose_managed_image(button, &state, &toast_overlay, move |path, alt| {
-            source_commands::insert_image(&buffer, &alt, &path);
-        });
+        choose_managed_image(button, &dispatcher, &toast_overlay);
     });
     choices.append(&insert);
     choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
@@ -247,9 +246,8 @@ fn append_source_image_menu(
 /// and rich editing therefore cannot accidentally persist machine-local paths.
 pub(crate) fn choose_managed_image(
     button: &gtk::Button,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
-    on_insert: impl Fn(String, String) + 'static,
 ) {
     let filter = gtk::FileFilter::new();
     filter.set_name(Some("Images"));
@@ -268,9 +266,8 @@ pub(crate) fn choose_managed_image(
     dialog.set_filters(Some(&filters));
     dialog.set_default_filter(Some(&filter));
     let parent = button.root().and_downcast::<gtk::Window>();
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
-    let on_insert: Rc<dyn Fn(String, String)> = Rc::new(on_insert);
     let dialog_parent = parent.clone();
     dialog.open(
         parent.as_ref(),
@@ -289,9 +286,8 @@ pub(crate) fn choose_managed_image(
             show_image_alt_dialog(
                 &file,
                 &alt,
-                &state,
+                &dispatcher,
                 &toast_overlay,
-                Rc::clone(&on_insert),
                 dialog_parent.as_ref(),
             );
         },
@@ -301,9 +297,8 @@ pub(crate) fn choose_managed_image(
 fn show_image_alt_dialog(
     file: &gtk::gio::File,
     suggested_alt: &str,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
-    on_insert: Rc<dyn Fn(String, String)>,
     parent: Option<&gtk::Window>,
 ) {
     let alt = gtk::Entry::new();
@@ -318,7 +313,7 @@ fn show_image_alt_dialog(
         .build();
     dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
     let file = file.clone();
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
     dialog.connect_response(None, move |_dialog, response| {
         if response != "insert" {
@@ -331,9 +326,8 @@ fn show_image_alt_dialog(
         import_managed_image_file(
             &file,
             alt.text().as_str(),
-            &state,
+            &dispatcher,
             &toast_overlay,
-            Rc::clone(&on_insert),
             extension,
         );
     });
@@ -344,35 +338,23 @@ fn show_image_alt_dialog(
 pub(crate) fn import_managed_image_file(
     file: &gtk::gio::File,
     alt: &str,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
-    on_insert: Rc<dyn Fn(String, String)>,
     extension: &'static str,
 ) {
     let alt = alt.to_owned();
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
     file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
         let Ok((bytes, _)) = result else {
             toast_overlay.add_toast(adw::Toast::new("Could not read the selected image"));
             return;
         };
-        let Some(note) = state.current_note.borrow().clone() else {
-            toast_overlay.add_toast(adw::Toast::new("Select a note before inserting an image"));
-            return;
-        };
-        let client = state.client.clone();
-        let toast_overlay = toast_overlay.clone();
-        glib::spawn_future_local(async move {
-            match client
-                .store_asset_async(note.id, extension.to_owned(), bytes.as_ref().to_vec())
-                .await
-            {
-                Ok(path) => on_insert(path, alt),
-                Err(error) => toast_overlay
-                    .add_toast(adw::Toast::new(&format!("Could not store image: {error}"))),
-            }
-        });
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImage {
+            extension: extension.to_owned(),
+            bytes: bytes.as_ref().to_vec(),
+            alt,
+        }));
     });
 }
 

@@ -281,12 +281,14 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
             note_id,
             extension: "png".to_owned(),
             bytes: vec![1, 2, 3],
+            alt: "Pasted image".to_owned(),
         }]
     );
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorAssetStored {
             session,
+            alt: "Pasted image".to_owned(),
             result: Ok("assets/pasted.png".to_owned()),
         }),
     );
@@ -307,6 +309,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
             &mut model,
             AppMsg::Library(LibraryReply::EditorAssetStored {
                 session,
+                alt: "Pasted image".to_owned(),
                 result: Ok("assets/stale.png".to_owned()),
             }),
         )

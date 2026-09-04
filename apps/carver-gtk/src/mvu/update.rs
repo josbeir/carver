@@ -138,17 +138,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .map_or_else(Vec::new, |note_id| {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
-        EditorMsg::PasteImage { extension, bytes } => model
-            .editor
-            .as_ref()
-            .map(|document| Effect::StoreEditorAsset {
-                session: document.session,
-                note_id: document.note_id,
-                extension,
-                bytes,
-            })
-            .into_iter()
-            .collect(),
+        EditorMsg::PasteImage { extension, bytes } => {
+            store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"))
+        }
+        EditorMsg::ImportImage {
+            extension,
+            bytes,
+            alt,
+        } => store_editor_asset_effect(model, extension, bytes, alt),
         EditorMsg::Close(session_id)
             if model
                 .editor
@@ -282,7 +279,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             }
             Vec::new()
         }
-        LibraryReply::EditorAssetStored { session, result } => {
+        LibraryReply::EditorAssetStored {
+            session,
+            alt,
+            result,
+        } => {
             let Some(document) = model
                 .editor
                 .as_mut()
@@ -296,7 +297,9 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     if !source.is_empty() && !source.ends_with('\n') {
                         source.push('\n');
                     }
-                    source.push_str("![Pasted image](");
+                    source.push_str("![");
+                    source.push_str(&alt);
+                    source.push_str("](");
                     source.push_str(&path);
                     source.push_str(")\n");
                     if document.source_changed(source) {
@@ -328,6 +331,26 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_save(model, &request, result)
         }
     }
+}
+
+fn store_editor_asset_effect(
+    model: &AppModel,
+    extension: String,
+    bytes: Vec<u8>,
+    alt: String,
+) -> Vec<Effect> {
+    model
+        .editor
+        .as_ref()
+        .map(|document| Effect::StoreEditorAsset {
+            session: document.session,
+            note_id: document.note_id,
+            extension,
+            bytes,
+            alt,
+        })
+        .into_iter()
+        .collect()
 }
 
 fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {

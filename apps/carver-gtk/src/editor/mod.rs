@@ -213,9 +213,15 @@ pub(crate) fn build_editor(
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(state.assets_dir.as_deref());
-    let rich_toolbar = web::append_controls(&rich_format_bar, &rich, state, toast_overlay);
+    let rich_toolbar =
+        web::append_controls(&rich_format_bar, &rich, &state.dispatcher, toast_overlay);
     rich.connect_selection_changed(move |selection| rich_toolbar.set_selection_state(&selection));
-    formatting::append_source_controls(&source_format_bar, &source_buffer, state, toast_overlay);
+    formatting::append_source_controls(
+        &source_format_bar,
+        &source_buffer,
+        &state.dispatcher,
+        toast_overlay,
+    );
     format_stack.add_named(&rich_format_bar, Some("rich"));
     format_stack.add_named(&source_format_bar, Some("source"));
     install_source_shortcuts(&source, &source_buffer);
@@ -279,18 +285,10 @@ pub(crate) fn build_editor(
         &rendered_preview,
         &rendering,
     );
-    let _source_image_paste =
-        render::install_image_paste(&source, &source_buffer, state, toast_overlay);
-    let source_buffer_for_drop = source_buffer.clone();
-    let _source_image_drop =
-        render::install_image_drop(&source, state, toast_overlay, move |path, alt| {
-            source_commands::insert_image(&source_buffer_for_drop, &alt, &path);
-        });
-    let rich_for_drop = rich.clone();
+    let _source_image_paste = render::install_image_paste(&source, &state.dispatcher);
+    let _source_image_drop = render::install_image_drop(&source, &state.dispatcher, toast_overlay);
     let _rich_image_drop =
-        render::install_image_drop(rich.view(), state, toast_overlay, move |path, alt| {
-            rich_for_drop.insert_image_with_alt(&path, &alt);
-        });
+        render::install_image_drop(rich.view(), &state.dispatcher, toast_overlay);
     let refs = EditorViewRefs {
         rich_mode,
         source_mode,

@@ -12,7 +12,6 @@ use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
 use crate::{
-    controller::AppState,
     formatting,
     mvu::{AppDispatcher, AppMsg, EditorMsg},
 };
@@ -280,15 +279,6 @@ impl RichEditor {
         ));
     }
 
-    /// Inserts a managed asset that was supplied by a native image source.
-    pub(crate) fn insert_image_with_alt(&self, path: &str, alt: &str) {
-        self.evaluate(&format!(
-            "window.carverEditor.insertImage({}, {});",
-            json(path),
-            json(alt)
-        ));
-    }
-
     fn evaluate(&self, script: &str) {
         self.view.evaluate_javascript(
             script,
@@ -308,7 +298,7 @@ impl RichEditor {
 pub(crate) fn append_controls(
     toolbar: &gtk::Box,
     editor: &RichEditor,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &libadwaita::ToastOverlay,
 ) -> RichToolbar {
     let mut toggle_buttons = Vec::new();
@@ -409,7 +399,8 @@ pub(crate) fn append_controls(
     toggle_buttons.push(("link", link));
     let (heading, heading_choices) = append_heading_menu(toolbar, editor);
     let table = append_table_menu(toolbar, editor);
-    let (image, image_width_choices) = append_image_menu(toolbar, editor, state, toast_overlay);
+    let (image, image_width_choices) =
+        append_image_menu(toolbar, editor, dispatcher, toast_overlay);
     RichToolbar {
         toggle_buttons,
         heading,
@@ -632,7 +623,7 @@ fn parse_link_context(value: &str) -> LinkContext {
 fn append_image_menu(
     toolbar: &gtk::Box,
     editor: &RichEditor,
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toast_overlay: &libadwaita::ToastOverlay,
 ) -> (gtk::MenuButton, Vec<(Option<u8>, gtk::ToggleButton)>) {
     let menu = gtk::MenuButton::new();
@@ -643,14 +634,10 @@ fn append_image_menu(
     let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let insert = gtk::Button::with_label("Insert image…");
     insert.add_css_class("flat");
-    let editor_for_insert = editor.clone();
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
     insert.connect_clicked(move |button| {
-        let editor = editor_for_insert.clone();
-        formatting::choose_managed_image(button, &state, &toast_overlay, move |path, alt| {
-            editor.insert_image_with_alt(&path, &alt);
-        });
+        formatting::choose_managed_image(button, &dispatcher, &toast_overlay);
     });
     choices.append(&insert);
     choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));

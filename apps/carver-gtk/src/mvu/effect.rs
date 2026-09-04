@@ -36,6 +36,8 @@ pub enum Effect {
         extension: String,
         /// Image content to store.
         bytes: Vec<u8>,
+        /// Alternative text to retain on completion.
+        alt: String,
     },
     /// Load sidebar categories and active-note counts.
     LoadSidebar {

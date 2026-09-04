@@ -131,16 +131,6 @@ impl SourceEdit {
         self.selection = cursor..cursor;
     }
 
-    /// Inserts a managed image at the cursor.
-    pub(crate) fn insert_image(&mut self, alt: &str, path: &str) {
-        let markup = format!("\n![{}]({path})\n", alt.replace(']', "\\]"));
-        let length = markup.chars().count();
-        let cursor = self.selection.end;
-        self.replace(cursor..cursor, &markup, 0);
-        let cursor = cursor.saturating_add(length);
-        self.selection = cursor..cursor;
-    }
-
     /// Updates the width attribute of the direct image containing the cursor.
     pub(crate) fn set_image_width(&mut self, width: Option<u8>) -> bool {
         let cursor = character_to_byte(&self.source, self.selection.end);
@@ -241,11 +231,6 @@ pub(crate) fn insert_link(buffer: &gtk::TextBuffer, text: &str, destination: &st
 /// Inserts a Carve table with the selected dimensions at the source cursor.
 pub(crate) fn insert_table(buffer: &gtk::TextBuffer, rows: u8, columns: u8, header: bool) {
     apply_buffer_edit(buffer, |edit| edit.insert_table(rows, columns, header));
-}
-
-/// Inserts a managed image as a stand-alone Carve block.
-pub(crate) fn insert_image(buffer: &gtk::TextBuffer, alt: &str, path: &str) {
-    apply_buffer_edit(buffer, |edit| edit.insert_image(alt, path));
 }
 
 /// Updates the width attribute of the direct Carve image containing the cursor.

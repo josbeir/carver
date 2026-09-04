@@ -198,7 +198,7 @@ fn link_command_replaces_selection_or_inserts_at_cursor() {
     assert_eq!(text(&inserted), "Read [more](https://example.com/more)");
 }
 
-fn image_commands_insert_standalone_markup_and_update_width() {
+fn image_width_command_updates_the_direct_image_at_the_cursor() {
     let buffer = buffer_with("![Diagram](assets/diagram.png){width=\"25%\"}");
     let cursor = buffer.iter_at_offset(30);
     buffer.place_cursor(&cursor);
@@ -207,10 +207,6 @@ fn image_commands_insert_standalone_markup_and_update_width() {
         text(&buffer),
         "![Diagram](assets/diagram.png){width=\"50%\"}"
     );
-
-    let inserted = buffer_with("");
-    insert_image(&inserted, "Diagram", "assets/diagram.png");
-    assert_eq!(text(&inserted), "\n![Diagram](assets/diagram.png)\n");
 }
 
 pub(crate) fn gtk_source_commands_cover_selection_and_block_operations() {
@@ -222,5 +218,5 @@ pub(crate) fn gtk_source_commands_cover_selection_and_block_operations() {
     code_block_command_wraps_then_unwraps_the_selection();
     code_block_command_without_selection_uses_inline_code();
     link_command_replaces_selection_or_inserts_at_cursor();
-    image_commands_insert_standalone_markup_and_update_width();
+    image_width_command_updates_the_direct_image_at_the_cursor();
 }

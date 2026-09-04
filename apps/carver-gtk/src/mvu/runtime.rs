@@ -122,7 +122,8 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 note_id,
                 extension,
                 bytes,
-            } => self.store_editor_asset(session, note_id, extension, bytes),
+                alt,
+            } => self.store_editor_asset(session, note_id, extension, bytes, alt),
             Effect::LoadSidebar { request_id } => {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();
@@ -281,6 +282,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         note_id: carver_sdk::NoteId,
         extension: String,
         bytes: Vec<u8>,
+        alt: String,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
@@ -291,6 +293,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorAssetStored {
                 session,
+                alt,
                 result,
             }));
         });
