@@ -27,6 +27,10 @@ type AppLibraryClient = LibraryClient<SqliteLibrary>;
 /// Runs the Libadwaita application.
 pub(crate) fn run() -> glib::ExitCode {
     glib::set_application_name(APPLICATION_NAME);
+    if std::env::var_os("CARVER_DISABLE_PORTALS").is_some() {
+        // CONTEXT: the black-box headless test has no desktop portal services.
+        gtk::disable_portals();
+    }
     let application_id =
         std::env::var("CARVER_APPLICATION_ID").unwrap_or_else(|_| APPLICATION_ID.to_owned());
     let application =

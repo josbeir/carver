@@ -6,6 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
+
 #[test]
 #[ignore = "requires the Weston harness and starts the GTK application process"]
 fn application_should_create_an_isolated_library_on_startup()
@@ -21,8 +23,11 @@ fn application_should_create_an_isolated_library_on_startup()
         .env("XDG_CONFIG_HOME", config_home)
         .env("XDG_DATA_HOME", data_home)
         .env("XDG_CACHE_HOME", cache_home)
+        // Headless CI does not provide desktop portal or accessibility services.
+        .env("CARVER_DISABLE_PORTALS", "1")
+        .env("GTK_A11Y", "none")
         .spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + STARTUP_TIMEOUT;
     let mut started = false;
     while Instant::now() < deadline {
         if database.is_file() {
