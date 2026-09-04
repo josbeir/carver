@@ -1,5 +1,6 @@
 //! Source-editor image paste support.
 
+use super::source_commands;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -20,11 +21,13 @@ pub(crate) fn install_image_paste(
     let controller = gtk::EventControllerKey::new();
     let dispatcher = dispatcher.clone();
     let clipboard = view.display().clipboard();
+    let source_buffer = view.buffer();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
         if key != gtk::gdk::Key::v || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
         let dispatcher = dispatcher.clone();
+        let source_selection = source_commands::selection_from_buffer(&source_buffer);
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
             let Ok(Some(texture)) = result else {
                 return;
@@ -34,6 +37,7 @@ pub(crate) fn install_image_paste(
                 extension: String::from("png"),
                 bytes,
                 alt: String::from("Pasted image"),
+                source_selection: Some(source_selection),
             }));
         });
         glib::Propagation::Proceed

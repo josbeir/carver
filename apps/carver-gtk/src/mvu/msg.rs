@@ -1,5 +1,7 @@
 //! Messages accepted by the application reducer.
 
+use std::ops::Range;
+
 use carver_config::EditorMode;
 use carver_sdk::{
     CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents, TrashPurgeResult,
@@ -131,6 +133,9 @@ pub enum EditorMsg {
         bytes: Vec<u8>,
         /// User-visible alternative text.
         alt: String,
+        /// Source selection to replace after storage completes, when the image originated in
+        /// the native source editor.
+        source_selection: Option<Range<usize>>,
     },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
@@ -305,6 +310,8 @@ pub enum LibraryReply {
         session: EditorSessionId,
         /// Alternative text selected when the import began.
         alt: String,
+        /// Source selection to replace after storage completes, when applicable.
+        source_selection: Option<Range<usize>>,
         /// Portable managed asset path or a user-displayable failure.
         result: Result<String, UiError>,
     },

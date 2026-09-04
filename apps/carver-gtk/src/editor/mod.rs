@@ -88,7 +88,11 @@ impl EditorViewRefs {
         });
         self.rendering.set(true);
         if source_changed {
-            self.source_buffer.set_text(&document.source);
+            if new_document {
+                self.source_buffer.set_text(&document.source);
+            } else {
+                source_commands::replace_source_buffer(&self.source_buffer, &document.source);
+            }
         }
         if (preview_changed || remote_images_changed || theme_changed)
             && let Some(preview) = preview.as_ref()

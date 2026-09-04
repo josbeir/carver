@@ -125,6 +125,7 @@ pub(crate) fn import_managed_image_file(
             extension: extension.to_owned(),
             bytes: bytes.as_ref().to_vec(),
             alt,
+            source_selection: None,
         }));
     });
 }

@@ -320,7 +320,7 @@ pub(crate) fn selection_from_buffer(buffer: &gtk::TextBuffer) -> Range<usize> {
 }
 
 fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
-    replace_changed_buffer_range(buffer, edit.source());
+    replace_source_buffer(buffer, edit.source());
     let selection = edit.selection();
     let start = buffer.iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
     let end = buffer.iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
@@ -329,6 +329,14 @@ fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
     } else {
         buffer.select_range(&start, &end);
     }
+}
+
+/// Synchronizes canonical source with the smallest possible buffer replacement.
+///
+/// Keeping the edit local lets `GtkTextView` retain its scroll anchor while an
+/// asynchronous operation, such as managed-image storage, completes.
+pub(crate) fn replace_source_buffer(buffer: &gtk::TextBuffer, source: &str) {
+    replace_changed_buffer_range(buffer, source);
 }
 
 /// Replaces only the changed span so `GtkTextView` retains its scroll anchor.

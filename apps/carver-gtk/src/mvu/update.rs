@@ -181,13 +181,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
         EditorMsg::PasteImage { extension, bytes } => {
-            store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"))
+            store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"), None)
         }
         EditorMsg::ImportImage {
             extension,
             bytes,
             alt,
-        } => store_editor_asset_effect(model, extension, bytes, alt),
+            source_selection,
+        } => store_editor_asset_effect(model, extension, bytes, alt, source_selection),
         EditorMsg::Close(session_id)
             if model
                 .editor
@@ -384,6 +385,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::EditorAssetStored {
             session,
             alt,
+            source_selection,
             result,
         } => {
             let Some(document) = model
@@ -395,15 +397,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             };
             match result {
                 Ok(path) => {
-                    let mut source = document.source.clone();
-                    if !source.is_empty() && !source.ends_with('\n') {
-                        source.push('\n');
-                    }
-                    source.push_str("![");
-                    source.push_str(&alt);
-                    source.push_str("](");
-                    source.push_str(&path);
-                    source.push_str(")\n");
+                    let source = image_source(&document.source, &alt, &path, source_selection);
                     if document.source_changed(source) {
                         [schedule_preview(model), schedule_editor_save(model)]
                             .into_iter()
@@ -483,6 +477,7 @@ fn store_editor_asset_effect(
     extension: String,
     bytes: Vec<u8>,
     alt: String,
+    source_selection: Option<std::ops::Range<usize>>,
 ) -> Vec<Effect> {
     model
         .editor
@@ -493,9 +488,40 @@ fn store_editor_asset_effect(
             extension,
             bytes,
             alt,
+            source_selection,
         })
         .into_iter()
         .collect()
+}
+
+fn image_source(
+    source: &str,
+    alt: &str,
+    path: &str,
+    source_selection: Option<std::ops::Range<usize>>,
+) -> String {
+    let markup = format!("![{alt}]({path})");
+    let Some(selection) = source_selection else {
+        let mut source = source.to_owned();
+        if !source.is_empty() && !source.ends_with('\n') {
+            source.push('\n');
+        }
+        source.push_str(&markup);
+        source.push('\n');
+        return source;
+    };
+    let start = character_byte_offset(source, selection.start);
+    let end = character_byte_offset(source, selection.end.max(selection.start));
+    let mut inserted = source.to_owned();
+    inserted.replace_range(start..end, &markup);
+    inserted
+}
+
+fn character_byte_offset(source: &str, offset: usize) -> usize {
+    source
+        .char_indices()
+        .nth(offset)
+        .map_or(source.len(), |(index, _)| index)
 }
 
 fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {

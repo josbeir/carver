@@ -298,6 +298,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
             extension: "png".to_owned(),
             bytes: vec![1, 2, 3],
             alt: "Pasted image".to_owned(),
+            source_selection: None,
         }]
     );
     let effects = update(
@@ -305,6 +306,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
         AppMsg::Library(LibraryReply::EditorAssetStored {
             session,
             alt: "Pasted image".to_owned(),
+            source_selection: None,
             result: Ok("assets/pasted.png".to_owned()),
         }),
     );
@@ -326,12 +328,61 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
             AppMsg::Library(LibraryReply::EditorAssetStored {
                 session,
                 alt: "Pasted image".to_owned(),
+                source_selection: None,
                 result: Ok("assets/stale.png".to_owned()),
             }),
         )
         .is_empty()
     );
     assert_eq!(model.editor, None);
+}
+
+#[test]
+fn source_image_paste_should_replace_the_captured_cursor_selection() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "Before remove After".to_owned(),
+        }),
+    );
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor should be open");
+    };
+    let selection = 7..13;
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ImportImage {
+            extension: "png".to_owned(),
+            bytes: vec![1, 2, 3],
+            alt: "Pasted image".to_owned(),
+            source_selection: Some(selection.clone()),
+        }),
+    );
+    assert!(
+        matches!(effects.as_slice(), [Effect::StoreEditorAsset { source_selection: Some(actual), .. }] if actual == &selection)
+    );
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            session,
+            alt: "Pasted image".to_owned(),
+            source_selection: Some(selection),
+            result: Ok("assets/pasted.png".to_owned()),
+        }),
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Before ![Pasted image](assets/pasted.png) After")
+    );
 }
 
 #[test]

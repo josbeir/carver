@@ -1,5 +1,7 @@
 //! Side effects requested by the pure reducer.
 
+use std::ops::Range;
+
 use carver_config::Config;
 use carver_sdk::{CategoryId, NoteId};
 
@@ -58,6 +60,8 @@ pub enum Effect {
         bytes: Vec<u8>,
         /// Alternative text to retain on completion.
         alt: String,
+        /// Source selection to replace after storage completes, when applicable.
+        source_selection: Option<Range<usize>>,
     },
     /// Load sidebar categories and active-note counts.
     LoadSidebar {
