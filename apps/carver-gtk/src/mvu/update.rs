@@ -170,6 +170,10 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::PreviewElapsed { .. } | EditorMsg::Close(_) => Vec::new(),
+        EditorMsg::ThemeChanged => {
+            model.editor_theme_revision = model.editor_theme_revision.wrapping_add(1);
+            Vec::new()
+        }
     }
 }
 

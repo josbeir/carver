@@ -104,6 +104,8 @@ pub enum EditorMsg {
         /// Timer identity used to reject superseded source edits.
         timer_id: TimerId,
     },
+    /// Re-render editor projections after the desktop palette or accent changes.
+    ThemeChanged,
     /// Retry the current failed save without changing canonical source.
     RetrySave,
     /// Return to the browser after saving the latest canonical source.

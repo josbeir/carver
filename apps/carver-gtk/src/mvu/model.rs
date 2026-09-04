@@ -307,6 +307,8 @@ pub struct AppModel {
     pub editor: Option<EditorDocument>,
     /// Latest debounced editor preview snapshot.
     pub editor_preview: Option<EditorPreview>,
+    /// Monotonic revision that asks editor projections to refresh their theme.
+    pub editor_theme_revision: u64,
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
     /// The request currently loading a note into the editor.
     pub editor_load_request: Option<RequestId>,
@@ -333,6 +335,7 @@ impl AppModel {
             preferences: Preferences::from(config),
             editor: None,
             editor_preview: None,
+            editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,
             next_request_id: 1,

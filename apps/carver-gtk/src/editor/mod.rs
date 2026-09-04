@@ -44,6 +44,7 @@ pub(crate) struct EditorViewRefs {
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
     preview_source: Rc<RefCell<Option<(EditorSessionId, String)>>>,
+    rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
 }
 
@@ -59,6 +60,10 @@ impl EditorViewRefs {
             .remote_images
             .replace(model.preferences.load_remote_images)
             != model.preferences.load_remote_images;
+        let theme_changed = self
+            .rendered_theme_revision
+            .replace(Some(model.editor_theme_revision))
+            != Some(model.editor_theme_revision);
         let source_changed = buffer_text(&self.source_buffer) != document.source;
         let preview = model
             .editor_preview
@@ -77,7 +82,7 @@ impl EditorViewRefs {
         if source_changed {
             self.source_buffer.set_text(&document.source);
         }
-        if (preview_changed || remote_images_changed)
+        if (preview_changed || remote_images_changed || theme_changed)
             && let Some(preview) = preview.as_ref()
         {
             load_preview(
@@ -102,6 +107,9 @@ impl EditorViewRefs {
             } else {
                 self.rich.load_source(&document.source);
             }
+        }
+        if theme_changed {
+            refresh_rich_theme(&self.rich);
         }
         match document.mode {
             EditorMode::Source => {
@@ -230,7 +238,6 @@ pub(crate) fn build_editor(
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_source = Rc::new(RefCell::new(None));
-    refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(state.assets_dir.as_deref());
@@ -288,13 +295,7 @@ pub(crate) fn build_editor(
         &pages.split_supported,
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
-    connect_preview_theme_refresh(
-        &remote_images,
-        &preview_source,
-        &split_preview,
-        &rendered_preview,
-        &rich,
-    );
+    connect_theme_changes(&state.dispatcher);
     connect_trash_action(&state.dispatcher, &trash);
     connect_back_action(&state.dispatcher, &back);
     connect_source_preview(&state.dispatcher, &source_buffer, &rendering);
@@ -316,6 +317,7 @@ pub(crate) fn build_editor(
         rendering,
         remote_images,
         preview_source,
+        rendered_theme_revision: RefCell::new(None),
         loaded_session: RefCell::new(None),
     };
     EditorSurface {
@@ -736,47 +738,15 @@ fn connect_source_preview(
     });
 }
 
-/// Reloads `WebKit` previews when GNOME switches between light and dark palettes.
-fn connect_preview_theme_refresh(
-    remote_images: &Rc<Cell<bool>>,
-    preview_source: &Rc<RefCell<Option<(EditorSessionId, String)>>>,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
-    rich: &RichEditor,
-) {
-    let remote_images_for_dark_theme = Rc::clone(remote_images);
-    let preview_source_for_dark_theme = Rc::clone(preview_source);
-    let split_preview_for_dark_theme = split_preview.clone();
-    let rendered_preview_for_dark_theme = rendered_preview.clone();
-    let rich_for_dark_theme = rich.clone();
+/// Routes desktop theme notifications through the immutable MVU render pass.
+fn connect_theme_changes(dispatcher: &AppDispatcher) {
+    let dispatcher_for_dark_theme = dispatcher.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
-        let source = preview_source_for_dark_theme
-            .borrow()
-            .as_ref()
-            .map(|(_, source)| source.clone());
-        if let Some(source) = source {
-            let remote = remote_images_for_dark_theme.get();
-            load_preview(&split_preview_for_dark_theme, &source, remote);
-            load_preview(&rendered_preview_for_dark_theme, &source, remote);
-        }
-        refresh_rich_theme(&rich_for_dark_theme);
+        let _ = dispatcher_for_dark_theme.dispatch(AppMsg::Editor(EditorMsg::ThemeChanged));
     });
-    let remote_images_for_accent = Rc::clone(remote_images);
-    let preview_source_for_accent = Rc::clone(preview_source);
-    let split_preview = split_preview.clone();
-    let rendered_preview = rendered_preview.clone();
-    let rich = rich.clone();
+    let dispatcher_for_accent = dispatcher.clone();
     adw::StyleManager::default().connect_accent_color_notify(move |_| {
-        let source = preview_source_for_accent
-            .borrow()
-            .as_ref()
-            .map(|(_, source)| source.clone());
-        if let Some(source) = source {
-            let remote = remote_images_for_accent.get();
-            load_preview(&split_preview, &source, remote);
-            load_preview(&rendered_preview, &source, remote);
-        }
-        refresh_rich_theme(&rich);
+        let _ = dispatcher_for_accent.dispatch(AppMsg::Editor(EditorMsg::ThemeChanged));
     });
 }
 

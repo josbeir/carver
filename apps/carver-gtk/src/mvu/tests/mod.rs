@@ -421,6 +421,15 @@ fn latest_preview_timer_should_reject_a_superseded_source_snapshot() {
 }
 
 #[test]
+fn theme_change_should_request_an_editor_projection_refresh() {
+    let mut model = AppModel::new(&Config::default());
+
+    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ThemeChanged)).is_empty());
+
+    assert_eq!(model.editor_theme_revision, 1);
+}
+
+#[test]
 fn source_change_while_saving_should_start_one_follow_up_save() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
