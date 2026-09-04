@@ -7,7 +7,12 @@ use carver_sdk::{TrashedCategorySummary, TrashedNoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{browser::refresh_browser, controller::AppState, sidebar::refresh_sidebar};
+use crate::{
+    browser::refresh_browser,
+    controller::AppState,
+    mvu::{AppMsg, NavigationMsg},
+    sidebar::refresh_sidebar,
+};
 
 /// Builds the recoverable in-app trash page.
 pub(crate) fn build_trash(
@@ -21,7 +26,12 @@ pub(crate) fn build_trash(
     back.set_widget_name("back-from-trash-button");
     back.set_tooltip_text(Some("Back to notes"));
     let stack_for_back = stack.clone();
-    back.connect_clicked(move |_| stack_for_back.set_visible_child_name("browser"));
+    let state_for_back = Rc::clone(state);
+    back.connect_clicked(move |_| {
+        if !state_for_back.dispatch_mvu(AppMsg::Navigation(NavigationMsg::ShowBrowser)) {
+            stack_for_back.set_visible_child_name("browser");
+        }
+    });
     header.pack_start(&back);
     header.set_title_widget(Some(&adw::WindowTitle::new(
         "Trash",

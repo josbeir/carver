@@ -120,14 +120,31 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .flatten()
         .is_some_and(|note| note.category_id == second.id)));
 
+    crate::app::install_mvu_runtime_for_test(&state);
+    assert!(run_main_context_until(|| find_widget(
+        category_list.upcast_ref(),
+        &format!("category:{}", second.id)
+    )
+    .is_some()));
+    let runtime_project_row = find_widget(
+        category_list.upcast_ref(),
+        &format!("category:{}", second.id),
+    )
+    .and_downcast::<gtk::ListBoxRow>()
+    .ok_or("MVU project category row")?;
+    category_list.select_row(Some(&runtime_project_row));
+    assert!(run_main_context_until(|| {
+        state.selected_category.get() == Some(second.id)
+            && state
+                .browser_title
+                .borrow()
+                .as_ref()
+                .is_some_and(|title| title.title() == "Projects")
+    }));
+
     let search = widget_as::<gtk::SearchEntry>(&browser, "note-search-entry").ok_or("search")?;
     search.set_text("not-present");
     search.emit_by_name::<()>("search-changed", &[]);
-    assert!(run_main_context_until(|| state
-        .search_query
-        .borrow()
-        .as_str()
-        == "not-present"));
     let search_empty_card =
         widget_as::<gtk::Box>(&browser, "browser-search-empty-card").ok_or("search empty card")?;
     assert!(run_main_context_until(|| search_empty_card.is_visible()));

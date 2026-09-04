@@ -70,6 +70,15 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
+            Effect::ScheduleSearch { timer_id } => {
+                let runtime = self.clone();
+                glib::spawn_future_local(async move {
+                    glib::timeout_future(std::time::Duration::from_millis(250)).await;
+                    runtime.dispatch(AppMsg::Browser(super::BrowserMsg::SearchTimerFired(
+                        timer_id,
+                    )));
+                });
+            }
             Effect::LoadSidebar { request_id } => {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();

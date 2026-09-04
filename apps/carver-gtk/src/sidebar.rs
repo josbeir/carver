@@ -10,6 +10,7 @@ use crate::{
     browser::refresh_browser,
     controller::AppState,
     dialogs::{show_category_name_dialog, show_category_trash_confirmation},
+    mvu::{AppMsg, NavigationMsg, SidebarMsg},
     trash::refresh_trash,
 };
 
@@ -59,6 +60,17 @@ pub(crate) fn build_sidebar(
             .selected_category_name
             .replace(selected_name);
         if state_for_selection.synchronizing_sidebar_selection.get() {
+            return;
+        }
+        if state_for_selection.is_mvu_rendering() {
+            return;
+        }
+        if state_for_selection
+            .dispatch_mvu(AppMsg::Navigation(NavigationMsg::SelectCategory(selected)))
+        {
+            if split_for_selection.is_collapsed() {
+                split_for_selection.set_show_content(true);
+            }
             return;
         }
         refresh_browser(&state_for_selection);
@@ -153,6 +165,12 @@ fn trash_footer(state: &Rc<AppState>, split_view: &adw::NavigationSplitView) -> 
         if let Some(list) = state_for_trash.sidebar_list.borrow().clone() {
             list.unselect_all();
         }
+        if state_for_trash.dispatch_mvu(AppMsg::Navigation(NavigationMsg::ShowTrash)) {
+            if split_for_trash.is_collapsed() {
+                split_for_trash.set_show_content(true);
+            }
+            return;
+        }
         refresh_browser(&state_for_trash);
         refresh_trash(&state_for_trash);
         if let Some(stack) = state_for_trash.browser_stack.borrow().clone() {
@@ -170,6 +188,9 @@ fn trash_footer(state: &Rc<AppState>, split_view: &adw::NavigationSplitView) -> 
 
 /// Rebuilds the category list after a category or trash action.
 pub(crate) fn refresh_sidebar(state: &Rc<AppState>) {
+    if state.dispatch_mvu(AppMsg::Sidebar(SidebarMsg::Reload)) {
+        return;
+    }
     let Some(list) = state.sidebar_list.borrow().clone() else {
         return;
     };

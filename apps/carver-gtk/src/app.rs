@@ -12,7 +12,9 @@ use crate::{
     browser::build_content,
     controller::{AppLibraryClient, AppState},
     dialogs::{install_window_actions, persist_window_config},
+    mvu::{AppModel, AppMsg, AppRuntime, NavigationMsg},
     sidebar::build_sidebar,
+    view::ViewRefs,
 };
 
 pub(crate) const APPLICATION_ID: &str = "io.github.josbeir.Carver";
@@ -123,6 +125,7 @@ fn build_window(
 
     toast_overlay.set_child(Some(&split_view));
     window.set_content(Some(&toast_overlay));
+    install_mvu_runtime(state);
     let state_for_close = Rc::clone(state);
     window.connect_close_request(move |window| {
         let _ = persist_window_config(
@@ -136,6 +139,50 @@ fn build_window(
     });
     window.present();
     window
+}
+
+fn install_mvu_runtime(state: &Rc<AppState>) {
+    let (
+        Some(route_stack),
+        Some(sidebar_list),
+        Some(browser_list),
+        Some(browser_pages),
+        Some(browser_search_empty_card),
+        Some(browser_empty_new_note_button),
+        Some(browser_title),
+        Some(browser_status),
+        Some(trash_status),
+    ) = (
+        state.browser_stack.borrow().clone(),
+        state.sidebar_list.borrow().clone(),
+        state.browser_list.borrow().clone(),
+        state.browser_content_stack.borrow().clone(),
+        state.browser_search_empty_card.borrow().clone(),
+        state.browser_empty_new_note_button.borrow().clone(),
+        state.browser_title.borrow().clone(),
+        state.browser_status.borrow().clone(),
+        state.trash_status.borrow().clone(),
+    )
+    else {
+        return;
+    };
+    let view = ViewRefs::new(route_stack, browser_status, trash_status).with_browser_and_sidebar(
+        sidebar_list,
+        browser_list,
+        browser_pages,
+        browser_search_empty_card,
+        browser_empty_new_note_button,
+        browser_title,
+    );
+    let model = AppModel::new(&state.config.borrow());
+    if state.install_mvu_runtime(AppRuntime::new(state.client.clone(), model, view)) {
+        let _ = state.dispatch_mvu(AppMsg::Navigation(NavigationMsg::Started));
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn install_mvu_runtime_for_test(state: &Rc<AppState>) {
+    install_mvu_runtime(state);
 }
 
 /// Builds the complete application window inside the shared GTK integration scenario.

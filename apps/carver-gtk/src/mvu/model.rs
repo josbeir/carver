@@ -46,6 +46,39 @@ pub enum LoadState<T> {
     Failed(UiError),
 }
 
+/// A loadable resource with one coalesced reload slot.
+///
+/// Repeated invalidations while a request is running do not allocate more work. The reducer
+/// starts exactly one follow-up request after the active request completes.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Resource<T> {
+    /// State rendered by a view.
+    pub state: LoadState<T>,
+    reload_requested: bool,
+}
+
+impl<T> Resource<T> {
+    pub(super) fn begin_reload(&mut self, request_id: RequestId) -> bool {
+        if matches!(self.state, LoadState::Loading(_)) {
+            self.reload_requested = true;
+            return false;
+        }
+        self.state = LoadState::Loading(request_id);
+        true
+    }
+
+    pub(super) fn finish(&mut self, request_id: RequestId, result: Result<T, UiError>) -> bool {
+        if !matches!(self.state, LoadState::Loading(current) if current == request_id) {
+            return false;
+        }
+        self.state = match result {
+            Ok(value) => LoadState::Ready(value),
+            Err(error) => LoadState::Failed(error),
+        };
+        std::mem::take(&mut self.reload_requested)
+    }
+}
+
 /// The currently visible high-level application surface.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Route {
@@ -64,7 +97,9 @@ pub struct BrowserModel {
     /// Current untrimmed search text as entered by the user.
     pub search_query: String,
     /// Loaded note summaries for the active category and query.
-    pub notes: LoadState<Vec<NoteSummary>>,
+    pub notes: Resource<Vec<NoteSummary>>,
+    /// The debounce timer authorized to reload after the latest search change.
+    pub search_timer: Option<TimerId>,
 }
 
 /// User preferences needed by the renderer.
@@ -96,17 +131,18 @@ pub struct AppModel {
     /// Category selected by the user, or all categories when absent.
     pub selected_category: Option<CategoryId>,
     /// Categories rendered by the sidebar.
-    pub sidebar: LoadState<Vec<CategorySummary>>,
+    pub sidebar: Resource<Vec<CategorySummary>>,
     /// Browser state and its loaded note summaries.
     pub browser: BrowserModel,
     /// Recoverable deleted content.
-    pub trash: LoadState<TrashContents>,
+    pub trash: Resource<TrashContents>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
     /// Active editor lifetime, if an editor is open.
     pub editor_session: Option<EditorSessionId>,
     next_request_id: u64,
     next_editor_session_id: u64,
+    next_timer_id: u64,
 }
 
 impl AppModel {
@@ -116,13 +152,14 @@ impl AppModel {
         Self {
             route: Route::Browser,
             selected_category: None,
-            sidebar: LoadState::Idle,
+            sidebar: Resource::default(),
             browser: BrowserModel::default(),
-            trash: LoadState::Idle,
+            trash: Resource::default(),
             preferences: Preferences::from(config),
             editor_session: None,
             next_request_id: 1,
             next_editor_session_id: 1,
+            next_timer_id: 1,
         }
     }
 
@@ -136,5 +173,11 @@ impl AppModel {
         let session_id = EditorSessionId(self.next_editor_session_id);
         self.next_editor_session_id = self.next_editor_session_id.wrapping_add(1);
         session_id
+    }
+
+    pub(super) fn next_timer_id(&mut self) -> TimerId {
+        let timer_id = TimerId(self.next_timer_id);
+        self.next_timer_id = self.next_timer_id.wrapping_add(1);
+        timer_id
     }
 }

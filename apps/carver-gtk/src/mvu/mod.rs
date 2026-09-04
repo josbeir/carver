@@ -11,8 +11,8 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    AppModel, BrowserModel, EditorSessionId, LoadState, Preferences, RequestId, Route, TimerId,
-    UiError,
+    AppModel, BrowserModel, EditorSessionId, LoadState, Preferences, RequestId, Resource, Route,
+    TimerId, UiError,
 };
 pub use msg::{
     AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg,

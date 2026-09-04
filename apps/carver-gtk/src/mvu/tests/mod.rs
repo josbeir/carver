@@ -2,6 +2,7 @@ use carver_config::{AppPaths, Config};
 use carver_sdk::CategoryId;
 use carver_sdk::LibraryClient;
 use carver_storage_sqlite::SqliteLibrary;
+use gtk::prelude::*;
 
 use super::{
     AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect, LibraryReply, LoadState,
@@ -27,15 +28,15 @@ fn startup_should_request_sidebar_and_browser_data() {
             },
         ]
     );
-    assert_eq!(model.sidebar, LoadState::Loading(RequestId(1)));
-    assert_eq!(model.browser.notes, LoadState::Loading(RequestId(2)));
+    assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
+    assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(2)));
 }
 
 #[test]
 fn stale_browser_reply_should_not_replace_a_newer_request() {
     let mut model = AppModel::new(&Config::default());
     let first = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
-    let second = update(
+    let timer = update(
         &mut model,
         AppMsg::Browser(BrowserMsg::SearchChanged("new query".to_owned())),
     );
@@ -43,19 +44,34 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
         [Effect::LoadBrowser { request_id, .. }] => *request_id,
         _ => panic!("browser reload should produce one browser effect"),
     };
-    let second_request = match second.as_slice() {
-        [Effect::LoadBrowser { request_id, .. }] => *request_id,
-        _ => panic!("search should produce one browser effect"),
+    let timer_id = match timer.as_slice() {
+        [Effect::ScheduleSearch { timer_id }] => *timer_id,
+        _ => panic!("search should schedule one timer"),
     };
 
-    let _ = update(
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Browser(BrowserMsg::SearchTimerFired(timer_id)),
+        )
+        .is_empty()
+    );
+
+    let follow_up = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
             request_id: first_request,
             result: Ok(Vec::new()),
         }),
     );
-    assert_eq!(model.browser.notes, LoadState::Loading(second_request));
+    let second_request = match follow_up.as_slice() {
+        [Effect::LoadBrowser { request_id, .. }] => *request_id,
+        _ => panic!("a queued reload should start after the active request"),
+    };
+    assert_eq!(
+        model.browser.notes.state,
+        LoadState::Loading(second_request)
+    );
 
     let _ = update(
         &mut model,
@@ -65,7 +81,7 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
         }),
     );
     assert_eq!(
-        model.browser.notes,
+        model.browser.notes.state,
         LoadState::Failed(UiError::new("search failed"))
     );
 }
@@ -132,37 +148,52 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     for name in ["browser", "editor", "trash"] {
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
     }
+    let sidebar_list = gtk::ListBox::new();
+    let browser_list = gtk::ListBox::new();
+    let browser_pages = gtk::Stack::new();
+    let browser_status = libadwaita::StatusPage::new();
+    browser_pages.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("contents"),
+    );
+    browser_pages.add_named(&browser_status, Some("empty"));
+    let search_empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let empty_new_note = gtk::Button::new();
     let runtime = AppRuntime::new(
         client,
         AppModel::new(&Config::default()),
-        crate::view::ViewRefs::new(
-            stack,
-            libadwaita::StatusPage::new(),
-            libadwaita::StatusPage::new(),
-            libadwaita::StatusPage::new(),
-        ),
+        crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new())
+            .with_browser_and_sidebar(
+                sidebar_list.clone(),
+                browser_list,
+                browser_pages,
+                search_empty,
+                empty_new_note,
+                libadwaita::WindowTitle::new("Home", "All recent notes"),
+            ),
     );
 
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     assert!(crate::tests::support::run_main_context_until(|| {
-        matches!(runtime.model().sidebar, LoadState::Ready(_))
-            && matches!(runtime.model().browser.notes, LoadState::Ready(_))
+        matches!(runtime.model().sidebar.state, LoadState::Ready(_))
+            && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
+    assert!(sidebar_list.first_child().is_some());
 
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
         "needle".to_owned(),
     )));
     assert!(crate::tests::support::run_main_context_until(|| {
-        matches!(runtime.model().browser.notes, LoadState::Ready(_))
+        matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
 
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::ShowTrash));
     assert!(crate::tests::support::run_main_context_until(|| {
-        matches!(runtime.model().trash, LoadState::Ready(_))
+        matches!(runtime.model().trash.state, LoadState::Ready(_))
     }));
 
     runtime.dispatch(AppMsg::Sidebar(SidebarMsg::Reload));
-    let LoadState::Loading(request_id) = runtime.model().sidebar else {
+    let LoadState::Loading(request_id) = runtime.model().sidebar.state else {
         return Err("sidebar should be loading".into());
     };
     runtime.dispatch(AppMsg::Library(LibraryReply::SidebarLoaded {
@@ -170,7 +201,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         result: Err(UiError::new("offline")),
     }));
     assert_eq!(
-        runtime.model().sidebar,
+        runtime.model().sidebar.state,
         LoadState::Failed(UiError::new("offline"))
     );
     Ok(())

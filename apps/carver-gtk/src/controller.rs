@@ -1,7 +1,7 @@
 //! UI-neutral state and note/category actions for the GTK frontend.
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, OnceCell, RefCell},
     path::PathBuf,
 };
 
@@ -10,6 +10,8 @@ use carver_sdk::{Category, CategoryId, LibraryClient, Note};
 use carver_storage_sqlite::SqliteLibrary;
 use libadwaita as adw;
 
+use crate::mvu::{AppMsg, AppRuntime};
+
 #[cfg(test)]
 use carver_sdk::{LibraryError, NoteId};
 #[cfg(test)]
@@ -17,6 +19,7 @@ use carver_storage_sqlite::StorageError;
 
 /// The local library client used by the GTK frontend.
 pub(crate) type AppLibraryClient = LibraryClient<SqliteLibrary>;
+pub(crate) type MvuRuntime = AppRuntime<SqliteLibrary>;
 type RemoteImagePolicyHandler = RefCell<Option<Box<dyn Fn(bool)>>>;
 
 #[cfg(test)]
@@ -62,6 +65,7 @@ pub(crate) struct AppState {
     pub(crate) trash_content_stack: RefCell<Option<gtk::Stack>>,
     pub(crate) trash_status: RefCell<Option<adw::StatusPage>>,
     pub(crate) empty_trash_button: RefCell<Option<gtk::Button>>,
+    mvu_runtime: OnceCell<MvuRuntime>,
 }
 
 impl AppState {
@@ -114,7 +118,27 @@ impl AppState {
             trash_content_stack: RefCell::new(None),
             trash_status: RefCell::new(None),
             empty_trash_button: RefCell::new(None),
+            mvu_runtime: OnceCell::new(),
         }
+    }
+
+    /// Installs the one window-local MVU dispatcher after its widgets exist.
+    pub(crate) fn install_mvu_runtime(&self, runtime: MvuRuntime) -> bool {
+        self.mvu_runtime.set(runtime).is_ok()
+    }
+
+    /// Dispatches an MVU message when this window has completed composition.
+    pub(crate) fn dispatch_mvu(&self, message: AppMsg) -> bool {
+        let Some(runtime) = self.mvu_runtime.get() else {
+            return false;
+        };
+        runtime.dispatch(message);
+        true
+    }
+
+    /// Reports whether a GTK signal was emitted during a programmatic MVU render.
+    pub(crate) fn is_mvu_rendering(&self) -> bool {
+        self.mvu_runtime.get().is_some_and(MvuRuntime::is_rendering)
     }
 
     /// Updates and writes the source split-preview preference when a path is available.

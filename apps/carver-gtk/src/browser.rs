@@ -10,6 +10,7 @@ use time::{Duration, Month, OffsetDateTime, UtcOffset};
 use crate::{
     controller::AppState,
     editor::build_editor,
+    mvu::{AppMsg, BrowserMsg},
     note_move::show_move_note_dialog,
     sidebar::{refresh_sidebar, sidebar_toggle_button},
     trash::build_trash,
@@ -144,6 +145,14 @@ fn connect_browser_actions(
 ) {
     let state_for_search = Rc::clone(state);
     search.connect_search_changed(move |entry| {
+        if state_for_search.is_mvu_rendering() {
+            return;
+        }
+        if state_for_search.dispatch_mvu(AppMsg::Browser(BrowserMsg::SearchChanged(
+            entry.text().to_string(),
+        ))) {
+            return;
+        }
         state_for_search
             .search_query
             .replace(entry.text().to_string());
@@ -204,6 +213,9 @@ fn connect_new_note_action(state: &Rc<AppState>, stack: &gtk::Stack, button: &gt
 
 /// Refreshes the browser widgets after a note or category action.
 pub(crate) fn refresh_browser(state: &Rc<AppState>) {
+    if state.dispatch_mvu(AppMsg::Browser(BrowserMsg::Reload)) {
+        return;
+    }
     refresh_browser_title(state);
     let (list, stack, pages, status, search_empty_card, empty_new_note, toast_overlay) = {
         let Some(list) = state.browser_list.borrow().clone() else {
