@@ -7,6 +7,8 @@ use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_option
 /// A semantic AST node suitable for source-editor context and syntax styling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceNodeKind {
+    /// The document-level front matter block.
+    Frontmatter,
     /// A paragraph block.
     Paragraph,
     /// A heading with its authored level.
@@ -70,6 +72,7 @@ impl SourceNodeKind {
     #[must_use]
     pub fn label(self) -> String {
         match self {
+            Self::Frontmatter => "frontmatter".to_owned(),
             Self::Paragraph => "p".to_owned(),
             Self::Heading(level) => format!("h{level}"),
             Self::UnorderedList => "ul".to_owned(),
@@ -155,6 +158,13 @@ impl SourceAnalysis {
         let document = parse_with_options(source, &Options::default().with_positions(true));
         let mut analysis = Self::default();
         let mut path = Vec::new();
+        if let Some(frontmatter) = &document.frontmatter_raw {
+            analysis.leaf(
+                frontmatter.pos.as_ref(),
+                SourceNodeKind::Frontmatter,
+                &mut path,
+            );
+        }
         for block in &document.children {
             analysis.visit_block(block, &mut path);
         }

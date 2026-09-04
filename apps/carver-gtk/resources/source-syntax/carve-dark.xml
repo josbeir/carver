@@ -14,4 +14,7 @@
   <style name="carve:strong-emphasis" foreground="#d8a8ff" bold="true"/>
   <style name="carve:comment" foreground="#b6afbd" italic="true"/>
   <style name="carve:raw" foreground="#b9b3c0"/>
+  <style name="carve:frontmatter-fence" foreground="#c5bdcf" bold="true"/>
+  <style name="carve:frontmatter-key" foreground="#d8a8ff"/>
+  <style name="carve:frontmatter-value" foreground="#b9b3c0"/>
 </style-scheme>

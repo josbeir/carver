@@ -278,7 +278,8 @@ pub(crate) fn toolbar_state_from_context(context: Option<SourceContext>) -> Tool
             SourceNodeKind::Superscript => state.activate(ToolbarCommand::Superscript),
             SourceNodeKind::Subscript => state.activate(ToolbarCommand::Subscript),
             SourceNodeKind::InlineCode => state.activate(ToolbarCommand::InlineCode),
-            SourceNodeKind::Paragraph
+            SourceNodeKind::Frontmatter
+            | SourceNodeKind::Paragraph
             | SourceNodeKind::ListItem { task: false }
             | SourceNodeKind::BlockQuote
             | SourceNodeKind::TableRow

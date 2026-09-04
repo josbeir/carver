@@ -19,6 +19,9 @@
     <style id="strong-emphasis" name="Strong emphasis" map-to="def:strong-emphasis"/>
     <style id="comment" name="Comment" map-to="def:comment"/>
     <style id="raw" name="Raw markup" map-to="def:preprocessor"/>
+    <style id="frontmatter-fence" name="Front matter fence" map-to="def:preprocessor"/>
+    <style id="frontmatter-key" name="Front matter key" map-to="def:identifier"/>
+    <style id="frontmatter-value" name="Front matter value" map-to="def:string"/>
   </styles>
   <definitions>
     <context id="heading" style-ref="heading" class="carve-heading">
@@ -36,6 +39,20 @@
     <context id="fenced-code" style-ref="code-block" class="carve-code-block">
       <start>^```.*$</start>
       <end>^```[ \t]*$</end>
+    </context>
+    <context id="frontmatter-key" style-ref="frontmatter-key" class="carve-frontmatter-key">
+      <match>^[ \t]*[A-Za-z_][A-Za-z0-9_-]*(?=[ \t]*:)</match>
+    </context>
+    <context id="frontmatter-value" style-ref="frontmatter-value" class="carve-frontmatter-value">
+      <match>:[ \t]*[^\n]*$</match>
+    </context>
+    <context id="frontmatter" style-ref="frontmatter-fence" class="carve-frontmatter">
+      <start>\A---(?:[A-Za-z0-9]+| [A-Za-z0-9]+)?[ \t]*$</start>
+      <end>^---$</end>
+      <include>
+        <context ref="frontmatter-key"/>
+        <context ref="frontmatter-value"/>
+      </include>
     </context>
     <context id="inline-code" style-ref="code" class="carve-inline-code">
       <match>`[^`\n]+`</match>
@@ -91,6 +108,7 @@
         <context ref="list-marker"/>
         <context ref="quote-marker"/>
         <context ref="table-marker"/>
+        <context ref="frontmatter"/>
         <context ref="fenced-code"/>
         <context ref="inline-code"/>
         <context ref="image"/>

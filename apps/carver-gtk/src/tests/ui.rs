@@ -299,6 +299,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(
         source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(1), "carve-heading")
     );
+    source
+        .buffer()
+        .set_text("---\ntitle: Carve Feature Demo\ndate: 2026-06-02\n---\n\n# Note");
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(8));
+    assert!(run_main_context_until(|| {
+        source_path.is_visible() && source_path.text() == "frontmatter"
+    }));
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(0), "carve-frontmatter")
+    );
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-frontmatter-key")
+    );
     source.buffer().set_text("1. list item");
     source
         .buffer()

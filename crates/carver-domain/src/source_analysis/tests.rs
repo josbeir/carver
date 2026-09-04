@@ -37,6 +37,31 @@ fn breadcrumb_should_show_authored_paragraphs_without_implicit_list_item_paragra
 }
 
 #[test]
+fn context_should_report_document_frontmatter_from_the_carve_ast() {
+    let source = "---yaml\ntitle: Carve Feature Demo\n---\n\n# Note";
+    let analysis = SourceAnalysis::parse(source);
+
+    assert_eq!(
+        analysis
+            .context_for(9..9)
+            .map(|context| context.path().to_vec()),
+        Some(vec![SourceNodeKind::Frontmatter])
+    );
+    assert_eq!(
+        analysis
+            .context_for(9..9)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("frontmatter"))
+    );
+    assert_ne!(
+        SourceAnalysis::parse("# Note\n\n---\ntitle: not frontmatter\n---")
+            .context_for(12..12)
+            .map(|context| context.breadcrumb()),
+        Some(String::from("frontmatter"))
+    );
+}
+
+#[test]
 fn context_should_report_heading_and_bold_for_nested_markup() {
     assert_eq!(
         context("# *bold*", 4..4),
