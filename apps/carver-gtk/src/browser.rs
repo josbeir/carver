@@ -7,7 +7,7 @@ use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
-    editor::{EditorViewRefs, build_editor},
+    editor::{EditorViewRefs, SourceSyntaxError, build_editor},
     mvu::{AppDispatcher, AppMsg, BrowserMsg, NavigationMsg},
     sidebar::sidebar_toggle_button,
     trash::{TrashViewRefs, build_trash},
@@ -37,27 +37,35 @@ pub(crate) fn build_content(
     dispatcher: &AppDispatcher,
     config: &Config,
     assets_dir: Option<&std::path::Path>,
+    source_syntax_dir: &std::path::Path,
     split_view: &adw::NavigationSplitView,
     toast_overlay: &adw::ToastOverlay,
-) -> ContentSurface {
+) -> Result<ContentSurface, SourceSyntaxError> {
     let stack = gtk::Stack::new();
     stack.set_widget_name("content-route-stack");
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let (browser, browser_refs) = build_browser(dispatcher, split_view);
     stack.add_named(&browser, Some("browser"));
-    let (editor, editor_refs) =
-        build_editor(dispatcher, config, assets_dir, toast_overlay, split_view).into_parts();
+    let (editor, editor_refs) = build_editor(
+        dispatcher,
+        config,
+        assets_dir,
+        source_syntax_dir,
+        toast_overlay,
+        split_view,
+    )?
+    .into_parts();
     stack.add_named(&editor, Some("editor"));
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    ContentSurface {
+    Ok(ContentSurface {
         widget: stack.clone().upcast(),
         route_stack: stack,
         editor: editor_refs,
         browser: browser_refs,
         trash: trash_refs,
-    }
+    })
 }
 
 /// Builds the default recent-note and search view.

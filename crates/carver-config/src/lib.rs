@@ -128,6 +128,12 @@ pub struct EditorConfig {
     /// Whether source mode restores its rendered split preview.
     #[serde(default)]
     pub source_split_view: bool,
+    /// Whether the source editor shows a line-number gutter.
+    #[serde(default)]
+    pub source_line_numbers: bool,
+    /// Whether the source editor highlights the line containing the cursor.
+    #[serde(default)]
+    pub source_highlight_current_line: bool,
 }
 
 /// An editor surface a user can select for a note.
@@ -205,6 +211,8 @@ impl Default for EditorConfig {
             last_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
             source_split_view: false,
+            source_line_numbers: false,
+            source_highlight_current_line: false,
         }
     }
 }

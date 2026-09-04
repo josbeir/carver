@@ -141,6 +141,11 @@ textview text {
   border-top: 1px solid alpha(currentColor, 0.12);
 }
 
+#source-ast-path {
+  margin-right: 6px;
+  font-family: monospace;
+}
+
 #formatting-toolbar button.format-fallback-button {
   min-width: 24px;
   min-height: 24px;

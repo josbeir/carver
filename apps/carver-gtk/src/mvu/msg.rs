@@ -147,6 +147,10 @@ pub enum PreferencesMsg {
     SetEditorMode(EditorMode),
     /// Set source split-preview visibility.
     SetSourceSplitView(bool),
+    /// Set source-editor line-number gutter visibility.
+    SetSourceLineNumbers(bool),
+    /// Set source-editor current-line highlighting.
+    SetSourceHighlightCurrentLine(bool),
 }
 
 /// Window state that must survive the next launch.

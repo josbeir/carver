@@ -1,4 +1,5 @@
 use super::*;
+use carver_domain::source_analysis::SourceAnalysis;
 
 fn buffer_with(text: &str) -> gtk::TextBuffer {
     let buffer = gtk::TextBuffer::new(None);
@@ -111,23 +112,25 @@ fn pure_insert_and_image_width_edits_should_update_selection() {
 
 #[test]
 fn toolbar_state_should_mark_only_unambiguous_source_formatting_as_active() {
-    let active = toolbar_state_for_edit(&SourceEdit::new("*bold*", 0..6));
+    let active = source_toolbar_state("*bold*", 0..6);
     assert!(active.is_active(ToolbarCommand::Bold));
 
-    let mixed = toolbar_state_for_edit(&SourceEdit::new("*bold* plain", 0..12));
+    let mixed = source_toolbar_state("*bold* plain", 0..12);
     assert!(!mixed.is_active(ToolbarCommand::Bold));
 }
 
 #[test]
 fn toolbar_state_should_detect_block_and_image_context() {
-    let heading = toolbar_state_for_edit(&SourceEdit::new("## Heading", 0..10));
+    let heading = source_toolbar_state("## Heading", 0..10);
     assert_eq!(heading.heading(), 2);
 
-    let image = toolbar_state_for_edit(&SourceEdit::new(
-        "![Diagram](assets/diagram.png){width=\"50%\"}",
-        30..30,
-    ));
+    let image = source_toolbar_state("![Diagram](assets/diagram.png){width=\"50%\"}", 30..30);
     assert_eq!(image.image_width(), Some(50));
+}
+
+fn source_toolbar_state(source: &str, selection: Range<usize>) -> ToolbarState {
+    let analysis = SourceAnalysis::parse(source);
+    toolbar_state_from_context(analysis.context_for(selection))
 }
 
 fn inline_command_inserts_an_empty_pair_at_the_cursor() {

@@ -44,7 +44,7 @@ Carver is a Cargo workspace with clear dependency boundaries:
 ## Getting started
 
 Carver currently runs from source. It requires Rust 1.92 or newer, GTK 4.22+, Libadwaita
-1.9+, and WebKitGTK 6 development libraries.
+1.9+, GtkSourceView 5, and WebKitGTK 6 development libraries.
 
 ```sh
 git clone https://github.com/josbeir/carver.git

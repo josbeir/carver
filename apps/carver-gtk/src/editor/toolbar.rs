@@ -1,8 +1,13 @@
 //! One mode-neutral formatting toolbar for Rich and Source editing.
 
-use std::{cell::Cell, collections::BTreeSet, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeSet,
+    rc::Rc,
+};
 
 use carver_config::EditorMode;
+use carver_domain::source_analysis::SourceContext;
 use carver_editor_protocol::{EditorCommand, SelectionState};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -306,6 +311,8 @@ pub(crate) struct Toolbar {
     table: gtk::MenuButton,
     image: gtk::MenuButton,
     image_width_choices: Vec<(Option<u8>, gtk::ToggleButton)>,
+    source_path: gtk::Label,
+    source_context: Rc<RefCell<Option<SourceContext>>>,
 }
 
 impl Toolbar {
@@ -344,7 +351,16 @@ impl Toolbar {
         let (heading, heading_choices) = append_heading_menu(&widget, &router);
         let table = append_table_menu(&widget, &router);
         let (image, image_width_choices) = append_image_menu(&widget, &router);
-        let toolbar = Self {
+        let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        spacer.set_hexpand(true);
+        widget.append(&spacer);
+        let source_path = gtk::Label::new(None);
+        source_path.set_widget_name("source-ast-path");
+        source_path.add_css_class("dim-label");
+        source_path.set_tooltip_text(Some("Carve AST context"));
+        source_path.set_visible(false);
+        widget.append(&source_path);
+        Self {
             widget,
             router,
             command_buttons,
@@ -353,9 +369,9 @@ impl Toolbar {
             table,
             image,
             image_width_choices,
-        };
-        toolbar.connect_source_selection(source);
-        toolbar
+            source_path,
+            source_context: Rc::new(RefCell::new(None)),
+        }
     }
 
     pub(crate) fn widget(&self) -> &gtk::Box {
@@ -366,7 +382,9 @@ impl Toolbar {
         self.router.mode.set(mode);
         self.widget.set_sensitive(mode != EditorMode::Rendered);
         if mode == EditorMode::Source {
-            self.set_state(&source_commands::toolbar_state(&self.router.source));
+            self.apply_source_context(self.source_context.borrow().as_ref());
+        } else {
+            self.source_path.set_visible(false);
         }
     }
 
@@ -383,17 +401,24 @@ impl Toolbar {
         }
     }
 
-    fn connect_source_selection(&self, source: &gtk::TextBuffer) {
-        let toolbar = self.clone();
-        source.connect_changed(move |_| toolbar.refresh_source_state());
-        let toolbar = self.clone();
-        source.connect_mark_set(move |_, _, _| toolbar.refresh_source_state());
+    /// Applies source analysis produced from the shared cached Carve parse.
+    pub(crate) fn set_source_context(&self, context: Option<SourceContext>) {
+        self.source_context.replace(context);
+        if self.router.mode.get() == EditorMode::Source {
+            self.apply_source_context(self.source_context.borrow().as_ref());
+        }
     }
 
-    fn refresh_source_state(&self) {
-        if self.router.mode.get() == EditorMode::Source {
-            self.set_state(&source_commands::toolbar_state(&self.router.source));
-        }
+    fn apply_source_context(&self, context: Option<&SourceContext>) {
+        self.set_state(&source_commands::toolbar_state_from_context(
+            context.cloned(),
+        ));
+        let breadcrumb = context
+            .filter(|context| !context.is_plain_paragraph())
+            .map(SourceContext::breadcrumb);
+        self.source_path
+            .set_text(breadcrumb.as_deref().unwrap_or_default());
+        self.source_path.set_visible(breadcrumb.is_some());
     }
 
     fn set_state(&self, state: &ToolbarState) {

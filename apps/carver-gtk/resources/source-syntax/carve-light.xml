@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style-scheme id="carve-light" name="Carve Light" version="1.0" parent-scheme="classic">
+  <style name="carve:heading" foreground="#1a73b8" bold="true"/>
+  <style name="carve:list-marker" foreground="#2e9b5f"/>
+  <style name="carve:quote-marker" foreground="#7a7285"/>
+  <style name="carve:table-marker" foreground="#2e9b5f"/>
+  <style name="carve:code" foreground="#c44d00"/>
+  <style name="carve:code-block" foreground="#c44d00"/>
+  <style name="carve:link-text" foreground="#1a73b8" underline="single"/>
+  <style name="carve:link-target" foreground="#1a73b8"/>
+  <style name="carve:image-marker" foreground="#1a73b8"/>
+  <style name="carve:attribute" foreground="#8d4da5"/>
+  <style name="carve:emphasis" foreground="#8d4da5" italic="true"/>
+  <style name="carve:strong-emphasis" foreground="#8d4da5" bold="true"/>
+  <style name="carve:comment" foreground="#77727d" italic="true"/>
+  <style name="carve:raw" foreground="#6d6875"/>
+</style-scheme>

@@ -146,6 +146,17 @@ pub struct Preferences {
     pub autosave_delay_ms: u64,
     /// Whether source mode restores its preview split.
     pub source_split_view: bool,
+    /// Source-editor-only presentation preferences.
+    pub source_editor: SourceEditorPreferences,
+}
+
+/// Source-editor presentation preferences needed by the renderer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceEditorPreferences {
+    /// Whether source mode shows a line-number gutter.
+    pub show_line_numbers: bool,
+    /// Whether source mode highlights the line containing the cursor.
+    pub highlight_current_line: bool,
 }
 
 impl From<&Config> for Preferences {
@@ -155,6 +166,10 @@ impl From<&Config> for Preferences {
             editor_mode: config.editor.last_mode,
             autosave_delay_ms: config.editor.autosave_delay_ms,
             source_split_view: config.editor.source_split_view,
+            source_editor: SourceEditorPreferences {
+                show_line_numbers: config.editor.source_line_numbers,
+                highlight_current_line: config.editor.source_highlight_current_line,
+            },
         }
     }
 }

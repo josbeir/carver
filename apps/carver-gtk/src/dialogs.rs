@@ -18,13 +18,14 @@ pub(crate) fn install_window_actions(
 ) {
     let preferences = gtk::gio::SimpleAction::new("preferences", None);
     let dispatcher_for_preferences = dispatcher.clone();
-    let config_for_preferences = runtime.model().config;
+    let runtime_for_preferences = runtime.clone();
     let window_for_preferences = window.clone();
     preferences.connect_activate(move |_, _| {
+        let config = runtime_for_preferences.model().config;
         show_preferences_dialog(
             &window_for_preferences,
             &dispatcher_for_preferences,
-            &config_for_preferences,
+            &config,
         );
     });
     window.add_action(&preferences);
@@ -130,7 +131,19 @@ fn show_preferences_dialog(
     autosave.set_value(initial_delay);
     autosave_row.add_suffix(&autosave);
     group.add(&autosave_row);
+
+    let source_group = adw::PreferencesGroup::new();
+    source_group.set_title("Source editor");
+    let line_numbers = adw::SwitchRow::new();
+    line_numbers.set_title("Show line numbers");
+    line_numbers.set_active(config.editor.source_line_numbers);
+    source_group.add(&line_numbers);
+    let current_line = adw::SwitchRow::new();
+    current_line.set_title("Highlight current line");
+    current_line.set_active(config.editor.source_highlight_current_line);
+    source_group.add(&current_line);
     page.add(&group);
+    page.add(&source_group);
     dialog.add(&page);
 
     let dispatcher_for_images = dispatcher.clone();
@@ -144,6 +157,18 @@ fn show_preferences_dialog(
         let delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
         let _ = dispatcher_for_delay.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetAutosaveDelay(delay_ms),
+        ));
+    });
+    let dispatcher_for_line_numbers = dispatcher.clone();
+    line_numbers.connect_active_notify(move |line_numbers| {
+        let _ = dispatcher_for_line_numbers.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetSourceLineNumbers(line_numbers.is_active()),
+        ));
+    });
+    let dispatcher_for_current_line = dispatcher.clone();
+    current_line.connect_active_notify(move |current_line| {
+        let _ = dispatcher_for_current_line.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetSourceHighlightCurrentLine(current_line.is_active()),
         ));
     });
     dialog.present(Some(parent));

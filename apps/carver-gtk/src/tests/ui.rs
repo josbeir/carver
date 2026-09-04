@@ -3,6 +3,7 @@
 use carver_config::Config;
 use gtk::prelude::*;
 use libadwaita as adw;
+use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
 use super::support::{TestResult, find_widget, run_main_context_until, test_state, widget_as};
@@ -29,8 +30,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let config_path = temporary_directory.path().join("config.toml");
     let mut config = Config::default();
     config.editor.autosave_delay_ms = 1;
+    config.editor.source_line_numbers = true;
+    config.editor.source_highlight_current_line = true;
     let window =
-        crate::app::build_window_for_test(&application, client.clone(), &config, &config_path);
+        crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
     crate::dialogs::present_dialogs_for_test(
         &window,
         &config,
@@ -132,6 +135,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
     let source = widget_as::<gtk::TextView>(&root, "source-editor").ok_or("source editor")?;
+    let source_view =
+        widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
+    let source_buffer = source_view
+        .buffer()
+        .downcast::<sourceview5::Buffer>()
+        .map_err(|_| "GtkSourceBuffer")?;
+    assert_eq!(
+        source_buffer
+            .language()
+            .map(|language| language.id().to_string()),
+        Some(String::from("carve"))
+    );
+    assert!(source_view.shows_line_numbers());
+    assert!(source_view.is_highlight_current_line());
     let source_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-source").ok_or("source mode")?;
     let rich_mode = widget_as::<gtk::ToggleButton>(&root, "editor-mode-rich").ok_or("rich mode")?;
@@ -152,6 +169,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .is_some_and(|saved| saved.source == "# Source\n\nA paragraph")));
     exercise_source_formatting_controls(&root, &source.buffer())?;
     source.buffer().set_text("*fully bold*");
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(2), "carve-emphasis")
+    );
     select_all(&source.buffer());
     assert!(run_main_context_until(|| {
         widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
@@ -163,10 +184,32 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
             .is_some_and(|button| !button.is_active())
     }));
+    source.buffer().set_text("# *bold*");
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(4));
+    let source_path = widget_as::<gtk::Label>(&root, "source-ast-path").ok_or("source AST path")?;
+    assert!(run_main_context_until(|| {
+        source_path.is_visible()
+            && source_path.text() == "h1 › bold"
+            && widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
+                .is_some_and(|button| button.is_active())
+    }));
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(1), "carve-heading")
+    );
+    source.buffer().set_text("plain text");
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(3));
+    assert!(run_main_context_until(|| !source_path.is_visible()));
     let rendered_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
     rendered_mode.set_active(true);
-    assert!(run_main_context_until(|| !toolbar.is_sensitive()));
+    assert!(run_main_context_until(
+        || !toolbar.is_sensitive() && !source_path.is_visible()
+    ));
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
     assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;

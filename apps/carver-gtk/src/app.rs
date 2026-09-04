@@ -12,6 +12,7 @@ use libadwaita as adw;
 use crate::{
     browser::build_content,
     dialogs::install_window_actions,
+    editor::install_syntax_assets,
     mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
     sidebar::build_sidebar,
     view::ViewRefs,
@@ -40,6 +41,13 @@ fn build_application(application: &adw::Application) {
     let config_path = paths.config_file();
     let config = load(&config_path).unwrap_or_default();
     let _ = save(&config_path, &config);
+    let source_syntax_dir = match install_syntax_assets(&paths.data_dir) {
+        Ok(directory) => directory,
+        Err(error) => {
+            show_startup_error(application, &error.to_string());
+            return;
+        }
+    };
     let client = match open_library(&paths) {
         Ok(client) => client,
         Err(error) => {
@@ -47,13 +55,16 @@ fn build_application(application: &adw::Application) {
             return;
         }
     };
-    build_window(
+    if let Err(error) = build_window(
         application,
         client,
         &config,
         Some(paths.assets_dir()).as_deref(),
+        &source_syntax_dir,
         Some(config_path).as_deref(),
-    );
+    ) {
+        show_startup_error(application, &error.to_string());
+    }
 }
 
 fn load_styles() {
@@ -93,8 +104,9 @@ fn build_window(
     client: AppLibraryClient,
     config: &Config,
     assets_dir: Option<&Path>,
+    source_syntax_dir: &Path,
     config_path: Option<&Path>,
-) -> adw::ApplicationWindow {
+) -> Result<adw::ApplicationWindow, crate::editor::SourceSyntaxError> {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
@@ -106,7 +118,14 @@ fn build_window(
     split_view.set_show_content(true);
     split_view.set_collapsed(config.window.sidebar_collapsed);
     let sidebar = build_sidebar(&dispatcher, &split_view);
-    let content = build_content(&dispatcher, config, assets_dir, &split_view, &toast_overlay);
+    let content = build_content(
+        &dispatcher,
+        config,
+        assets_dir,
+        source_syntax_dir,
+        &split_view,
+        &toast_overlay,
+    )?;
     let sidebar_page = adw::NavigationPage::new(&sidebar.widget, "Categories");
     let content_page = adw::NavigationPage::new(&content.widget, "Notes");
     content_page.set_can_pop(false);
@@ -158,7 +177,7 @@ fn build_window(
     });
     let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     window.present();
-    window
+    Ok(window)
 }
 
 #[cfg(test)]
@@ -167,7 +186,16 @@ pub(crate) fn build_window_for_test(
     client: AppLibraryClient,
     config: &Config,
     config_path: &Path,
-) -> adw::ApplicationWindow {
+) -> Result<adw::ApplicationWindow, crate::editor::SourceSyntaxError> {
     load_styles();
-    build_window(application, client, config, None, Some(config_path))
+    let data_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+    let source_syntax_dir = install_syntax_assets(data_dir)?;
+    build_window(
+        application,
+        client,
+        config,
+        None,
+        &source_syntax_dir,
+        Some(config_path),
+    )
 }

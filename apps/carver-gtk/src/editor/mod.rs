@@ -22,11 +22,14 @@ mod preview;
 mod render;
 mod source;
 pub(crate) mod source_commands;
+mod source_context;
 mod toolbar;
 mod web;
 
 use preview::{build_preview, load_preview};
-pub(crate) use source::buffer_text;
+use source::SourceEditor;
+pub(crate) use source::{SourceSyntaxError, buffer_text, install_syntax_assets};
+use source_context::SourceContextCache;
 use toolbar::Toolbar;
 use web::RichEditor;
 
@@ -40,6 +43,7 @@ pub(crate) struct EditorViewRefs {
     split_toggle: gtk::ToggleButton,
     rich: RichEditor,
     source_buffer: gtk::TextBuffer,
+    source_editor: SourceEditor,
     split_preview: webkit6::WebView,
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
@@ -112,6 +116,11 @@ impl EditorViewRefs {
         if theme_changed {
             refresh_rich_theme(&self.rich);
         }
+        self.source_editor.render_preferences(
+            model.preferences.source_editor.show_line_numbers,
+            model.preferences.source_editor.highlight_current_line,
+            adw::StyleManager::default().is_dark(),
+        );
         match document.mode {
             EditorMode::Source => {
                 self.source_mode.set_active(true);
@@ -161,9 +170,10 @@ pub(crate) fn build_editor(
     dispatcher: &AppDispatcher,
     config: &Config,
     assets_dir: Option<&Path>,
+    source_syntax_dir: &Path,
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
-) -> EditorSurface {
+) -> Result<EditorSurface, SourceSyntaxError> {
     let allow_remote_images = config.images.load_remote_automatically;
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
@@ -222,8 +232,9 @@ pub(crate) fn build_editor(
 
     let editor_stack = gtk::Stack::new();
     let rendering = Rc::new(Cell::new(false));
-    let source_buffer = gtk::TextBuffer::new(None);
-    let source = text_view(&source_buffer, "source-editor", true);
+    let source_editor = SourceEditor::new(source_syntax_dir)?;
+    let source_buffer = source_editor.buffer().clone();
+    let source = source_editor.view().clone();
     let rich = RichEditor::new(
         assets_dir.map(Path::to_path_buf),
         allow_remote_images,
@@ -238,15 +249,17 @@ pub(crate) fn build_editor(
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir);
     let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
+    let source_context = SourceContextCache::new(&source_buffer);
+    connect_source_context(&source_buffer, &source_context, &toolbar);
     let toolbar_for_selection = toolbar.clone();
     rich.connect_selection_changed(move |selection| {
         toolbar_for_selection.set_rich_selection(&selection);
     });
-    install_source_shortcuts(&source, &toolbar);
+    install_source_shortcuts(source.upcast_ref(), &toolbar);
     let pages = add_editor_pages(
         &editor_stack,
         rich.view(),
-        &source,
+        source.upcast_ref(),
         &split_preview,
         &rendered_preview,
         &split_toggle,
@@ -273,7 +286,7 @@ pub(crate) fn build_editor(
         dispatcher,
         &split_toggle,
         &editor_stack,
-        &source,
+        source.upcast_ref(),
         &split_preview,
         &rendering,
     );
@@ -289,7 +302,7 @@ pub(crate) fn build_editor(
     connect_trash_action(dispatcher, &trash);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
-    let _source_image_paste = render::install_image_paste(&source, dispatcher);
+    let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher);
     let _source_image_drop = render::install_image_drop(&source, dispatcher, toast_overlay);
     let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, toast_overlay);
     let refs = EditorViewRefs {
@@ -301,6 +314,7 @@ pub(crate) fn build_editor(
         split_toggle,
         rich,
         source_buffer,
+        source_editor,
         split_preview,
         rendered_preview,
         rendering,
@@ -309,10 +323,10 @@ pub(crate) fn build_editor(
         rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
     };
-    EditorSurface {
+    Ok(EditorSurface {
         widget: view.upcast(),
         refs,
-    }
+    })
 }
 
 /// Falls back to the lossless read-only renderer when the web adapter reports
@@ -342,16 +356,23 @@ fn editor_mode_button(
     button
 }
 
-fn text_view(buffer: &gtk::TextBuffer, name: &str, monospace: bool) -> gtk::TextView {
-    let view = gtk::TextView::with_buffer(buffer);
-    view.set_widget_name(name);
-    view.set_monospace(monospace);
-    view.set_wrap_mode(gtk::WrapMode::WordChar);
-    view.set_top_margin(24);
-    view.set_bottom_margin(24);
-    view.set_left_margin(24);
-    view.set_right_margin(24);
-    view
+fn connect_source_context(
+    source: &gtk::TextBuffer,
+    context_cache: &SourceContextCache,
+    toolbar: &Toolbar,
+) {
+    toolbar.set_source_context(context_cache.context());
+    let context_for_change = context_cache.clone();
+    let toolbar_for_change = toolbar.clone();
+    source.connect_changed(move |_| {
+        context_for_change.refresh();
+        toolbar_for_change.set_source_context(context_for_change.context());
+    });
+    let context_for_mark = context_cache.clone();
+    let toolbar_for_mark = toolbar.clone();
+    source.connect_mark_set(move |_, _, _| {
+        toolbar_for_mark.set_source_context(context_for_mark.context());
+    });
 }
 
 struct EditorPages {

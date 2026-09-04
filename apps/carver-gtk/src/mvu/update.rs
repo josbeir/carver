@@ -85,6 +85,16 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.config.editor.source_split_view = visible;
             persist_config_effect(model)
         }
+        AppMsg::Preferences(PreferencesMsg::SetSourceLineNumbers(visible)) => {
+            model.preferences.source_editor.show_line_numbers = visible;
+            model.config.editor.source_line_numbers = visible;
+            persist_config_effect(model)
+        }
+        AppMsg::Preferences(PreferencesMsg::SetSourceHighlightCurrentLine(enabled)) => {
+            model.preferences.source_editor.highlight_current_line = enabled;
+            model.config.editor.source_highlight_current_line = enabled;
+            persist_config_effect(model)
+        }
         AppMsg::Window(WindowMsg::SaveGeometry {
             width,
             height,

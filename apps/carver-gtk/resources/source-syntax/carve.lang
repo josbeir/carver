@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Carver's bundled GtkSourceView grammar for canonical Carve markup. -->
+<language id="carve" name="Carve" version="2.0" _section="Markup">
+  <metadata>
+    <property name="globs">*.carve;*.crv</property>
+  </metadata>
+  <styles>
+    <style id="heading" name="Heading" map-to="def:heading"/>
+    <style id="list-marker" name="List marker" map-to="def:list-marker"/>
+    <style id="quote-marker" name="Quote marker" map-to="def:shebang"/>
+    <style id="table-marker" name="Table marker" map-to="def:preprocessor"/>
+    <style id="code" name="Code" map-to="def:inline-code"/>
+    <style id="code-block" name="Code block" map-to="def:preformatted-section"/>
+    <style id="link-text" name="Link text" map-to="def:link-text"/>
+    <style id="link-target" name="Link target" map-to="def:link-destination"/>
+    <style id="image-marker" name="Image marker" map-to="def:link-symbol"/>
+    <style id="attribute" name="Attribute" map-to="def:constant"/>
+    <style id="emphasis" name="Emphasis" map-to="def:emphasis"/>
+    <style id="strong-emphasis" name="Strong emphasis" map-to="def:strong-emphasis"/>
+    <style id="comment" name="Comment" map-to="def:comment"/>
+    <style id="raw" name="Raw markup" map-to="def:preprocessor"/>
+  </styles>
+  <definitions>
+    <context id="heading" style-ref="heading" class="carve-heading">
+      <match>^#{1,6}[ \t]+.+$</match>
+    </context>
+    <context id="list-marker" style-ref="list-marker" class="carve-list">
+      <match>^[ \t]*(?:[-+*]|[0-9]+\.)[ \t]+(?:\[[ xX]\][ \t]+)?</match>
+    </context>
+    <context id="quote-marker" style-ref="quote-marker" class="carve-quote">
+      <match>^[ \t]*&gt;+[ \t]?</match>
+    </context>
+    <context id="table-marker" style-ref="table-marker" class="carve-table">
+      <match>^\|(?:=?[^|]*)+\|[ \t]*$</match>
+    </context>
+    <context id="fenced-code" style-ref="code-block" class="carve-code-block">
+      <start>^```.*$</start>
+      <end>^```[ \t]*$</end>
+    </context>
+    <context id="inline-code" style-ref="code" class="carve-inline-code">
+      <match>`[^`\n]+`</match>
+    </context>
+    <context id="image" class="carve-image">
+      <match>!\[([^\]]*)\]\(([^)]+)\)(\{[^}]+\})?</match>
+      <include>
+        <context sub-pattern="1" style-ref="link-text"/>
+        <context sub-pattern="2" style-ref="link-target"/>
+        <context sub-pattern="3" style-ref="attribute"/>
+      </include>
+    </context>
+    <context id="link" class="carve-link">
+      <match>\[([^\]]+)\]\(([^)]+)\)</match>
+      <include>
+        <context sub-pattern="1" style-ref="link-text"/>
+        <context sub-pattern="2" style-ref="link-target"/>
+      </include>
+    </context>
+    <context id="bold-italic" style-ref="strong-emphasis" class="carve-emphasis">
+      <match>/\*[^*\n]+\*/</match>
+    </context>
+    <context id="bold" style-ref="strong-emphasis" class="carve-emphasis">
+      <match>\*[^*\n]+\*</match>
+    </context>
+    <context id="italic" style-ref="emphasis" class="carve-emphasis">
+      <match>/[^/\n]+/</match>
+    </context>
+    <context id="underline" style-ref="emphasis" class="carve-emphasis">
+      <match>_[^_\n]+_</match>
+    </context>
+    <context id="strike" style-ref="emphasis" class="carve-emphasis">
+      <match>~[^~\n]+~</match>
+    </context>
+    <context id="highlight" style-ref="emphasis" class="carve-emphasis">
+      <match>=[^=\n]+=</match>
+    </context>
+    <context id="superscript" style-ref="emphasis" class="carve-emphasis">
+      <match>\{\^[^^\n]+\^\}</match>
+    </context>
+    <context id="subscript" style-ref="emphasis" class="carve-emphasis">
+      <match>\{,[^,\n]+,\}</match>
+    </context>
+    <context id="comment" style-ref="comment" class="carve-comment">
+      <match>^[ \t]*%%.*$|\{%[^%\n]+%\}</match>
+    </context>
+    <context id="raw" style-ref="raw" class="carve-raw">
+      <match>\{\{[^}\n]+\}\}</match>
+    </context>
+    <context id="carve">
+      <include>
+        <context ref="heading"/>
+        <context ref="list-marker"/>
+        <context ref="quote-marker"/>
+        <context ref="table-marker"/>
+        <context ref="fenced-code"/>
+        <context ref="inline-code"/>
+        <context ref="image"/>
+        <context ref="link"/>
+        <context ref="bold-italic"/>
+        <context ref="bold"/>
+        <context ref="italic"/>
+        <context ref="underline"/>
+        <context ref="strike"/>
+        <context ref="highlight"/>
+        <context ref="superscript"/>
+        <context ref="subscript"/>
+        <context ref="comment"/>
+        <context ref="raw"/>
+      </include>
+    </context>
+  </definitions>
+</language>

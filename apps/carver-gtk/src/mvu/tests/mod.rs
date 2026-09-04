@@ -468,6 +468,36 @@ fn preference_changes_should_persist_complete_config_snapshots() {
 }
 
 #[test]
+fn source_line_number_preference_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceLineNumbers(true)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.source_line_numbers)
+    );
+    assert!(model.preferences.source_editor.show_line_numbers);
+}
+
+#[test]
+fn current_line_preference_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceHighlightCurrentLine(true)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.source_highlight_current_line)
+    );
+    assert!(model.preferences.source_editor.highlight_current_line);
+}
+
+#[test]
 fn close_geometry_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 
