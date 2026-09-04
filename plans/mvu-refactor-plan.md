@@ -280,6 +280,16 @@ editor widget events are ignored; a programmatic model render cannot dispatch a 
 
 ### Part 11b: Rich editor and managed-asset effects
 
+#### Part 11b.1: WebKit pasted-image effect
+
+- Translate a rich-editor paste into a session-identified managed-asset effect and append its
+  canonical Carve markup only when that session is still active.
+
+**Required tests:** a rich paste schedules asset storage, the successful current-session reply
+updates canonical source, and a stale reply is ignored.
+
+#### Part 11b.2: Native image import effects
+
 - Translate WebKit `EditorEvent` values into typed editor messages.
 - Use typed effects for managed image storage and route the completion back to the correct editor
   session before the view inserts the resulting canonical image markup.

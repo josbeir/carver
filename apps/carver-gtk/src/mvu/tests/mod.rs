@@ -253,6 +253,69 @@ fn source_event_after_editor_close_should_be_ignored() {
 }
 
 #[test]
+fn pasted_image_should_store_an_asset_and_update_the_current_document() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "Before".to_owned(),
+        }),
+    );
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor should be open");
+    };
+
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PasteImage {
+                extension: "png".to_owned(),
+                bytes: vec![1, 2, 3],
+            }),
+        ),
+        vec![Effect::StoreEditorAsset {
+            session,
+            note_id,
+            extension: "png".to_owned(),
+            bytes: vec![1, 2, 3],
+        }]
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            session,
+            result: Ok("assets/pasted.png".to_owned()),
+        }),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::ScheduleEditorSave { session: effect_session, .. }] if *effect_session == session)
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Before\n![Pasted image](assets/pasted.png)\n")
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::Close(session)));
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::EditorAssetStored {
+                session,
+                result: Ok("assets/stale.png".to_owned()),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(model.editor, None);
+}
+
+#[test]
 fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

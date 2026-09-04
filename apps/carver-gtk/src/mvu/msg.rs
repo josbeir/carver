@@ -103,6 +103,13 @@ pub enum EditorMsg {
     BackRequested,
     /// Move the active editor note to trash.
     TrashRequested,
+    /// Store an image supplied by the rich editor as a managed note asset.
+    PasteImage {
+        /// File extension selected from the `WebKit` MIME type.
+        extension: String,
+        /// Decoded image bytes from the `WebKit` bridge.
+        bytes: Vec<u8>,
+    },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }
@@ -216,6 +223,13 @@ pub enum LibraryReply {
         request: EditorSaveRequest,
         /// Persisted revision or a user-displayable failure.
         result: Result<Revision, UiError>,
+    },
+    /// A session-identified managed editor asset finished storing.
+    EditorAssetStored {
+        /// Editor lifetime that requested the asset.
+        session: EditorSessionId,
+        /// Portable managed asset path or a user-displayable failure.
+        result: Result<String, UiError>,
     },
 }
 

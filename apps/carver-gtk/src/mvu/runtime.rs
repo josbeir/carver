@@ -117,6 +117,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 delay_ms,
             } => self.schedule_editor_save(session, timer_id, delay_ms),
             Effect::SaveNote { request } => self.save_note(request),
+            Effect::StoreEditorAsset {
+                session,
+                note_id,
+                extension,
+                bytes,
+            } => self.store_editor_asset(session, note_id, extension, bytes),
             Effect::LoadSidebar { request_id } => {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();
@@ -264,6 +270,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
+                result,
+            }));
+        });
+    }
+
+    fn store_editor_asset(
+        &self,
+        session: super::EditorSessionId,
+        note_id: carver_sdk::NoteId,
+        extension: String,
+        bytes: Vec<u8>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .store_asset_async(note_id, extension, bytes)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::EditorAssetStored {
+                session,
                 result,
             }));
         });

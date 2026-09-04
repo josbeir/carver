@@ -138,6 +138,17 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .map_or_else(Vec::new, |note_id| {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
+        EditorMsg::PasteImage { extension, bytes } => model
+            .editor
+            .as_ref()
+            .map(|document| Effect::StoreEditorAsset {
+                session: document.session,
+                note_id: document.note_id,
+                extension,
+                bytes,
+            })
+            .into_iter()
+            .collect(),
         EditorMsg::Close(session_id)
             if model
                 .editor
@@ -270,6 +281,35 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 Err(error) => model.notice = Some(error),
             }
             Vec::new()
+        }
+        LibraryReply::EditorAssetStored { session, result } => {
+            let Some(document) = model
+                .editor
+                .as_mut()
+                .filter(|document| document.session == session)
+            else {
+                return Vec::new();
+            };
+            match result {
+                Ok(path) => {
+                    let mut source = document.source.clone();
+                    if !source.is_empty() && !source.ends_with('\n') {
+                        source.push('\n');
+                    }
+                    source.push_str("![Pasted image](");
+                    source.push_str(&path);
+                    source.push_str(")\n");
+                    if document.source_changed(source) {
+                        schedule_editor_save(model).into_iter().collect()
+                    } else {
+                        Vec::new()
+                    }
+                }
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
         }
         LibraryReply::TrashLoaded { request_id, result } => {
             reload_trash_after(model.trash.finish(request_id, result), model)

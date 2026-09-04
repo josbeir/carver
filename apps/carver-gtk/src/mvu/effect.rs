@@ -26,6 +26,17 @@ pub enum Effect {
         /// Session, revision, and source to persist.
         request: EditorSaveRequest,
     },
+    /// Store a rich-editor image as a managed asset for the active note.
+    StoreEditorAsset {
+        /// Editor lifetime that requested the asset.
+        session: EditorSessionId,
+        /// Owning note.
+        note_id: NoteId,
+        /// Validated file extension.
+        extension: String,
+        /// Image content to store.
+        bytes: Vec<u8>,
+    },
     /// Load sidebar categories and active-note counts.
     LoadSidebar {
         /// Identity for stale-completion protection.

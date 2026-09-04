@@ -6,7 +6,6 @@ use std::{
     time::Duration as StdDuration,
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_config::EditorMode;
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -58,11 +57,12 @@ impl EditorViewRefs {
             .remote_images
             .replace(model.preferences.load_remote_images)
             != model.preferences.load_remote_images;
+        let source_changed = buffer_text(&self.source_buffer) != document.source;
         self.rendering.set(true);
-        if new_document || remote_images_changed {
-            if buffer_text(&self.source_buffer) != document.source {
-                self.source_buffer.set_text(&document.source);
-            }
+        if source_changed {
+            self.source_buffer.set_text(&document.source);
+        }
+        if new_document || remote_images_changed || source_changed {
             load_preview(
                 &self.split_preview,
                 &document.source,
@@ -203,10 +203,10 @@ pub(crate) fn build_editor(
     let rich = RichEditor::new(
         assets_dir,
         allow_remote_images,
+        &state.dispatcher,
         &source_buffer,
         toast_overlay,
     );
-    connect_rich_image_paste(&rich, state, toast_overlay);
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_generation = Rc::new(Cell::new(0));
     refresh_rich_theme(&rich);
@@ -310,44 +310,6 @@ pub(crate) fn build_editor(
         widget: view.upcast(),
         refs,
     }
-}
-
-/// Keeps the legacy storage handoff outside the `WebKit` adapter until its typed effect lands.
-fn connect_rich_image_paste(
-    rich: &RichEditor,
-    state: &Rc<AppState>,
-    toast_overlay: &adw::ToastOverlay,
-) {
-    let state = Rc::clone(state);
-    let toast_overlay = toast_overlay.clone();
-    let rich = rich.clone();
-    rich.clone().connect_paste_image(move |mime_type, data| {
-        let Some(note_id) = state
-            .mvu_model()
-            .and_then(|model| model.editor)
-            .map(|document| document.note_id)
-        else {
-            return;
-        };
-        let Ok(bytes) = STANDARD.decode(data) else {
-            toast_overlay.add_toast(adw::Toast::new("Could not read pasted image"));
-            return;
-        };
-        let client = state.client.clone();
-        let rich = rich.clone();
-        let toast_overlay = toast_overlay.clone();
-        glib::spawn_future_local(async move {
-            match client
-                .store_asset_async(note_id, web::image_extension(&mime_type).to_owned(), bytes)
-                .await
-            {
-                Ok(path) => rich.insert_image_with_alt(&path, "Pasted image"),
-                Err(error) => toast_overlay.add_toast(adw::Toast::new(&format!(
-                    "Could not store pasted image: {error}"
-                ))),
-            }
-        });
-    });
 }
 
 /// Falls back to the lossless read-only renderer when the web adapter reports
