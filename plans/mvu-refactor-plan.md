@@ -195,13 +195,21 @@ Each part is independently reviewable and must preserve behavior unless it is ex
 
 **Required tests:** restore/trash updates the right resources; empty-trash errors are visible; Undo restores its prior category and triggers one refresh per dependent resource.
 
-### Part 8: Note and category actions
+### Part 8a: Category actions and trash admission
 
-- Move creation, rename, move, trash, restore, and undo into typed messages and effects.
+- Move category creation, rename, category trash, and browser note trash into typed messages and effects.
 - Add action state to block duplicate rapid-click operations.
 - Keep dialogs view-only: collect input and dispatch.
 
-**Required tests:** duplicate actions do not duplicate mutations; invalid names preserve input and surface errors; failed mutations do not invalidate successful resource data.
+**Required tests:** duplicate actions do not duplicate mutations; invalid names surface errors; failed mutations do not invalidate successful resource data.
+
+### Part 8b: Note moves and Undo
+
+- Move note relocation and Undo into typed messages and effects.
+- Keep the Undo affordance model-driven and route it through a window action rather than a business callback in a view.
+- Move editor deletion to the same action pipeline when the editor model is introduced in Parts 9-10.
+
+**Required tests:** move and Undo each invalidate dependent resources once; duplicate actions do not duplicate mutations; a failed Undo preserves the retryable move state.
 
 ### Part 9: Canonical editor model and source commands
 
@@ -257,4 +265,3 @@ Run the coverage gate after Parts 6, 10, and 12, and before merge.
 ```
 
 Every new reducer transition needs a focused module-owned unit test. Every user-facing GTK signal or state transition needs a focused Weston interaction test. Every library behavior promised to external callers needs an integration test under that crate's top-level `tests/` directory.
-

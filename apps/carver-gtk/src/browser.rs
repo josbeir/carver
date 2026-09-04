@@ -10,7 +10,7 @@ use time::{Duration, Month, OffsetDateTime, UtcOffset};
 use crate::{
     controller::AppState,
     editor::build_editor,
-    mvu::{AppMsg, BrowserMsg},
+    mvu::{ActionMsg, AppMsg, BrowserMsg},
     note_move::show_move_note_dialog,
     sidebar::{refresh_sidebar, sidebar_toggle_button},
     trash::build_trash,
@@ -480,6 +480,9 @@ fn note_menu(
     trash_button.connect_clicked(move |_| {
         popover_for_trash.popdown();
         let state = Rc::clone(&state_for_trash);
+        if state.dispatch_mvu(AppMsg::Action(ActionMsg::TrashNote(note_for_trash.id))) {
+            return;
+        }
         let toast = toast_for_trash.clone();
         let client = state.client.clone();
         glib::spawn_future_local(async move {

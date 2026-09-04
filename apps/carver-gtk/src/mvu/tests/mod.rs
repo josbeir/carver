@@ -5,8 +5,9 @@ use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 
 use super::{
-    AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect, LibraryReply, LoadState,
-    NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg, TrashMutation, UiError, update,
+    ActionKey, ActionMsg, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect,
+    LibraryReply, LoadState, NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg, TrashMutation,
+    UiError, update,
 };
 
 #[test]
@@ -177,6 +178,74 @@ fn failed_trash_mutation_should_not_discard_loaded_resources() {
     assert!(effects.is_empty());
     assert_eq!(model.trash.state, LoadState::Idle);
     assert_eq!(model.notice, Some(UiError::new("restore failed")));
+}
+
+#[test]
+fn duplicate_category_rename_should_start_one_mutation() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let message = AppMsg::Action(ActionMsg::RenameCategory {
+        category_id,
+        name: "Renamed".to_owned(),
+    });
+
+    let first = update(&mut model, message.clone());
+    let second = update(&mut model, message);
+
+    assert_eq!(
+        first,
+        vec![Effect::RenameCategory {
+            category_id,
+            name: "Renamed".to_owned(),
+        }]
+    );
+    assert!(second.is_empty());
+    assert_eq!(
+        model.pending_actions,
+        std::collections::BTreeSet::from([ActionKey::RenameCategory(category_id)])
+    );
+}
+
+#[test]
+fn invalid_category_name_should_preserve_loaded_resources_and_surface_an_error() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(&mut model, AppMsg::Sidebar(SidebarMsg::Reload));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Action(ActionMsg::CreateCategory("  ".to_owned())),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
+    assert_eq!(
+        model.notice,
+        Some(UiError::new("Category names cannot be empty."))
+    );
+    assert!(model.pending_actions.is_empty());
+}
+
+#[test]
+fn failed_action_should_not_invalidate_loaded_resources() {
+    let mut model = AppModel::new(&Config::default());
+    model.sidebar.state = LoadState::Ready(Vec::new());
+    let category_id = CategoryId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Action(ActionMsg::TrashCategory(category_id)),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::ActionFinished {
+            action: ActionKey::TrashCategory(category_id),
+            result: Err(UiError::new("trash failed")),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.sidebar.state, LoadState::Ready(Vec::new()));
+    assert_eq!(model.notice, Some(UiError::new("trash failed")));
 }
 
 pub(crate) fn runtime_should_render_and_complete_each_initial_resource()

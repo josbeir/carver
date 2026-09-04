@@ -1,12 +1,12 @@
 //! `GLib` runtime for executing reducer effects.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, future::Future, rc::Rc};
 
 use carver_sdk::{LibraryBackend, LibraryClient};
 
 use crate::view::ViewRefs;
 
-use super::{AppModel, AppMsg, Effect, LibraryReply, TrashMutation, UiError, update};
+use super::{ActionKey, AppModel, AppMsg, Effect, LibraryReply, TrashMutation, UiError, update};
 
 /// Main-thread dispatcher that renders model snapshots and executes typed effects.
 ///
@@ -136,7 +136,80 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::EmptyTrash => {
                 self.empty_trash();
             }
+            Effect::CreateCategory { name } => {
+                self.create_category(name);
+            }
+            Effect::RenameCategory { category_id, name } => {
+                self.rename_category(category_id, name);
+            }
+            Effect::TrashCategory { category_id } => {
+                self.trash_category(category_id);
+            }
+            Effect::MoveNote {
+                note_id,
+                category_id,
+            } => {
+                self.move_note(note_id, category_id);
+            }
+            Effect::TrashNote { note_id } => {
+                self.trash_note(note_id);
+            }
         }
+    }
+
+    fn create_category(&self, name: String) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::CreateCategory, async move {
+            client.create_category_async(name).await.map(|_| ())
+        });
+    }
+
+    fn rename_category(&self, category_id: carver_sdk::CategoryId, name: String) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::RenameCategory(category_id), async move {
+            client
+                .rename_category_async(category_id, name)
+                .await
+                .map(|_| ())
+        });
+    }
+
+    fn trash_category(&self, category_id: carver_sdk::CategoryId) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::TrashCategory(category_id), async move {
+            client.trash_category_async(category_id).await
+        });
+    }
+
+    fn move_note(&self, note_id: carver_sdk::NoteId, category_id: carver_sdk::CategoryId) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::MoveNote(note_id), async move {
+            client
+                .move_note_async(note_id, category_id)
+                .await
+                .map(|_| ())
+        });
+    }
+
+    fn trash_note(&self, note_id: carver_sdk::NoteId) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::TrashNote(note_id), async move {
+            client.trash_note_async(note_id).await
+        });
+    }
+
+    fn complete_action<F>(&self, action: ActionKey, operation: F)
+    where
+        F: Future<Output = Result<(), carver_sdk::LibraryError<B::Error>>> + 'static,
+    {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = operation.await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::ActionFinished {
+                action,
+                result,
+            }));
+        });
     }
 
     fn restore_category(&self, category_id: carver_sdk::CategoryId) {

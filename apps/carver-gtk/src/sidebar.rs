@@ -10,7 +10,7 @@ use crate::{
     browser::refresh_browser,
     controller::AppState,
     dialogs::{show_category_name_dialog, show_category_trash_confirmation},
-    mvu::{AppMsg, NavigationMsg, SidebarMsg},
+    mvu::{ActionMsg, AppMsg, NavigationMsg, SidebarMsg},
     trash::refresh_trash,
 };
 
@@ -89,6 +89,9 @@ pub(crate) fn build_sidebar(
             .and_then(|root| root.downcast::<gtk::Window>().ok());
         let state = Rc::clone(&state_for_new);
         show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
+            if state.dispatch_mvu(AppMsg::Action(ActionMsg::CreateCategory(name.clone()))) {
+                return;
+            }
             let client = state.client.clone();
             let state = Rc::clone(&state);
             glib::spawn_future_local(async move {
@@ -317,6 +320,12 @@ fn category_sidebar_row(
             "Rename Category",
             &current_name,
             move |name| {
+                if state.dispatch_mvu(AppMsg::Action(ActionMsg::RenameCategory {
+                    category_id,
+                    name: name.clone(),
+                })) {
+                    return;
+                }
                 let client = state.client.clone();
                 let state = Rc::clone(&state);
                 let name_label = name_label.clone();
@@ -348,6 +357,9 @@ fn category_sidebar_row(
             .and_then(|root| root.downcast::<gtk::Window>().ok());
         let state = Rc::clone(&state_for_trash);
         show_category_trash_confirmation(parent.as_ref(), &category_name, move || {
+            if state.dispatch_mvu(AppMsg::Action(ActionMsg::TrashCategory(category_id))) {
+                return;
+            }
             let state = Rc::clone(&state);
             let client = state.client.clone();
             glib::spawn_future_local(async move {

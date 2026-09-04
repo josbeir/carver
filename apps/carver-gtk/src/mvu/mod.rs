@@ -11,12 +11,12 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    AppModel, BrowserModel, EditorSessionId, LoadState, Preferences, RequestId, Resource, Route,
-    TimerId, UiError,
+    ActionKey, AppModel, BrowserModel, EditorSessionId, LoadState, Preferences, RequestId,
+    Resource, Route, TimerId, UiError,
 };
 pub use msg::{
-    AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg,
-    TrashMsg, TrashMutation,
+    ActionMsg, AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg,
+    SidebarMsg, TrashMsg, TrashMutation,
 };
 pub use runtime::AppRuntime;
 pub use update::update;

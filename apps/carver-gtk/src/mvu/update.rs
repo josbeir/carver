@@ -1,8 +1,8 @@
 //! Pure state transitions for the application model.
 
 use super::{
-    AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, NavigationMsg, PreferencesMsg,
-    SidebarMsg, TrashMsg,
+    ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, NavigationMsg,
+    PreferencesMsg, SidebarMsg, TrashMsg, UiError,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -75,12 +75,62 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.preferences.source_split_view = visible;
             Vec::new()
         }
+        AppMsg::Action(action) => update_action(model, action),
         AppMsg::Library(reply) => update_library(model, reply),
     }
 }
 
+fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
+    let key = action.key();
+    if !model.begin_action(key) {
+        return Vec::new();
+    }
+    let effect = match action {
+        ActionMsg::CreateCategory(name) => {
+            category_name_effect(&name, |name| Effect::CreateCategory { name })
+        }
+        ActionMsg::RenameCategory { category_id, name } => {
+            category_name_effect(&name, |name| Effect::RenameCategory { category_id, name })
+        }
+        ActionMsg::TrashCategory(category_id) => Some(Effect::TrashCategory { category_id }),
+        ActionMsg::MoveNote {
+            note_id,
+            category_id,
+        } => Some(Effect::MoveNote {
+            note_id,
+            category_id,
+        }),
+        ActionMsg::TrashNote(note_id) => Some(Effect::TrashNote { note_id }),
+    };
+    if let Some(effect) = effect {
+        vec![effect]
+    } else {
+        model.finish_action(key);
+        model.notice = Some(UiError::new("Category names cannot be empty."));
+        Vec::new()
+    }
+}
+
+fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Option<Effect> {
+    let name = name.trim().to_owned();
+    (!name.is_empty()).then(|| effect(name))
+}
+
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::ActionFinished { action, result } => {
+            model.finish_action(action);
+            match result {
+                Ok(()) => {
+                    model.notice = None;
+                    reload_all_resources(model)
+                }
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
         LibraryReply::SidebarLoaded { request_id, result } => {
             reload_sidebar_after(model.sidebar.finish(request_id, result), model)
         }

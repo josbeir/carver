@@ -43,4 +43,33 @@ pub enum Effect {
     },
     /// Permanently remove all trashed content.
     EmptyTrash,
+    /// Create a category.
+    CreateCategory {
+        /// User-entered category name.
+        name: String,
+    },
+    /// Rename a category.
+    RenameCategory {
+        /// Category to rename.
+        category_id: CategoryId,
+        /// User-entered category name.
+        name: String,
+    },
+    /// Move a category to trash.
+    TrashCategory {
+        /// Category to trash.
+        category_id: CategoryId,
+    },
+    /// Move a note between categories.
+    MoveNote {
+        /// Note to move.
+        note_id: NoteId,
+        /// Destination category.
+        category_id: CategoryId,
+    },
+    /// Move a note to trash.
+    TrashNote {
+        /// Note to trash.
+        note_id: NoteId,
+    },
 }

@@ -5,7 +5,7 @@ use carver_sdk::{
     CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents, TrashPurgeResult,
 };
 
-use super::{EditorSessionId, RequestId, TimerId, UiError};
+use super::{ActionKey, EditorSessionId, RequestId, TimerId, UiError};
 
 /// A UI event or asynchronous completion accepted by the reducer.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,6 +22,8 @@ pub enum AppMsg {
     Editor(EditorMsg),
     /// Preference intent.
     Preferences(PreferencesMsg),
+    /// Note and category mutation intent.
+    Action(ActionMsg),
     /// Completion from an effect that accessed the library.
     Library(LibraryReply),
 }
@@ -90,9 +92,53 @@ pub enum PreferencesMsg {
     SetSourceSplitView(bool),
 }
 
+/// Note and category mutations requested by a view.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ActionMsg {
+    /// Create a category with a user-entered name.
+    CreateCategory(String),
+    /// Rename a category with a user-entered name.
+    RenameCategory {
+        /// Category to rename.
+        category_id: CategoryId,
+        /// Replacement name.
+        name: String,
+    },
+    /// Move a category and its notes to trash.
+    TrashCategory(CategoryId),
+    /// Move a note to another category.
+    MoveNote {
+        /// Note to move.
+        note_id: NoteId,
+        /// Destination category.
+        category_id: CategoryId,
+    },
+    /// Move a note to trash.
+    TrashNote(NoteId),
+}
+
+impl ActionMsg {
+    pub(super) fn key(&self) -> ActionKey {
+        match self {
+            Self::CreateCategory(_) => ActionKey::CreateCategory,
+            Self::RenameCategory { category_id, .. } => ActionKey::RenameCategory(*category_id),
+            Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
+            Self::MoveNote { note_id, .. } => ActionKey::MoveNote(*note_id),
+            Self::TrashNote(note_id) => ActionKey::TrashNote(*note_id),
+        }
+    }
+}
+
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A note or category mutation completed.
+    ActionFinished {
+        /// Identity of the mutation admitted by the reducer.
+        action: ActionKey,
+        /// Successful result or a displayable failure.
+        result: Result<(), UiError>,
+    },
     /// Sidebar categories completed loading.
     SidebarLoaded {
         /// Identity of the initiating request.

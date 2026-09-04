@@ -1,7 +1,9 @@
 //! UI-neutral application state.
 
+use std::collections::BTreeSet;
+
 use carver_config::{Config, EditorMode};
-use carver_sdk::{CategoryId, CategorySummary, NoteSummary, TrashContents};
+use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents};
 
 /// Identifies one asynchronous resource request.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -20,6 +22,21 @@ pub struct TimerId(pub u64);
 pub struct UiError {
     /// Short message suitable for a status page or toast.
     pub message: String,
+}
+
+/// Identifies a mutation for duplicate-action admission control.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ActionKey {
+    /// Create a category.
+    CreateCategory,
+    /// Rename one category.
+    RenameCategory(CategoryId),
+    /// Trash one category.
+    TrashCategory(CategoryId),
+    /// Move one note.
+    MoveNote(NoteId),
+    /// Trash one note.
+    TrashNote(NoteId),
 }
 
 impl UiError {
@@ -138,6 +155,8 @@ pub struct AppModel {
     pub trash: Resource<TrashContents>,
     /// The most recent mutation error for the view to surface.
     pub notice: Option<UiError>,
+    /// Mutations currently admitted by the reducer.
+    pub pending_actions: BTreeSet<ActionKey>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
     /// Active editor lifetime, if an editor is open.
@@ -158,6 +177,7 @@ impl AppModel {
             browser: BrowserModel::default(),
             trash: Resource::default(),
             notice: None,
+            pending_actions: BTreeSet::new(),
             preferences: Preferences::from(config),
             editor_session: None,
             next_request_id: 1,
@@ -170,6 +190,14 @@ impl AppModel {
         let request_id = RequestId(self.next_request_id);
         self.next_request_id = self.next_request_id.wrapping_add(1);
         request_id
+    }
+
+    pub(super) fn begin_action(&mut self, action: ActionKey) -> bool {
+        self.pending_actions.insert(action)
+    }
+
+    pub(super) fn finish_action(&mut self, action: ActionKey) {
+        self.pending_actions.remove(&action);
     }
 
     pub(super) fn next_editor_session_id(&mut self) -> EditorSessionId {
