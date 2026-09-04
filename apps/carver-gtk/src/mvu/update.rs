@@ -54,7 +54,12 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Trash(TrashMsg::RestoreCategory(category_id)) => {
             vec![Effect::RestoreCategory { category_id }]
         }
-        AppMsg::Trash(TrashMsg::RestoreNote(note_id)) => vec![Effect::RestoreNote { note_id }],
+        AppMsg::Trash(TrashMsg::RestoreNote(note_id)) => {
+            if model.undo_trash_note == Some(note_id) {
+                model.undo_trash_note = None;
+            }
+            vec![Effect::RestoreNote { note_id }]
+        }
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
         AppMsg::Editor(message) => update_editor(model, message),
         AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) => Vec::new(),
@@ -151,6 +156,15 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
     if !model.begin_action(key) {
         return Vec::new();
     }
+    if let ActionMsg::TrashNote(note_id) = action
+        && model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.note_id == note_id)
+    {
+        model.route = super::Route::Browser;
+        model.editor = None;
+    }
     let effect = match action {
         ActionMsg::CreateCategory(name) => {
             category_name_effect(&name, |name| Effect::CreateCategory { name })
@@ -211,6 +225,9 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             match result {
                 Ok(()) => {
                     update_undo_state(model, action);
+                    if let ActionKey::TrashNote(note_id) = action {
+                        model.undo_trash_note = Some(note_id);
+                    }
                     model.notice = None;
                     reload_all_resources(model)
                 }

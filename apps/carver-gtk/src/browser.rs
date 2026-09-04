@@ -9,7 +9,7 @@ use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
     controller::AppState,
-    editor::build_editor,
+    editor::{EditorViewRefs, build_editor},
     mvu::{ActionMsg, AppMsg, BrowserMsg, NavigationMsg},
     note_move::show_move_note_dialog,
     sidebar::{refresh_sidebar, sidebar_toggle_button},
@@ -17,21 +17,35 @@ use crate::{
 };
 
 /// Builds the browser and editor stack for the content pane.
+pub(crate) struct ContentSurface {
+    widget: gtk::Widget,
+    editor: EditorViewRefs,
+}
+
+impl ContentSurface {
+    pub(crate) fn into_parts(self) -> (gtk::Widget, EditorViewRefs) {
+        (self.widget, self.editor)
+    }
+}
+
 pub(crate) fn build_content(
     state: &Rc<AppState>,
     split_view: &adw::NavigationSplitView,
     toast_overlay: &adw::ToastOverlay,
-) -> gtk::Widget {
+) -> ContentSurface {
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let browser = build_browser(state, &stack, split_view, toast_overlay);
     stack.add_named(&browser, Some("browser"));
-    let editor = build_editor(state, &stack, toast_overlay, split_view);
+    let (editor, editor_refs) = build_editor(state, &stack, toast_overlay, split_view).into_parts();
     stack.add_named(&editor, Some("editor"));
     let trash = build_trash(state, &stack);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    stack.upcast()
+    ContentSurface {
+        widget: stack.upcast(),
+        editor: editor_refs,
+    }
 }
 
 /// Builds the default recent-note and search view.

@@ -49,6 +49,18 @@ fn install_mvu_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
         let _ = state_for_undo.dispatch_mvu(AppMsg::Action(ActionMsg::UndoMove));
     });
     actions.add_action(&undo_move);
+    let undo_trash_note = gtk::gio::SimpleAction::new("undo-trash-note", None);
+    let state_for_trash_undo = Rc::clone(state);
+    undo_trash_note.connect_activate(move |_, _| {
+        let Some(note_id) = state_for_trash_undo
+            .mvu_model()
+            .and_then(|model| model.undo_trash_note)
+        else {
+            return;
+        };
+        let _ = state_for_trash_undo.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
+    });
+    actions.add_action(&undo_trash_note);
     let retry_save = gtk::gio::SimpleAction::new("retry-save", None);
     let state_for_retry = Rc::clone(state);
     retry_save.connect_activate(move |_, _| {

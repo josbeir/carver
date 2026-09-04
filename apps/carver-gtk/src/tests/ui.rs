@@ -36,7 +36,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     let split_view = adw::NavigationSplitView::new();
     let toast = adw::ToastOverlay::new();
     let browser = build_browser(&state, &stack, &split_view, &toast);
-    let editor = build_editor(&state, &stack, &toast, &split_view);
+    let (editor, editor_view) = build_editor(&state, &stack, &toast, &split_view).into_parts();
     let trash = build_trash(&state, &stack);
     stack.add_named(&browser, Some("browser"));
     stack.add_named(&editor, Some("editor"));
@@ -120,7 +120,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .flatten()
         .is_some_and(|note| note.category_id == second.id)));
 
-    crate::app::install_mvu_runtime_for_test(&state);
+    crate::app::install_mvu_runtime_for_test(&state, editor_view);
     crate::dialogs::install_trash_actions_for_test(&window, &state);
     assert!(run_main_context_until(|| {
         state
@@ -326,10 +326,15 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
             .is_ok_and(|categories| categories.iter().any(|category| category.id == archived.id))
     }));
 
-    let editor_note = state.client.note(note.id)?.ok_or("editor note")?;
-    state.current_note.replace(Some(editor_note));
-
-    stack.set_visible_child_name("editor");
+    let _ = state.dispatch_mvu(crate::mvu::AppMsg::Navigation(
+        crate::mvu::NavigationMsg::OpenNote(note.id),
+    ));
+    assert!(run_main_context_until(|| {
+        state
+            .mvu_model()
+            .and_then(|model| model.editor)
+            .is_some_and(|document| document.note_id == note.id)
+    }));
     let web = widget_as::<webkit6::WebView>(&editor, "rich-editor").ok_or("rich editor")?;
     let source = widget_as::<gtk::TextView>(&editor, "source-editor").ok_or("source editor")?;
     let rich = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-rich").ok_or("rich mode")?;

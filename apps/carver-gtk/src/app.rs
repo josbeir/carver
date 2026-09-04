@@ -116,7 +116,7 @@ fn build_window(
     split_view.set_collapsed(window_config.sidebar_collapsed);
 
     let sidebar = build_sidebar(state, &split_view);
-    let content = build_content(state, &split_view, &toast_overlay);
+    let (content, editor_view) = build_content(state, &split_view, &toast_overlay).into_parts();
     let sidebar_page = adw::NavigationPage::new(&sidebar, "Categories");
     let content_page = adw::NavigationPage::new(&content, "Notes");
     // The content page has an explicit sidebar control in every view. Avoid
@@ -127,7 +127,7 @@ fn build_window(
 
     toast_overlay.set_child(Some(&split_view));
     window.set_content(Some(&toast_overlay));
-    install_mvu_runtime(state);
+    install_mvu_runtime(state, editor_view);
     let state_for_close = Rc::clone(state);
     window.connect_close_request(move |window| {
         let _ = persist_window_config(
@@ -143,7 +143,7 @@ fn build_window(
     window
 }
 
-fn install_mvu_runtime(state: &Rc<AppState>) {
+fn install_mvu_runtime(state: &Rc<AppState>, editor_view: crate::editor::EditorViewRefs) {
     let (
         Some(route_stack),
         Some(sidebar_list),
@@ -178,7 +178,6 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
         return;
     };
     let state_for_sidebar_renderer = Rc::downgrade(state);
-    let state_for_editor_renderer = Rc::downgrade(state);
     let view = ViewRefs::new(route_stack, browser_status, trash_status)
         .with_browser_and_sidebar(
             sidebar_list,
@@ -193,11 +192,7 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
                 render_mvu_sidebar(&state, model);
             }
         })
-        .with_editor_renderer(move |model| {
-            if let Some(state) = state_for_editor_renderer.upgrade() {
-                state.render_editor(model);
-            }
-        })
+        .with_editor(editor_view)
         .with_trash(trash_list, trash_pages, empty_trash_button)
         .with_toast_overlay(toast_overlay);
     let model = AppModel::new(&state.config.borrow());
@@ -207,8 +202,11 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
 }
 
 #[cfg(test)]
-pub(crate) fn install_mvu_runtime_for_test(state: &Rc<AppState>) {
-    install_mvu_runtime(state);
+pub(crate) fn install_mvu_runtime_for_test(
+    state: &Rc<AppState>,
+    editor_view: crate::editor::EditorViewRefs,
+) {
+    install_mvu_runtime(state, editor_view);
 }
 
 /// Builds the complete application window inside the shared GTK integration scenario.

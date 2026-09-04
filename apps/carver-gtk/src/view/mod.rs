@@ -10,7 +10,6 @@ use crate::mvu::{AppModel, EditorSaveState, LoadState, MoveUndo, Route};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 type SidebarSnapshot = (LoadState<Vec<CategorySummary>>, Option<CategoryId>);
-type EditorRenderer = Box<dyn Fn(&AppModel)>;
 
 /// GTK references used to render the high-level MVU resources.
 ///
@@ -32,8 +31,9 @@ pub struct ViewRefs {
     last_notice: RefCell<Option<String>>,
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
+    last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
     sidebar_renderer: Option<SidebarRenderer>,
-    editor_renderer: Option<EditorRenderer>,
+    editor: Option<crate::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
 }
@@ -63,8 +63,9 @@ impl ViewRefs {
             last_notice: RefCell::new(None),
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
+            last_undo_trash_note: Cell::new(None),
             sidebar_renderer: None,
-            editor_renderer: None,
+            editor: None,
             last_sidebar_snapshot: RefCell::new(None),
             rendering: Cell::new(false),
         }
@@ -118,10 +119,10 @@ impl ViewRefs {
         self
     }
 
-    /// Adds the editor projection created by the composition shell.
+    /// Adds the editor projections created by the composition shell.
     #[must_use]
-    pub fn with_editor_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
-        self.editor_renderer = Some(Box::new(renderer));
+    pub(crate) fn with_editor(mut self, editor: crate::editor::EditorViewRefs) -> Self {
+        self.editor = Some(editor);
         self
     }
 
@@ -140,6 +141,7 @@ impl ViewRefs {
         self.render_notice(model);
         self.render_editor_save_error(model);
         self.render_undo_move(model);
+        self.render_undo_trash_note(model);
         self.rendering.set(false);
     }
 
@@ -193,8 +195,8 @@ impl ViewRefs {
     }
 
     fn render_editor(&self, model: &AppModel) {
-        if let Some(renderer) = &self.editor_renderer {
-            renderer(model);
+        if let Some(editor) = &self.editor {
+            editor.render(model);
         }
     }
 
@@ -367,6 +369,21 @@ impl ViewRefs {
             let toast = adw::Toast::new("Moved note");
             toast.set_button_label(Some("Undo"));
             toast.set_action_name(Some("mvu.undo-move"));
+            toast_overlay.add_toast(toast);
+        }
+    }
+
+    fn render_undo_trash_note(&self, model: &AppModel) {
+        if self.last_undo_trash_note.get() == model.undo_trash_note {
+            return;
+        }
+        self.last_undo_trash_note.set(model.undo_trash_note);
+        if model.undo_trash_note.is_some()
+            && let Some(toast_overlay) = &self.toast_overlay
+        {
+            let toast = adw::Toast::new("Moved note to Trash");
+            toast.set_button_label(Some("Undo"));
+            toast.set_action_name(Some("mvu.undo-trash-note"));
             toast_overlay.add_toast(toast);
         }
     }

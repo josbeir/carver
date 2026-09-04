@@ -145,6 +145,47 @@ fn opening_a_note_should_ignore_an_older_load_completion() {
 }
 
 #[test]
+fn trashing_the_open_editor_note_should_close_its_session_before_the_effect_runs() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Open note"),
+        }),
+    );
+
+    let effects = update(&mut model, AppMsg::Action(ActionMsg::TrashNote(note_id)));
+
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.editor, None);
+    assert_eq!(effects, vec![Effect::TrashNote { note_id }]);
+}
+
+#[test]
+fn a_successful_note_trash_should_offer_undo_until_the_note_is_restored() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(&mut model, AppMsg::Action(ActionMsg::TrashNote(note_id)));
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::ActionFinished {
+            action: ActionKey::TrashNote(note_id),
+            result: Ok(()),
+        }),
+    );
+    assert_eq!(model.undo_trash_note, Some(note_id));
+
+    assert_eq!(
+        update(&mut model, AppMsg::Trash(TrashMsg::RestoreNote(note_id))),
+        vec![Effect::RestoreNote { note_id }]
+    );
+    assert_eq!(model.undo_trash_note, None);
+}
+
+#[test]
 fn stale_editor_close_should_not_close_a_newer_document() {
     let mut model = AppModel::new(&Config::default());
     let first_note_id = NoteId::new();

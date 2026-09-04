@@ -290,6 +290,8 @@ pub struct AppModel {
     pub pending_actions: BTreeSet<ActionKey>,
     /// The latest successful move that can be undone.
     pub undo_move: Option<MoveUndo>,
+    /// The latest note moved to trash that can be restored with Undo.
+    pub undo_trash_note: Option<NoteId>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
@@ -314,6 +316,7 @@ impl AppModel {
             notice: None,
             pending_actions: BTreeSet::new(),
             undo_move: None,
+            undo_trash_note: None,
             preferences: Preferences::from(config),
             editor: None,
             editor_load_request: None,

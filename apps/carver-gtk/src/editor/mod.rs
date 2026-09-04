@@ -13,13 +13,10 @@ use libadwaita::prelude::BreakpointBinExt;
 use webkit6::prelude::*;
 
 use crate::{
-    browser::refresh_browser,
     controller::AppState,
     formatting,
-    mvu::{AppMsg, EditorMsg, PreferencesMsg},
-    sidebar::refresh_sidebar,
+    mvu::{ActionMsg, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
     sidebar::sidebar_toggle_button,
-    trash::refresh_trash,
 };
 
 mod preview;
@@ -32,6 +29,88 @@ use preview::{build_preview, load_preview};
 pub(crate) use source::buffer_text;
 use web::RichEditor;
 
+/// GTK/WebKit references that project the active editor document from the MVU model.
+pub(crate) struct EditorViewRefs {
+    rich_mode: gtk::ToggleButton,
+    source_mode: gtk::ToggleButton,
+    rendered_mode: gtk::ToggleButton,
+    format_stack: gtk::Stack,
+    editor_stack: gtk::Stack,
+    split_toggle: gtk::ToggleButton,
+    rich: RichEditor,
+    source_buffer: gtk::TextBuffer,
+    split_preview: webkit6::WebView,
+    rendered_preview: webkit6::WebView,
+    rendering: Rc<Cell<bool>>,
+    loaded_session: RefCell<Option<EditorSessionId>>,
+}
+
+impl EditorViewRefs {
+    /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
+    pub(crate) fn render(&self, model: &AppModel) {
+        let Some(document) = model.editor.as_ref() else {
+            return;
+        };
+        let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
+        self.rendering.set(true);
+        if new_document {
+            if buffer_text(&self.source_buffer) != document.source {
+                self.source_buffer.set_text(&document.source);
+            }
+            load_preview(
+                &self.split_preview,
+                &document.source,
+                model.preferences.load_remote_images,
+            );
+            load_preview(
+                &self.rendered_preview,
+                &document.source,
+                model.preferences.load_remote_images,
+            );
+            self.rich.load_source(&document.source);
+        }
+        match document.mode {
+            EditorMode::Source => {
+                self.source_mode.set_active(true);
+                self.editor_stack.set_visible_child_name("source");
+                self.format_stack.set_sensitive(true);
+                self.format_stack.set_visible_child_name("source");
+                self.split_toggle
+                    .set_active(model.preferences.source_split_view);
+            }
+            EditorMode::Rendered => {
+                self.rendered_mode.set_active(true);
+                self.editor_stack.set_visible_child_name("rendered");
+                self.format_stack.set_sensitive(false);
+                self.split_toggle.set_active(false);
+            }
+            EditorMode::Rich => {
+                self.rich_mode.set_active(true);
+                self.editor_stack.set_visible_child_name("rich");
+                self.format_stack.set_sensitive(true);
+                self.format_stack.set_visible_child_name("rich");
+                self.split_toggle.set_active(false);
+            }
+        }
+        self.rendering.set(false);
+        if new_document {
+            self.loaded_session.replace(Some(document.session));
+        }
+    }
+}
+
+/// The complete editor surface and its immutable-model renderer.
+pub(crate) struct EditorSurface {
+    widget: gtk::Widget,
+    refs: EditorViewRefs,
+}
+
+impl EditorSurface {
+    pub(crate) fn into_parts(self) -> (gtk::Widget, EditorViewRefs) {
+        (self.widget, self.refs)
+    }
+}
+
 /// Builds the note editor and connects its user-facing actions.
 #[expect(
     clippy::too_many_lines,
@@ -42,7 +121,7 @@ pub(crate) fn build_editor(
     stack: &gtk::Stack,
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
-) -> gtk::Widget {
+) -> EditorSurface {
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let toggle_sidebar = sidebar_toggle_button(split_view, "editor-toggle-categories-button");
@@ -104,6 +183,7 @@ pub(crate) fn build_editor(
     let source_format_bar = formatting_bar();
 
     let editor_stack = gtk::Stack::new();
+    let rendering = Rc::new(Cell::new(false));
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
     let rich = RichEditor::new(state, &source_buffer, toast_overlay);
@@ -150,6 +230,7 @@ pub(crate) fn build_editor(
         &rendered_preview,
         &split_toggle,
         &pages.split_supported,
+        &rendering,
     );
     connect_rich_fallback(
         state,
@@ -158,7 +239,14 @@ pub(crate) fn build_editor(
         &source_buffer,
         &rendered_preview,
     );
-    connect_split_toggle(state, &split_toggle, &editor_stack, &source, &split_preview);
+    connect_split_toggle(
+        state,
+        &split_toggle,
+        &editor_stack,
+        &source,
+        &split_preview,
+        &rendering,
+    );
     connect_split_availability(
         &rich_mode,
         &source_mode,
@@ -174,20 +262,14 @@ pub(crate) fn build_editor(
         &rendered_preview,
         &rich,
     );
-    connect_trash_action(state, stack, toast_overlay, &trash);
+    connect_trash_action(state, &trash);
     connect_back_action(state, stack, &back);
-    connect_source_preview(state, &source_buffer, &split_preview, &rendered_preview);
-    connect_model_renderer(
+    connect_source_preview(
         state,
-        &rich_mode,
-        &source_mode,
-        &rendered_mode,
-        &format_stack,
-        &editor_stack,
-        &rich,
         &source_buffer,
         &split_preview,
         &rendered_preview,
+        &rendering,
     );
     let _source_image_paste =
         render::install_image_paste(&source, &source_buffer, state, toast_overlay);
@@ -201,20 +283,24 @@ pub(crate) fn build_editor(
         render::install_image_drop(rich.view(), state, toast_overlay, move |path, alt| {
             rich_for_drop.insert_image_with_alt(&path, &alt);
         });
-    connect_note_loading(
-        state,
-        stack,
-        &rich_mode,
-        &source_mode,
-        &rendered_mode,
-        &format_stack,
-        &editor_stack,
-        &rich,
-        &source_buffer,
-        &split_preview,
-        &rendered_preview,
-    );
-    view.upcast()
+    let refs = EditorViewRefs {
+        rich_mode,
+        source_mode,
+        rendered_mode,
+        format_stack,
+        editor_stack,
+        split_toggle,
+        rich,
+        source_buffer,
+        split_preview,
+        rendered_preview,
+        rendering,
+        loaded_session: RefCell::new(None),
+    };
+    EditorSurface {
+        widget: view.upcast(),
+        refs,
+    }
 }
 
 /// Falls back to the lossless read-only renderer when the web adapter reports
@@ -365,6 +451,7 @@ fn connect_mode_buttons(
     rendered_preview: &webkit6::WebView,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
+    rendering: &Rc<Cell<bool>>,
 ) {
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let state = Rc::clone(state);
@@ -376,12 +463,13 @@ fn connect_mode_buttons(
         let rendered_preview = rendered_preview.clone();
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
+        let rendering = Rc::clone(rendering);
         button.connect_toggled(move |button| {
             if !button.is_active() {
                 return;
             }
-            let persist_selection = !state.synchronizing_editor.get();
-            state.synchronizing_editor.set(true);
+            let persist_selection = !rendering.get();
+            let was_rendering = rendering.replace(true);
             match surface {
                 EditorMode::Source => {
                     state.source_mode.set(true);
@@ -420,7 +508,7 @@ fn connect_mode_buttons(
                 let remote = state.config.borrow().images.load_remote_automatically;
                 load_preview(&split_preview, &source_text, remote);
             }
-            state.synchronizing_editor.set(false);
+            rendering.set(was_rendering);
             if persist_selection {
                 let _ = state.set_last_editor_mode(surface);
                 let _ =
@@ -462,11 +550,13 @@ fn connect_split_toggle(
     editor_stack: &gtk::Stack,
     source: &gtk::TextView,
     preview: &webkit6::WebView,
+    rendering: &Rc<Cell<bool>>,
 ) {
     let state = Rc::clone(state);
     let stack = editor_stack.clone();
     let source = source.clone();
     let preview = preview.clone();
+    let rendering = Rc::clone(rendering);
     toggle.connect_toggled(move |toggle| {
         let Some(split) = stack.child_by_name("source") else {
             return;
@@ -481,8 +571,11 @@ fn connect_split_toggle(
             return;
         };
         preview_scroll.set_visible(toggle.is_active());
-        if !state.synchronizing_editor.get() {
+        if !rendering.get() {
             let _ = state.set_source_split_view(toggle.is_active());
+            let _ = state.dispatch_mvu(AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(
+                toggle.is_active(),
+            )));
         }
         if toggle.is_active() {
             preview.grab_focus();
@@ -619,56 +712,17 @@ fn preview_scroll_script(fraction: f64) -> String {
     )
 }
 
-fn connect_trash_action(
-    state: &Rc<AppState>,
-    stack: &gtk::Stack,
-    toast_overlay: &adw::ToastOverlay,
-    trash: &gtk::Button,
-) {
+fn connect_trash_action(state: &Rc<AppState>, trash: &gtk::Button) {
     let state_for_trash = Rc::clone(state);
-    let stack_for_trash = stack.clone();
-    let toast_for_trash = toast_overlay.clone();
     trash.connect_clicked(move |_| {
-        let note_for_undo = state_for_trash.current_note.borrow().clone();
-        let Some(note) = note_for_undo.clone() else {
+        let Some(note_id) = state_for_trash
+            .mvu_model()
+            .and_then(|model| model.editor)
+            .map(|document| document.note_id)
+        else {
             return;
         };
-        close_editor(&state_for_trash, &stack_for_trash);
-        let state = Rc::clone(&state_for_trash);
-        let toast_overlay = toast_for_trash.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            match client.trash_note_async(note.id).await {
-                Ok(()) => {
-                    state.current_note.take();
-                    refresh_browser(&state);
-                    refresh_sidebar(&state);
-                    refresh_trash(&state);
-                    let toast = adw::Toast::new("Moved note to Trash");
-                    toast.set_button_label(Some("Undo"));
-                    let state_for_undo = Rc::clone(&state);
-                    toast.connect_button_clicked(move |_| {
-                        let Some(note) = note_for_undo.as_ref() else {
-                            return;
-                        };
-                        let state = Rc::clone(&state_for_undo);
-                        let client = state.client.clone();
-                        let note_id = note.id;
-                        glib::spawn_future_local(async move {
-                            if client.restore_note_async(note_id).await.is_ok() {
-                                refresh_browser(&state);
-                                refresh_sidebar(&state);
-                                refresh_trash(&state);
-                            }
-                        });
-                    });
-                    toast_overlay.add_toast(toast);
-                }
-                Err(error) => toast_overlay.add_toast(adw::Toast::new(&format!(
-                    "Could not move note to Trash: {error}"
-                ))),
-            }
-        });
+        let _ = state_for_trash.dispatch_mvu(AppMsg::Action(ActionMsg::TrashNote(note_id)));
     });
 }
 
@@ -698,171 +752,20 @@ fn close_editor(state: &AppState, stack: &gtk::Stack) {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "note loading must update the coordinated editor widgets atomically"
-)]
-fn connect_note_loading(
-    state: &Rc<AppState>,
-    stack: &gtk::Stack,
-    rich_mode: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
-    rendered_mode: &gtk::ToggleButton,
-    format_stack: &gtk::Stack,
-    editor_stack: &gtk::Stack,
-    rich: &RichEditor,
-    source_buffer: &gtk::TextBuffer,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
-) {
-    let state_for_visible = Rc::clone(state);
-    let rich_for_visible = rich.clone();
-    let source_for_visible = source_buffer.clone();
-    let rich_mode_for_visible = rich_mode.clone();
-    let source_mode_for_visible = source_mode.clone();
-    let rendered_mode_for_visible = rendered_mode.clone();
-    let format_stack_for_visible = format_stack.clone();
-    let editor_stack_for_visible = editor_stack.clone();
-    let split_preview_for_visible = split_preview.clone();
-    let rendered_preview_for_visible = rendered_preview.clone();
-    stack.connect_visible_child_notify(move |stack| {
-        let note = state_for_visible.current_note.borrow().clone();
-        if stack.visible_child_name().as_deref() == Some("editor")
-            && let Some(note) = note
-        {
-            let source = state_for_visible
-                .mvu_model()
-                .and_then(|model| model.editor)
-                .filter(|document| document.note_id == note.id)
-                .map_or_else(
-                    || {
-                        let source = note.source.clone();
-                        let _ = state_for_visible.dispatch_mvu(AppMsg::Editor(EditorMsg::Load {
-                            note_id: note.id,
-                            revision: note.revision,
-                            source: source.clone(),
-                        }));
-                        source
-                    },
-                    |document| document.source,
-                );
-            state_for_visible.synchronizing_editor.set(true);
-            source_for_visible.set_text(&source);
-            let remote = state_for_visible
-                .config
-                .borrow()
-                .images
-                .load_remote_automatically;
-            load_preview(&split_preview_for_visible, &source, remote);
-            load_preview(&rendered_preview_for_visible, &source, remote);
-            rich_for_visible.load_source(&source);
-            if state_for_visible.source_mode.get() {
-                source_mode_for_visible.set_active(true);
-                editor_stack_for_visible.set_visible_child_name("source");
-                format_stack_for_visible.set_sensitive(true);
-                format_stack_for_visible.set_visible_child_name("source");
-            } else if state_for_visible.rendered_mode.get() {
-                rendered_mode_for_visible.set_active(true);
-                editor_stack_for_visible.set_visible_child_name("rendered");
-                format_stack_for_visible.set_sensitive(false);
-            } else {
-                rich_mode_for_visible.set_active(true);
-                editor_stack_for_visible.set_visible_child_name("rich");
-                format_stack_for_visible.set_sensitive(true);
-                format_stack_for_visible.set_visible_child_name("rich");
-            }
-            state_for_visible.synchronizing_editor.set(false);
-        }
-    });
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the editor projection owns the coordinated widgets for one model document"
-)]
-fn connect_model_renderer(
-    state: &Rc<AppState>,
-    rich_mode: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
-    rendered_mode: &gtk::ToggleButton,
-    format_stack: &gtk::Stack,
-    editor_stack: &gtk::Stack,
-    rich: &RichEditor,
-    source_buffer: &gtk::TextBuffer,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
-) {
-    let state = Rc::clone(state);
-    let rich_mode = rich_mode.clone();
-    let source_mode = source_mode.clone();
-    let rendered_mode = rendered_mode.clone();
-    let format_stack = format_stack.clone();
-    let editor_stack = editor_stack.clone();
-    let rich = rich.clone();
-    let source_buffer = source_buffer.clone();
-    let split_preview = split_preview.clone();
-    let rendered_preview = rendered_preview.clone();
-    let loaded_session = Rc::new(RefCell::new(None));
-    let state_for_render = Rc::clone(&state);
-    state.set_editor_renderer(move |model| {
-        let Some(document) = model.editor.as_ref() else {
-            return;
-        };
-        if loaded_session.borrow().as_ref() == Some(&document.session) {
-            return;
-        }
-
-        state_for_render.synchronizing_editor.set(true);
-        if buffer_text(&source_buffer) != document.source {
-            source_buffer.set_text(&document.source);
-        }
-        load_preview(
-            &split_preview,
-            &document.source,
-            model.preferences.load_remote_images,
-        );
-        load_preview(
-            &rendered_preview,
-            &document.source,
-            model.preferences.load_remote_images,
-        );
-        rich.load_source(&document.source);
-        match document.mode {
-            EditorMode::Source => {
-                source_mode.set_active(true);
-                editor_stack.set_visible_child_name("source");
-                format_stack.set_sensitive(true);
-                format_stack.set_visible_child_name("source");
-            }
-            EditorMode::Rendered => {
-                rendered_mode.set_active(true);
-                editor_stack.set_visible_child_name("rendered");
-                format_stack.set_sensitive(false);
-            }
-            EditorMode::Rich => {
-                rich_mode.set_active(true);
-                editor_stack.set_visible_child_name("rich");
-                format_stack.set_sensitive(true);
-                format_stack.set_visible_child_name("rich");
-            }
-        }
-        state_for_render.synchronizing_editor.set(false);
-        loaded_session.replace(Some(document.session));
-    });
-}
-
 fn connect_source_preview(
     state: &Rc<AppState>,
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
+    rendering: &Rc<Cell<bool>>,
 ) {
     let state = Rc::clone(state);
     let source = source_buffer.clone();
     let split_preview = split_preview.clone();
     let rendered_preview = rendered_preview.clone();
+    let rendering = Rc::clone(rendering);
     source_buffer.connect_changed(move |_| {
-        if state.synchronizing_editor.get() {
+        if rendering.get() {
             return;
         }
         let source_text = source

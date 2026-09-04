@@ -236,7 +236,11 @@ impl RichEditor {
                     mime_type,
                     data,
                 } if session == editor.session.get() => {
-                    let Some(note) = state.current_note.borrow().clone() else {
+                    let Some(note_id) = state
+                        .mvu_model()
+                        .and_then(|model| model.editor)
+                        .map(|document| document.note_id)
+                    else {
                         return;
                     };
                     let Ok(bytes) = STANDARD.decode(data) else {
@@ -249,7 +253,7 @@ impl RichEditor {
                     let editor = editor.clone();
                     let toast_overlay = toast_overlay.clone();
                     glib::spawn_future_local(async move {
-                        match client.store_asset_async(note.id, extension, bytes).await {
+                        match client.store_asset_async(note_id, extension, bytes).await {
                             Ok(path) => editor.insert_image_with_alt(&path, "Pasted image"),
                             Err(error) => toast_overlay.add_toast(libadwaita::Toast::new(
                                 &format!("Could not store pasted image: {error}"),

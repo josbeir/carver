@@ -21,7 +21,6 @@ use carver_storage_sqlite::StorageError;
 pub(crate) type AppLibraryClient = LibraryClient<SqliteLibrary>;
 pub(crate) type MvuRuntime = AppRuntime<SqliteLibrary>;
 type RemoteImagePolicyHandler = RefCell<Option<Box<dyn Fn(bool)>>>;
-type EditorRenderer = RefCell<Option<Box<dyn Fn(&AppModel)>>>;
 
 #[cfg(test)]
 pub(crate) type AppLibraryError = LibraryError<StorageError>;
@@ -38,14 +37,12 @@ pub(crate) struct AppState {
     pub(crate) config_path: Option<PathBuf>,
     pub(crate) config: RefCell<Config>,
     remote_image_policy_handler: RemoteImagePolicyHandler,
-    editor_renderer: EditorRenderer,
     pub(crate) selected_category: Cell<Option<CategoryId>>,
     pub(crate) selected_category_name: RefCell<Option<String>>,
     pub(crate) categories: RefCell<Vec<Category>>,
     pub(crate) current_note: RefCell<Option<Note>>,
     pub(crate) source_mode: Cell<bool>,
     pub(crate) rendered_mode: Cell<bool>,
-    pub(crate) synchronizing_editor: Cell<bool>,
     pub(crate) synchronizing_sidebar_selection: Cell<bool>,
     pub(crate) preview_generation: Cell<u64>,
     pub(crate) browser_generation: Cell<u64>,
@@ -89,14 +86,12 @@ impl AppState {
             config_path,
             config: RefCell::new(config),
             remote_image_policy_handler: RefCell::new(None),
-            editor_renderer: RefCell::new(None),
             selected_category: Cell::new(None),
             selected_category_name: RefCell::new(None),
             categories: RefCell::new(Vec::new()),
             current_note: RefCell::new(None),
             source_mode: Cell::new(source_mode),
             rendered_mode: Cell::new(rendered_mode),
-            synchronizing_editor: Cell::new(false),
             synchronizing_sidebar_selection: Cell::new(false),
             preview_generation: Cell::new(0),
             browser_generation: Cell::new(0),
@@ -179,18 +174,6 @@ impl AppState {
     pub(crate) fn refresh_remote_image_policy(&self, enabled: bool) {
         if let Some(handler) = self.remote_image_policy_handler.borrow().as_ref() {
             handler(enabled);
-        }
-    }
-
-    /// Registers the editor view adapter used to project immutable MVU snapshots.
-    pub(crate) fn set_editor_renderer(&self, renderer: impl Fn(&AppModel) + 'static) {
-        self.editor_renderer.replace(Some(Box::new(renderer)));
-    }
-
-    /// Renders the active editor from the latest immutable model snapshot.
-    pub(crate) fn render_editor(&self, model: &AppModel) {
-        if let Some(renderer) = self.editor_renderer.borrow().as_ref() {
-            renderer(model);
         }
     }
 }

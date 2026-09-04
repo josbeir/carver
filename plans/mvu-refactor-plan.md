@@ -252,12 +252,19 @@ Each part is independently reviewable and must preserve behavior unless it is ex
 **Required tests:** activating a note with no legacy current-note value opens and hydrates the
 correct document; an older open completion is ignored.
 
-### Part 11a.2: Editor adapter dispatch boundary
+### Part 11a.2: Editor projections owned by `ViewRefs`
+
+- Move editor widget references into `ViewRefs` so model snapshots, not stack-notify callbacks,
+  hydrate canonical source and the selected editor mode.
+- Keep the source/rich selection and scroll mechanics as view-only details.
+
+**Required tests:** a programmatic model render cannot dispatch a source change; editor deletion
+invalidates the editor session before the typed trash effect begins.
+
+### Part 11a.3: Editor adapter dispatch boundary
 
 - Give GTK/WebKit editor adapters a runtime-owned message dispatcher rather than access to
   `AppState` or the SDK.
-- Move editor widget references into `ViewRefs` so model snapshots, not stack-notify callbacks,
-  hydrate canonical source and the selected editor mode.
 - Preserve the source/rich selection and scroll mechanics as view-only details.
 
 **Required tests:** entering and leaving an editor hydrates the canonical document once; stale
