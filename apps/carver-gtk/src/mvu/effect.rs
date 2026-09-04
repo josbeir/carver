@@ -21,6 +21,13 @@ pub enum Effect {
         /// Debounce duration from persisted preferences.
         delay_ms: u64,
     },
+    /// Wait before accepting the latest editor source for preview rendering.
+    SchedulePreview {
+        /// Editor lifetime that scheduled the preview.
+        session: EditorSessionId,
+        /// Timer identity used to ignore superseded source edits.
+        timer_id: TimerId,
+    },
     /// Persist one immutable canonical editor source snapshot.
     SaveNote {
         /// Session, revision, and source to persist.

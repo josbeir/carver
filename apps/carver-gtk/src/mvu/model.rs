@@ -205,6 +205,15 @@ pub struct EditorDocument {
     close_after_save: bool,
 }
 
+/// The canonical source snapshot currently authorized for preview rendering.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorPreview {
+    /// Editor lifetime that produced this snapshot.
+    pub session: EditorSessionId,
+    /// Canonical Carve source accepted for preview rendering.
+    pub source: String,
+}
+
 impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,
@@ -296,11 +305,15 @@ pub struct AppModel {
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
     pub editor: Option<EditorDocument>,
+    /// Latest debounced editor preview snapshot.
+    pub editor_preview: Option<EditorPreview>,
+    pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
     /// The request currently loading a note into the editor.
     pub editor_load_request: Option<RequestId>,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
+    next_preview_timer_id: u64,
 }
 
 impl AppModel {
@@ -319,10 +332,13 @@ impl AppModel {
             undo_trash_note: None,
             preferences: Preferences::from(config),
             editor: None,
+            editor_preview: None,
+            preview_timer: None,
             editor_load_request: None,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,
+            next_preview_timer_id: 1,
         }
     }
 
@@ -349,6 +365,12 @@ impl AppModel {
     pub(super) fn next_timer_id(&mut self) -> TimerId {
         let timer_id = TimerId(self.next_timer_id);
         self.next_timer_id = self.next_timer_id.wrapping_add(1);
+        timer_id
+    }
+
+    pub(super) fn next_preview_timer_id(&mut self) -> TimerId {
+        let timer_id = TimerId(self.next_preview_timer_id);
+        self.next_preview_timer_id = self.next_preview_timer_id.wrapping_add(1);
         timer_id
     }
 }

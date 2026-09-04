@@ -43,6 +43,7 @@ pub(crate) struct EditorViewRefs {
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
+    preview_source: Rc<RefCell<Option<(EditorSessionId, String)>>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
 }
 
@@ -50,6 +51,7 @@ impl EditorViewRefs {
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     pub(crate) fn render(&self, model: &AppModel) {
         let Some(document) = model.editor.as_ref() else {
+            self.preview_source.replace(None);
             return;
         };
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
@@ -58,21 +60,40 @@ impl EditorViewRefs {
             .replace(model.preferences.load_remote_images)
             != model.preferences.load_remote_images;
         let source_changed = buffer_text(&self.source_buffer) != document.source;
+        let preview = model
+            .editor_preview
+            .as_ref()
+            .filter(|preview| preview.session == document.session)
+            .cloned();
+        let preview_changed = preview.as_ref().is_some_and(|preview| {
+            self.preview_source
+                .borrow()
+                .as_ref()
+                .is_none_or(|(session, source)| {
+                    *session != preview.session || source != &preview.source
+                })
+        });
         self.rendering.set(true);
         if source_changed {
             self.source_buffer.set_text(&document.source);
         }
-        if new_document || remote_images_changed || source_changed {
+        if (preview_changed || remote_images_changed)
+            && let Some(preview) = preview.as_ref()
+        {
             load_preview(
                 &self.split_preview,
-                &document.source,
+                &preview.source,
                 model.preferences.load_remote_images,
             );
             load_preview(
                 &self.rendered_preview,
-                &document.source,
+                &preview.source,
                 model.preferences.load_remote_images,
             );
+            self.preview_source
+                .replace(Some((preview.session, preview.source.clone())));
+        }
+        if new_document || remote_images_changed || source_changed {
             if remote_images_changed {
                 self.rich.reload_with_remote_images(
                     &document.source,
@@ -208,7 +229,7 @@ pub(crate) fn build_editor(
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
-    let preview_generation = Rc::new(Cell::new(0));
+    let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
@@ -269,22 +290,14 @@ pub(crate) fn build_editor(
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     connect_preview_theme_refresh(
         &remote_images,
-        &source_buffer,
+        &preview_source,
         &split_preview,
         &rendered_preview,
         &rich,
     );
     connect_trash_action(&state.dispatcher, &trash);
     connect_back_action(&state.dispatcher, &back);
-    connect_source_preview(
-        &state.dispatcher,
-        &remote_images,
-        &preview_generation,
-        &source_buffer,
-        &split_preview,
-        &rendered_preview,
-        &rendering,
-    );
+    connect_source_preview(&state.dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(&source, &state.dispatcher);
     let _source_image_drop = render::install_image_drop(&source, &state.dispatcher, toast_overlay);
     let _rich_image_drop =
@@ -302,6 +315,7 @@ pub(crate) fn build_editor(
         rendered_preview,
         rendering,
         remote_images,
+        preview_source,
         loaded_session: RefCell::new(None),
     };
     EditorSurface {
@@ -704,19 +718,11 @@ fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {
 
 fn connect_source_preview(
     dispatcher: &AppDispatcher,
-    remote_images: &Rc<Cell<bool>>,
-    preview_generation: &Rc<Cell<u64>>,
     source_buffer: &gtk::TextBuffer,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
     rendering: &Rc<Cell<bool>>,
 ) {
     let dispatcher = dispatcher.clone();
-    let remote_images = Rc::clone(remote_images);
-    let preview_generation = Rc::clone(preview_generation);
     let source = source_buffer.clone();
-    let split_preview = split_preview.clone();
-    let rendered_preview = rendered_preview.clone();
     let rendering = Rc::clone(rendering);
     source_buffer.connect_changed(move |_| {
         if rendering.get() {
@@ -725,56 +731,51 @@ fn connect_source_preview(
         let source_text = source
             .text(&source.start_iter(), &source.end_iter(), false)
             .to_string();
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(
-            source_text.clone(),
-        )));
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(source_text)));
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::AutosaveRequested));
-        let remote = remote_images.get();
-        let generation = preview_generation.get().saturating_add(1);
-        preview_generation.set(generation);
-        let preview_generation = Rc::clone(&preview_generation);
-        let split_preview = split_preview.clone();
-        let rendered_preview = rendered_preview.clone();
-        glib::timeout_add_local_once(StdDuration::from_millis(120), move || {
-            if preview_generation.get() != generation {
-                return;
-            }
-            load_preview(&split_preview, &source_text, remote);
-            load_preview(&rendered_preview, &source_text, remote);
-        });
     });
 }
 
 /// Reloads `WebKit` previews when GNOME switches between light and dark palettes.
 fn connect_preview_theme_refresh(
     remote_images: &Rc<Cell<bool>>,
-    source_buffer: &gtk::TextBuffer,
+    preview_source: &Rc<RefCell<Option<(EditorSessionId, String)>>>,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
     rich: &RichEditor,
 ) {
     let remote_images_for_dark_theme = Rc::clone(remote_images);
-    let source = source_buffer.clone();
+    let preview_source_for_dark_theme = Rc::clone(preview_source);
     let split_preview_for_dark_theme = split_preview.clone();
     let rendered_preview_for_dark_theme = rendered_preview.clone();
     let rich_for_dark_theme = rich.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
-        let source_text = buffer_text(&source);
-        let remote = remote_images_for_dark_theme.get();
-        load_preview(&split_preview_for_dark_theme, &source_text, remote);
-        load_preview(&rendered_preview_for_dark_theme, &source_text, remote);
+        let source = preview_source_for_dark_theme
+            .borrow()
+            .as_ref()
+            .map(|(_, source)| source.clone());
+        if let Some(source) = source {
+            let remote = remote_images_for_dark_theme.get();
+            load_preview(&split_preview_for_dark_theme, &source, remote);
+            load_preview(&rendered_preview_for_dark_theme, &source, remote);
+        }
         refresh_rich_theme(&rich_for_dark_theme);
     });
     let remote_images_for_accent = Rc::clone(remote_images);
-    let source = source_buffer.clone();
+    let preview_source_for_accent = Rc::clone(preview_source);
     let split_preview = split_preview.clone();
     let rendered_preview = rendered_preview.clone();
     let rich = rich.clone();
     adw::StyleManager::default().connect_accent_color_notify(move |_| {
-        let source_text = buffer_text(&source);
-        let remote = remote_images_for_accent.get();
-        load_preview(&split_preview, &source_text, remote);
-        load_preview(&rendered_preview, &source_text, remote);
+        let source = preview_source_for_accent
+            .borrow()
+            .as_ref()
+            .map(|(_, source)| source.clone());
+        if let Some(source) = source {
+            let remote = remote_images_for_accent.get();
+            load_preview(&split_preview, &source, remote);
+            load_preview(&rendered_preview, &source, remote);
+        }
         refresh_rich_theme(&rich);
     });
 }

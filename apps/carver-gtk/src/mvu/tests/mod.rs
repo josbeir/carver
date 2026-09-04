@@ -294,7 +294,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
     );
 
     assert!(
-        matches!(effects.as_slice(), [Effect::ScheduleEditorSave { session: effect_session, .. }] if *effect_session == session)
+        matches!(effects.as_slice(), [Effect::SchedulePreview { session: preview_session, .. }, Effect::ScheduleEditorSave { session: save_session, .. }] if *preview_session == session && *save_session == session)
     );
     assert_eq!(
         model
@@ -337,7 +337,13 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
         AppMsg::Editor(EditorMsg::SourceChanged(unsupported_source.clone())),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(
+        effects,
+        vec![Effect::SchedulePreview {
+            session: super::EditorSessionId(1),
+            timer_id: super::TimerId(1),
+        }]
+    );
     let effects = update(&mut model, AppMsg::Editor(EditorMsg::AutosaveRequested));
 
     assert_eq!(
@@ -357,6 +363,61 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
     assert_eq!(document.source, unsupported_source);
     assert_eq!(document.mode, carver_config::EditorMode::Rich);
     assert_eq!(document.save_state, super::EditorSaveState::Dirty);
+}
+
+#[test]
+fn latest_preview_timer_should_reject_a_superseded_source_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Initial".to_owned(),
+        }),
+    );
+    let session = super::EditorSessionId(1);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("First".to_owned())),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Final".to_owned())),
+    );
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PreviewElapsed {
+                session,
+                timer_id: super::TimerId(1),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model
+            .editor_preview
+            .as_ref()
+            .map(|preview| preview.source.as_str()),
+        Some("Initial")
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PreviewElapsed {
+            session,
+            timer_id: super::TimerId(2),
+        }),
+    );
+    assert_eq!(
+        model
+            .editor_preview
+            .as_ref()
+            .map(|preview| preview.source.as_str()),
+        Some("Final")
+    );
 }
 
 #[test]
@@ -392,7 +453,10 @@ fn source_change_while_saving_should_start_one_follow_up_save() {
         &mut model,
         AppMsg::Editor(EditorMsg::SourceChanged("Final source".to_owned())),
     );
-    assert!(effects.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::SchedulePreview { .. }]
+    ));
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorSaved {

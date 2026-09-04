@@ -98,14 +98,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             {
                 return Vec::new();
             }
-            let session = model.next_editor_session_id();
-            model.editor = Some(super::EditorDocument::new(
-                session,
-                note_id,
-                revision,
-                source,
-                model.preferences.editor_mode,
-            ));
+            open_editor(model, note_id, revision, source);
             Vec::new()
         }
         EditorMsg::SourceChanged(source) => {
@@ -115,6 +108,23 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 .is_some_and(|document| document.source_changed(source));
             if changed {
                 model.notice = None;
+                return schedule_preview(model).into_iter().collect();
+            }
+            Vec::new()
+        }
+        EditorMsg::PreviewElapsed { session, timer_id }
+            if model.preview_timer == Some((session, timer_id)) =>
+        {
+            model.preview_timer = None;
+            if let Some(document) = model
+                .editor
+                .as_ref()
+                .filter(|document| document.session == session)
+            {
+                model.editor_preview = Some(super::EditorPreview {
+                    session,
+                    source: document.source.clone(),
+                });
             }
             Vec::new()
         }
@@ -154,11 +164,38 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         {
             model.route = super::Route::Browser;
             model.editor = None;
+            model.editor_preview = None;
+            model.preview_timer = None;
             model.editor_load_request = None;
             Vec::new()
         }
-        EditorMsg::Close(_) => Vec::new(),
+        EditorMsg::PreviewElapsed { .. } | EditorMsg::Close(_) => Vec::new(),
     }
+}
+
+fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
+    let session = model.editor.as_ref()?.session;
+    let timer_id = model.next_preview_timer_id();
+    model.preview_timer = Some((session, timer_id));
+    Some(Effect::SchedulePreview { session, timer_id })
+}
+
+fn open_editor(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    revision: carver_sdk::Revision,
+    source: String,
+) {
+    let session = model.next_editor_session_id();
+    model.editor = Some(super::EditorDocument::new(
+        session,
+        note_id,
+        revision,
+        source.clone(),
+        model.preferences.editor_mode,
+    ));
+    model.editor_preview = Some(super::EditorPreview { session, source });
+    model.preview_timer = None;
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
@@ -179,6 +216,8 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
     {
         model.route = super::Route::Browser;
         model.editor = None;
+        model.editor_preview = None;
+        model.preview_timer = None;
     }
     let effect = match action {
         ActionMsg::CreateCategory(name) => {
@@ -265,14 +304,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             model.editor_load_request = None;
             match result {
                 Ok(note) => {
-                    let session = model.next_editor_session_id();
-                    model.editor = Some(super::EditorDocument::new(
-                        session,
-                        note.id,
-                        note.revision,
-                        note.source,
-                        model.preferences.editor_mode,
-                    ));
+                    open_editor(model, note.id, note.revision, note.source);
                     model.route = super::Route::Editor;
                 }
                 Err(error) => model.notice = Some(error),
@@ -303,7 +335,10 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     source.push_str(&path);
                     source.push_str(")\n");
                     if document.source_changed(source) {
-                        schedule_editor_save(model).into_iter().collect()
+                        [schedule_preview(model), schedule_editor_save(model)]
+                            .into_iter()
+                            .flatten()
+                            .collect()
                     } else {
                         Vec::new()
                     }
@@ -416,6 +451,8 @@ fn update_editor_save(
     if close_after_save {
         model.route = super::Route::Browser;
         model.editor = None;
+        model.editor_preview = None;
+        model.preview_timer = None;
     }
     reload_browser(model).into_iter().collect()
 }
@@ -428,6 +465,8 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     if matches!(&document.save_state, super::EditorSaveState::Clean) {
         model.route = super::Route::Browser;
         model.editor = None;
+        model.editor_preview = None;
+        model.preview_timer = None;
         return Vec::new();
     }
     document

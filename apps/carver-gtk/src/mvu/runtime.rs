@@ -116,6 +116,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 timer_id,
                 delay_ms,
             } => self.schedule_editor_save(session, timer_id, delay_ms),
+            Effect::SchedulePreview { session, timer_id } => {
+                self.schedule_preview(session, timer_id);
+            }
             Effect::SaveNote { request } => self.save_note(request),
             Effect::StoreEditorAsset {
                 session,
@@ -227,6 +230,17 @@ impl<B: LibraryBackend> AppRuntime<B> {
         glib::spawn_future_local(async move {
             glib::timeout_future(std::time::Duration::from_millis(delay_ms)).await;
             runtime.dispatch(AppMsg::Editor(super::EditorMsg::AutosaveElapsed {
+                session,
+                timer_id,
+            }));
+        });
+    }
+
+    fn schedule_preview(&self, session: super::EditorSessionId, timer_id: super::TimerId) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(std::time::Duration::from_millis(120)).await;
+            runtime.dispatch(AppMsg::Editor(super::EditorMsg::PreviewElapsed {
                 session,
                 timer_id,
             }));

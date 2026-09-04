@@ -300,6 +300,16 @@ are ignored; toolbar parity remains covered.
 
 ### Part 11c: Preview effects
 
+#### Part 11c.1: Preview intent and stale-work identity
+
+- Move the source-preview debounce identity and target canonical snapshot into the MVU model.
+- Keep WebKit rendering as a view projection of the latest accepted preview snapshot.
+
+**Required tests:** a newer source change supersedes an older preview timer, and only the newest
+session can update the preview snapshot.
+
+#### Part 11c.2: Theme and remote-image projection
+
 - Model preview reload intent and debounce identity; let the view render the latest canonical
   source into source-split and read-only previews.
 - Route remote-image policy and theme changes through messages/effects without a direct editor

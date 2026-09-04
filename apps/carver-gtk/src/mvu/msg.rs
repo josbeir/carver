@@ -97,6 +97,13 @@ pub enum EditorMsg {
         /// Timer identity used to reject superseded source edits.
         timer_id: TimerId,
     },
+    /// The latest debounced preview timer fired.
+    PreviewElapsed {
+        /// Editor lifetime that scheduled the preview.
+        session: EditorSessionId,
+        /// Timer identity used to reject superseded source edits.
+        timer_id: TimerId,
+    },
     /// Retry the current failed save without changing canonical source.
     RetrySave,
     /// Return to the browser after saving the latest canonical source.
