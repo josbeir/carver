@@ -1,25 +1,18 @@
 //! In-app trash browser and recovery actions.
 
-use std::{error::Error, rc::Rc};
+use std::rc::Rc;
 
 use adw::prelude::*;
-use carver_sdk::{TrashedCategorySummary, TrashedNoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    browser::refresh_browser,
     controller::AppState,
-    mvu::{AppMsg, NavigationMsg},
-    sidebar::refresh_sidebar,
+    mvu::{AppMsg, NavigationMsg, TrashMsg},
 };
 
 /// Builds the recoverable in-app trash page.
-pub(crate) fn build_trash(
-    state: &Rc<AppState>,
-    stack: &gtk::Stack,
-    toast_overlay: &adw::ToastOverlay,
-) -> gtk::Widget {
+pub(crate) fn build_trash(state: &Rc<AppState>, stack: &gtk::Stack) -> gtk::Widget {
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
@@ -68,86 +61,18 @@ pub(crate) fn build_trash(
     state.trash_content_stack.replace(Some(pages));
     state.trash_status.replace(Some(status));
     state.empty_trash_button.replace(Some(empty.clone()));
-    connect_empty_action(state, toast_overlay, &empty);
+    connect_empty_action(state, &empty);
     refresh_trash(state);
     view.upcast()
 }
 
 /// Refreshes visible trash data after a recovery or deletion action.
 pub(crate) fn refresh_trash(state: &Rc<AppState>) {
-    let (Some(list), Some(pages), Some(status), Some(empty_button)) = (
-        state.trash_list.borrow().clone(),
-        state.trash_content_stack.borrow().clone(),
-        state.trash_status.borrow().clone(),
-        state.empty_trash_button.borrow().clone(),
-    ) else {
-        return;
-    };
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    let generation = state.trash_generation.get().saturating_add(1);
-    state.trash_generation.set(generation);
-    let state = Rc::clone(state);
-    let client = state.client.clone();
-    glib::spawn_future_local(async move {
-        let result = client.trash_contents_async().await;
-        if state.trash_generation.get() != generation {
-            return;
-        }
-        populate_trash(&list, &pages, &status, &empty_button, &state, result);
-    });
+    let _ = state.dispatch_mvu(AppMsg::Trash(TrashMsg::Reload));
 }
 
-fn populate_trash<E>(
-    list: &gtk::ListBox,
-    pages: &gtk::Stack,
-    status: &adw::StatusPage,
-    empty_button: &gtk::Button,
-    state: &Rc<AppState>,
-    result: Result<carver_sdk::TrashContents, carver_sdk::LibraryError<E>>,
-) where
-    E: Error + Send + Sync + 'static,
-{
-    match result {
-        Ok(contents) if contents.is_empty() => {
-            status.set_title("Trash is empty");
-            status.set_description(Some("Deleted notes and categories can be restored here."));
-            empty_button.set_sensitive(false);
-            pages.set_visible_child_name("empty");
-        }
-        Ok(contents) => {
-            empty_button.set_sensitive(true);
-            if !contents.categories.is_empty() {
-                append_section_heading(list, "Categories");
-                for category in &contents.categories {
-                    list.append(&trashed_category_row(state, category));
-                }
-            }
-            if !contents.notes.is_empty() {
-                append_section_heading(list, "Notes");
-                for note in &contents.notes {
-                    list.append(&trashed_note_row(state, note));
-                }
-            }
-            pages.set_visible_child_name("contents");
-        }
-        Err(error) => {
-            status.set_title("Trash could not be loaded");
-            status.set_description(Some(&error.to_string()));
-            empty_button.set_sensitive(false);
-            pages.set_visible_child_name("empty");
-        }
-    }
-}
-
-fn connect_empty_action(
-    state: &Rc<AppState>,
-    toast_overlay: &adw::ToastOverlay,
-    button: &gtk::Button,
-) {
+fn connect_empty_action(state: &Rc<AppState>, button: &gtk::Button) {
     let state_for_empty = Rc::clone(state);
-    let toast_for_empty = toast_overlay.clone();
     button.connect_clicked(move |button| {
         let dialog = adw::AlertDialog::new(
             Some("Empty Trash?"),
@@ -160,152 +85,11 @@ fn connect_empty_action(
         dialog.set_default_response(Some("cancel"));
         dialog.set_close_response("cancel");
         let state = Rc::clone(&state_for_empty);
-        let toast = toast_for_empty.clone();
         dialog.connect_response(None, move |_dialog, response| {
             if response == "empty" {
-                let state = Rc::clone(&state);
-                let client = state.client.clone();
-                let toast = toast.clone();
-                glib::spawn_future_local(async move {
-                match client.empty_trash_async().await {
-                    Ok(_) => {
-                        refresh_sidebar(&state);
-                        refresh_browser(&state);
-                        refresh_trash(&state);
-                        toast.add_toast(adw::Toast::new("Trash emptied"));
-                    }
-                    Err(error) => {
-                        toast
-                            .add_toast(adw::Toast::new(&format!("Could not empty Trash: {error}")));
-                    }
-                }
-                });
+                let _ = state.dispatch_mvu(AppMsg::Trash(TrashMsg::Empty));
             }
         });
         dialog.present(button.root().as_ref());
     });
-}
-
-fn append_section_heading(list: &gtk::ListBox, text: &str) {
-    let row = gtk::ListBoxRow::new();
-    row.set_selectable(false);
-    row.add_css_class("date-heading");
-    let label = gtk::Label::new(Some(text));
-    label.set_xalign(0.0);
-    label.add_css_class("date-heading-label");
-    row.set_child(Some(&label));
-    list.append(&row);
-}
-
-fn trashed_category_row(
-    state: &Rc<AppState>,
-    category: &TrashedCategorySummary,
-) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_widget_name(&format!("trashed-category:{}", category.category.id));
-    row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    content.set_margin_start(12);
-    content.set_margin_end(12);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    content.append(&gtk::Image::from_icon_name("folder-symbolic"));
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    text.set_hexpand(true);
-    let title = gtk::Label::new(Some(&category.category.name));
-    title.set_xalign(0.0);
-    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    title.set_single_line_mode(true);
-    title.add_css_class("note-card-title");
-    text.append(&title);
-    let metadata = gtk::Label::new(Some(&format!(
-        "{} • Deleted {}",
-        note_count_label(category.recoverable_note_count),
-        category
-            .category
-            .trashed_at
-            .map_or_else(String::new, |time| time.date().to_string())
-    )));
-    metadata.set_xalign(0.0);
-    metadata.add_css_class("note-card-excerpt");
-    text.append(&metadata);
-    content.append(&text);
-    let restore = gtk::Button::with_label("Restore");
-    restore.set_widget_name(&format!("restore-category:{}", category.category.id));
-    let state_for_restore = Rc::clone(state);
-    let category_id = category.category.id;
-    restore.connect_clicked(move |_| {
-        let state = Rc::clone(&state_for_restore);
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            if client.restore_category_async(category_id).await.is_ok() {
-                refresh_sidebar(&state);
-                refresh_browser(&state);
-                refresh_trash(&state);
-            }
-        });
-    });
-    content.append(&restore);
-    row.set_child(Some(&content));
-    row
-}
-
-fn trashed_note_row(state: &Rc<AppState>, note: &TrashedNoteSummary) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_widget_name(&format!("trashed-note:{}", note.id));
-    row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    content.set_margin_start(12);
-    content.set_margin_end(12);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    text.set_hexpand(true);
-    let title = gtk::Label::new(Some(&note.title));
-    title.set_xalign(0.0);
-    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    title.set_single_line_mode(true);
-    title.add_css_class("note-card-title");
-    text.append(&title);
-    let excerpt = gtk::Label::new(Some(&note.excerpt));
-    excerpt.set_xalign(0.0);
-    excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    excerpt.set_single_line_mode(true);
-    excerpt.add_css_class("note-card-excerpt");
-    text.append(&excerpt);
-    let metadata = gtk::Label::new(Some(&format!(
-        "From {} • Deleted {}",
-        note.category_name,
-        note.trashed_at.date()
-    )));
-    metadata.set_xalign(0.0);
-    metadata.add_css_class("dim-label");
-    text.append(&metadata);
-    content.append(&text);
-    let restore = gtk::Button::with_label("Restore");
-    restore.set_widget_name(&format!("restore-note:{}", note.id));
-    let state_for_restore = Rc::clone(state);
-    let note_id = note.id;
-    restore.connect_clicked(move |_| {
-        let state = Rc::clone(&state_for_restore);
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            if client.restore_note_async(note_id).await.is_ok() {
-                refresh_sidebar(&state);
-                refresh_browser(&state);
-                refresh_trash(&state);
-            }
-        });
-    });
-    content.append(&restore);
-    row.set_child(Some(&content));
-    row
-}
-
-fn note_count_label(note_count: usize) -> String {
-    if note_count == 1 {
-        "1 recoverable note".to_owned()
-    } else {
-        format!("{note_count} recoverable notes")
-    }
 }

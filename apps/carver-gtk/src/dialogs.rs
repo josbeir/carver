@@ -4,10 +4,14 @@ use std::{path::Path, rc::Rc};
 
 use adw::prelude::*;
 use carver_config::{ConfigError, save};
+use carver_sdk::{CategoryId, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::controller::AppState;
+use crate::{
+    controller::AppState,
+    mvu::{AppMsg, TrashMsg},
+};
 
 /// Installs actions exposed from the application menu.
 pub(crate) fn install_window_actions(
@@ -32,6 +36,48 @@ pub(crate) fn install_window_actions(
     let window_for_about = window.clone();
     about.connect_activate(move |_, _| show_about_window(&window_for_about));
     window.add_action(&about);
+
+    install_trash_actions(window, state);
+}
+
+fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
+    let actions = gtk::gio::SimpleActionGroup::new();
+    let restore_category =
+        gtk::gio::SimpleAction::new("restore-category", Some(&String::static_variant_type()));
+    let state_for_category = Rc::clone(state);
+    restore_category.connect_activate(move |_, parameter| {
+        let Some(category_id) = parameter
+            .and_then(gtk::glib::Variant::get::<String>)
+            .and_then(|value| uuid::Uuid::parse_str(&value).ok())
+            .map(CategoryId::from_uuid)
+        else {
+            return;
+        };
+        let _ =
+            state_for_category.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreCategory(category_id)));
+    });
+    actions.add_action(&restore_category);
+
+    let restore_note =
+        gtk::gio::SimpleAction::new("restore-note", Some(&String::static_variant_type()));
+    let state_for_note = Rc::clone(state);
+    restore_note.connect_activate(move |_, parameter| {
+        let Some(note_id) = parameter
+            .and_then(gtk::glib::Variant::get::<String>)
+            .and_then(|value| uuid::Uuid::parse_str(&value).ok())
+            .map(NoteId::from_uuid)
+        else {
+            return;
+        };
+        let _ = state_for_note.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
+    });
+    actions.add_action(&restore_note);
+    window.insert_action_group("trash", Some(&actions));
+}
+
+#[cfg(test)]
+pub(crate) fn install_trash_actions_for_test(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
+    install_trash_actions(window, state);
 }
 
 fn show_preferences_dialog(

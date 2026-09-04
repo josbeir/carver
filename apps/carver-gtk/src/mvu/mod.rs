@@ -16,7 +16,7 @@ pub use model::{
 };
 pub use msg::{
     AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg,
-    TrashMsg,
+    TrashMsg, TrashMutation,
 };
 pub use runtime::AppRuntime;
 pub use update::update;

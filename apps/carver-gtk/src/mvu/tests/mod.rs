@@ -1,12 +1,12 @@
 use carver_config::{AppPaths, Config};
-use carver_sdk::CategoryId;
 use carver_sdk::LibraryClient;
+use carver_sdk::{CategoryId, NoteId};
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 
 use super::{
     AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect, LibraryReply, LoadState,
-    NavigationMsg, RequestId, Route, SidebarMsg, UiError, update,
+    NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg, TrashMutation, UiError, update,
 };
 
 #[test]
@@ -127,6 +127,56 @@ fn stale_editor_close_should_not_close_a_newer_session() {
 
     assert_eq!(model.route, Route::Editor);
     assert_ne!(model.editor_session, Some(first_session));
+}
+
+#[test]
+fn successful_trash_mutation_should_reload_each_dependent_resource_once() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Trash(TrashMsg::RestoreNote(NoteId::new())),
+    );
+    assert!(matches!(effects.as_slice(), [Effect::RestoreNote { .. }]));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::TrashMutationFinished {
+            result: Ok(TrashMutation::NoteRestored),
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![
+            Effect::LoadSidebar {
+                request_id: RequestId(1),
+            },
+            Effect::LoadBrowser {
+                request_id: RequestId(2),
+                category_id: None,
+                query: String::new(),
+            },
+            Effect::LoadTrash {
+                request_id: RequestId(3),
+            },
+        ]
+    );
+}
+
+#[test]
+fn failed_trash_mutation_should_not_discard_loaded_resources() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::TrashMutationFinished {
+            result: Err(UiError::new("restore failed")),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.trash.state, LoadState::Idle);
+    assert_eq!(model.notice, Some(UiError::new("restore failed")));
 }
 
 pub(crate) fn runtime_should_render_and_complete_each_initial_resource()

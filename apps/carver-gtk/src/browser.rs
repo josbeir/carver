@@ -28,7 +28,7 @@ pub(crate) fn build_content(
     stack.add_named(&browser, Some("browser"));
     let editor = build_editor(state, &stack, toast_overlay, split_view);
     stack.add_named(&editor, Some("editor"));
-    let trash = build_trash(state, &stack, toast_overlay);
+    let trash = build_trash(state, &stack);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
     stack.upcast()

@@ -6,7 +6,7 @@ use carver_sdk::{LibraryBackend, LibraryClient};
 
 use crate::view::ViewRefs;
 
-use super::{AppModel, AppMsg, Effect, LibraryReply, UiError, update};
+use super::{AppModel, AppMsg, Effect, LibraryReply, TrashMutation, UiError, update};
 
 /// Main-thread dispatcher that renders model snapshots and executes typed effects.
 ///
@@ -127,7 +127,61 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     }));
                 });
             }
+            Effect::RestoreCategory { category_id } => {
+                self.restore_category(category_id);
+            }
+            Effect::RestoreNote { note_id } => {
+                self.restore_note(note_id);
+            }
+            Effect::EmptyTrash => {
+                self.empty_trash();
+            }
         }
+    }
+
+    fn restore_category(&self, category_id: carver_sdk::CategoryId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .restore_category_async(category_id)
+                .await
+                .map(|()| TrashMutation::CategoryRestored)
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::TrashMutationFinished {
+                result,
+            }));
+        });
+    }
+
+    fn restore_note(&self, note_id: carver_sdk::NoteId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .restore_note_async(note_id)
+                .await
+                .map(|()| TrashMutation::NoteRestored)
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::TrashMutationFinished {
+                result,
+            }));
+        });
+    }
+
+    fn empty_trash(&self) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .empty_trash_async()
+                .await
+                .map(TrashMutation::Emptied)
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::TrashMutationFinished {
+                result,
+            }));
+        });
     }
 }
 

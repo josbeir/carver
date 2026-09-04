@@ -43,6 +43,11 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Sidebar(SidebarMsg::Reload) => reload_sidebar(model).into_iter().collect(),
         AppMsg::Trash(TrashMsg::Reload) => reload_trash(model).into_iter().collect(),
+        AppMsg::Trash(TrashMsg::RestoreCategory(category_id)) => {
+            vec![Effect::RestoreCategory { category_id }]
+        }
+        AppMsg::Trash(TrashMsg::RestoreNote(note_id)) => vec![Effect::RestoreNote { note_id }],
+        AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
         AppMsg::Editor(EditorMsg::Open(_)) => {
             model.route = super::Route::Editor;
             model.editor_session = Some(model.next_editor_session_id());
@@ -70,31 +75,67 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.preferences.source_split_view = visible;
             Vec::new()
         }
-        AppMsg::Library(LibraryReply::SidebarLoaded { request_id, result }) => {
-            let reload = model.sidebar.finish(request_id, result);
-            reload
-                .then(|| reload_sidebar(model))
-                .flatten()
-                .into_iter()
-                .collect()
-        }
-        AppMsg::Library(LibraryReply::BrowserLoaded { request_id, result }) => {
-            let reload = model.browser.notes.finish(request_id, result);
-            reload
-                .then(|| reload_browser(model))
-                .flatten()
-                .into_iter()
-                .collect()
-        }
-        AppMsg::Library(LibraryReply::TrashLoaded { request_id, result }) => {
-            let reload = model.trash.finish(request_id, result);
-            reload
-                .then(|| reload_trash(model))
-                .flatten()
-                .into_iter()
-                .collect()
-        }
+        AppMsg::Library(reply) => update_library(model, reply),
     }
+}
+
+fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
+    match reply {
+        LibraryReply::SidebarLoaded { request_id, result } => {
+            reload_sidebar_after(model.sidebar.finish(request_id, result), model)
+        }
+        LibraryReply::BrowserLoaded { request_id, result } => {
+            reload_browser_after(model.browser.notes.finish(request_id, result), model)
+        }
+        LibraryReply::TrashLoaded { request_id, result } => {
+            reload_trash_after(model.trash.finish(request_id, result), model)
+        }
+        LibraryReply::TrashMutationFinished { result } => match result {
+            Ok(_) => {
+                model.notice = None;
+                reload_all_resources(model)
+            }
+            Err(error) => {
+                model.notice = Some(error);
+                Vec::new()
+            }
+        },
+    }
+}
+
+fn reload_sidebar_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
+    reload
+        .then(|| reload_sidebar(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+fn reload_browser_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
+    reload
+        .then(|| reload_browser(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+fn reload_trash_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
+    reload
+        .then(|| reload_trash(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+fn reload_all_resources(model: &mut AppModel) -> Vec<Effect> {
+    [
+        reload_sidebar(model),
+        reload_browser(model),
+        reload_trash(model),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {

@@ -1,7 +1,9 @@
 //! Messages accepted by the application reducer.
 
 use carver_config::EditorMode;
-use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents};
+use carver_sdk::{
+    CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents, TrashPurgeResult,
+};
 
 use super::{EditorSessionId, RequestId, TimerId, UiError};
 
@@ -60,6 +62,12 @@ pub enum SidebarMsg {
 pub enum TrashMsg {
     /// Reload recoverable deleted content.
     Reload,
+    /// Restore a trashed category.
+    RestoreCategory(CategoryId),
+    /// Restore a trashed note.
+    RestoreNote(NoteId),
+    /// Permanently remove all recoverable content after confirmation.
+    Empty,
 }
 
 /// Editor events whose persistence is introduced in the editor migration parts.
@@ -106,4 +114,20 @@ pub enum LibraryReply {
         /// Successful result or a displayable failure.
         result: Result<TrashContents, UiError>,
     },
+    /// A trash mutation completed.
+    TrashMutationFinished {
+        /// Successful mutation result or a displayable failure.
+        result: Result<TrashMutation, UiError>,
+    },
+}
+
+/// Successful effects that invalidate the same dependent resources.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TrashMutation {
+    /// A category was restored.
+    CategoryRestored,
+    /// A note was restored.
+    NoteRestored,
+    /// Trash was permanently emptied.
+    Emptied(TrashPurgeResult),
 }

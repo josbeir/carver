@@ -37,7 +37,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     let toast = adw::ToastOverlay::new();
     let browser = build_browser(&state, &stack, &split_view, &toast);
     let editor_placeholder = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let trash = build_trash(&state, &stack, &toast);
+    let trash = build_trash(&state, &stack);
     stack.add_named(&browser, Some("browser"));
     stack.add_named(&editor_placeholder, Some("editor"));
     stack.add_named(&trash, Some("trash"));
@@ -121,6 +121,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .is_some_and(|note| note.category_id == second.id)));
 
     crate::app::install_mvu_runtime_for_test(&state);
+    crate::dialogs::install_trash_actions_for_test(&window, &state);
     assert!(run_main_context_until(|| find_widget(
         category_list.upcast_ref(),
         &format!("category:{}", second.id)

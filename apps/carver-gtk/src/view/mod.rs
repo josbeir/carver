@@ -1,6 +1,6 @@
 //! Imperative GTK rendering adapters for MVU model snapshots.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -19,7 +19,12 @@ pub struct ViewRefs {
     browser_empty_new_note_button: Option<gtk::Button>,
     browser_title: Option<adw::WindowTitle>,
     browser_status: adw::StatusPage,
+    trash_list: Option<gtk::ListBox>,
+    trash_pages: Option<gtk::Stack>,
+    empty_trash_button: Option<gtk::Button>,
     trash_status: adw::StatusPage,
+    toast_overlay: Option<adw::ToastOverlay>,
+    last_notice: RefCell<Option<String>>,
     rendering: Cell<bool>,
 }
 
@@ -40,9 +45,35 @@ impl ViewRefs {
             browser_empty_new_note_button: None,
             browser_title: None,
             browser_status,
+            trash_list: None,
+            trash_pages: None,
+            empty_trash_button: None,
             trash_status,
+            toast_overlay: None,
+            last_notice: RefCell::new(None),
             rendering: Cell::new(false),
         }
+    }
+
+    /// Adds the trash widgets created by the window composition shell.
+    #[must_use]
+    pub fn with_trash(
+        mut self,
+        trash_list: gtk::ListBox,
+        trash_pages: gtk::Stack,
+        empty_trash_button: gtk::Button,
+    ) -> Self {
+        self.trash_list = Some(trash_list);
+        self.trash_pages = Some(trash_pages);
+        self.empty_trash_button = Some(empty_trash_button);
+        self
+    }
+
+    /// Adds the window toast overlay used for mutation error feedback.
+    #[must_use]
+    pub fn with_toast_overlay(mut self, toast_overlay: adw::ToastOverlay) -> Self {
+        self.toast_overlay = Some(toast_overlay);
+        self
     }
 
     /// Adds the browser and sidebar widgets created by the legacy composition shell.
@@ -75,7 +106,8 @@ impl ViewRefs {
         });
         self.render_sidebar(model);
         self.render_browser(model);
-        render_resource(&self.trash_status, &model.trash.state, "Trash is empty");
+        self.render_trash(model);
+        self.render_notice(model);
         self.rendering.set(false);
     }
 
@@ -182,6 +214,68 @@ impl ViewRefs {
             }
         }
     }
+
+    fn render_trash(&self, model: &AppModel) {
+        let (Some(list), Some(pages), Some(empty_button)) = (
+            self.trash_list.as_ref(),
+            self.trash_pages.as_ref(),
+            self.empty_trash_button.as_ref(),
+        ) else {
+            render_resource(&self.trash_status, &model.trash.state, "Trash is empty");
+            return;
+        };
+        while let Some(child) = list.first_child() {
+            list.remove(&child);
+        }
+        match &model.trash.state {
+            LoadState::Ready(contents) if contents.is_empty() => {
+                self.trash_status.set_title("Trash is empty");
+                self.trash_status
+                    .set_description(Some("Deleted notes and categories can be restored here."));
+                empty_button.set_sensitive(false);
+                pages.set_visible_child_name("empty");
+            }
+            LoadState::Ready(contents) => {
+                empty_button.set_sensitive(true);
+                if !contents.categories.is_empty() {
+                    append_section_heading(list, "Categories");
+                    for category in &contents.categories {
+                        list.append(&trashed_category_row(category));
+                    }
+                }
+                if !contents.notes.is_empty() {
+                    append_section_heading(list, "Notes");
+                    for note in &contents.notes {
+                        list.append(&trashed_note_row(note));
+                    }
+                }
+                pages.set_visible_child_name("contents");
+            }
+            state => {
+                empty_button.set_sensitive(false);
+                self.trash_status
+                    .set_title(resource_label(state, "Trash is empty"));
+                if let LoadState::Failed(error) = state {
+                    self.trash_status.set_description(Some(&error.message));
+                }
+                pages.set_visible_child_name("empty");
+            }
+        }
+    }
+
+    fn render_notice(&self, model: &AppModel) {
+        let Some(error) = &model.notice else {
+            self.last_notice.replace(None);
+            return;
+        };
+        if self.last_notice.borrow().as_deref() == Some(error.message.as_str()) {
+            return;
+        }
+        if let Some(toast_overlay) = &self.toast_overlay {
+            toast_overlay.add_toast(adw::Toast::new(&error.message));
+            self.last_notice.replace(Some(error.message.clone()));
+        }
+    }
 }
 
 fn render_resource<T>(status: &adw::StatusPage, resource: &LoadState<T>, empty_title: &str) {
@@ -248,6 +342,75 @@ fn browser_row(note: &carver_sdk::NoteSummary) -> gtk::ListBoxRow {
         excerpt.set_single_line_mode(true);
         content.append(&excerpt);
     }
+    row.set_child(Some(&content));
+    row
+}
+
+fn append_section_heading(list: &gtk::ListBox, text: &str) {
+    let row = gtk::ListBoxRow::new();
+    row.set_selectable(false);
+    row.add_css_class("date-heading");
+    let label = gtk::Label::new(Some(text));
+    label.set_xalign(0.0);
+    label.add_css_class("date-heading-label");
+    row.set_child(Some(&label));
+    list.append(&row);
+}
+
+fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::ListBoxRow {
+    let row = gtk::ListBoxRow::new();
+    row.set_widget_name(&format!("trashed-category:{}", category.category.id));
+    row.add_css_class("note-card");
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+    content.set_margin_top(10);
+    content.set_margin_bottom(10);
+    let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    details.set_hexpand(true);
+    let title = gtk::Label::new(Some(&category.category.name));
+    title.set_xalign(0.0);
+    title.add_css_class("note-card-title");
+    details.append(&title);
+    details.append(&gtk::Label::new(Some(&format!(
+        "{} recoverable notes",
+        category.recoverable_note_count
+    ))));
+    content.append(&details);
+    let restore = gtk::Button::with_label("Restore");
+    restore.set_widget_name(&format!("restore-category:{}", category.category.id));
+    restore.set_action_name(Some("trash.restore-category"));
+    restore.set_action_target_value(Some(&category.category.id.to_string().to_variant()));
+    content.append(&restore);
+    row.set_child(Some(&content));
+    row
+}
+
+fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> gtk::ListBoxRow {
+    let row = gtk::ListBoxRow::new();
+    row.set_widget_name(&format!("trashed-note:{}", note.id));
+    row.add_css_class("note-card");
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+    content.set_margin_top(10);
+    content.set_margin_bottom(10);
+    let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    details.set_hexpand(true);
+    let title = gtk::Label::new(Some(&note.title));
+    title.set_xalign(0.0);
+    title.add_css_class("note-card-title");
+    details.append(&title);
+    let excerpt = gtk::Label::new(Some(&note.excerpt));
+    excerpt.set_xalign(0.0);
+    excerpt.add_css_class("note-card-excerpt");
+    details.append(&excerpt);
+    content.append(&details);
+    let restore = gtk::Button::with_label("Restore");
+    restore.set_widget_name(&format!("restore-note:{}", note.id));
+    restore.set_action_name(Some("trash.restore-note"));
+    restore.set_action_target_value(Some(&note.id.to_string().to_variant()));
+    content.append(&restore);
     row.set_child(Some(&content));
     row
 }

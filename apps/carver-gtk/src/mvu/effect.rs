@@ -1,6 +1,6 @@
 //! Side effects requested by the pure reducer.
 
-use carver_sdk::CategoryId;
+use carver_sdk::{CategoryId, NoteId};
 
 use super::{RequestId, TimerId};
 
@@ -31,4 +31,16 @@ pub enum Effect {
         /// Identity for stale-completion protection.
         request_id: RequestId,
     },
+    /// Restore a category from trash.
+    RestoreCategory {
+        /// Category to restore.
+        category_id: CategoryId,
+    },
+    /// Restore a note from trash.
+    RestoreNote {
+        /// Note to restore.
+        note_id: NoteId,
+    },
+    /// Permanently remove all trashed content.
+    EmptyTrash,
 }

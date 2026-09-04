@@ -136,6 +136,8 @@ pub struct AppModel {
     pub browser: BrowserModel,
     /// Recoverable deleted content.
     pub trash: Resource<TrashContents>,
+    /// The most recent mutation error for the view to surface.
+    pub notice: Option<UiError>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
     /// Active editor lifetime, if an editor is open.
@@ -155,6 +157,7 @@ impl AppModel {
             sidebar: Resource::default(),
             browser: BrowserModel::default(),
             trash: Resource::default(),
+            notice: None,
             preferences: Preferences::from(config),
             editor_session: None,
             next_request_id: 1,

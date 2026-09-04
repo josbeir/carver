@@ -152,6 +152,7 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
         Some(browser_title),
         Some(browser_status),
         Some(trash_status),
+        Some(toast_overlay),
     ) = (
         state.browser_stack.borrow().clone(),
         state.sidebar_list.borrow().clone(),
@@ -162,18 +163,29 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
         state.browser_title.borrow().clone(),
         state.browser_status.borrow().clone(),
         state.trash_status.borrow().clone(),
+        state.browser_toast_overlay.borrow().clone(),
     )
     else {
         return;
     };
-    let view = ViewRefs::new(route_stack, browser_status, trash_status).with_browser_and_sidebar(
-        sidebar_list,
-        browser_list,
-        browser_pages,
-        browser_search_empty_card,
-        browser_empty_new_note_button,
-        browser_title,
-    );
+    let (Some(trash_list), Some(trash_pages), Some(empty_trash_button)) = (
+        state.trash_list.borrow().clone(),
+        state.trash_content_stack.borrow().clone(),
+        state.empty_trash_button.borrow().clone(),
+    ) else {
+        return;
+    };
+    let view = ViewRefs::new(route_stack, browser_status, trash_status)
+        .with_browser_and_sidebar(
+            sidebar_list,
+            browser_list,
+            browser_pages,
+            browser_search_empty_card,
+            browser_empty_new_note_button,
+            browser_title,
+        )
+        .with_trash(trash_list, trash_pages, empty_trash_button)
+        .with_toast_overlay(toast_overlay);
     let model = AppModel::new(&state.config.borrow());
     if state.install_mvu_runtime(AppRuntime::new(state.client.clone(), model, view)) {
         let _ = state.dispatch_mvu(AppMsg::Navigation(NavigationMsg::Started));
