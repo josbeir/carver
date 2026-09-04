@@ -17684,6 +17684,23 @@ img.ProseMirror-separator {
     return state.tr.removeMark(from2, to, link).insertText(text, from2, to).addMark(from2, from2 + text.length, link.create({ href }));
   }
 
+  // src/image-resize.js
+  function resizeSelectedImage(state, width) {
+    const { selection } = state;
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
+      return null;
+    }
+    const values = { ...selection.node.attrs.carveKeyValues ?? {} };
+    if (width) values.width = `${width}%`;
+    else delete values.width;
+    const transaction = state.tr.setNodeMarkup(selection.from, void 0, {
+      ...selection.node.attrs,
+      carveKeyValues: values
+    });
+    const imagePosition = transaction.mapping.map(selection.from);
+    return transaction.setSelection(NodeSelection.create(transaction.doc, imagePosition));
+  }
+
   // node_modules/prosemirror-tables/dist/index.js
   var readFromCache;
   var addToCache;
@@ -39005,12 +39022,11 @@ ${content}`;
     return true;
   }
   function setImageWidth(width) {
-    if (!editor.isActive("image")) return false;
-    const attrs = editor.getAttributes("image");
-    const values = { ...attrs.carveKeyValues ?? {} };
-    if (width) values.width = `${width}%`;
-    else delete values.width;
-    return editor.chain().focus().updateAttributes("image", { carveKeyValues: values }).run();
+    const transaction = resizeSelectedImage(editor.state, width);
+    if (!transaction) return false;
+    editor.view.dispatch(transaction);
+    editor.commands.focus();
+    return true;
   }
   function pasteImage(event) {
     const item = [...event.clipboardData?.items ?? []].find((item2) => item2.type.startsWith("image/"));

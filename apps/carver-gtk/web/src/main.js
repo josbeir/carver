@@ -4,6 +4,7 @@ import './style.css';
 import { unsupportedForEditing } from './editability.js';
 import { focusEmptyEditorSurface } from './empty-surface.js';
 import { insertOrUpdateLink, linkContext } from './link.js';
+import { resizeSelectedImage } from './image-resize.js';
 import { resizeSelectedTable, tableSize } from './table-resize.js';
 import {
   CarveKit,
@@ -147,12 +148,11 @@ function insertLink(argument) {
 }
 
 function setImageWidth(width) {
-  if (!editor.isActive('image')) return false;
-  const attrs = editor.getAttributes('image');
-  const values = { ...(attrs.carveKeyValues ?? {}) };
-  if (width) values.width = `${width}%`;
-  else delete values.width;
-  return editor.chain().focus().updateAttributes('image', { carveKeyValues: values }).run();
+  const transaction = resizeSelectedImage(editor.state, width);
+  if (!transaction) return false;
+  editor.view.dispatch(transaction);
+  editor.commands.focus();
+  return true;
 }
 
 function pasteImage(event) {
