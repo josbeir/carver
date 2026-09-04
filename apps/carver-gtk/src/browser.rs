@@ -8,10 +8,12 @@ use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
-    mvu::{AppDispatcher, AppMsg, BrowserMsg, NavigationMsg},
+    mvu::{AppDispatcher, AppMsg, BrowserMsg, EditorMsg, NavigationMsg},
     sidebar::sidebar_toggle_button,
     trash::{TrashViewRefs, build_trash},
 };
+
+const MOUSE_BACK_BUTTON: u32 = 8;
 
 /// Widget references needed to render the browser portion of a window snapshot.
 pub(crate) struct BrowserViewRefs {
@@ -59,6 +61,7 @@ pub(crate) fn build_content(
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
+    install_editor_mouse_back_navigation(dispatcher, &stack);
     Ok(ContentSurface {
         widget: stack.clone().upcast(),
         route_stack: stack,
@@ -66,6 +69,31 @@ pub(crate) fn build_content(
         browser: browser_refs,
         trash: trash_refs,
     })
+}
+
+/// Routes the conventional pointer Back button through the editor's MVU close transition.
+fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+    let back = gtk::EventControllerLegacy::new();
+    back.set_name(Some("editor-mouse-back-controller"));
+    // Capture the event before an embedded rich editor can consume it.
+    back.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let dispatcher = dispatcher.clone();
+    let route_stack_for_event = route_stack.clone();
+    back.connect_event(move |_, event| {
+        let is_mouse_back = event
+            .downcast_ref::<gtk::gdk::ButtonEvent>()
+            .is_some_and(|button| {
+                button.event_type() == gtk::gdk::EventType::ButtonPress
+                    && button.button() == MOUSE_BACK_BUTTON
+            });
+        if !is_mouse_back || route_stack_for_event.visible_child_name().as_deref() != Some("editor")
+        {
+            return glib::Propagation::Proceed;
+        }
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+        glib::Propagation::Stop
+    });
+    route_stack.add_controller(back);
 }
 
 /// Builds the default recent-note and search view.

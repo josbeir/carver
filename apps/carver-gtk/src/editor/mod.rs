@@ -18,8 +18,6 @@ use crate::{
     sidebar::sidebar_toggle_button,
 };
 
-const MOUSE_BACK_BUTTON: u32 = 8;
-
 mod preview;
 mod render;
 mod source;
@@ -303,7 +301,6 @@ pub(crate) fn build_editor(
     connect_theme_changes(dispatcher);
     connect_trash_action(dispatcher, &trash);
     connect_back_action(dispatcher, &back);
-    connect_mouse_back_action(dispatcher, &view);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher);
     let _source_image_drop = render::install_image_drop(&source, dispatcher, toast_overlay);
@@ -717,20 +714,6 @@ fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {
     back.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
     });
-}
-
-/// Routes the conventional pointer Back button through the editor's close transition.
-fn connect_mouse_back_action(dispatcher: &AppDispatcher, editor: &impl IsA<gtk::Widget>) {
-    let back = gtk::GestureClick::new();
-    back.set_name(Some("editor-mouse-back-controller"));
-    back.set_button(MOUSE_BACK_BUTTON);
-    // The rich text surface is an embedded child that may otherwise consume pointer events.
-    back.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let dispatcher = dispatcher.clone();
-    back.connect_released(move |_, _, _, _| {
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
-    });
-    editor.add_controller(back);
 }
 
 fn connect_source_preview(
