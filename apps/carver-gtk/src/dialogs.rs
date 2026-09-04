@@ -10,7 +10,7 @@ use libadwaita as adw;
 
 use crate::{
     controller::AppState,
-    mvu::{ActionMsg, AppMsg, EditorMsg, TrashMsg},
+    mvu::{ActionMsg, AppMsg, EditorMsg, PreferencesMsg, TrashMsg},
 };
 
 /// Installs actions exposed from the application menu.
@@ -148,7 +148,9 @@ fn show_preferences_dialog(
         updated.images.load_remote_automatically = remote_images.is_active();
         if save(&path_for_images, &updated).is_ok() {
             state_for_images.config.replace(updated);
-            state_for_images.refresh_remote_image_policy(remote_images.is_active());
+            let _ = state_for_images.dispatch_mvu(AppMsg::Preferences(
+                PreferencesMsg::SetRemoteImages(remote_images.is_active()),
+            ));
         }
     });
     let state_for_delay = Rc::clone(state);

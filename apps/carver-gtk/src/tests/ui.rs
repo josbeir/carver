@@ -447,7 +447,9 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         editor_selection.borrow().as_deref(),
         preview_selection.borrow().as_deref()
     );
-    state.refresh_remote_image_policy(false);
+    let _ = state.dispatch_mvu(crate::mvu::AppMsg::Preferences(
+        crate::mvu::PreferencesMsg::SetRemoteImages(false),
+    ));
     let rich_image_policy = std::rc::Rc::new(std::cell::RefCell::new(None));
     let rich_image_policy_for_callback = std::rc::Rc::clone(&rich_image_policy);
     let web_for_image_policy = web.clone();

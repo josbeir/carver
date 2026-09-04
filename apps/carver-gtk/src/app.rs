@@ -51,7 +51,6 @@ fn build_application(application: &adw::Application) {
         client,
         config,
         Some(paths.assets_dir()),
-        Some(config_path.clone()),
     ));
     build_window(application, &state, config_path.clone());
 }

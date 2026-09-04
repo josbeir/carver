@@ -20,6 +20,7 @@ const EDITOR_STYLESHEET: &str =
 
 type UnsupportedHandler = Rc<RefCell<Option<Box<dyn Fn()>>>>;
 type SelectionHandler = Rc<RefCell<Option<Box<dyn Fn(SelectionState)>>>>;
+type PasteImageHandler = Rc<RefCell<Option<Box<dyn Fn(String, String)>>>>;
 
 /// A `WebKit` rich-text editor whose canonical state is kept in the source buffer.
 #[derive(Clone)]
@@ -30,17 +31,19 @@ pub(crate) struct RichEditor {
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
     unsupported_handler: UnsupportedHandler,
     selection_handler: SelectionHandler,
+    paste_image_handler: PasteImageHandler,
 }
 
 impl RichEditor {
     /// Builds an editor backed by the locally bundled, sandboxed Tiptap application.
     pub(crate) fn new(
-        state: &Rc<AppState>,
+        assets_dir: Option<std::path::PathBuf>,
+        allow_remote_images: bool,
         source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
     ) -> Self {
         let context = webkit6::WebContext::new();
-        super::preview::install_editor_asset_scheme(&context, state.assets_dir.clone());
+        super::preview::install_editor_asset_scheme(&context, assets_dir);
         let manager = webkit6::UserContentManager::new();
         manager.register_script_message_handler("carver", None);
         // Use WebKit's privileged user-script channel instead of an inline
@@ -78,10 +81,10 @@ impl RichEditor {
             pending_source: Rc::new(RefCell::new(None)),
             unsupported_handler: Rc::new(RefCell::new(None)),
             selection_handler: Rc::new(RefCell::new(None)),
+            paste_image_handler: Rc::new(RefCell::new(None)),
         };
-        editor.connect_messages(&manager, state, source_buffer, toast_overlay);
+        editor.connect_messages(&manager, source_buffer, toast_overlay);
         editor.connect_load_lifecycle();
-        let allow_remote_images = state.config.borrow().images.load_remote_automatically;
         editor.view.load_html(
             &editor_document(allow_remote_images),
             Some("carver-asset:///"),
@@ -164,6 +167,11 @@ impl RichEditor {
         self.selection_handler.replace(Some(Box::new(handler)));
     }
 
+    /// Invokes `handler` with a decoded `WebKit` image-paste payload.
+    pub(crate) fn connect_paste_image(&self, handler: impl Fn(String, String) + 'static) {
+        self.paste_image_handler.replace(Some(Box::new(handler)));
+    }
+
     fn connect_load_lifecycle(&self) {
         let ready = Rc::clone(&self.ready);
         self.view.connect_load_changed(move |_view, event| {
@@ -179,16 +187,15 @@ impl RichEditor {
     fn connect_messages(
         &self,
         manager: &webkit6::UserContentManager,
-        state: &Rc<AppState>,
         source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
     ) {
         let editor = self.clone();
-        let state = Rc::clone(state);
         let source_buffer = source_buffer.clone();
         let toast_overlay = toast_overlay.clone();
         let unsupported_handler = Rc::clone(&self.unsupported_handler);
         let selection_handler = Rc::clone(&self.selection_handler);
+        let paste_image_handler = Rc::clone(&self.paste_image_handler);
         manager.connect_script_message_received(Some("carver"), move |_manager, value| {
             let Some(bytes) = value.to_string_as_bytes() else {
                 return;
@@ -236,30 +243,14 @@ impl RichEditor {
                     mime_type,
                     data,
                 } if session == editor.session.get() => {
-                    let Some(note_id) = state
-                        .mvu_model()
-                        .and_then(|model| model.editor)
-                        .map(|document| document.note_id)
-                    else {
-                        return;
-                    };
-                    let Ok(bytes) = STANDARD.decode(data) else {
+                    if STANDARD.decode(&data).is_err() {
                         toast_overlay
                             .add_toast(libadwaita::Toast::new("Could not read pasted image"));
                         return;
-                    };
-                    let extension = image_extension(&mime_type).to_owned();
-                    let client = state.client.clone();
-                    let editor = editor.clone();
-                    let toast_overlay = toast_overlay.clone();
-                    glib::spawn_future_local(async move {
-                        match client.store_asset_async(note_id, extension, bytes).await {
-                            Ok(path) => editor.insert_image_with_alt(&path, "Pasted image"),
-                            Err(error) => toast_overlay.add_toast(libadwaita::Toast::new(
-                                &format!("Could not store pasted image: {error}"),
-                            )),
-                        }
-                    });
+                    }
+                    if let Some(handler) = paste_image_handler.borrow().as_ref() {
+                        handler(mime_type, data);
+                    }
                 }
                 EditorEvent::Selection {
                     session,
@@ -686,7 +677,7 @@ fn append_image_menu(
     (menu, active_choices)
 }
 
-fn image_extension(mime_type: &str) -> &str {
+pub(crate) fn image_extension(mime_type: &str) -> &str {
     match mime_type {
         "image/jpeg" => "jpg",
         "image/gif" => "gif",

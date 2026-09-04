@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use carver_config::{Config, ConfigError, EditorMode, save};
+use carver_config::Config;
 use carver_sdk::{Category, CategoryId, LibraryClient, Note};
 use carver_storage_sqlite::SqliteLibrary;
 use libadwaita as adw;
@@ -20,8 +20,6 @@ use carver_storage_sqlite::StorageError;
 /// The local library client used by the GTK frontend.
 pub(crate) type AppLibraryClient = LibraryClient<SqliteLibrary>;
 pub(crate) type MvuRuntime = AppRuntime<SqliteLibrary>;
-type RemoteImagePolicyHandler = RefCell<Option<Box<dyn Fn(bool)>>>;
-
 #[cfg(test)]
 pub(crate) type AppLibraryError = LibraryError<StorageError>;
 
@@ -33,18 +31,12 @@ pub(crate) struct AppState {
     pub(crate) client: AppLibraryClient,
     /// Directory containing managed note-image assets used by rendered previews.
     pub(crate) assets_dir: Option<PathBuf>,
-    /// TOML path used for immediate editor preference persistence.
-    pub(crate) config_path: Option<PathBuf>,
     pub(crate) config: RefCell<Config>,
-    remote_image_policy_handler: RemoteImagePolicyHandler,
     pub(crate) selected_category: Cell<Option<CategoryId>>,
     pub(crate) selected_category_name: RefCell<Option<String>>,
     pub(crate) categories: RefCell<Vec<Category>>,
     pub(crate) current_note: RefCell<Option<Note>>,
-    pub(crate) source_mode: Cell<bool>,
-    pub(crate) rendered_mode: Cell<bool>,
     pub(crate) synchronizing_sidebar_selection: Cell<bool>,
-    pub(crate) preview_generation: Cell<u64>,
     pub(crate) browser_generation: Cell<u64>,
     pub(crate) sidebar_generation: Cell<u64>,
     pub(crate) search_query: RefCell<String>,
@@ -69,7 +61,7 @@ impl AppState {
     /// Creates state for one application window.
     #[cfg(test)]
     pub(crate) fn new(client: AppLibraryClient, config: Config) -> Self {
-        Self::new_with_assets(client, config, None, None)
+        Self::new_with_assets(client, config, None)
     }
 
     /// Creates state with the managed asset directory available to the renderer.
@@ -77,24 +69,16 @@ impl AppState {
         client: AppLibraryClient,
         config: Config,
         assets_dir: Option<PathBuf>,
-        config_path: Option<PathBuf>,
     ) -> Self {
-        let source_mode = config.editor.last_mode == EditorMode::Source;
-        let rendered_mode = config.editor.last_mode == EditorMode::Rendered;
         Self {
             client,
             assets_dir,
-            config_path,
             config: RefCell::new(config),
-            remote_image_policy_handler: RefCell::new(None),
             selected_category: Cell::new(None),
             selected_category_name: RefCell::new(None),
             categories: RefCell::new(Vec::new()),
             current_note: RefCell::new(None),
-            source_mode: Cell::new(source_mode),
-            rendered_mode: Cell::new(rendered_mode),
             synchronizing_sidebar_selection: Cell::new(false),
-            preview_generation: Cell::new(0),
             browser_generation: Cell::new(0),
             sidebar_generation: Cell::new(0),
             search_query: RefCell::new(String::new()),
@@ -140,45 +124,6 @@ impl AppState {
     /// Returns an immutable MVU snapshot for editor projection hydration.
     pub(crate) fn mvu_model(&self) -> Option<AppModel> {
         self.mvu_runtime.get().map(MvuRuntime::model)
-    }
-
-    /// Updates and writes the source split-preview preference when a path is available.
-    pub(crate) fn set_source_split_view(&self, visible: bool) -> Result<(), ConfigError> {
-        let mut updated = self.config.borrow().clone();
-        updated.editor.source_split_view = visible;
-        if let Some(path) = self.config_path.as_deref() {
-            save(path, &updated)?;
-        }
-        self.config.replace(updated);
-        Ok(())
-    }
-
-    /// Persists the surface the user explicitly selected.
-    ///
-    /// This intentionally does not update the active UI cells: a note may fall
-    /// back to Preview when its Carve cannot be represented by the native rich
-    /// editor, while still preserving the user's preferred Edit surface.
-    pub(crate) fn set_last_editor_mode(&self, mode: EditorMode) -> Result<(), ConfigError> {
-        let mut updated = self.config.borrow().clone();
-        updated.editor.last_mode = mode;
-        if let Some(path) = self.config_path.as_deref() {
-            save(path, &updated)?;
-        }
-        self.config.replace(updated);
-        Ok(())
-    }
-
-    /// Registers the active editor's image-policy refresh hook.
-    pub(crate) fn set_remote_image_policy_handler(&self, handler: impl Fn(bool) + 'static) {
-        self.remote_image_policy_handler
-            .replace(Some(Box::new(handler)));
-    }
-
-    /// Updates the live editor after its persisted remote-image policy changes.
-    pub(crate) fn refresh_remote_image_policy(&self, enabled: bool) {
-        if let Some(handler) = self.remote_image_policy_handler.borrow().as_ref() {
-            handler(enabled);
-        }
     }
 }
 

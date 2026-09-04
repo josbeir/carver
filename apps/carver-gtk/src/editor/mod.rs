@@ -6,6 +6,7 @@ use std::{
     time::Duration as StdDuration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_config::EditorMode;
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -42,6 +43,7 @@ pub(crate) struct EditorViewRefs {
     split_preview: webkit6::WebView,
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
+    remote_images: Rc<Cell<bool>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
 }
 
@@ -52,8 +54,12 @@ impl EditorViewRefs {
             return;
         };
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
+        let remote_images_changed = self
+            .remote_images
+            .replace(model.preferences.load_remote_images)
+            != model.preferences.load_remote_images;
         self.rendering.set(true);
-        if new_document {
+        if new_document || remote_images_changed {
             if buffer_text(&self.source_buffer) != document.source {
                 self.source_buffer.set_text(&document.source);
             }
@@ -67,7 +73,14 @@ impl EditorViewRefs {
                 &document.source,
                 model.preferences.load_remote_images,
             );
-            self.rich.load_source(&document.source);
+            if remote_images_changed {
+                self.rich.reload_with_remote_images(
+                    &document.source,
+                    model.preferences.load_remote_images,
+                );
+            } else {
+                self.rich.load_source(&document.source);
+            }
         }
         match document.mode {
             EditorMode::Source => {
@@ -121,6 +134,8 @@ pub(crate) fn build_editor(
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
 ) -> EditorSurface {
+    let allow_remote_images = state.config.borrow().images.load_remote_automatically;
+    let assets_dir = state.assets_dir.clone();
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let toggle_sidebar = sidebar_toggle_button(split_view, "editor-toggle-categories-button");
@@ -185,15 +200,15 @@ pub(crate) fn build_editor(
     let rendering = Rc::new(Cell::new(false));
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
-    let rich = RichEditor::new(state, &source_buffer, toast_overlay);
-    let rich_for_remote_images = rich.clone();
-    let source_for_remote_images = source_buffer.clone();
-    state.set_remote_image_policy_handler(move |allow_remote_images| {
-        rich_for_remote_images.reload_with_remote_images(
-            &buffer_text(&source_for_remote_images),
-            allow_remote_images,
-        );
-    });
+    let rich = RichEditor::new(
+        assets_dir,
+        allow_remote_images,
+        &source_buffer,
+        toast_overlay,
+    );
+    connect_rich_image_paste(&rich, state, toast_overlay);
+    let remote_images = Rc::new(Cell::new(allow_remote_images));
+    let preview_generation = Rc::new(Cell::new(0));
     refresh_rich_theme(&rich);
     let split_preview = build_preview(state.assets_dir.as_deref());
     split_preview.set_widget_name("source-split-preview");
@@ -217,7 +232,7 @@ pub(crate) fn build_editor(
     view.set_content(Some(&editor_stack));
 
     connect_mode_buttons(
-        state,
+        &state.dispatcher,
         &rich_mode,
         &source_mode,
         &rendered_mode,
@@ -225,21 +240,13 @@ pub(crate) fn build_editor(
         &format_stack,
         &rich,
         &source_buffer,
-        &split_preview,
-        &rendered_preview,
         &split_toggle,
         &pages.split_supported,
         &rendering,
     );
-    connect_rich_fallback(
-        state,
-        &rich,
-        &rendered_mode,
-        &source_buffer,
-        &rendered_preview,
-    );
+    connect_rich_fallback(&state.dispatcher, &rich);
     connect_split_toggle(
-        state,
+        &state.dispatcher,
         &split_toggle,
         &editor_stack,
         &source,
@@ -255,7 +262,7 @@ pub(crate) fn build_editor(
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     connect_preview_theme_refresh(
-        state,
+        &remote_images,
         &source_buffer,
         &split_preview,
         &rendered_preview,
@@ -264,7 +271,9 @@ pub(crate) fn build_editor(
     connect_trash_action(&state.dispatcher, &trash);
     connect_back_action(&state.dispatcher, &back);
     connect_source_preview(
-        state,
+        &state.dispatcher,
+        &remote_images,
+        &preview_generation,
         &source_buffer,
         &split_preview,
         &rendered_preview,
@@ -294,6 +303,7 @@ pub(crate) fn build_editor(
         split_preview,
         rendered_preview,
         rendering,
+        remote_images,
         loaded_session: RefCell::new(None),
     };
     EditorSurface {
@@ -302,24 +312,52 @@ pub(crate) fn build_editor(
     }
 }
 
-/// Falls back to the lossless read-only renderer when the web adapter reports
-/// a construct it cannot faithfully edit.
-fn connect_rich_fallback(
-    state: &Rc<AppState>,
+/// Keeps the legacy storage handoff outside the `WebKit` adapter until its typed effect lands.
+fn connect_rich_image_paste(
     rich: &RichEditor,
-    rendered_mode: &gtk::ToggleButton,
-    source_buffer: &gtk::TextBuffer,
-    rendered_preview: &webkit6::WebView,
+    state: &Rc<AppState>,
+    toast_overlay: &adw::ToastOverlay,
 ) {
     let state = Rc::clone(state);
-    let rendered_mode = rendered_mode.clone();
-    let source_buffer = source_buffer.clone();
-    let rendered_preview = rendered_preview.clone();
+    let toast_overlay = toast_overlay.clone();
+    let rich = rich.clone();
+    rich.clone().connect_paste_image(move |mime_type, data| {
+        let Some(note_id) = state
+            .mvu_model()
+            .and_then(|model| model.editor)
+            .map(|document| document.note_id)
+        else {
+            return;
+        };
+        let Ok(bytes) = STANDARD.decode(data) else {
+            toast_overlay.add_toast(adw::Toast::new("Could not read pasted image"));
+            return;
+        };
+        let client = state.client.clone();
+        let rich = rich.clone();
+        let toast_overlay = toast_overlay.clone();
+        glib::spawn_future_local(async move {
+            match client
+                .store_asset_async(note_id, web::image_extension(&mime_type).to_owned(), bytes)
+                .await
+            {
+                Ok(path) => rich.insert_image_with_alt(&path, "Pasted image"),
+                Err(error) => toast_overlay.add_toast(adw::Toast::new(&format!(
+                    "Could not store pasted image: {error}"
+                ))),
+            }
+        });
+    });
+}
+
+/// Falls back to the lossless read-only renderer when the web adapter reports
+/// a construct it cannot faithfully edit.
+fn connect_rich_fallback(dispatcher: &AppDispatcher, rich: &RichEditor) {
+    let dispatcher = dispatcher.clone();
     rich.connect_unsupported(move || {
-        let source = buffer_text(&source_buffer);
-        let remote = state.config.borrow().images.load_remote_automatically;
-        load_preview(&rendered_preview, &source, remote);
-        rendered_mode.set_active(true);
+        let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+            EditorMode::Rendered,
+        )));
     });
 }
 
@@ -438,7 +476,7 @@ fn add_editor_pages(
     reason = "one place wires the three mode controls to their shared editor surfaces"
 )]
 fn connect_mode_buttons(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     rich_mode: &gtk::ToggleButton,
     source_mode: &gtk::ToggleButton,
     rendered_mode: &gtk::ToggleButton,
@@ -446,20 +484,16 @@ fn connect_mode_buttons(
     format_stack: &gtk::Stack,
     rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
     rendering: &Rc<Cell<bool>>,
 ) {
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
-        let state = Rc::clone(state);
+        let dispatcher = dispatcher.clone();
         let stack = editor_stack.clone();
         let formats = format_stack.clone();
         let rich = rich.clone();
         let source = source_buffer.clone();
-        let split_preview = split_preview.clone();
-        let rendered_preview = rendered_preview.clone();
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
         let rendering = Rc::clone(rendering);
@@ -471,20 +505,12 @@ fn connect_mode_buttons(
             let was_rendering = rendering.replace(true);
             match surface {
                 EditorMode::Source => {
-                    state.source_mode.set(true);
-                    state.rendered_mode.set(false);
                     stack.set_visible_child_name("source");
                     formats.set_sensitive(true);
                     formats.set_visible_child_name("source");
-                    split_toggle.set_active(state.config.borrow().editor.source_split_view);
                     split_toggle.set_sensitive(split_supported.get());
                 }
                 EditorMode::Rendered => {
-                    let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
-                    let remote = state.config.borrow().images.load_remote_automatically;
-                    load_preview(&rendered_preview, &source_text, remote);
-                    state.source_mode.set(false);
-                    state.rendered_mode.set(true);
                     stack.set_visible_child_name("rendered");
                     formats.set_sensitive(false);
                     split_toggle.set_active(false);
@@ -493,8 +519,6 @@ fn connect_mode_buttons(
                 EditorMode::Rich => {
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
                     rich.load_source(&source_text);
-                    state.source_mode.set(false);
-                    state.rendered_mode.set(false);
                     stack.set_visible_child_name("rich");
                     formats.set_sensitive(true);
                     formats.set_visible_child_name("rich");
@@ -502,16 +526,10 @@ fn connect_mode_buttons(
                     split_toggle.set_sensitive(false);
                 }
             }
-            if surface == EditorMode::Source {
-                let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
-                let remote = state.config.borrow().images.load_remote_automatically;
-                load_preview(&split_preview, &source_text, remote);
-            }
             rendering.set(was_rendering);
             if persist_selection {
-                let _ = state.set_last_editor_mode(surface);
-                let _ =
-                    state.dispatch_mvu(AppMsg::Preferences(PreferencesMsg::SetEditorMode(surface)));
+                let _ = dispatcher
+                    .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(surface)));
             }
         });
     };
@@ -544,14 +562,14 @@ fn connect_split_availability(
 }
 
 fn connect_split_toggle(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     toggle: &gtk::ToggleButton,
     editor_stack: &gtk::Stack,
     source: &gtk::TextView,
     preview: &webkit6::WebView,
     rendering: &Rc<Cell<bool>>,
 ) {
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
     let stack = editor_stack.clone();
     let source = source.clone();
     let preview = preview.clone();
@@ -571,8 +589,7 @@ fn connect_split_toggle(
         };
         preview_scroll.set_visible(toggle.is_active());
         if !rendering.get() {
-            let _ = state.set_source_split_view(toggle.is_active());
-            let _ = state.dispatch_mvu(AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(
+            let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(
                 toggle.is_active(),
             )));
         }
@@ -726,13 +743,17 @@ fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {
 }
 
 fn connect_source_preview(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
+    remote_images: &Rc<Cell<bool>>,
+    preview_generation: &Rc<Cell<u64>>,
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
     rendering: &Rc<Cell<bool>>,
 ) {
-    let state = Rc::clone(state);
+    let dispatcher = dispatcher.clone();
+    let remote_images = Rc::clone(remote_images);
+    let preview_generation = Rc::clone(preview_generation);
     let source = source_buffer.clone();
     let split_preview = split_preview.clone();
     let rendered_preview = rendered_preview.clone();
@@ -744,18 +765,18 @@ fn connect_source_preview(
         let source_text = source
             .text(&source.start_iter(), &source.end_iter(), false)
             .to_string();
-        let _ = state.dispatch_mvu(AppMsg::Editor(EditorMsg::SourceChanged(
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(
             source_text.clone(),
         )));
-        let _ = state.dispatch_mvu(AppMsg::Editor(EditorMsg::AutosaveRequested));
-        let remote = state.config.borrow().images.load_remote_automatically;
-        let generation = state.preview_generation.get().saturating_add(1);
-        state.preview_generation.set(generation);
-        let state_for_timeout = Rc::clone(&state);
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::AutosaveRequested));
+        let remote = remote_images.get();
+        let generation = preview_generation.get().saturating_add(1);
+        preview_generation.set(generation);
+        let preview_generation = Rc::clone(&preview_generation);
         let split_preview = split_preview.clone();
         let rendered_preview = rendered_preview.clone();
         glib::timeout_add_local_once(StdDuration::from_millis(120), move || {
-            if state_for_timeout.preview_generation.get() != generation {
+            if preview_generation.get() != generation {
                 return;
             }
             load_preview(&split_preview, &source_text, remote);
@@ -766,40 +787,32 @@ fn connect_source_preview(
 
 /// Reloads `WebKit` previews when GNOME switches between light and dark palettes.
 fn connect_preview_theme_refresh(
-    state: &Rc<AppState>,
+    remote_images: &Rc<Cell<bool>>,
     source_buffer: &gtk::TextBuffer,
     split_preview: &webkit6::WebView,
     rendered_preview: &webkit6::WebView,
     rich: &RichEditor,
 ) {
-    let state_for_dark_theme = Rc::clone(state);
+    let remote_images_for_dark_theme = Rc::clone(remote_images);
     let source = source_buffer.clone();
     let split_preview_for_dark_theme = split_preview.clone();
     let rendered_preview_for_dark_theme = rendered_preview.clone();
     let rich_for_dark_theme = rich.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
         let source_text = buffer_text(&source);
-        let remote = state_for_dark_theme
-            .config
-            .borrow()
-            .images
-            .load_remote_automatically;
+        let remote = remote_images_for_dark_theme.get();
         load_preview(&split_preview_for_dark_theme, &source_text, remote);
         load_preview(&rendered_preview_for_dark_theme, &source_text, remote);
         refresh_rich_theme(&rich_for_dark_theme);
     });
-    let state_for_accent = Rc::clone(state);
+    let remote_images_for_accent = Rc::clone(remote_images);
     let source = source_buffer.clone();
     let split_preview = split_preview.clone();
     let rendered_preview = rendered_preview.clone();
     let rich = rich.clone();
     adw::StyleManager::default().connect_accent_color_notify(move |_| {
         let source_text = buffer_text(&source);
-        let remote = state_for_accent
-            .config
-            .borrow()
-            .images
-            .load_remote_automatically;
+        let remote = remote_images_for_accent.get();
         load_preview(&split_preview, &source_text, remote);
         load_preview(&rendered_preview, &source_text, remote);
         refresh_rich_theme(&rich);

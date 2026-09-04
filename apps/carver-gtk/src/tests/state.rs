@@ -1,31 +1,16 @@
 //! State, persistence, and storage-facing GTK tests.
 
-use std::{cell::Cell, rc::Rc};
-
-use carver_config::{Config, EditorMode, load};
+use carver_config::load;
 
 use crate::{
     controller::{
-        AppState, active_category, create_next_category, create_note_for_active_category,
-        open_note, rename_category, save_current_note, store_pasted_image, trash_current_note,
+        active_category, create_next_category, create_note_for_active_category, open_note,
+        rename_category, save_current_note, store_pasted_image, trash_current_note,
     },
     dialogs::persist_window_config,
 };
 
 use super::support::{TestResult, test_state};
-
-#[test]
-fn remote_image_policy_refresh_notifies_the_active_editor() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let received = Rc::new(Cell::new(None));
-    let received_by_handler = Rc::clone(&received);
-    state.set_remote_image_policy_handler(move |enabled| received_by_handler.set(Some(enabled)));
-
-    state.refresh_remote_image_policy(false);
-
-    assert_eq!(received.get(), Some(false));
-    Ok(())
-}
 
 #[test]
 fn state_actions_create_open_and_save_notes_without_reentrant_borrows() -> TestResult {
@@ -71,44 +56,6 @@ fn state_actions_create_numbered_categories() -> TestResult {
     let category = create_next_category(&state)?;
     assert_eq!(category.name, "Category 2");
     assert_eq!(state.client.categories()?.len(), 2);
-    Ok(())
-}
-
-#[test]
-fn state_uses_the_configured_initial_editor_mode() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let mut config = Config::default();
-    config.editor.last_mode = EditorMode::Source;
-    let source_state = AppState::new(state.client.clone(), config);
-
-    assert!(source_state.source_mode.get());
-    assert!(!source_state.rendered_mode.get());
-
-    let mut config = Config::default();
-    config.editor.last_mode = EditorMode::Rendered;
-    let rendered_state = AppState::new(state.client.clone(), config);
-    assert!(!rendered_state.source_mode.get());
-    assert!(rendered_state.rendered_mode.get());
-    Ok(())
-}
-
-#[test]
-fn state_persists_the_last_explicit_editor_surface() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let path = temporary_directory.path().join("config/config.toml");
-    let persisted_state = AppState::new_with_assets(
-        state.client.clone(),
-        Config::default(),
-        None,
-        Some(path.clone()),
-    );
-
-    persisted_state.set_last_editor_mode(EditorMode::Rendered)?;
-
-    let loaded = load(&path)?;
-    assert_eq!(loaded.editor.last_mode, EditorMode::Rendered);
-    let restored = AppState::new(state.client.clone(), loaded);
-    assert!(restored.rendered_mode.get());
     Ok(())
 }
 
@@ -165,26 +112,5 @@ fn close_action_persists_window_configuration() -> TestResult {
     assert_eq!(persisted.window.width, 900);
     assert_eq!(persisted.window.height, 640);
     assert!(persisted.window.maximized);
-    Ok(())
-}
-
-#[test]
-fn source_split_preference_persists_to_toml() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let config_path = temporary_directory
-        .path()
-        .join("config")
-        .join("config.toml");
-    let persistent_state = AppState::new_with_assets(
-        state.client.clone(),
-        Config::default(),
-        None,
-        Some(config_path.clone()),
-    );
-
-    persistent_state.set_source_split_view(true)?;
-
-    assert!(load(&config_path)?.editor.source_split_view);
-    assert!(persistent_state.config.borrow().editor.source_split_view);
     Ok(())
 }

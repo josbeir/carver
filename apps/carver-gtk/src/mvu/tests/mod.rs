@@ -226,6 +226,33 @@ fn stale_editor_close_should_not_close_a_newer_document() {
 }
 
 #[test]
+fn source_event_after_editor_close_should_be_ignored() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "active".to_owned(),
+        }),
+    );
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor should be open");
+    };
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::Close(session)));
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::SourceChanged("stale widget event".to_owned())),
+        )
+        .is_empty()
+    );
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.editor, None);
+}
+
+#[test]
 fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
