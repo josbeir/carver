@@ -198,6 +198,7 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
         .version(env!("CARGO_PKG_VERSION"))
         .developer_name("Carver contributors")
         .comments("A native GNOME notebook for Carve markup.")
+        .issue_url("https://github.com/josbeir/carver/issues")
         .license_type(gtk::License::MitX11)
         .build();
     about.present(Some(parent));

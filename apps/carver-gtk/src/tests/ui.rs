@@ -45,6 +45,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         crate::app::APPLICATION_ICON
     );
     assert_eq!(
+        about_dialog.issue_url(),
+        "https://github.com/josbeir/carver/issues"
+    );
+    assert_eq!(
         widget_as::<adw::SwitchRow>(preferences_dialog.upcast_ref(), "remote-images-setting")
             .map(|row| row.subtitle()),
         Some(Some(
