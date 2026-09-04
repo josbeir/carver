@@ -248,7 +248,7 @@ impl CommandRouter {
             ToolbarCommand::InlineCode => source_commands::toggle_inline(&self.source, "`", "`"),
             ToolbarCommand::CodeBlock => source_commands::toggle_code_block(&self.source),
             ToolbarCommand::BulletList => source_commands::toggle_list(&self.source, "- "),
-            ToolbarCommand::OrderedList => source_commands::toggle_list(&self.source, "1. "),
+            ToolbarCommand::OrderedList => source_commands::toggle_ordered_list(&self.source),
             ToolbarCommand::TaskList => source_commands::toggle_list(&self.source, "- [ ] "),
             ToolbarCommand::Link => formatting::show_source_link_dialog(anchor, &self.source),
         }

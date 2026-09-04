@@ -78,6 +78,28 @@ impl SourceEdit {
         });
     }
 
+    /// Toggles an ordered list, serializing selected items with consecutive numbers.
+    pub(crate) fn toggle_ordered_list(&mut self) {
+        let lines = self.selected_lines();
+        let remove = lines.iter().all(|line| ordered_list_item(line).is_some());
+        let replacement = lines
+            .iter()
+            .enumerate()
+            .map(|(index, line)| {
+                let text = strip_list_marker(line);
+                if remove {
+                    text.to_owned()
+                } else {
+                    format!("{}. {text}", index + 1)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let length = replacement.chars().count();
+        let range = self.selected_line_range();
+        self.replace(range, &replacement, length);
+    }
+
     /// Toggles a fenced code block around the selected source.
     pub(crate) fn toggle_code_block(&mut self) {
         if self.selection.is_empty() {
@@ -222,6 +244,11 @@ pub(crate) fn set_heading(buffer: &gtk::TextBuffer, level: u8) {
 /// Existing supported list markers are replaced instead of nesting prefixes.
 pub(crate) fn toggle_list(buffer: &gtk::TextBuffer, prefix: &str) {
     apply_buffer_edit(buffer, |edit| edit.toggle_list(prefix));
+}
+
+/// Switches selected lines between a consecutively numbered Carve list and plain text.
+pub(crate) fn toggle_ordered_list(buffer: &gtk::TextBuffer) {
+    apply_buffer_edit(buffer, SourceEdit::toggle_ordered_list);
 }
 
 /// Wraps selected lines in a fenced Carve code block.
@@ -484,10 +511,14 @@ fn strip_list_marker(line: &str) -> &str {
     if let Some(text) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) {
         return text;
     }
+    ordered_list_item(line).unwrap_or(line)
+}
+
+fn ordered_list_item(line: &str) -> Option<&str> {
     let digits = line.bytes().take_while(u8::is_ascii_digit).count();
-    line.get(digits..)
-        .and_then(|tail| tail.strip_prefix(". "))
-        .unwrap_or(line)
+    (digits > 0)
+        .then(|| line.get(digits..).and_then(|tail| tail.strip_prefix(". ")))
+        .flatten()
 }
 
 fn inline_replacement(selected: &str, opening: &str, closing: &str) -> String {

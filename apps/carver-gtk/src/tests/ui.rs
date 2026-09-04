@@ -602,6 +602,16 @@ fn exercise_source_formatting_controls(
             .ok_or(name)?
             .emit_clicked();
     }
+    buffer.set_text("Level 1\nLevel 2\nLevel 3\nLevel 4");
+    select_all(buffer);
+    widget_as::<gtk::ToggleButton>(editor, "format-ordered-button")
+        .ok_or("format-ordered-button")?
+        .emit_clicked();
+    if buffer.text(&buffer.start_iter(), &buffer.end_iter(), false)
+        != "1. Level 1\n2. Level 2\n3. Level 3\n4. Level 4"
+    {
+        return Err("source ordered-list serialization".into());
+    }
     let heading = widget_as::<gtk::MenuButton>(editor, "format-heading-button")
         .ok_or("format heading picker")?;
     let choices = heading

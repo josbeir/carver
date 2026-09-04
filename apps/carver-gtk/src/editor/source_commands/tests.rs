@@ -38,6 +38,27 @@ fn list_command_switches_all_selected_lines_without_nested_prefixes() {
 }
 
 #[test]
+fn ordered_list_command_should_number_selected_lines_consecutively() {
+    let mut edit = SourceEdit::new("Level 1\nLevel 2\nLevel 3\nLevel 4", 0..31);
+
+    edit.toggle_ordered_list();
+
+    assert_eq!(
+        edit.source(),
+        "1. Level 1\n2. Level 2\n3. Level 3\n4. Level 4"
+    );
+}
+
+#[test]
+fn ordered_list_command_should_remove_any_existing_ordered_markers() {
+    let mut edit = SourceEdit::new("4. Level 1\n8. Level 2", 0..21);
+
+    edit.toggle_ordered_list();
+
+    assert_eq!(edit.source(), "Level 1\nLevel 2");
+}
+
+#[test]
 fn image_width_replaces_only_the_width_attribute() {
     assert_eq!(
         image_with_width(
