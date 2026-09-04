@@ -137,7 +137,7 @@ pub enum EditorMsg {
 }
 
 /// Preference changes requested by a view.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PreferencesMsg {
     /// Set the remote-image loading policy.
     SetRemoteImages(bool),
@@ -151,6 +151,10 @@ pub enum PreferencesMsg {
     SetSourceHighlightCurrentLine(bool),
     /// Set source-editor syntax highlighting.
     SetSourceSyntaxHighlighting(bool),
+    /// Set the optional custom Pango font description for source mode.
+    ///
+    /// `None` restores the desktop monospace font.
+    SetSourceFont(Option<String>),
 }
 
 /// Window state that must survive the next launch.

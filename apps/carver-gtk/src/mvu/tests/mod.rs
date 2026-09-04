@@ -491,6 +491,39 @@ fn syntax_highlighting_preference_should_persist_a_complete_config_snapshot() {
 }
 
 #[test]
+fn source_font_preference_should_persist_the_selected_font() {
+    let mut model = AppModel::new(&Config::default());
+    let font = "Adwaita Mono 13".to_owned();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceFont(Some(font.clone()))),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.source_font.as_deref() == Some("Adwaita Mono 13"))
+    );
+    assert_eq!(model.preferences.source_editor.font, Some(font));
+}
+
+#[test]
+fn source_font_reset_should_restore_the_system_font_setting() {
+    let mut config = Config::default();
+    config.editor.source_font = Some("Adwaita Mono 13".to_owned());
+    let mut model = AppModel::new(&config);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceFont(None)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.source_font.is_none())
+    );
+    assert_eq!(model.preferences.source_editor.font, None);
+}
+
+#[test]
 fn close_geometry_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 

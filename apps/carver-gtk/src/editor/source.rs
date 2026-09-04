@@ -1,10 +1,13 @@
 //! GtkSourceView-backed canonical Carve source editing.
 
 use std::{
+    cell::RefCell,
     fs, io,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
+use gtk::gio::prelude::*;
 use gtk::prelude::*;
 use sourceview5::prelude::*;
 use thiserror::Error;
@@ -12,6 +15,9 @@ use thiserror::Error;
 const CARVE_LANGUAGE: &str = include_str!("../../resources/source-syntax/carve.lang");
 const CARVE_LIGHT_STYLE: &str = include_str!("../../resources/source-syntax/carve-light.xml");
 const CARVE_DARK_STYLE: &str = include_str!("../../resources/source-syntax/carve-dark.xml");
+const SYSTEM_INTERFACE_SCHEMA: &str = "org.gnome.desktop.interface";
+const SYSTEM_MONOSPACE_FONT_KEY: &str = "monospace-font-name";
+const FALLBACK_MONOSPACE_FONT: &str = "Monospace 11";
 
 /// Error returned while installing or loading Carver's bundled source syntax assets.
 #[derive(Debug, Error)]
@@ -65,6 +71,11 @@ pub(crate) struct SourceEditor {
     view: sourceview5::View,
     light_style: sourceview5::StyleScheme,
     dark_style: sourceview5::StyleScheme,
+    font_provider: gtk::CssProvider,
+    custom_font: Rc<RefCell<Option<String>>>,
+    system_font: Rc<RefCell<String>>,
+    // The settings object owns the changed-signal registration for this editor.
+    _system_font_settings: Option<gtk::gio::Settings>,
 }
 
 impl SourceEditor {
@@ -106,7 +117,6 @@ impl SourceEditor {
             .build();
         let view = sourceview5::View::with_buffer(&buffer);
         view.set_widget_name("source-editor");
-        view.set_monospace(true);
         view.set_wrap_mode(gtk::WrapMode::WordChar);
         // Keep relaxed source spacing without CSS line-height changing Pango glyph metrics.
         view.set_pixels_above_lines(3);
@@ -117,11 +127,33 @@ impl SourceEditor {
         view.set_right_margin(24);
         view.set_show_line_numbers(false);
         view.set_highlight_current_line(false);
+        let font_provider = gtk::CssProvider::new();
+        install_source_font_provider(&view, &font_provider);
+        let custom_font = Rc::new(RefCell::new(None));
+        let system_font = Rc::new(RefCell::new(system_monospace_font_description()));
+        font_provider.load_from_string(&source_font_css(&system_font.borrow()));
+        let system_font_settings = desktop_font_settings();
+        if let Some(settings) = system_font_settings.as_ref() {
+            let font_provider = font_provider.clone();
+            let custom_font = Rc::clone(&custom_font);
+            let system_font = Rc::clone(&system_font);
+            settings.connect_changed(Some(SYSTEM_MONOSPACE_FONT_KEY), move |settings, _| {
+                let font = system_monospace_font_from_settings(Some(settings));
+                system_font.replace(font.clone());
+                if custom_font.borrow().is_none() {
+                    font_provider.load_from_string(&source_font_css(&font));
+                }
+            });
+        }
         Ok(Self {
             buffer,
             view,
             light_style,
             dark_style,
+            font_provider,
+            custom_font,
+            system_font,
+            _system_font_settings: system_font_settings,
         })
     }
 
@@ -152,7 +184,82 @@ impl SourceEditor {
         } else {
             &self.light_style
         }));
+        let custom_font = preferences.font.clone();
+        if self.custom_font.borrow().as_ref() != custom_font.as_ref() {
+            self.custom_font.replace(custom_font);
+            let font = self
+                .custom_font
+                .borrow()
+                .clone()
+                .unwrap_or_else(|| self.system_font.borrow().clone());
+            self.font_provider.load_from_string(&source_font_css(&font));
+        }
     }
+}
+
+/// Returns the desktop source-font preference, with a stable cross-desktop fallback.
+pub(crate) fn system_monospace_font_description() -> String {
+    system_monospace_font_from_settings(desktop_font_settings().as_ref())
+}
+
+/// Canonicalizes a Pango font description accepted by the source font chooser.
+///
+/// Only the family and point size are preserved: source syntax tags remain responsible for
+/// inline bold and italic styling.
+pub(crate) fn normalize_source_font_description(description: &str) -> Option<String> {
+    let description = gtk::pango::FontDescription::from_string(description);
+    let family = description.family()?;
+    let points = description.size();
+    if family.is_empty() || points <= 0 || description.is_size_absolute() {
+        return None;
+    }
+    let points = f64::from(points) / f64::from(gtk::pango::SCALE);
+    Some(format!("{family} {points}"))
+}
+
+fn desktop_font_settings() -> Option<gtk::gio::Settings> {
+    let schema = gtk::gio::SettingsSchemaSource::default()?
+        .lookup(SYSTEM_INTERFACE_SCHEMA, true)
+        .filter(|schema| schema.has_key(SYSTEM_MONOSPACE_FONT_KEY))?;
+    Some(gtk::gio::Settings::new_full(
+        &schema,
+        None::<&gtk::gio::SettingsBackend>,
+        None,
+    ))
+}
+
+fn system_monospace_font_from_settings(settings: Option<&gtk::gio::Settings>) -> String {
+    settings
+        .map(|settings| settings.string(SYSTEM_MONOSPACE_FONT_KEY).to_string())
+        .and_then(|font| normalize_source_font_description(&font))
+        .unwrap_or_else(|| FALLBACK_MONOSPACE_FONT.to_owned())
+}
+
+fn source_font_css(description: &str) -> String {
+    let description = normalize_source_font_description(description)
+        .unwrap_or_else(|| FALLBACK_MONOSPACE_FONT.to_owned());
+    let description = gtk::pango::FontDescription::from_string(&description);
+    let family = description.family().unwrap_or_else(|| "Monospace".into());
+    let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
+    format!(
+        "#source-editor {{ font-family: \"{}\"; font-size: {points}pt; }}",
+        escape_css_string(&family)
+    )
+}
+
+fn escape_css_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn install_source_font_provider(view: &sourceview5::View, provider: &gtk::CssProvider) {
+    // CONTEXT: GtkSourceView font CSS must be isolated to this editor instance;
+    // the modern display-wide provider would affect every source editor window.
+    #[expect(
+        deprecated,
+        reason = "GTK exposes no non-global CSS-provider replacement for a single widget"
+    )]
+    view.style_context()
+        .add_provider(provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
 }
 
 /// Returns the canonical Carve source without interpretation.

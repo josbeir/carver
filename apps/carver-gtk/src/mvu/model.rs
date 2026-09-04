@@ -159,6 +159,10 @@ pub struct SourceEditorPreferences {
     pub highlight_current_line: bool,
     /// Whether source mode applies Carve syntax highlighting.
     pub syntax_highlighting: bool,
+    /// Optional Pango font description selected for source mode.
+    ///
+    /// `None` delegates font selection to the desktop monospace preference.
+    pub font: Option<String>,
 }
 
 impl From<&Config> for Preferences {
@@ -172,6 +176,7 @@ impl From<&Config> for Preferences {
                 show_line_numbers: config.editor.source_line_numbers,
                 highlight_current_line: config.editor.source_highlight_current_line,
                 syntax_highlighting: config.editor.source_syntax_highlighting,
+                font: config.editor.source_font.clone(),
             },
         }
     }

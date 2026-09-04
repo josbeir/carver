@@ -144,6 +144,12 @@ pub struct EditorConfig {
     /// Whether the source editor applies Carve syntax highlighting.
     #[serde(default = "default_true")]
     pub source_syntax_highlighting: bool,
+    /// Custom Pango font description for the source editor.
+    ///
+    /// When absent, the GTK frontend follows the desktop monospace-font
+    /// preference instead of persisting a platform-specific default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_font: Option<String>,
 }
 
 /// An editor surface a user can select for a note.
@@ -224,6 +230,7 @@ impl Default for EditorConfig {
             source_line_numbers: false,
             source_highlight_current_line: false,
             source_syntax_highlighting: true,
+            source_font: None,
         }
     }
 }

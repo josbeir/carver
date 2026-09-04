@@ -28,7 +28,10 @@ mod web;
 
 use preview::{build_preview, load_preview};
 use source::SourceEditor;
-pub(crate) use source::{SourceSyntaxError, buffer_text, install_syntax_assets};
+pub(crate) use source::{
+    SourceSyntaxError, buffer_text, install_syntax_assets, normalize_source_font_description,
+    system_monospace_font_description,
+};
 use source_context::SourceContextCache;
 use toolbar::Toolbar;
 use web::RichEditor;

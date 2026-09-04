@@ -104,10 +104,6 @@
   font-weight: 700;
 }
 
-#source-editor {
-  font-size: 12pt;
-}
-
 textview text {
   background: transparent;
 }

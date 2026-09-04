@@ -3,7 +3,7 @@
 use carver_config::Config;
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::ActionRowExt;
+use libadwaita::prelude::{ActionRowExt, PreferencesRowExt};
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
@@ -83,6 +83,37 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .map(|row| row.subtitle()),
         Some(Some("Colour Carve markup in Source mode.".into()))
     );
+    assert_eq!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "source-font-setting")
+            .map(|row| row.title()),
+        Some("Source font".into())
+    );
+    assert!(
+        widget_as::<gtk::Label>(preferences_dialog.upcast_ref(), "source-font-value").is_some()
+    );
+    assert!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "source-font-reset-row")
+            .is_some_and(|row| !row.is_visible())
+    );
+    let source_font =
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "source-font-setting")
+            .ok_or("source font setting")?;
+    source_font.emit_by_name::<()>("activated", &[]);
+    let mut custom_font_config = config.clone();
+    custom_font_config.editor.source_font = Some("Adwaita Mono 13".to_owned());
+    let (custom_font_preferences, _) = crate::dialogs::present_dialogs_for_test(
+        &window,
+        &custom_font_config,
+        &crate::mvu::AppDispatcher::default(),
+    );
+    let reset_font = widget_as::<adw::ActionRow>(
+        custom_font_preferences.upcast_ref(),
+        "source-font-reset-row",
+    )
+    .ok_or("source font reset")?;
+    assert!(reset_font.is_visible());
+    reset_font.emit_by_name::<()>("activated", &[]);
+    assert!(!reset_font.is_visible());
     assert_eq!(
         window.icon_name().as_deref(),
         Some(crate::app::APPLICATION_ICON)

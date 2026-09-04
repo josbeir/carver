@@ -107,6 +107,10 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.source_editor.syntax_highlighting = enabled;
             model.config.editor.source_syntax_highlighting = enabled;
         }
+        PreferencesMsg::SetSourceFont(font) => {
+            model.preferences.source_editor.font = font.clone();
+            model.config.editor.source_font = font;
+        }
     }
     persist_config_effect(model)
 }

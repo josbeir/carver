@@ -8,6 +8,7 @@ use libadwaita as adw;
 use crate::mvu::{
     ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, PreferencesMsg, TrashMsg,
 };
+use crate::{editor::normalize_source_font_description, editor::system_monospace_font_description};
 use carver_storage_sqlite::SqliteLibrary;
 
 /// Installs actions exposed from the application menu.
@@ -126,26 +127,7 @@ fn show_preferences_dialog(
     remote_images.set_active(config.images.load_remote_automatically);
     group.add(&remote_images);
 
-    let source_group = adw::PreferencesGroup::new();
-    source_group.set_title("Source editor");
-    let line_numbers = adw::SwitchRow::new();
-    line_numbers.set_widget_name("source-line-numbers-setting");
-    line_numbers.set_title("Show line numbers");
-    line_numbers.set_subtitle("Show source line positions in the editor gutter.");
-    line_numbers.set_active(config.editor.source_line_numbers);
-    source_group.add(&line_numbers);
-    let current_line = adw::SwitchRow::new();
-    current_line.set_widget_name("source-current-line-setting");
-    current_line.set_title("Highlight current line");
-    current_line.set_subtitle("Shade the line containing the cursor in Source mode.");
-    current_line.set_active(config.editor.source_highlight_current_line);
-    source_group.add(&current_line);
-    let syntax_highlighting = adw::SwitchRow::new();
-    syntax_highlighting.set_widget_name("source-syntax-highlighting-setting");
-    syntax_highlighting.set_title("Syntax highlighting");
-    syntax_highlighting.set_subtitle("Colour Carve markup in Source mode.");
-    syntax_highlighting.set_active(config.editor.source_syntax_highlighting);
-    source_group.add(&syntax_highlighting);
+    let source_group = source_editor_preferences_group(parent, dispatcher, config);
     page.add(&group);
     page.add(&source_group);
     dialog.add(&page);
@@ -156,6 +138,158 @@ fn show_preferences_dialog(
             PreferencesMsg::SetRemoteImages(remote_images.is_active()),
         ));
     });
+    dialog.present(Some(parent));
+    dialog
+}
+
+fn source_editor_preferences_group(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Source editor");
+    let (source_font, font_value, reset_font) = source_font_rows(config);
+    group.add(&source_font);
+    group.add(&reset_font);
+    let line_numbers = source_switch_row(
+        "source-line-numbers-setting",
+        "Show line numbers",
+        "Show source line positions in the editor gutter.",
+        config.editor.source_line_numbers,
+    );
+    group.add(&line_numbers);
+    let current_line = source_switch_row(
+        "source-current-line-setting",
+        "Highlight current line",
+        "Shade the line containing the cursor in Source mode.",
+        config.editor.source_highlight_current_line,
+    );
+    group.add(&current_line);
+    let syntax_highlighting = source_switch_row(
+        "source-syntax-highlighting-setting",
+        "Syntax highlighting",
+        "Colour Carve markup in Source mode.",
+        config.editor.source_syntax_highlighting,
+    );
+    group.add(&syntax_highlighting);
+    connect_source_font_controls(parent, dispatcher, &source_font, &font_value, &reset_font);
+    connect_source_switches(
+        dispatcher,
+        &line_numbers,
+        &current_line,
+        &syntax_highlighting,
+    );
+    group
+}
+
+fn source_font_rows(
+    config: &carver_config::Config,
+) -> (adw::ActionRow, gtk::Label, adw::ActionRow) {
+    let row = adw::ActionRow::new();
+    row.set_widget_name("source-font-setting");
+    row.set_title("Source font");
+    row.set_activatable(true);
+    let system_font = system_monospace_font_description();
+    let selected_font = config
+        .editor
+        .source_font
+        .as_deref()
+        .and_then(normalize_source_font_description)
+        .unwrap_or_else(|| system_font.clone());
+    let value = gtk::Label::new(Some(&selected_font));
+    value.set_widget_name("source-font-value");
+    value.add_css_class("dim-label");
+    value.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    row.add_suffix(&value);
+    let reset = adw::ActionRow::new();
+    reset.set_widget_name("source-font-reset-row");
+    reset.set_title("Use system monospace font");
+    reset.set_subtitle(&format!("Follow the desktop setting ({system_font})."));
+    reset.set_activatable(true);
+    reset.set_visible(config.editor.source_font.is_some());
+    (row, value, reset)
+}
+
+fn source_font_dialog() -> gtk::FontDialog {
+    let font_filter = gtk::CustomFilter::new(|item| {
+        item.downcast_ref::<gtk::pango::FontFamily>()
+            .is_some_and(gtk::pango::prelude::FontFamilyExt::is_monospace)
+    });
+    let dialog = gtk::FontDialog::new();
+    dialog.set_title("Choose Source Font");
+    dialog.set_filter(Some(&font_filter));
+    dialog
+}
+
+fn source_switch_row(
+    widget_name: &str,
+    title: &str,
+    subtitle: &str,
+    active: bool,
+) -> adw::SwitchRow {
+    let row = adw::SwitchRow::new();
+    row.set_widget_name(widget_name);
+    row.set_title(title);
+    row.set_subtitle(subtitle);
+    row.set_active(active);
+    row
+}
+
+fn connect_source_font_controls(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    source_font: &adw::ActionRow,
+    font_value: &gtk::Label,
+    reset_font: &adw::ActionRow,
+) {
+    let dispatcher_for_font = dispatcher.clone();
+    let parent = parent.clone();
+    let font_value_for_change = font_value.clone();
+    let reset_font_for_change = reset_font.clone();
+    source_font.connect_activated(move |_| {
+        let dialog = source_font_dialog();
+        let initial_font = gtk::pango::FontDescription::from_string(&font_value_for_change.label());
+        let dispatcher_for_result = dispatcher_for_font.clone();
+        let font_value_for_result = font_value_for_change.clone();
+        let reset_font_for_result = reset_font_for_change.clone();
+        dialog.choose_font(
+            Some(&parent),
+            Some(&initial_font),
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                let Ok(font) = result else {
+                    return;
+                };
+                let Some(font) = normalize_source_font_description(&font.to_string()) else {
+                    return;
+                };
+                font_value_for_result.set_label(&font);
+                reset_font_for_result.set_visible(true);
+                let _ = dispatcher_for_result.dispatch(AppMsg::Preferences(
+                    PreferencesMsg::SetSourceFont(Some(font)),
+                ));
+            },
+        );
+    });
+    let dispatcher_for_font_reset = dispatcher.clone();
+    let font_value_for_reset = font_value.clone();
+    let reset_font_for_reset = reset_font.clone();
+    reset_font.connect_activated(move |_| {
+        let system_font = system_monospace_font_description();
+        font_value_for_reset.set_label(&system_font);
+        reset_font_for_reset.set_visible(false);
+        let _ = dispatcher_for_font_reset
+            .dispatch(AppMsg::Preferences(PreferencesMsg::SetSourceFont(None)));
+    });
+}
+
+fn connect_source_switches(
+    dispatcher: &AppDispatcher,
+    line_numbers: &adw::SwitchRow,
+    current_line: &adw::SwitchRow,
+    syntax_highlighting: &adw::SwitchRow,
+) {
     let dispatcher_for_line_numbers = dispatcher.clone();
     line_numbers.connect_active_notify(move |line_numbers| {
         let _ = dispatcher_for_line_numbers.dispatch(AppMsg::Preferences(
@@ -174,8 +308,6 @@ fn show_preferences_dialog(
             PreferencesMsg::SetSourceSyntaxHighlighting(syntax_highlighting.is_active()),
         ));
     });
-    dialog.present(Some(parent));
-    dialog
 }
 
 #[cfg(test)]
