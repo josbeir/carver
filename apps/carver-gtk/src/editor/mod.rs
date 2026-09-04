@@ -18,6 +18,7 @@ use crate::{
     sidebar::sidebar_toggle_button,
 };
 
+mod find;
 mod preview;
 mod render;
 mod source;
@@ -26,6 +27,7 @@ mod source_context;
 mod toolbar;
 mod web;
 
+use find::FindController;
 use preview::{build_preview, load_preview};
 use source::SourceEditor;
 pub(crate) use source::{
@@ -41,6 +43,7 @@ pub(crate) struct EditorViewRefs {
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
+    find: FindController,
     toolbar: Toolbar,
     editor_stack: gtk::Stack,
     split_toggle: gtk::ToggleButton,
@@ -87,6 +90,9 @@ impl EditorViewRefs {
                 })
         });
         self.rendering.set(true);
+        if new_document {
+            self.find.reset();
+        }
         if source_changed {
             if new_document {
                 self.source_buffer.set_text(&document.source);
@@ -148,6 +154,7 @@ impl EditorViewRefs {
                 self.split_toggle.set_active(false);
             }
         }
+        self.find.set_mode(document.mode);
         self.rendering.set(false);
         if new_document {
             self.loaded_session.replace(Some(document.session));
@@ -255,9 +262,13 @@ pub(crate) fn build_editor(
     let split_preview = build_preview(assets_dir, toast_overlay);
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir, toast_overlay);
+    let find = FindController::new(&source_editor, rich.view(), &view);
+    view.add_top_bar(find.widget());
     let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
     connect_source_context(&source_buffer, &source_context, &toolbar);
+    let find_for_source_change = find.clone();
+    source_buffer.connect_changed(move |_| find_for_source_change.refresh_after_document_change());
     let toolbar_for_selection = toolbar.clone();
     rich.connect_selection_changed(move |selection| {
         toolbar_for_selection.set_rich_selection(&selection);
@@ -287,6 +298,7 @@ pub(crate) fn build_editor(
         &split_toggle,
         &pages.split_supported,
         &rendering,
+        &find,
     );
     connect_rich_fallback(dispatcher, &rich);
     connect_split_toggle(
@@ -316,6 +328,7 @@ pub(crate) fn build_editor(
         rich_mode,
         source_mode,
         rendered_mode,
+        find,
         toolbar,
         editor_stack,
         split_toggle,
@@ -470,6 +483,7 @@ fn connect_mode_buttons(
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
     rendering: &Rc<Cell<bool>>,
+    find: &FindController,
 ) {
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let dispatcher = dispatcher.clone();
@@ -480,6 +494,7 @@ fn connect_mode_buttons(
         let split_toggle = split_toggle.clone();
         let split_supported = Rc::clone(split_supported);
         let rendering = Rc::clone(rendering);
+        let find = find.clone();
         button.connect_toggled(move |button| {
             if !button.is_active() {
                 return;
@@ -507,6 +522,7 @@ fn connect_mode_buttons(
                     split_toggle.set_sensitive(false);
                 }
             }
+            find.set_mode(surface);
             rendering.set(was_rendering);
             if persist_selection {
                 let _ = dispatcher

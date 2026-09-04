@@ -162,6 +162,11 @@ impl SourceEditor {
         self.buffer.upcast_ref()
     }
 
+    /// Returns the native buffer required by `GtkSourceView`'s search context.
+    pub(crate) fn native_buffer(&self) -> &sourceview5::Buffer {
+        &self.buffer
+    }
+
     /// Returns the source-editor widget.
     pub(crate) fn view(&self) -> &sourceview5::View {
         &self.view

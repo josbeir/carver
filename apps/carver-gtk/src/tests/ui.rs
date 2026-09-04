@@ -261,6 +261,66 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?
     );
     assert_shared_toolbar_controls(&root)?;
+    let find_bar = widget_as::<gtk::SearchBar>(&root, "editor-find-bar").ok_or("find bar")?;
+    let find_entry =
+        widget_as::<gtk::SearchEntry>(&root, "editor-find-entry").ok_or("find entry")?;
+    let find_count = widget_as::<gtk::Label>(&root, "editor-find-count").ok_or("find count")?;
+    let find_next = widget_as::<gtk::Button>(&root, "editor-find-next").ok_or("find next")?;
+    let find_previous =
+        widget_as::<gtk::Button>(&root, "editor-find-previous").ok_or("find previous")?;
+    let find_close = widget_as::<gtk::Button>(&root, "editor-find-close").ok_or("find close")?;
+    let editor_view =
+        widget_as::<adw::ToolbarView>(&root, "editor-surface").ok_or("editor view")?;
+    let controllers = editor_view.observe_controllers();
+    let find_shortcut = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .find_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .filter(|controller| controller.name().as_deref() == Some("editor-find-shortcuts"))
+        .ok_or("find shortcut controller")?;
+    assert_eq!(
+        find_shortcut.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
+    source.buffer().set_text("needle one\nNeedle two");
+    source.buffer().place_cursor(&source.buffer().start_iter());
+    let handled = find_shortcut.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::f,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(handled);
+    assert!(find_bar.is_search_mode());
+    find_entry.set_text("needle");
+    assert!(run_main_context_until(|| find_count.text() == "2 matches"));
+    assert!(find_next.is_sensitive() && find_previous.is_sensitive());
+    assert_eq!(
+        source
+            .buffer()
+            .selection_bounds()
+            .map(|(start, end)| source.buffer().text(&start, &end, false).to_string()),
+        Some("needle".to_owned())
+    );
+    find_next.emit_clicked();
+    assert_eq!(
+        source
+            .buffer()
+            .selection_bounds()
+            .map(|(start, end)| source.buffer().text(&start, &end, false).to_string()),
+        Some("Needle".to_owned())
+    );
+    find_previous.emit_clicked();
+    assert_eq!(
+        source
+            .buffer()
+            .selection_bounds()
+            .map(|(start, end)| source.buffer().text(&start, &end, false).to_string()),
+        Some("needle".to_owned())
+    );
+    find_close.emit_clicked();
+    assert!(!find_bar.is_search_mode());
     source.buffer().set_text("# Source\n\nA paragraph");
     assert!(run_main_context_until(|| client
         .note(note.id)
@@ -371,12 +431,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let rendered_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
     rendered_mode.set_active(true);
-    assert!(run_main_context_until(
-        || !toolbar.is_sensitive() && !source_path.is_visible()
-    ));
+    assert!(run_main_context_until(|| !toolbar.is_sensitive()
+        && !source_path.is_visible()
+        && !find_bar.is_search_mode()));
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
     assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;
+    source.buffer().set_text("rich find target");
     rich_mode.set_active(true);
     let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
     let rich_source = std::rc::Rc::new(std::cell::RefCell::new(None));
@@ -392,6 +453,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         },
     );
     assert!(run_main_context_until(|| rich_source.borrow().is_some()));
+    assert_eq!(rich_source.borrow().as_deref(), Some("rich find target"));
+    find_bar.set_search_mode(true);
+    find_entry.set_text("target");
+    assert!(run_main_context_until(|| find_count.text() == "1 match"));
+    find_close.emit_clicked();
+    assert!(!find_bar.is_search_mode());
     let bold = widget_as::<gtk::ToggleButton>(&root, "format-bold-button").ok_or("bold")?;
     rich.evaluate_javascript(
         "window.carverEditor.command('bold')",
