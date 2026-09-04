@@ -13,7 +13,7 @@ pub use effect::Effect;
 pub use model::{
     ActionKey, AppModel, BrowserModel, EditorDocument, EditorPreview, EditorSaveRequest,
     EditorSaveState, EditorSessionId, LoadState, MoveUndo, Preferences, RequestId, Resource, Route,
-    TimerId, UiError,
+    SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg,

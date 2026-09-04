@@ -113,6 +113,13 @@ pub struct Config {
 }
 
 /// Editor preferences.
+// CONTEXT: These flat fields preserve the established `[editor]` TOML schema;
+// splitting them would require a user-facing configuration migration without
+// improving the settings' two-state semantics.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "editor preferences persist independent two-state options"
+)]
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EditorConfig {
     /// The editor surface selected most recently by the user.
@@ -134,6 +141,9 @@ pub struct EditorConfig {
     /// Whether the source editor highlights the line containing the cursor.
     #[serde(default)]
     pub source_highlight_current_line: bool,
+    /// Whether the source editor applies Carve syntax highlighting.
+    #[serde(default = "default_true")]
+    pub source_syntax_highlighting: bool,
 }
 
 /// An editor surface a user can select for a note.
@@ -213,6 +223,7 @@ impl Default for EditorConfig {
             source_split_view: false,
             source_line_numbers: false,
             source_highlight_current_line: false,
+            source_syntax_highlighting: true,
         }
     }
 }

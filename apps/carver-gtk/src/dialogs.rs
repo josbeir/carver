@@ -142,6 +142,11 @@ fn show_preferences_dialog(
     current_line.set_title("Highlight current line");
     current_line.set_active(config.editor.source_highlight_current_line);
     source_group.add(&current_line);
+    let syntax_highlighting = adw::SwitchRow::new();
+    syntax_highlighting.set_widget_name("source-syntax-highlighting-setting");
+    syntax_highlighting.set_title("Syntax highlighting");
+    syntax_highlighting.set_active(config.editor.source_syntax_highlighting);
+    source_group.add(&syntax_highlighting);
     page.add(&group);
     page.add(&source_group);
     dialog.add(&page);
@@ -169,6 +174,12 @@ fn show_preferences_dialog(
     current_line.connect_active_notify(move |current_line| {
         let _ = dispatcher_for_current_line.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetSourceHighlightCurrentLine(current_line.is_active()),
+        ));
+    });
+    let dispatcher_for_syntax_highlighting = dispatcher.clone();
+    syntax_highlighting.connect_active_notify(move |syntax_highlighting| {
+        let _ = dispatcher_for_syntax_highlighting.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetSourceSyntaxHighlighting(syntax_highlighting.is_active()),
         ));
     });
     dialog.present(Some(parent));

@@ -157,6 +157,8 @@ pub struct SourceEditorPreferences {
     pub show_line_numbers: bool,
     /// Whether source mode highlights the line containing the cursor.
     pub highlight_current_line: bool,
+    /// Whether source mode applies Carve syntax highlighting.
+    pub syntax_highlighting: bool,
 }
 
 impl From<&Config> for Preferences {
@@ -169,6 +171,7 @@ impl From<&Config> for Preferences {
             source_editor: SourceEditorPreferences {
                 show_line_numbers: config.editor.source_line_numbers,
                 highlight_current_line: config.editor.source_highlight_current_line,
+                syntax_highlighting: config.editor.source_syntax_highlighting,
             },
         }
     }

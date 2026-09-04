@@ -151,6 +151,8 @@ pub enum PreferencesMsg {
     SetSourceLineNumbers(bool),
     /// Set source-editor current-line highlighting.
     SetSourceHighlightCurrentLine(bool),
+    /// Set source-editor syntax highlighting.
+    SetSourceSyntaxHighlighting(bool),
 }
 
 /// Window state that must survive the next launch.

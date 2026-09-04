@@ -32,6 +32,7 @@ fn partial_config_keeps_defaults_for_unset_sections() -> Result<(), Box<dyn std:
     assert!(!config.editor.source_split_view);
     assert!(!config.editor.source_line_numbers);
     assert!(!config.editor.source_highlight_current_line);
+    assert!(config.editor.source_syntax_highlighting);
     assert!(config.images.load_remote_automatically);
     assert_eq!(config.window.width, 1120);
     assert_eq!(config.window.height, 760);
@@ -76,6 +77,7 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
     config.editor.source_split_view = true;
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
+    config.editor.source_syntax_highlighting = false;
     save(&path, &config)?;
     assert_eq!(load(&path)?, config);
     Ok(())

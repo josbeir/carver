@@ -498,6 +498,21 @@ fn current_line_preference_should_persist_a_complete_config_snapshot() {
 }
 
 #[test]
+fn syntax_highlighting_preference_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceSyntaxHighlighting(false)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if !config.editor.source_syntax_highlighting)
+    );
+    assert!(!model.preferences.source_editor.syntax_highlighting);
+}
+
+#[test]
 fn close_geometry_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 

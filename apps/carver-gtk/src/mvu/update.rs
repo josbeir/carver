@@ -62,39 +62,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
         AppMsg::Editor(message) => update_editor(model, message),
         AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) => Vec::new(),
-        AppMsg::Preferences(PreferencesMsg::SetRemoteImages(enabled)) => {
-            model.preferences.load_remote_images = enabled;
-            model.config.images.load_remote_automatically = enabled;
-            persist_config_effect(model)
-        }
-        AppMsg::Preferences(PreferencesMsg::SetAutosaveDelay(delay_ms)) => {
-            model.preferences.autosave_delay_ms = delay_ms;
-            model.config.editor.autosave_delay_ms = delay_ms;
-            persist_config_effect(model)
-        }
-        AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)) => {
-            model.preferences.editor_mode = mode;
-            model.config.editor.last_mode = mode;
-            if let Some(document) = model.editor.as_mut() {
-                document.mode = mode;
-            }
-            persist_config_effect(model)
-        }
-        AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(visible)) => {
-            model.preferences.source_split_view = visible;
-            model.config.editor.source_split_view = visible;
-            persist_config_effect(model)
-        }
-        AppMsg::Preferences(PreferencesMsg::SetSourceLineNumbers(visible)) => {
-            model.preferences.source_editor.show_line_numbers = visible;
-            model.config.editor.source_line_numbers = visible;
-            persist_config_effect(model)
-        }
-        AppMsg::Preferences(PreferencesMsg::SetSourceHighlightCurrentLine(enabled)) => {
-            model.preferences.source_editor.highlight_current_line = enabled;
-            model.config.editor.source_highlight_current_line = enabled;
-            persist_config_effect(model)
-        }
+        AppMsg::Preferences(preference) => update_preferences(model, preference),
         AppMsg::Window(WindowMsg::SaveGeometry {
             width,
             height,
@@ -108,6 +76,43 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Action(action) => update_action(model, action),
         AppMsg::Library(reply) => update_library(model, reply),
     }
+}
+
+fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<Effect> {
+    match preference {
+        PreferencesMsg::SetRemoteImages(enabled) => {
+            model.preferences.load_remote_images = enabled;
+            model.config.images.load_remote_automatically = enabled;
+        }
+        PreferencesMsg::SetAutosaveDelay(delay_ms) => {
+            model.preferences.autosave_delay_ms = delay_ms;
+            model.config.editor.autosave_delay_ms = delay_ms;
+        }
+        PreferencesMsg::SetEditorMode(mode) => {
+            model.preferences.editor_mode = mode;
+            model.config.editor.last_mode = mode;
+            if let Some(document) = model.editor.as_mut() {
+                document.mode = mode;
+            }
+        }
+        PreferencesMsg::SetSourceSplitView(visible) => {
+            model.preferences.source_split_view = visible;
+            model.config.editor.source_split_view = visible;
+        }
+        PreferencesMsg::SetSourceLineNumbers(visible) => {
+            model.preferences.source_editor.show_line_numbers = visible;
+            model.config.editor.source_line_numbers = visible;
+        }
+        PreferencesMsg::SetSourceHighlightCurrentLine(enabled) => {
+            model.preferences.source_editor.highlight_current_line = enabled;
+            model.config.editor.source_highlight_current_line = enabled;
+        }
+        PreferencesMsg::SetSourceSyntaxHighlighting(enabled) => {
+            model.preferences.source_editor.syntax_highlighting = enabled;
+            model.config.editor.source_syntax_highlighting = enabled;
+        }
+    }
+    persist_config_effect(model)
 }
 
 fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {

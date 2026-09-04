@@ -117,8 +117,7 @@ impl EditorViewRefs {
             refresh_rich_theme(&self.rich);
         }
         self.source_editor.render_preferences(
-            model.preferences.source_editor.show_line_numbers,
-            model.preferences.source_editor.highlight_current_line,
+            &model.preferences.source_editor,
             adw::StyleManager::default().is_dark(),
         );
         match document.mode {

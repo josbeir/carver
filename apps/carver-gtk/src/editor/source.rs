@@ -135,12 +135,15 @@ impl SourceEditor {
     /// Applies source-editor preferences from the immutable MVU model snapshot.
     pub(crate) fn render_preferences(
         &self,
-        show_line_numbers: bool,
-        highlight_current_line: bool,
+        preferences: &crate::mvu::SourceEditorPreferences,
         dark: bool,
     ) {
-        self.view.set_show_line_numbers(show_line_numbers);
-        self.view.set_highlight_current_line(highlight_current_line);
+        self.view
+            .set_show_line_numbers(preferences.show_line_numbers);
+        self.view
+            .set_highlight_current_line(preferences.highlight_current_line);
+        self.buffer
+            .set_highlight_syntax(preferences.syntax_highlighting);
         self.buffer.set_style_scheme(Some(if dark {
             &self.dark_style
         } else {
