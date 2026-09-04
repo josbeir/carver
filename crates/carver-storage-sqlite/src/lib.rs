@@ -9,8 +9,8 @@ use std::{
 };
 
 use carver_domain::{
-    Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
+    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
 use carver_sdk::LibraryBackend;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -117,6 +117,27 @@ impl SqliteLibrary {
         )?;
         statement
             .query_map([], category_from_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Lists active categories with their active-note counts in sidebar order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when category summaries cannot be read or stored values are corrupt.
+    pub fn list_category_summaries(&self) -> Result<Vec<CategorySummary>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT c.id, c.name, c.position, c.created_at, c.updated_at, c.trashed_at,
+                    COUNT(n.id)
+             FROM categories c
+             LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
+             WHERE c.trashed_at IS NULL
+             GROUP BY c.id
+             ORDER BY c.position, c.name COLLATE NOCASE",
+        )?;
+        statement
+            .query_map([], category_summary_from_row)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(Into::into)
     }
@@ -760,6 +781,19 @@ fn category_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Category> {
             .map(parse_timestamp)
             .transpose()
             .map_err(to_sql_error)?,
+    })
+}
+
+fn category_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CategorySummary> {
+    let note_count: i64 = row.get(6)?;
+    let note_count = usize::try_from(note_count).map_err(|_| {
+        to_sql_error(StorageError::Corrupt(
+            "note count does not fit usize".to_owned(),
+        ))
+    })?;
+    Ok(CategorySummary {
+        category: category_from_row(row)?,
+        note_count,
     })
 }
 

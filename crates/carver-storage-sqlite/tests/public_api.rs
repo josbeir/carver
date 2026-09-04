@@ -19,5 +19,6 @@ fn sqlite_library_should_persist_categories_through_its_public_api()
     assert_eq!(categories[0].id, category.id);
     assert_eq!(categories[0].name, "Projects");
     assert_eq!(categories[0].position, 0);
+    assert_eq!(library.list_category_summaries()?[0].note_count, 0);
     Ok(())
 }

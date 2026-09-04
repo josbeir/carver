@@ -52,6 +52,42 @@ fn recent_note_summaries_include_their_category_name() {
 }
 
 #[test]
+fn category_summaries_count_only_active_notes_in_active_categories() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let work = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("work category failed: {error}"));
+    let archived = library
+        .create_category("Archived", now)
+        .unwrap_or_else(|error| panic!("archived category failed: {error}"));
+    let active_note = library
+        .create_note(work.id, now)
+        .unwrap_or_else(|error| panic!("active note failed: {error}"));
+    let trashed_note = library
+        .create_note(work.id, now)
+        .unwrap_or_else(|error| panic!("trashed note failed: {error}"));
+    let _archived_note = library
+        .create_note(archived.id, now)
+        .unwrap_or_else(|error| panic!("archived note failed: {error}"));
+    library
+        .trash_note(trashed_note.id, now)
+        .unwrap_or_else(|error| panic!("note trash failed: {error}"));
+    library
+        .trash_category(archived.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+
+    let summaries = library
+        .list_category_summaries()
+        .unwrap_or_else(|error| panic!("category summaries failed: {error}"));
+
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0].category.id, work.id);
+    assert_eq!(summaries[0].note_count, 1);
+    assert_eq!(summaries[0].category.id, active_note.category_id);
+}
+
+#[test]
 fn saving_unchanged_source_preserves_the_note_timestamp_and_revision() {
     let (_directory, library) = library();
     let created_at = OffsetDateTime::UNIX_EPOCH;

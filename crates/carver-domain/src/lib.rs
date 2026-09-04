@@ -103,6 +103,15 @@ pub struct Category {
     pub trashed_at: Option<OffsetDateTime>,
 }
 
+/// A category together with the number of active notes it contains.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CategorySummary {
+    /// The active category displayed in the sidebar.
+    pub category: Category,
+    /// Number of active notes belonging to the category.
+    pub note_count: usize,
+}
+
 /// A complete editable note.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Note {
