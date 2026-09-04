@@ -6,8 +6,8 @@ use std::{error::Error, thread};
 
 use async_channel::{Receiver, Sender};
 pub use carver_domain::{
-    Category, CategoryId, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
+    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -28,6 +28,8 @@ pub trait LibraryBackend: Send + 'static {
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error>;
     /// Lists active categories in their display order.
     fn categories(&self) -> Result<Vec<Category>, Self::Error>;
+    /// Lists active categories with their active-note counts in display order.
+    fn categories_with_note_counts(&self) -> Result<Vec<CategorySummary>, Self::Error>;
     /// Counts active notes in a category.
     fn note_count(&self, category_id: CategoryId) -> Result<usize, Self::Error>;
     /// Renames a category at the supplied time.
@@ -111,6 +113,12 @@ pub trait LibraryBackend: Send + 'static {
 
 type Job<B> = Box<dyn FnOnce(&B) + Send + 'static>;
 
+/// Maximum number of storage operations that can wait behind the active worker operation.
+///
+/// A bounded queue applies asynchronous backpressure to frontends rather than allowing an
+/// unlimited number of UI-triggered operations to accumulate in memory.
+const REQUEST_QUEUE_CAPACITY: usize = 32;
+
 /// Cloneable client that serializes storage work on a dedicated backend thread.
 ///
 /// Use the `*_async` methods from a UI. The synchronous counterparts exist for short-lived
@@ -152,7 +160,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
     ///
     /// Returns an error when the operating system cannot start the worker thread.
     pub fn spawn(backend: B) -> Result<Self, LibraryError<B::Error>> {
-        let (sender, receiver) = async_channel::unbounded();
+        let (sender, receiver) = async_channel::bounded(REQUEST_QUEUE_CAPACITY);
         thread::Builder::new()
             .name("carver-library".to_owned())
             .spawn(move || run_worker(backend, receiver))
@@ -172,6 +180,14 @@ impl<B: LibraryBackend> LibraryClient<B> {
     /// Lists sidebar categories without blocking the caller.
     pub async fn categories_async(&self) -> Result<Vec<Category>, LibraryError<B::Error>> {
         self.request(LibraryBackend::categories).await
+    }
+
+    /// Lists sidebar categories and their active-note counts without blocking the caller.
+    pub async fn categories_with_note_counts_async(
+        &self,
+    ) -> Result<Vec<CategorySummary>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::categories_with_note_counts)
+            .await
     }
 
     /// Counts category notes without blocking the caller.
@@ -331,6 +347,13 @@ impl<B: LibraryBackend> LibraryClient<B> {
     /// Lists categories synchronously for bootstrap code and tests.
     pub fn categories(&self) -> Result<Vec<Category>, LibraryError<B::Error>> {
         self.blocking(LibraryBackend::categories)
+    }
+
+    /// Lists categories and their active-note counts synchronously for bootstrap code and tests.
+    pub fn categories_with_note_counts(
+        &self,
+    ) -> Result<Vec<CategorySummary>, LibraryError<B::Error>> {
+        self.blocking(LibraryBackend::categories_with_note_counts)
     }
 
     /// Counts category notes synchronously for bootstrap code and tests.

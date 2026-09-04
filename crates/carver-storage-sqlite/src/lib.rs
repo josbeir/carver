@@ -657,6 +657,10 @@ impl LibraryBackend for SqliteLibrary {
         self.list_categories()
     }
 
+    fn categories_with_note_counts(&self) -> Result<Vec<CategorySummary>, Self::Error> {
+        self.list_category_summaries()
+    }
+
     fn note_count(&self, category_id: CategoryId) -> Result<usize, Self::Error> {
         Self::note_count(self, category_id)
     }

@@ -13,9 +13,22 @@ struct TestError;
 
 struct TestBackend {
     categories: Mutex<Vec<Category>>,
+    gate: Option<WorkerGate>,
+}
+
+struct WorkerGate {
+    started: async_channel::Sender<()>,
+    release: async_channel::Receiver<()>,
 }
 
 impl TestBackend {
+    fn new() -> Self {
+        Self {
+            categories: Mutex::new(Vec::new()),
+            gate: None,
+        }
+    }
+
     fn unsupported<T>() -> Result<T, TestError> {
         Err(TestError)
     }
@@ -25,6 +38,10 @@ impl LibraryBackend for TestBackend {
     type Error = TestError;
 
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error> {
+        if let Some(gate) = &self.gate {
+            gate.started.send_blocking(()).map_err(|_| TestError)?;
+            gate.release.recv_blocking().map_err(|_| TestError)?;
+        }
         let mut categories = self.categories.lock().map_err(|_| TestError)?;
         let category = Category {
             id: CategoryId::new(),
@@ -43,6 +60,18 @@ impl LibraryBackend for TestBackend {
             .lock()
             .map(|categories| categories.clone())
             .map_err(|_| TestError)
+    }
+
+    fn categories_with_note_counts(&self) -> Result<Vec<CategorySummary>, Self::Error> {
+        self.categories().map(|categories| {
+            categories
+                .into_iter()
+                .map(|category| CategorySummary {
+                    category,
+                    note_count: 0,
+                })
+                .collect()
+        })
     }
 
     fn note_count(&self, _category_id: CategoryId) -> Result<usize, Self::Error> {
@@ -159,23 +188,26 @@ impl LibraryBackend for TestBackend {
 
 #[test]
 fn async_requests_are_serialized_by_the_backend_worker() -> Result<(), LibraryError<TestError>> {
-    let client = LibraryClient::spawn(TestBackend {
-        categories: Mutex::new(Vec::new()),
-    })?;
+    let client = LibraryClient::spawn(TestBackend::new())?;
 
     let created = block_on(client.create_category_async("Projects".to_owned()))?;
     let categories = block_on(client.categories_async())?;
 
-    assert_eq!(categories, vec![created]);
+    assert_eq!(categories, vec![created.clone()]);
+    assert_eq!(
+        block_on(client.categories_with_note_counts_async())?,
+        vec![CategorySummary {
+            category: created,
+            note_count: 0,
+        }]
+    );
     Ok(())
 }
 
 #[test]
 fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), LibraryError<TestError>>
 {
-    let client = LibraryClient::spawn(TestBackend {
-        categories: Mutex::new(Vec::new()),
-    })?;
+    let client = LibraryClient::spawn(TestBackend::new())?;
     let category_id = CategoryId::new();
     let note_id = NoteId::new();
 
@@ -211,6 +243,47 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(
         client.note_asset_bytes_async(note_id, "assets/example.png".to_owned()),
     ));
+    Ok(())
+}
+
+#[test]
+fn worker_queue_applies_backpressure_when_the_backend_is_busy()
+-> Result<(), LibraryError<TestError>> {
+    let (started_sender, started_receiver) = async_channel::bounded(1);
+    let (release_sender, release_receiver) = async_channel::bounded(1);
+    let client = LibraryClient::spawn(TestBackend {
+        categories: Mutex::new(Vec::new()),
+        gate: Some(WorkerGate {
+            started: started_sender,
+            release: release_receiver,
+        }),
+    })?;
+
+    let blocking_client = client.clone();
+    let blocking_request = std::thread::spawn(move || blocking_client.create_category("Blocked"));
+    started_receiver
+        .recv_blocking()
+        .map_err(|_| LibraryError::Unavailable)?;
+
+    for _ in 0..REQUEST_QUEUE_CAPACITY {
+        assert!(
+            client
+                .requests
+                .try_send(Box::new(|_: &TestBackend| {}))
+                .is_ok()
+        );
+    }
+    assert!(matches!(
+        client.requests.try_send(Box::new(|_: &TestBackend| {})),
+        Err(async_channel::TrySendError::Full(_))
+    ));
+
+    release_sender
+        .send_blocking(())
+        .map_err(|_| LibraryError::Unavailable)?;
+    blocking_request
+        .join()
+        .map_err(|_| LibraryError::Unavailable)??;
     Ok(())
 }
 
