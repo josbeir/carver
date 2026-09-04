@@ -36,10 +36,10 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     let split_view = adw::NavigationSplitView::new();
     let toast = adw::ToastOverlay::new();
     let browser = build_browser(&state, &stack, &split_view, &toast);
-    let editor_placeholder = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let editor = build_editor(&state, &stack, &toast, &split_view);
     let trash = build_trash(&state, &stack);
     stack.add_named(&browser, Some("browser"));
-    stack.add_named(&editor_placeholder, Some("editor"));
+    stack.add_named(&editor, Some("editor"));
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
     let sidebar = build_sidebar(&state, &split_view);
@@ -173,6 +173,33 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
             && find_widget(browser.upcast_ref(), &format!("note-category:{}", note.id)).is_some()
             && find_widget(browser.upcast_ref(), &format!("note-updated:{}", note.id)).is_some()
     }));
+    state.current_note.take();
+    let note_row = find_widget(browser.upcast_ref(), &format!("note:{}", note.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("MVU note row")?;
+    note_row.activate();
+    assert!(run_main_context_until(|| {
+        state
+            .mvu_model()
+            .and_then(|model| model.editor)
+            .is_some_and(|document| document.note_id == note.id)
+            && stack.visible_child_name().as_deref() == Some("editor")
+    }));
+    let mvu_source =
+        widget_as::<gtk::TextView>(&editor, "source-editor").ok_or("MVU source editor")?;
+    let mvu_buffer = mvu_source.buffer();
+    assert_eq!(
+        mvu_buffer.text(&mvu_buffer.start_iter(), &mvu_buffer.end_iter(), false),
+        note.source
+    );
+    let editor_session = state
+        .mvu_model()
+        .and_then(|model| model.editor)
+        .map(|document| document.session)
+        .ok_or("MVU editor session")?;
+    let _ = state.dispatch_mvu(crate::mvu::AppMsg::Editor(crate::mvu::EditorMsg::Close(
+        editor_session,
+    )));
 
     let search = widget_as::<gtk::SearchEntry>(&browser, "note-search-entry").ok_or("search")?;
     search.set_text("not-present");
@@ -302,18 +329,8 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     let editor_note = state.client.note(note.id)?.ok_or("editor note")?;
     state.current_note.replace(Some(editor_note));
 
-    stack.remove(&editor_placeholder);
-    let editor = build_editor(&state, &stack, &toast, &split_view);
-    stack.add_named(&editor, Some("editor"));
     stack.set_visible_child_name("editor");
     let web = widget_as::<webkit6::WebView>(&editor, "rich-editor").ok_or("rich editor")?;
-    let document_loaded = std::rc::Rc::new(std::cell::Cell::new(false));
-    let document_loaded_for_signal = std::rc::Rc::clone(&document_loaded);
-    web.connect_load_changed(move |_view, event| {
-        if event == webkit6::LoadEvent::Finished {
-            document_loaded_for_signal.set(true);
-        }
-    });
     let source = widget_as::<gtk::TextView>(&editor, "source-editor").ok_or("source editor")?;
     let rich = widget_as::<gtk::ToggleButton>(&editor, "editor-mode-rich").ok_or("rich mode")?;
     let source_mode =
@@ -389,7 +406,6 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     );
     rich.set_active(true);
     assert!(run_main_context_until(|| rich.is_active()));
-    assert!(run_main_context_until(|| document_loaded.get()));
     let browser_source = std::rc::Rc::new(std::cell::RefCell::new(None));
     let browser_source_for_callback = std::rc::Rc::clone(&browser_source);
     web.evaluate_javascript(

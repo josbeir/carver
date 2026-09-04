@@ -294,6 +294,8 @@ pub struct AppModel {
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
     pub editor: Option<EditorDocument>,
+    /// The request currently loading a note into the editor.
+    pub editor_load_request: Option<RequestId>,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
@@ -314,6 +316,7 @@ impl AppModel {
             undo_move: None,
             preferences: Preferences::from(config),
             editor: None,
+            editor_load_request: None,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,

@@ -110,6 +110,41 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
 }
 
 #[test]
+fn opening_a_note_should_ignore_an_older_load_completion() {
+    let mut model = AppModel::new(&Config::default());
+    let first_note_id = NoteId::new();
+    let first_request = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(first_note_id)),
+    )
+    .as_slice()
+    {
+        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        _ => panic!("opening a note should start one load"),
+    };
+    let second_note_id = NoteId::new();
+    let second_request = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(second_note_id)),
+    )
+    .as_slice()
+    {
+        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        _ => panic!("opening a second note should supersede the first load"),
+    };
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id: first_request,
+            result: Err(UiError::new("stale")),
+        }),
+    );
+    assert_eq!(model.editor_load_request, Some(second_request));
+    assert_eq!(model.editor, None);
+}
+
+#[test]
 fn stale_editor_close_should_not_close_a_newer_document() {
     let mut model = AppModel::new(&Config::default());
     let first_note_id = NoteId::new();

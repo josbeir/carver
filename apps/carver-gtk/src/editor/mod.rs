@@ -1,6 +1,10 @@
 //! Rich/source note editor, formatting, image paste, and autosave.
 
-use std::{cell::Cell, rc::Rc, time::Duration as StdDuration};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    time::Duration as StdDuration,
+};
 
 use carver_config::EditorMode;
 use gtk::prelude::*;
@@ -173,6 +177,18 @@ pub(crate) fn build_editor(
     connect_trash_action(state, stack, toast_overlay, &trash);
     connect_back_action(state, stack, &back);
     connect_source_preview(state, &source_buffer, &split_preview, &rendered_preview);
+    connect_model_renderer(
+        state,
+        &rich_mode,
+        &source_mode,
+        &rendered_mode,
+        &format_stack,
+        &editor_stack,
+        &rich,
+        &source_buffer,
+        &split_preview,
+        &rendered_preview,
+    );
     let _source_image_paste =
         render::install_image_paste(&source, &source_buffer, state, toast_overlay);
     let source_buffer_for_drop = source_buffer.clone();
@@ -757,6 +773,81 @@ fn connect_note_loading(
             }
             state_for_visible.synchronizing_editor.set(false);
         }
+    });
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the editor projection owns the coordinated widgets for one model document"
+)]
+fn connect_model_renderer(
+    state: &Rc<AppState>,
+    rich_mode: &gtk::ToggleButton,
+    source_mode: &gtk::ToggleButton,
+    rendered_mode: &gtk::ToggleButton,
+    format_stack: &gtk::Stack,
+    editor_stack: &gtk::Stack,
+    rich: &RichEditor,
+    source_buffer: &gtk::TextBuffer,
+    split_preview: &webkit6::WebView,
+    rendered_preview: &webkit6::WebView,
+) {
+    let state = Rc::clone(state);
+    let rich_mode = rich_mode.clone();
+    let source_mode = source_mode.clone();
+    let rendered_mode = rendered_mode.clone();
+    let format_stack = format_stack.clone();
+    let editor_stack = editor_stack.clone();
+    let rich = rich.clone();
+    let source_buffer = source_buffer.clone();
+    let split_preview = split_preview.clone();
+    let rendered_preview = rendered_preview.clone();
+    let loaded_session = Rc::new(RefCell::new(None));
+    let state_for_render = Rc::clone(&state);
+    state.set_editor_renderer(move |model| {
+        let Some(document) = model.editor.as_ref() else {
+            return;
+        };
+        if loaded_session.borrow().as_ref() == Some(&document.session) {
+            return;
+        }
+
+        state_for_render.synchronizing_editor.set(true);
+        if buffer_text(&source_buffer) != document.source {
+            source_buffer.set_text(&document.source);
+        }
+        load_preview(
+            &split_preview,
+            &document.source,
+            model.preferences.load_remote_images,
+        );
+        load_preview(
+            &rendered_preview,
+            &document.source,
+            model.preferences.load_remote_images,
+        );
+        rich.load_source(&document.source);
+        match document.mode {
+            EditorMode::Source => {
+                source_mode.set_active(true);
+                editor_stack.set_visible_child_name("source");
+                format_stack.set_sensitive(true);
+                format_stack.set_visible_child_name("source");
+            }
+            EditorMode::Rendered => {
+                rendered_mode.set_active(true);
+                editor_stack.set_visible_child_name("rendered");
+                format_stack.set_sensitive(false);
+            }
+            EditorMode::Rich => {
+                rich_mode.set_active(true);
+                editor_stack.set_visible_child_name("rich");
+                format_stack.set_sensitive(true);
+                format_stack.set_visible_child_name("rich");
+            }
+        }
+        state_for_render.synchronizing_editor.set(false);
+        loaded_session.replace(Some(document.session));
     });
 }
 

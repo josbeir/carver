@@ -10,7 +10,7 @@ use time::{Duration, Month, OffsetDateTime, UtcOffset};
 use crate::{
     controller::AppState,
     editor::build_editor,
-    mvu::{ActionMsg, AppMsg, BrowserMsg},
+    mvu::{ActionMsg, AppMsg, BrowserMsg, NavigationMsg},
     note_move::show_move_note_dialog,
     sidebar::{refresh_sidebar, sidebar_toggle_button},
     trash::build_trash,
@@ -161,7 +161,6 @@ fn connect_browser_actions(
     connect_new_note_action(state, stack, new_note);
     connect_new_note_action(state, stack, empty_new_note);
     let state_for_row = Rc::clone(state);
-    let stack_for_row = stack.clone();
     list.connect_row_activated(move |_list, row| {
         let widget_name = row.widget_name();
         let Some(raw_id) = widget_name.strip_prefix("note:") else {
@@ -170,15 +169,9 @@ fn connect_browser_actions(
         let Ok(id) = uuid::Uuid::parse_str(raw_id) else {
             return;
         };
-        let state = Rc::clone(&state_for_row);
-        let stack = stack_for_row.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            if let Ok(Some(note)) = client.note_async(NoteId::from_uuid(id)).await {
-                state.current_note.replace(Some(note));
-                stack.set_visible_child_name("editor");
-            }
-        });
+        let _ = state_for_row.dispatch_mvu(AppMsg::Navigation(NavigationMsg::OpenNote(
+            NoteId::from_uuid(id),
+        )));
     });
 }
 

@@ -40,6 +40,13 @@ pub enum Effect {
         /// Search input to apply.
         query: String,
     },
+    /// Load a complete note before showing it in the editor.
+    LoadEditorNote {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Note to open.
+        note_id: NoteId,
+    },
     /// Load recoverable deleted content.
     LoadTrash {
         /// Identity for stale-completion protection.

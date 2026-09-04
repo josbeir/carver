@@ -178,6 +178,7 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
         return;
     };
     let state_for_sidebar_renderer = Rc::downgrade(state);
+    let state_for_editor_renderer = Rc::downgrade(state);
     let view = ViewRefs::new(route_stack, browser_status, trash_status)
         .with_browser_and_sidebar(
             sidebar_list,
@@ -190,6 +191,11 @@ fn install_mvu_runtime(state: &Rc<AppState>) {
         .with_sidebar_renderer(move |model| {
             if let Some(state) = state_for_sidebar_renderer.upgrade() {
                 render_mvu_sidebar(&state, model);
+            }
+        })
+        .with_editor_renderer(move |model| {
+            if let Some(state) = state_for_editor_renderer.upgrade() {
+                state.render_editor(model);
             }
         })
         .with_trash(trash_list, trash_pages, empty_trash_button)

@@ -20,6 +20,14 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.selected_category = category_id;
             reload_browser(model).into_iter().collect()
         }
+        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
+            let request_id = model.next_request_id();
+            model.editor_load_request = Some(request_id);
+            vec![Effect::LoadEditorNote {
+                request_id,
+                note_id,
+            }]
+        }
         AppMsg::Navigation(NavigationMsg::ShowTrash) => {
             model.route = super::Route::Trash;
             reload_trash(model).into_iter().collect()
@@ -126,6 +134,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         {
             model.route = super::Route::Browser;
             model.editor = None;
+            model.editor_load_request = None;
             Vec::new()
         }
         EditorMsg::Close(_) => Vec::new(),
@@ -216,6 +225,27 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         }
         LibraryReply::BrowserLoaded { request_id, result } => {
             reload_browser_after(model.browser.notes.finish(request_id, result), model)
+        }
+        LibraryReply::EditorLoaded { request_id, result } => {
+            if model.editor_load_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.editor_load_request = None;
+            match result {
+                Ok(note) => {
+                    let session = model.next_editor_session_id();
+                    model.editor = Some(super::EditorDocument::new(
+                        session,
+                        note.id,
+                        note.revision,
+                        note.source,
+                        model.preferences.editor_mode,
+                    ));
+                    model.route = super::Route::Editor;
+                }
+                Err(error) => model.notice = Some(error),
+            }
+            Vec::new()
         }
         LibraryReply::TrashLoaded { request_id, result } => {
             reload_trash_after(model.trash.finish(request_id, result), model)

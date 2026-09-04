@@ -114,6 +114,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     }));
                 });
             }
+            Effect::LoadEditorNote {
+                request_id,
+                note_id,
+            } => self.load_editor_note(request_id, note_id),
             Effect::LoadTrash { request_id } => {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();
@@ -178,6 +182,22 @@ impl<B: LibraryBackend> AppRuntime<B> {
             runtime.dispatch(AppMsg::Editor(super::EditorMsg::AutosaveElapsed {
                 session,
                 timer_id,
+            }));
+        });
+    }
+
+    fn load_editor_note(&self, request_id: super::RequestId, note_id: carver_sdk::NoteId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .note_async(note_id)
+                .await
+                .map_err(display_error)
+                .and_then(|note| note.ok_or_else(|| UiError::new("The note no longer exists")));
+            runtime.dispatch(AppMsg::Library(LibraryReply::EditorLoaded {
+                request_id,
+                result,
             }));
         });
     }

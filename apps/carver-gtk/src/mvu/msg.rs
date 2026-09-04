@@ -35,6 +35,8 @@ pub enum NavigationMsg {
     Started,
     /// Show notes for a category, or all notes when absent.
     SelectCategory(Option<CategoryId>),
+    /// Load a note into the editor.
+    OpenNote(NoteId),
     /// Show the trash surface.
     ShowTrash,
     /// Return to the browser surface.
@@ -186,6 +188,13 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Successful result or a displayable failure.
         result: Result<Vec<NoteSummary>, UiError>,
+    },
+    /// A complete note finished loading for the editor.
+    EditorLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Successful note or a displayable failure.
+        result: Result<carver_sdk::Note, UiError>,
     },
     /// Trash contents completed loading.
     TrashLoaded {

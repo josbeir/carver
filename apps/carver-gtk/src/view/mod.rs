@@ -10,6 +10,7 @@ use crate::mvu::{AppModel, EditorSaveState, LoadState, MoveUndo, Route};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 type SidebarSnapshot = (LoadState<Vec<CategorySummary>>, Option<CategoryId>);
+type EditorRenderer = Box<dyn Fn(&AppModel)>;
 
 /// GTK references used to render the high-level MVU resources.
 ///
@@ -32,6 +33,7 @@ pub struct ViewRefs {
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
     sidebar_renderer: Option<SidebarRenderer>,
+    editor_renderer: Option<EditorRenderer>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
 }
@@ -62,6 +64,7 @@ impl ViewRefs {
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
             sidebar_renderer: None,
+            editor_renderer: None,
             last_sidebar_snapshot: RefCell::new(None),
             rendering: Cell::new(false),
         }
@@ -115,6 +118,13 @@ impl ViewRefs {
         self
     }
 
+    /// Adds the editor projection created by the composition shell.
+    #[must_use]
+    pub fn with_editor_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
+        self.editor_renderer = Some(Box::new(renderer));
+        self
+    }
+
     /// Renders one immutable model snapshot without invoking application actions.
     pub fn render(&self, model: &AppModel) {
         self.rendering.set(true);
@@ -126,6 +136,7 @@ impl ViewRefs {
         self.render_sidebar(model);
         self.render_browser(model);
         self.render_trash(model);
+        self.render_editor(model);
         self.render_notice(model);
         self.render_editor_save_error(model);
         self.render_undo_move(model);
@@ -178,6 +189,12 @@ impl ViewRefs {
                 summary.note_count,
                 Some(summary.category.id),
             ));
+        }
+    }
+
+    fn render_editor(&self, model: &AppModel) {
+        if let Some(renderer) = &self.editor_renderer {
+            renderer(model);
         }
     }
 

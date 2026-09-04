@@ -242,22 +242,63 @@ Each part is independently reviewable and must preserve behavior unless it is ex
 
 **Required tests:** an old autosave cannot replace a new/trashed note; Back during autosave causes no revision conflict; save failure preserves source and offers retry.
 
-### Part 11: Rich editor, preview, and managed assets
+### Part 11a.1: Editor load lifecycle
+
+- Move note-card activation behind a typed `OpenNote` effect with request identity, so a stale
+  completion cannot open the wrong note.
+- Hydrate editor projections from the canonical MVU document rather than from a stack-notify
+  callback and controller-owned `current_note`.
+
+**Required tests:** activating a note with no legacy current-note value opens and hydrates the
+correct document; an older open completion is ignored.
+
+### Part 11a.2: Editor adapter dispatch boundary
+
+- Give GTK/WebKit editor adapters a runtime-owned message dispatcher rather than access to
+  `AppState` or the SDK.
+- Move editor widget references into `ViewRefs` so model snapshots, not stack-notify callbacks,
+  hydrate canonical source and the selected editor mode.
+- Preserve the source/rich selection and scroll mechanics as view-only details.
+
+**Required tests:** entering and leaving an editor hydrates the canonical document once; stale
+editor widget events are ignored; a programmatic model render cannot dispatch a source change.
+
+### Part 11b: Rich editor and managed-asset effects
 
 - Translate WebKit `EditorEvent` values into typed editor messages.
-- Use effects for rich commands, preview reload, and managed image storage.
-- Keep WebKit selection and scrolling as view-adapter details.
+- Use typed effects for managed image storage and route the completion back to the correct editor
+  session before the view inserts the resulting canonical image markup.
+- Keep WebKit selection and scrolling as view-adapter details only.
 
-**Required tests:** rich paste stores a managed asset and canonical markup; stale WebKit events are ignored; preview honors remote-image policy; toolbar parity remains covered.
+**Required tests:** rich paste stores a managed asset and canonical markup; stale WebKit events
+are ignored; toolbar parity remains covered.
 
-### Part 12: Preferences, startup, and cleanup
+### Part 11c: Preview effects
+
+- Model preview reload intent and debounce identity; let the view render the latest canonical
+  source into source-split and read-only previews.
+- Route remote-image policy and theme changes through messages/effects without a direct editor
+  callback registry.
+
+**Required tests:** preview honors remote-image policy; superseded preview work cannot render
+an old source; source/rich/preview transitions preserve canonical source.
+
+### Part 12a: Preferences and startup migration
 
 - Route preference and window changes through messages/effects with visible persistence failures.
 - Migrate startup/default category creation to runtime initialization.
+
+**Required tests:** persisted editor and image preferences round-trip through effects and failure
+states remain visible.
+
+### Part 12b: Remove legacy controller paths
+
 - Delete `AppState`, legacy controller helpers, direct refresh calls, and widget callback registries.
 - Keep `main.rs` bootstrap-only.
 
-**Exit criteria:** the model contains no GTK/WebKit objects; views contain no business state; effects own SDK/config persistence; dependency direction stays inward.
+**Exit criteria:** the model contains no GTK/WebKit objects; views contain no business state;
+effects own SDK/config persistence; no direct SDK/config call or legacy refresh fallback remains in
+a GTK/WebKit callback; dependency direction stays inward.
 
 ## Verification
 
