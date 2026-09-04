@@ -252,9 +252,9 @@ pub(crate) fn build_editor(
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
-    let split_preview = build_preview(assets_dir);
+    let split_preview = build_preview(assets_dir, toast_overlay);
     split_preview.set_widget_name("source-split-preview");
-    let rendered_preview = build_preview(assets_dir);
+    let rendered_preview = build_preview(assets_dir, toast_overlay);
     let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
     connect_source_context(&source_buffer, &source_context, &toolbar);

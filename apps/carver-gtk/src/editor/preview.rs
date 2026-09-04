@@ -11,7 +11,10 @@ const PREVIEW_STYLESHEET: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/preview.css"));
 
 /// Builds a non-editable `WebKitGTK` view for trusted Carve renderer output.
-pub(super) fn build_preview(assets_dir: Option<&Path>) -> webkit6::WebView {
+pub(super) fn build_preview(
+    assets_dir: Option<&Path>,
+    toast_overlay: &libadwaita::ToastOverlay,
+) -> webkit6::WebView {
     let context = webkit6::WebContext::new();
     install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
     let manager = webkit6::UserContentManager::new();
@@ -39,7 +42,57 @@ pub(super) fn build_preview(assets_dir: Option<&Path>) -> webkit6::WebView {
         .build();
     view.set_editable(false);
     view.set_widget_name("rendered-preview");
+    connect_external_link_handler(&view, toast_overlay);
     view
+}
+
+/// Sends user-activated web links to the desktop browser instead of navigating
+/// the sandboxed preview view away from its current document.
+fn connect_external_link_handler(
+    view: &webkit6::WebView,
+    toast_overlay: &libadwaita::ToastOverlay,
+) {
+    let toast_overlay = toast_overlay.clone();
+    view.connect_decide_policy(move |_, decision, decision_type| {
+        if !matches!(
+            decision_type,
+            webkit6::PolicyDecisionType::NavigationAction
+                | webkit6::PolicyDecisionType::NewWindowAction
+        ) {
+            return false;
+        }
+        let Some(navigation) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() else {
+            return false;
+        };
+        let Some(uri) = navigation
+            .navigation_action()
+            .and_then(|action| action.request())
+            .and_then(|request| request.uri())
+            .filter(|uri| is_external_link(uri))
+        else {
+            return false;
+        };
+
+        decision.ignore();
+        let toast_overlay = toast_overlay.clone();
+        gtk::gio::AppInfo::launch_default_for_uri_async(
+            uri.as_str(),
+            None::<&gtk::gio::AppLaunchContext>,
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                if result.is_err() {
+                    toast_overlay.add_toast(libadwaita::Toast::new(
+                        "Could not open the link in your default browser.",
+                    ));
+                }
+            },
+        );
+        true
+    });
+}
+
+fn is_external_link(uri: &str) -> bool {
+    matches!(uri.split_once(':'), Some(("http" | "https", _)))
 }
 
 /// Installs the managed-asset scheme shared by read-only previews and the editor.

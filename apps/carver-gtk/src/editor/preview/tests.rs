@@ -40,6 +40,15 @@ fn asset_uri_rejects_parent_directory_paths() {
 }
 
 #[test]
+fn external_links_should_only_route_web_uris_to_the_desktop_browser() {
+    assert!(super::is_external_link("https://example.com/path"));
+    assert!(super::is_external_link("http://example.com"));
+    assert!(!super::is_external_link("carver-preview://document/"));
+    assert!(!super::is_external_link("carver-asset:///assets/image.png"));
+    assert!(!super::is_external_link("file:///home/example/note.carve"));
+}
+
+#[test]
 fn rendered_document_uses_the_active_dark_palette() {
     let html = rendered_document_for_theme("# Heading", false, true);
     assert!(html.contains("data-theme=\"dark\""));
