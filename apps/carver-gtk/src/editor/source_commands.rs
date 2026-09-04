@@ -4,6 +4,8 @@ use std::ops::Range;
 
 use gtk::prelude::*;
 
+use super::toolbar::{ToolbarCommand, ToolbarState};
+
 /// Canonical source plus a character-based selection for pure editing commands.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SourceEdit {
@@ -243,6 +245,116 @@ pub(crate) fn set_image_width(buffer: &gtk::TextBuffer, width: Option<u8>) -> bo
         apply_source_edit(buffer, &edit);
     }
     changed
+}
+
+/// Derives a conservative shared-toolbar state from direct Carve source.
+///
+/// A control is marked active only when the selected source unambiguously contains its exact
+/// representation. Mixed or unsupported constructs deliberately remain neutral.
+pub(crate) fn toolbar_state(buffer: &gtk::TextBuffer) -> ToolbarState {
+    let edit = source_edit_from_buffer(buffer);
+    toolbar_state_for_edit(&edit)
+}
+
+fn toolbar_state_for_edit(edit: &SourceEdit) -> ToolbarState {
+    let source = edit.source();
+    let selected = edit.selected_text();
+    let mut state = ToolbarState::default();
+    for (command, opening, closing) in [
+        (ToolbarCommand::Bold, "*", "*"),
+        (ToolbarCommand::Italic, "/", "/"),
+        (ToolbarCommand::Strike, "~", "~"),
+        (ToolbarCommand::Underline, "_", "_"),
+        (ToolbarCommand::Highlight, "=", "="),
+        (ToolbarCommand::Superscript, "{^", "^}"),
+        (ToolbarCommand::Subscript, "{,", ",}"),
+        (ToolbarCommand::InlineCode, "`", "`"),
+    ] {
+        if inline_is_active(source, edit.selection(), &selected, opening, closing) {
+            state.activate(command);
+        }
+    }
+    let lines = selected_source_lines(edit);
+    if let Some(heading) = shared_heading(&lines) {
+        state.set_heading(heading);
+    }
+    for (command, prefix) in [
+        (ToolbarCommand::BulletList, "- "),
+        (ToolbarCommand::OrderedList, "1. "),
+        (ToolbarCommand::TaskList, "- [ ] "),
+    ] {
+        if !lines.is_empty() && lines.iter().all(|line| line.starts_with(prefix)) {
+            state.activate(command);
+        }
+    }
+    if selected.starts_with("```") && selected.ends_with("\n```") {
+        state.activate(ToolbarCommand::CodeBlock);
+    }
+    if selected.starts_with('[') && selected.contains("](") && selected.ends_with(')') {
+        state.activate(ToolbarCommand::Link);
+    }
+    state.set_table(!lines.is_empty() && lines.iter().all(|line| is_table_line(line)));
+    let cursor = character_to_byte(source, edit.selection().end);
+    if let Some((start, end)) = cursor.and_then(|cursor| image_span_at(source, cursor)) {
+        state.set_image_width(image_width(&source[start..end]));
+    }
+    state
+}
+
+fn inline_is_active(
+    source: &str,
+    selection: Range<usize>,
+    selected: &str,
+    opening: &str,
+    closing: &str,
+) -> bool {
+    if !selected.is_empty() {
+        return selected.starts_with(opening)
+            && selected.ends_with(closing)
+            && selected.len() > opening.len() + closing.len();
+    }
+    let Some(cursor) = character_to_byte(source, selection.start) else {
+        return false;
+    };
+    source[..cursor].ends_with(opening) && source[cursor..].starts_with(closing)
+}
+
+fn selected_source_lines(edit: &SourceEdit) -> Vec<String> {
+    let range = edit.selected_line_range();
+    let source = edit.source();
+    let start = character_to_byte(source, range.start).unwrap_or(source.len());
+    let end = character_to_byte(source, range.end).unwrap_or(source.len());
+    source[start..end].split('\n').map(str::to_owned).collect()
+}
+
+fn shared_heading(lines: &[String]) -> Option<u8> {
+    let heading = lines.first().map(|line| heading_level(line))?;
+    lines
+        .iter()
+        .all(|line| heading_level(line) == heading)
+        .then_some(heading)
+}
+
+fn heading_level(line: &str) -> u8 {
+    let hashes = line
+        .chars()
+        .take_while(|character| *character == '#')
+        .count();
+    if hashes > 0 && line.chars().nth(hashes) == Some(' ') {
+        u8::try_from(hashes.min(6)).unwrap_or_default()
+    } else {
+        0
+    }
+}
+
+fn is_table_line(line: &str) -> bool {
+    let line = line.trim();
+    line.starts_with('|') && line.ends_with('|')
+}
+
+fn image_width(image: &str) -> Option<u8> {
+    let width = image.split_once("width=\"")?.1.split_once('%')?.0;
+    width.parse().ok()
 }
 
 fn apply_buffer_edit(buffer: &gtk::TextBuffer, command: impl FnOnce(&mut SourceEdit)) {

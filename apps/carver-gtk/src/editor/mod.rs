@@ -14,7 +14,6 @@ use libadwaita::prelude::BreakpointBinExt;
 use webkit6::prelude::*;
 
 use crate::{
-    formatting,
     mvu::{AppDispatcher, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
     sidebar::sidebar_toggle_button,
 };
@@ -23,10 +22,12 @@ mod preview;
 mod render;
 mod source;
 pub(crate) mod source_commands;
+mod toolbar;
 mod web;
 
 use preview::{build_preview, load_preview};
 pub(crate) use source::buffer_text;
+use toolbar::Toolbar;
 use web::RichEditor;
 
 /// GTK/WebKit references that project the active editor document from the MVU model.
@@ -34,7 +35,7 @@ pub(crate) struct EditorViewRefs {
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
-    format_stack: gtk::Stack,
+    toolbar: Toolbar,
     editor_stack: gtk::Stack,
     split_toggle: gtk::ToggleButton,
     rich: RichEditor,
@@ -115,22 +116,20 @@ impl EditorViewRefs {
             EditorMode::Source => {
                 self.source_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("source");
-                self.format_stack.set_sensitive(true);
-                self.format_stack.set_visible_child_name("source");
+                self.toolbar.set_mode(EditorMode::Source);
                 self.split_toggle
                     .set_active(model.preferences.source_split_view);
             }
             EditorMode::Rendered => {
                 self.rendered_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("rendered");
-                self.format_stack.set_sensitive(false);
+                self.toolbar.set_mode(EditorMode::Rendered);
                 self.split_toggle.set_active(false);
             }
             EditorMode::Rich => {
                 self.rich_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("rich");
-                self.format_stack.set_sensitive(true);
-                self.format_stack.set_visible_child_name("rich");
+                self.toolbar.set_mode(EditorMode::Rich);
                 self.split_toggle.set_active(false);
             }
         }
@@ -221,11 +220,6 @@ pub(crate) fn build_editor(
     mode_controls.append(&split_toggle);
     header.set_title_widget(Some(&mode_controls));
 
-    let format_stack = gtk::Stack::new();
-    format_stack.set_widget_name("formatting-toolbar");
-    let rich_format_bar = formatting_bar();
-    let source_format_bar = formatting_bar();
-
     let editor_stack = gtk::Stack::new();
     let rendering = Rc::new(Cell::new(false));
     let source_buffer = gtk::TextBuffer::new(None);
@@ -243,17 +237,12 @@ pub(crate) fn build_editor(
     let split_preview = build_preview(assets_dir);
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir);
-    let rich_toolbar = web::append_controls(&rich_format_bar, &rich, dispatcher, toast_overlay);
-    rich.connect_selection_changed(move |selection| rich_toolbar.set_selection_state(&selection));
-    formatting::append_source_controls(
-        &source_format_bar,
-        &source_buffer,
-        dispatcher,
-        toast_overlay,
-    );
-    format_stack.add_named(&rich_format_bar, Some("rich"));
-    format_stack.add_named(&source_format_bar, Some("source"));
-    install_source_shortcuts(&source, &source_buffer);
+    let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
+    let toolbar_for_selection = toolbar.clone();
+    rich.connect_selection_changed(move |selection| {
+        toolbar_for_selection.set_rich_selection(&selection);
+    });
+    install_source_shortcuts(&source, &toolbar);
     let pages = add_editor_pages(
         &editor_stack,
         rich.view(),
@@ -263,7 +252,7 @@ pub(crate) fn build_editor(
         &split_toggle,
         &source_mode,
     );
-    view.add_bottom_bar(&format_stack);
+    view.add_bottom_bar(toolbar.widget());
     view.set_content(Some(&editor_stack));
 
     connect_mode_buttons(
@@ -272,7 +261,7 @@ pub(crate) fn build_editor(
         &source_mode,
         &rendered_mode,
         &editor_stack,
-        &format_stack,
+        &toolbar,
         &rich,
         &source_buffer,
         &split_toggle,
@@ -307,7 +296,7 @@ pub(crate) fn build_editor(
         rich_mode,
         source_mode,
         rendered_mode,
-        format_stack,
+        toolbar,
         editor_stack,
         split_toggle,
         rich,
@@ -363,16 +352,6 @@ fn text_view(buffer: &gtk::TextBuffer, name: &str, monospace: bool) -> gtk::Text
     view.set_left_margin(24);
     view.set_right_margin(24);
     view
-}
-
-fn formatting_bar() -> gtk::Box {
-    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    bar.add_css_class("toolbar");
-    bar.set_margin_start(12);
-    bar.set_margin_end(12);
-    bar.set_margin_top(6);
-    bar.set_margin_bottom(6);
-    bar
 }
 
 struct EditorPages {
@@ -457,7 +436,7 @@ fn connect_mode_buttons(
     source_mode: &gtk::ToggleButton,
     rendered_mode: &gtk::ToggleButton,
     editor_stack: &gtk::Stack,
-    format_stack: &gtk::Stack,
+    toolbar: &Toolbar,
     rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
     split_toggle: &gtk::ToggleButton,
@@ -467,7 +446,7 @@ fn connect_mode_buttons(
     let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
         let dispatcher = dispatcher.clone();
         let stack = editor_stack.clone();
-        let formats = format_stack.clone();
+        let toolbar = toolbar.clone();
         let rich = rich.clone();
         let source = source_buffer.clone();
         let split_toggle = split_toggle.clone();
@@ -482,13 +461,12 @@ fn connect_mode_buttons(
             match surface {
                 EditorMode::Source => {
                     stack.set_visible_child_name("source");
-                    formats.set_sensitive(true);
-                    formats.set_visible_child_name("source");
+                    toolbar.set_mode(EditorMode::Source);
                     split_toggle.set_sensitive(split_supported.get());
                 }
                 EditorMode::Rendered => {
                     stack.set_visible_child_name("rendered");
-                    formats.set_sensitive(false);
+                    toolbar.set_mode(EditorMode::Rendered);
                     split_toggle.set_active(false);
                     split_toggle.set_sensitive(false);
                 }
@@ -496,8 +474,7 @@ fn connect_mode_buttons(
                     let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
                     rich.load_source(&source_text);
                     stack.set_visible_child_name("rich");
-                    formats.set_sensitive(true);
-                    formats.set_visible_child_name("rich");
+                    toolbar.set_mode(EditorMode::Rich);
                     split_toggle.set_active(false);
                     split_toggle.set_sensitive(false);
                 }
@@ -759,55 +736,30 @@ fn refresh_rich_theme(rich: &RichEditor) {
 /// Installs source-mode equivalents of the common Rich Text keyboard shortcuts.
 pub(crate) fn install_source_shortcuts(
     view: &gtk::TextView,
-    buffer: &gtk::TextBuffer,
+    toolbar: &Toolbar,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
-    let buffer = buffer.clone();
+    let toolbar = toolbar.clone();
+    let anchor = view.clone().upcast::<gtk::Widget>();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
         if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
-        let handled = match key {
-            gtk::gdk::Key::b if !shift => {
-                source_commands::toggle_inline(&buffer, "*", "*");
-                true
-            }
-            gtk::gdk::Key::i if !shift => {
-                source_commands::toggle_inline(&buffer, "/", "/");
-                true
-            }
-            gtk::gdk::Key::x if shift => {
-                source_commands::toggle_inline(&buffer, "~", "~");
-                true
-            }
-            gtk::gdk::Key::u if !shift => {
-                source_commands::toggle_inline(&buffer, "_", "_");
-                true
-            }
-            gtk::gdk::Key::h if shift => {
-                source_commands::toggle_inline(&buffer, "=", "=");
-                true
-            }
-            gtk::gdk::Key::period if shift => {
-                source_commands::toggle_inline(&buffer, "{^", "^}");
-                true
-            }
-            gtk::gdk::Key::comma if shift => {
-                source_commands::toggle_inline(&buffer, "{,", ",}");
-                true
-            }
-            gtk::gdk::Key::_8 if shift => {
-                source_commands::toggle_list(&buffer, "- ");
-                true
-            }
-            gtk::gdk::Key::_7 if shift => {
-                source_commands::toggle_list(&buffer, "1. ");
-                true
-            }
-            _ => false,
+        let command = match key {
+            gtk::gdk::Key::b if !shift => Some(toolbar::ToolbarCommand::Bold),
+            gtk::gdk::Key::i if !shift => Some(toolbar::ToolbarCommand::Italic),
+            gtk::gdk::Key::x if shift => Some(toolbar::ToolbarCommand::Strike),
+            gtk::gdk::Key::u if !shift => Some(toolbar::ToolbarCommand::Underline),
+            gtk::gdk::Key::h if shift => Some(toolbar::ToolbarCommand::Highlight),
+            gtk::gdk::Key::period if shift => Some(toolbar::ToolbarCommand::Superscript),
+            gtk::gdk::Key::comma if shift => Some(toolbar::ToolbarCommand::Subscript),
+            gtk::gdk::Key::_8 if shift => Some(toolbar::ToolbarCommand::BulletList),
+            gtk::gdk::Key::_7 if shift => Some(toolbar::ToolbarCommand::OrderedList),
+            _ => None,
         };
-        if handled {
+        if let Some(command) = command {
+            toolbar.execute_source_shortcut(command, &anchor);
             glib::Propagation::Stop
         } else {
             glib::Propagation::Proceed

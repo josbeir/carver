@@ -135,7 +135,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let source_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-source").ok_or("source mode")?;
     let rich_mode = widget_as::<gtk::ToggleButton>(&root, "editor-mode-rich").ok_or("rich mode")?;
+    let toolbar =
+        widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("shared formatting toolbar")?;
+    assert_shared_toolbar_controls(&root)?;
     source_mode.set_active(true);
+    assert_eq!(
+        toolbar,
+        widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?
+    );
+    assert_shared_toolbar_controls(&root)?;
     source.buffer().set_text("# Source\n\nA paragraph");
     assert!(run_main_context_until(|| client
         .note(note.id)
@@ -143,6 +151,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .flatten()
         .is_some_and(|saved| saved.source == "# Source\n\nA paragraph")));
     exercise_source_formatting_controls(&root, &source.buffer())?;
+    source.buffer().set_text("*fully bold*");
+    select_all(&source.buffer());
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
+            .is_some_and(|button| button.is_active())
+    }));
+    source.buffer().set_text("*bold* plain");
+    select_all(&source.buffer());
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
+            .is_some_and(|button| !button.is_active())
+    }));
+    let rendered_mode =
+        widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
+    rendered_mode.set_active(true);
+    assert!(run_main_context_until(|| !toolbar.is_sensitive()));
+    source_mode.set_active(true);
+    assert!(run_main_context_until(|| toolbar.is_sensitive()));
     assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;
     rich_mode.set_active(true);
     let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
@@ -271,42 +297,43 @@ fn exercise_source_formatting_controls(
     buffer: &gtk::TextBuffer,
 ) -> TestResult {
     for name in [
-        "source-format-bold-button",
-        "source-format-italic-button",
-        "source-format-strike-button",
-        "source-format-underline-button",
-        "source-format-bullet-button",
-        "source-format-ordered-button",
-        "source-format-task-button",
-        "source-format-code-button",
-        "source-format-code-block-button",
-        "source-format-link-button",
+        "format-bold-button",
+        "format-italic-button",
+        "format-strike-button",
+        "format-underline-button",
+        "format-highlight-button",
+        "format-superscript-button",
+        "format-subscript-button",
+        "format-bullet-button",
+        "format-ordered-button",
+        "format-task-button",
+        "format-code-button",
+        "format-code-block-button",
     ] {
         buffer.set_text("format me");
         select_all(buffer);
-        widget_as::<gtk::Button>(editor, name)
+        widget_as::<gtk::ToggleButton>(editor, name)
             .ok_or(name)?
             .emit_clicked();
     }
-    for name in ["source-format-more-button", "source-format-heading-button"] {
-        let menu = widget_as::<gtk::MenuButton>(editor, name).ok_or(name)?;
-        let choices = menu
-            .popover()
-            .and_then(|popover| popover.child())
-            .ok_or("formatting choices")?;
-        let mut child = choices.first_child();
-        while let Some(widget) = child {
-            child = widget.next_sibling();
-            buffer.set_text("format me");
-            select_all(buffer);
-            widget
-                .downcast::<gtk::Button>()
-                .map_err(|_| "formatting choice")?
-                .emit_clicked();
-        }
+    let heading = widget_as::<gtk::MenuButton>(editor, "format-heading-button")
+        .ok_or("format heading picker")?;
+    let choices = heading
+        .popover()
+        .and_then(|popover| popover.child())
+        .ok_or("formatting choices")?;
+    let mut child = choices.first_child();
+    while let Some(widget) = child {
+        child = widget.next_sibling();
+        buffer.set_text("format me");
+        select_all(buffer);
+        widget
+            .downcast::<gtk::ToggleButton>()
+            .map_err(|_| "formatting choice")?
+            .emit_clicked();
     }
-    let table = widget_as::<gtk::MenuButton>(editor, "source-format-table-button")
-        .ok_or("source table picker")?;
+    let table =
+        widget_as::<gtk::MenuButton>(editor, "format-table-button").ok_or("source table picker")?;
     let table_content = table
         .popover()
         .and_then(|popover| popover.child())
@@ -327,6 +354,34 @@ fn exercise_source_formatting_controls(
         .contains("|= |")
     {
         return Err("source table picker insert".into());
+    }
+    Ok(())
+}
+
+fn assert_shared_toolbar_controls(root: &gtk::Widget) -> TestResult {
+    for name in [
+        "format-bold-button",
+        "format-italic-button",
+        "format-strike-button",
+        "format-underline-button",
+        "format-highlight-button",
+        "format-superscript-button",
+        "format-subscript-button",
+        "format-code-button",
+        "format-code-block-button",
+        "format-bullet-button",
+        "format-ordered-button",
+        "format-task-button",
+        "format-link-button",
+    ] {
+        widget_as::<gtk::ToggleButton>(root, name).ok_or(name)?;
+    }
+    for name in [
+        "format-heading-button",
+        "format-table-button",
+        "format-image-button",
+    ] {
+        widget_as::<gtk::MenuButton>(root, name).ok_or(name)?;
     }
     Ok(())
 }

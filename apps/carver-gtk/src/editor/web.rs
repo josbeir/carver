@@ -11,10 +11,7 @@ use gtk::prelude::*;
 use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::{
-    formatting,
-    mvu::{AppDispatcher, AppMsg, EditorMsg},
-};
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 
 const EDITOR_JAVASCRIPT: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/editor.js"));
@@ -145,6 +142,11 @@ impl RichEditor {
             json(name),
             argument
         ));
+    }
+
+    /// Opens the Rich editor's contextual link dialog from the shared toolbar.
+    pub(crate) fn show_link_dialog(&self, anchor: &gtk::Widget) {
+        show_rich_link_dialog(anchor, self);
     }
 
     /// Applies GNOME's color scheme and system accent without reloading the document.
@@ -290,255 +292,6 @@ impl RichEditor {
     }
 }
 
-/// Appends native controls that dispatch their actions to the web editing surface.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the ordered toolbar declaration keeps command parity visibly auditable"
-)]
-pub(crate) fn append_controls(
-    toolbar: &gtk::Box,
-    editor: &RichEditor,
-    dispatcher: &AppDispatcher,
-    toast_overlay: &libadwaita::ToastOverlay,
-) -> RichToolbar {
-    let mut toggle_buttons = Vec::new();
-    for (name, icon, tooltip, command) in [
-        (
-            "format-bold-button",
-            "format-text-bold-symbolic",
-            "Bold (Ctrl+B)",
-            "bold",
-        ),
-        (
-            "format-italic-button",
-            "format-text-italic-symbolic",
-            "Italic (Ctrl+I)",
-            "italic",
-        ),
-        (
-            "format-strike-button",
-            "format-text-strikethrough-symbolic",
-            "Strikethrough",
-            "strike",
-        ),
-        (
-            "format-underline-button",
-            "format-text-underline-symbolic",
-            "Underline (Ctrl+U)",
-            "underline",
-        ),
-        (
-            "format-highlight-button",
-            "format-text-highlight-symbolic",
-            "Highlight",
-            "highlight",
-        ),
-        (
-            "format-superscript-button",
-            "format-text-superscript-symbolic",
-            "Superscript",
-            "superscript",
-        ),
-        (
-            "format-subscript-button",
-            "format-text-subscript-symbolic",
-            "Subscript",
-            "subscript",
-        ),
-        (
-            "format-code-button",
-            "text-editor-symbolic",
-            "Inline code",
-            "inline-code",
-        ),
-        (
-            "format-code-block-button",
-            "utilities-terminal-symbolic",
-            "Code block",
-            "code-block",
-        ),
-        (
-            "format-bullet-button",
-            "view-list-bullet-symbolic",
-            "Bulleted list",
-            "bullet-list",
-        ),
-        (
-            "format-ordered-button",
-            "view-list-ordered-symbolic",
-            "Numbered list",
-            "ordered-list",
-        ),
-        (
-            "format-task-button",
-            "object-select-symbolic",
-            "Task list",
-            "task-list",
-        ),
-    ] {
-        let active_name = command;
-        let button = gtk::ToggleButton::new();
-        set_toolbar_icon(&button, icon);
-        button.set_widget_name(name);
-        button.set_tooltip_text(Some(tooltip));
-        button.add_css_class("flat");
-        let editor = editor.clone();
-        let command = EditorCommand::Named(command.to_owned());
-        button.connect_clicked(move |_| editor.command(&command));
-        toolbar.append(&button);
-        toggle_buttons.push((active_name, button));
-    }
-    let link = gtk::ToggleButton::new();
-    link.set_icon_name("insert-link-symbolic");
-    link.set_widget_name("format-link-button");
-    link.set_tooltip_text(Some("Insert link"));
-    link.add_css_class("flat");
-    let editor_for_link = editor.clone();
-    link.connect_clicked(move |button| show_rich_link_dialog(button, &editor_for_link));
-    toolbar.append(&link);
-    toggle_buttons.push(("link", link));
-    let (heading, heading_choices) = append_heading_menu(toolbar, editor);
-    let table = append_table_menu(toolbar, editor);
-    let (image, image_width_choices) =
-        append_image_menu(toolbar, editor, dispatcher, toast_overlay);
-    RichToolbar {
-        toggle_buttons,
-        heading,
-        heading_choices,
-        table,
-        image,
-        image_width_choices,
-    }
-}
-
-/// Uses a compact text glyph only when the active icon theme lacks one of the
-/// newer text-formatting icons. This prevents broken-image placeholders on
-/// distributions whose Adwaita icon set predates those icon names.
-fn set_toolbar_icon(button: &gtk::ToggleButton, icon_name: &str) {
-    let has_icon = gtk::gdk::Display::default()
-        .is_some_and(|display| gtk::IconTheme::for_display(&display).has_icon(icon_name));
-    if has_icon {
-        button.set_icon_name(icon_name);
-    } else if let Some(glyph) = toolbar_fallback_glyph(icon_name) {
-        let label = gtk::Label::new(Some(glyph));
-        label.set_width_chars(2);
-        label.set_max_width_chars(2);
-        label.add_css_class("format-fallback-glyph");
-        button.set_child(Some(&label));
-        button.add_css_class("format-fallback-button");
-        button.add_css_class("image-button");
-    } else {
-        button.set_icon_name(icon_name);
-    }
-}
-
-fn toolbar_fallback_glyph(icon_name: &str) -> Option<&'static str> {
-    match icon_name {
-        "format-text-highlight-symbolic" => Some("H"),
-        "format-text-superscript-symbolic" => Some("Aˣ"),
-        "format-text-subscript-symbolic" => Some("Aₓ"),
-        _ => None,
-    }
-}
-
-/// Native controls whose appearance follows the web surface's selection state.
-#[derive(Clone)]
-pub(crate) struct RichToolbar {
-    toggle_buttons: Vec<(&'static str, gtk::ToggleButton)>,
-    heading: gtk::MenuButton,
-    heading_choices: Vec<(u8, gtk::ToggleButton)>,
-    table: gtk::MenuButton,
-    image: gtk::MenuButton,
-    image_width_choices: Vec<(Option<u8>, gtk::ToggleButton)>,
-}
-
-impl RichToolbar {
-    /// Reflects active inline and block formatting without changing editor state.
-    pub(crate) fn set_selection_state(&self, selection: &SelectionState) {
-        for (name, button) in &self.toggle_buttons {
-            button.set_active(selection.active.iter().any(|active| active == name));
-        }
-        set_context_active(&self.heading, selection.heading != 0);
-        for (level, choice) in &self.heading_choices {
-            choice.set_active(*level == selection.heading);
-        }
-        set_context_active(
-            &self.table,
-            selection.active.iter().any(|active| active == "table"),
-        );
-        set_context_active(
-            &self.image,
-            selection.active.iter().any(|active| active == "image"),
-        );
-        let active_image = selection.active.iter().any(|active| active == "image");
-        let selected_width = selection
-            .image_width
-            .and_then(|width| (width != 0).then_some(width));
-        for (width, choice) in &self.image_width_choices {
-            choice.set_active(active_image && *width == selected_width);
-        }
-    }
-}
-
-fn set_context_active(menu: &gtk::MenuButton, active: bool) {
-    if active {
-        menu.add_css_class("context-active");
-    } else {
-        menu.remove_css_class("context-active");
-    }
-}
-
-fn append_heading_menu(
-    toolbar: &gtk::Box,
-    editor: &RichEditor,
-) -> (gtk::MenuButton, Vec<(u8, gtk::ToggleButton)>) {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name("format-heading-button");
-    menu.set_icon_name("format-text-rich-symbolic");
-    menu.set_tooltip_text(Some("Text style"));
-    menu.add_css_class("flat");
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let mut active_choices = Vec::new();
-    for (label, level) in [
-        ("Normal text", 0),
-        ("Heading 1", 1),
-        ("Heading 2", 2),
-        ("Heading 3", 3),
-        ("Heading 4", 4),
-        ("Heading 5", 5),
-        ("Heading 6", 6),
-    ] {
-        let choice = gtk::ToggleButton::with_label(label);
-        choice.add_css_class("flat");
-        let editor = editor.clone();
-        choice.connect_clicked(move |_| editor.command(&EditorCommand::Heading(level)));
-        choices.append(&choice);
-        active_choices.push((level, choice));
-    }
-    let popover = gtk::Popover::new();
-    popover.set_child(Some(&choices));
-    menu.set_popover(Some(&popover));
-    toolbar.append(&menu);
-    (menu, active_choices)
-}
-
-fn append_table_menu(toolbar: &gtk::Box, editor: &RichEditor) -> gtk::MenuButton {
-    let editor = editor.clone();
-    formatting::append_table_picker(
-        toolbar,
-        "format-table-button",
-        move |rows, columns, header| {
-            // The web adapter inserts at an ordinary caret and resizes when
-            // the selection is inside a table, so one grid owns both flows.
-            editor.command(&EditorCommand::InsertTable {
-                rows,
-                columns,
-                header,
-            });
-        },
-    )
-}
-
 fn show_rich_link_dialog(button: &impl IsA<gtk::Widget>, editor: &RichEditor) {
     let parent = button.root().and_downcast::<gtk::Window>();
     let editor_for_dialog = editor.clone();
@@ -620,49 +373,6 @@ fn parse_link_context(value: &str) -> LinkContext {
     }
 }
 
-fn append_image_menu(
-    toolbar: &gtk::Box,
-    editor: &RichEditor,
-    dispatcher: &AppDispatcher,
-    toast_overlay: &libadwaita::ToastOverlay,
-) -> (gtk::MenuButton, Vec<(Option<u8>, gtk::ToggleButton)>) {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name("format-image-size-button");
-    menu.set_icon_name("image-x-generic-symbolic");
-    menu.set_tooltip_text(Some("Image size"));
-    menu.add_css_class("flat");
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let insert = gtk::Button::with_label("Insert image…");
-    insert.add_css_class("flat");
-    let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
-    insert.connect_clicked(move |button| {
-        formatting::choose_managed_image(button, &dispatcher, &toast_overlay);
-    });
-    choices.append(&insert);
-    choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-    let mut active_choices = Vec::new();
-    for (label, width) in [
-        ("Original size", None),
-        ("25%", Some(25)),
-        ("50%", Some(50)),
-        ("75%", Some(75)),
-        ("100%", Some(100)),
-    ] {
-        let choice = gtk::ToggleButton::with_label(label);
-        choice.add_css_class("flat");
-        let editor = editor.clone();
-        choice.connect_clicked(move |_| editor.command(&EditorCommand::ImageWidth(width)));
-        choices.append(&choice);
-        active_choices.push((width, choice));
-    }
-    let popover = gtk::Popover::new();
-    popover.set_child(Some(&choices));
-    menu.set_popover(Some(&popover));
-    toolbar.append(&menu);
-    (menu, active_choices)
-}
-
 pub(crate) fn image_extension(mime_type: &str) -> &str {
     match mime_type {
         "image/jpeg" => "jpg",
@@ -727,9 +437,7 @@ fn editor_document(allow_remote_images: bool) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        LinkContext, editor_document, parse_link_context, selection_theme, toolbar_fallback_glyph,
-    };
+    use super::{LinkContext, editor_document, parse_link_context, selection_theme};
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
@@ -753,14 +461,6 @@ mod tests {
         let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
         let theme = selection_theme(false, &accent);
         assert_eq!(theme.background, "rgb(53 142 69 / 25%)");
-    }
-
-    #[test]
-    fn toolbar_fallback_glyphs_cover_unavailable_formatting_icons() {
-        assert_eq!(
-            toolbar_fallback_glyph("format-text-superscript-symbolic"),
-            Some("Aˣ")
-        );
     }
 
     #[test]

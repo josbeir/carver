@@ -1,7 +1,4 @@
-//! Source-editor formatting controls.
-//!
-//! Rich formatting belongs to the browser editor. This module intentionally
-//! operates on literal Carve source only.
+//! Shared native formatting dialogs, managed-image import, and table controls.
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -13,232 +10,6 @@ use crate::{
     editor::source_commands,
     mvu::{AppDispatcher, AppMsg, EditorMsg},
 };
-
-/// Appends Carve-source formatting controls to an editor toolbar.
-pub(crate) fn append_source_controls(
-    toolbar: &gtk::Box,
-    buffer: &gtk::TextBuffer,
-    dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
-) {
-    append_source_inline_controls(toolbar, buffer);
-    append_more_source_formatting(toolbar, buffer);
-    append_source_heading_menu(toolbar, buffer);
-    append_source_list_controls(toolbar, buffer);
-    append_source_inline_code_button(toolbar, buffer);
-    append_source_code_block_button(toolbar, buffer);
-    append_source_link_button(toolbar, buffer);
-    append_source_table_picker(toolbar, buffer);
-    append_source_image_menu(toolbar, buffer, dispatcher, toast_overlay);
-}
-
-fn append_source_inline_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    for (name, icon, tooltip, opening, closing) in [
-        (
-            "source-format-bold-button",
-            "format-text-bold-symbolic",
-            "Bold (Ctrl+B)",
-            "*",
-            "*",
-        ),
-        (
-            "source-format-italic-button",
-            "format-text-italic-symbolic",
-            "Italic (Ctrl+I)",
-            "/",
-            "/",
-        ),
-        (
-            "source-format-strike-button",
-            "format-text-strikethrough-symbolic",
-            "Strikethrough (Ctrl+Shift+X)",
-            "~",
-            "~",
-        ),
-        (
-            "source-format-underline-button",
-            "format-text-underline-symbolic",
-            "Underline (Ctrl+U)",
-            "_",
-            "_",
-        ),
-    ] {
-        let button = icon_button(name, icon, tooltip);
-        let buffer = buffer.clone();
-        button.connect_clicked(move |_| source_commands::toggle_inline(&buffer, opening, closing));
-        toolbar.append(&button);
-    }
-}
-
-fn append_more_source_formatting(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name("source-format-more-button");
-    menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some("More text formatting"));
-    menu.add_css_class("flat");
-    let popover = gtk::Popover::new();
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    for (label, opening, closing) in [
-        ("Highlight", "=", "="),
-        ("Superscript", "{^", "^}"),
-        ("Subscript", "{,", ",}"),
-    ] {
-        let choice = gtk::Button::with_label(label);
-        choice.add_css_class("flat");
-        choice.set_halign(gtk::Align::Fill);
-        choice.set_hexpand(true);
-        let buffer = buffer.clone();
-        choice.connect_clicked(move |_| source_commands::toggle_inline(&buffer, opening, closing));
-        choices.append(&choice);
-    }
-    popover.set_child(Some(&choices));
-    menu.set_popover(Some(&popover));
-    toolbar.append(&menu);
-}
-
-fn append_source_heading_menu(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let heading = gtk::MenuButton::new();
-    heading.set_widget_name("source-format-heading-button");
-    heading.set_icon_name("format-text-rich-symbolic");
-    heading.set_tooltip_text(Some("Text style"));
-    heading.add_css_class("flat");
-    let popover = gtk::Popover::new();
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    for (label, level) in [
-        ("Normal text", 0),
-        ("Heading 1", 1),
-        ("Heading 2", 2),
-        ("Heading 3", 3),
-        ("Heading 4", 4),
-        ("Heading 5", 5),
-        ("Heading 6", 6),
-    ] {
-        let choice = gtk::Button::with_label(label);
-        choice.add_css_class("flat");
-        choice.set_halign(gtk::Align::Fill);
-        choice.set_hexpand(true);
-        let buffer = buffer.clone();
-        choice.connect_clicked(move |_| source_commands::set_heading(&buffer, level));
-        choices.append(&choice);
-    }
-    popover.set_child(Some(&choices));
-    heading.set_popover(Some(&popover));
-    toolbar.append(&heading);
-}
-
-fn append_source_list_controls(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    for (name, icon, tooltip, prefix) in [
-        (
-            "source-format-bullet-button",
-            "view-list-bullet-symbolic",
-            "Bulleted list (Ctrl+Shift+8)",
-            "- ",
-        ),
-        (
-            "source-format-ordered-button",
-            "view-list-ordered-symbolic",
-            "Numbered list (Ctrl+Shift+7)",
-            "1. ",
-        ),
-        (
-            "source-format-task-button",
-            "object-select-symbolic",
-            "Task list",
-            "- [ ] ",
-        ),
-    ] {
-        let button = icon_button(name, icon, tooltip);
-        let buffer = buffer.clone();
-        button.connect_clicked(move |_| source_commands::toggle_list(&buffer, prefix));
-        toolbar.append(&button);
-    }
-}
-
-fn append_source_inline_code_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let button = icon_button(
-        "source-format-code-button",
-        "text-editor-symbolic",
-        "Inline code",
-    );
-    let buffer = buffer.clone();
-    button.connect_clicked(move |_| source_commands::toggle_inline(&buffer, "`", "`"));
-    toolbar.append(&button);
-}
-
-fn append_source_code_block_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let button = icon_button(
-        "source-format-code-block-button",
-        "utilities-terminal-symbolic",
-        "Code block",
-    );
-    let buffer = buffer.clone();
-    button.connect_clicked(move |_| source_commands::toggle_code_block(&buffer));
-    toolbar.append(&button);
-}
-
-fn append_source_link_button(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let button = icon_button(
-        "source-format-link-button",
-        "insert-link-symbolic",
-        "Insert link",
-    );
-    let buffer = buffer.clone();
-    button.connect_clicked(move |button| show_source_link_dialog(button, &buffer));
-    toolbar.append(&button);
-}
-
-fn append_source_table_picker(toolbar: &gtk::Box, buffer: &gtk::TextBuffer) {
-    let buffer = buffer.clone();
-    append_table_picker(
-        toolbar,
-        "source-format-table-button",
-        move |rows, columns, header| {
-            source_commands::insert_table(&buffer, rows, columns, header);
-        },
-    );
-}
-
-fn append_source_image_menu(
-    toolbar: &gtk::Box,
-    buffer: &gtk::TextBuffer,
-    dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
-) {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name("source-format-image-button");
-    menu.set_icon_name("image-x-generic-symbolic");
-    menu.set_tooltip_text(Some("Insert or resize image"));
-    menu.add_css_class("flat");
-    let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let insert = gtk::Button::with_label("Insert image…");
-    insert.add_css_class("flat");
-    let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
-    insert.connect_clicked(move |button| {
-        choose_managed_image(button, &dispatcher, &toast_overlay);
-    });
-    choices.append(&insert);
-    choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-    for (label, width) in [
-        ("Original size", None),
-        ("25%", Some(25)),
-        ("50%", Some(50)),
-        ("75%", Some(75)),
-        ("100%", Some(100)),
-    ] {
-        let choice = gtk::Button::with_label(label);
-        choice.add_css_class("flat");
-        let buffer = buffer.clone();
-        choice.connect_clicked(move |_| {
-            let _ = source_commands::set_image_width(&buffer, width);
-        });
-        choices.append(&choice);
-    }
-    let popover = gtk::Popover::new();
-    popover.set_child(Some(&choices));
-    menu.set_popover(Some(&popover));
-    toolbar.append(&menu);
-}
 
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///
@@ -471,15 +242,7 @@ pub(crate) fn append_table_picker(
     menu
 }
 
-fn icon_button(name: &str, icon: &str, tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::from_icon_name(icon);
-    button.set_widget_name(name);
-    button.set_tooltip_text(Some(tooltip));
-    button.add_css_class("flat");
-    button
-}
-
-fn show_source_link_dialog(button: &gtk::Button, buffer: &gtk::TextBuffer) {
+pub(crate) fn show_source_link_dialog(anchor: &impl IsA<gtk::Widget>, buffer: &gtk::TextBuffer) {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
     let text = gtk::Entry::new();
     text.set_placeholder_text(Some("Link text"));
@@ -513,7 +276,7 @@ fn show_source_link_dialog(button: &gtk::Button, buffer: &gtk::TextBuffer) {
             }
         }
     });
-    dialog.present(button.root().as_ref());
+    dialog.present(anchor.root().as_ref());
 }
 
 struct SelectionMarks {
