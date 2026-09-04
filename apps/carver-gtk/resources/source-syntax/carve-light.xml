@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<style-scheme id="carve-light" name="Carve Light" version="1.0" parent-scheme="classic">
+<style-scheme id="carve-light" name="Carve Light" version="1.0" parent-scheme="Adwaita">
   <style name="carve:heading" foreground="#1a73b8" bold="true"/>
   <style name="carve:list-marker" foreground="#2e9b5f"/>
   <style name="carve:quote-marker" foreground="#7a7285"/>

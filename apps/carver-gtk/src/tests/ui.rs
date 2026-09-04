@@ -147,6 +147,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .map(|language| language.id().to_string()),
         Some(String::from("carve"))
     );
+    let source_scheme = source_buffer
+        .style_scheme()
+        .map(|scheme| scheme.id().to_string());
+    let expected_source_scheme = if adw::StyleManager::default().is_dark() {
+        "carve-dark"
+    } else {
+        "carve-light"
+    };
+    assert_eq!(source_scheme.as_deref(), Some(expected_source_scheme));
     assert!(source_view.shows_line_numbers());
     assert!(source_view.is_highlight_current_line());
     let source_mode =
