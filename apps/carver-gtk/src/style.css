@@ -108,6 +108,14 @@
   font-size: 12pt;
 }
 
+#source-editor text {
+  /* GtkSourceView clips the top antialiased row of some monospace glyphs at
+   * the text node's edge. This inset belongs on that node: per-line spacing
+   * only changes the gap around a line, not its glyph clip rectangle. */
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
 textview text {
   background: transparent;
 }
