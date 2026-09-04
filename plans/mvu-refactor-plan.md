@@ -261,7 +261,15 @@ correct document; an older open completion is ignored.
 **Required tests:** a programmatic model render cannot dispatch a source change; editor deletion
 invalidates the editor session before the typed trash effect begins.
 
-### Part 11a.3: Editor adapter dispatch boundary
+### Part 11a.3a: Weak editor dispatcher
+
+- Bind editor callbacks to a weak, runtime-owned dispatcher, so closing and deleting a note use
+  typed messages without controller-state or direct storage fallback paths.
+
+**Required tests:** display-backed Back and Delete controls dispatch against the active runtime;
+  closing a window leaves an inert dispatcher instead of retaining its runtime.
+
+### Part 11a.3b: Editor adapter event dispatch
 
 - Give GTK/WebKit editor adapters a runtime-owned message dispatcher rather than access to
   `AppState` or the SDK.

@@ -19,7 +19,7 @@ pub use msg::{
     ActionMsg, AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg,
     SidebarMsg, TrashMsg, TrashMutation,
 };
-pub use runtime::AppRuntime;
+pub use runtime::{AppDispatcher, AppRuntime};
 pub use update::update;
 
 #[cfg(test)]

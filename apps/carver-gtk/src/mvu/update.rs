@@ -131,6 +131,13 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .and_then(super::EditorDocument::begin_save)
             .map_or_else(Vec::new, save_note_effect),
         EditorMsg::BackRequested => request_editor_close(model),
+        EditorMsg::TrashRequested => model
+            .editor
+            .as_ref()
+            .map(|document| document.note_id)
+            .map_or_else(Vec::new, |note_id| {
+                update_action(model, ActionMsg::TrashNote(note_id))
+            }),
         EditorMsg::Close(session_id)
             if model
                 .editor

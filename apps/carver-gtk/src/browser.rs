@@ -37,7 +37,7 @@ pub(crate) fn build_content(
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let browser = build_browser(state, &stack, split_view, toast_overlay);
     stack.add_named(&browser, Some("browser"));
-    let (editor, editor_refs) = build_editor(state, &stack, toast_overlay, split_view).into_parts();
+    let (editor, editor_refs) = build_editor(state, toast_overlay, split_view).into_parts();
     stack.add_named(&editor, Some("editor"));
     let trash = build_trash(state, &stack);
     stack.add_named(&trash, Some("trash"));

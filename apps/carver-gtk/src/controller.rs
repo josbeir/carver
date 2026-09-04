@@ -10,7 +10,7 @@ use carver_sdk::{Category, CategoryId, LibraryClient, Note};
 use carver_storage_sqlite::SqliteLibrary;
 use libadwaita as adw;
 
-use crate::mvu::{AppModel, AppMsg, AppRuntime};
+use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime};
 
 #[cfg(test)]
 use carver_sdk::{LibraryError, NoteId};
@@ -61,6 +61,7 @@ pub(crate) struct AppState {
     pub(crate) trash_content_stack: RefCell<Option<gtk::Stack>>,
     pub(crate) trash_status: RefCell<Option<adw::StatusPage>>,
     pub(crate) empty_trash_button: RefCell<Option<gtk::Button>>,
+    pub(crate) dispatcher: AppDispatcher,
     mvu_runtime: OnceCell<MvuRuntime>,
 }
 
@@ -110,22 +111,25 @@ impl AppState {
             trash_content_stack: RefCell::new(None),
             trash_status: RefCell::new(None),
             empty_trash_button: RefCell::new(None),
+            dispatcher: AppDispatcher::default(),
             mvu_runtime: OnceCell::new(),
         }
     }
 
     /// Installs the one window-local MVU dispatcher after its widgets exist.
     pub(crate) fn install_mvu_runtime(&self, runtime: MvuRuntime) -> bool {
-        self.mvu_runtime.set(runtime).is_ok()
+        if self.mvu_runtime.set(runtime).is_err() {
+            return false;
+        }
+        if let Some(runtime) = self.mvu_runtime.get() {
+            runtime.bind_dispatcher(&self.dispatcher);
+        }
+        true
     }
 
     /// Dispatches an MVU message when this window has completed composition.
     pub(crate) fn dispatch_mvu(&self, message: AppMsg) -> bool {
-        let Some(runtime) = self.mvu_runtime.get() else {
-            return false;
-        };
-        runtime.dispatch(message);
-        true
+        self.dispatcher.dispatch(message)
     }
 
     /// Reports whether a GTK signal was emitted during a programmatic MVU render.

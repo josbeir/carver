@@ -15,7 +15,7 @@ use webkit6::prelude::*;
 use crate::{
     controller::AppState,
     formatting,
-    mvu::{ActionMsg, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
+    mvu::{AppDispatcher, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
     sidebar::sidebar_toggle_button,
 };
 
@@ -118,7 +118,6 @@ impl EditorSurface {
 )]
 pub(crate) fn build_editor(
     state: &Rc<AppState>,
-    stack: &gtk::Stack,
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
 ) -> EditorSurface {
@@ -262,8 +261,8 @@ pub(crate) fn build_editor(
         &rendered_preview,
         &rich,
     );
-    connect_trash_action(state, &trash);
-    connect_back_action(state, stack, &back);
+    connect_trash_action(&state.dispatcher, &trash);
+    connect_back_action(&state.dispatcher, &back);
     connect_source_preview(
         state,
         &source_buffer,
@@ -712,44 +711,18 @@ fn preview_scroll_script(fraction: f64) -> String {
     )
 }
 
-fn connect_trash_action(state: &Rc<AppState>, trash: &gtk::Button) {
-    let state_for_trash = Rc::clone(state);
+fn connect_trash_action(dispatcher: &AppDispatcher, trash: &gtk::Button) {
+    let dispatcher = dispatcher.clone();
     trash.connect_clicked(move |_| {
-        let Some(note_id) = state_for_trash
-            .mvu_model()
-            .and_then(|model| model.editor)
-            .map(|document| document.note_id)
-        else {
-            return;
-        };
-        let _ = state_for_trash.dispatch_mvu(AppMsg::Action(ActionMsg::TrashNote(note_id)));
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::TrashRequested));
     });
 }
 
-fn connect_back_action(state: &Rc<AppState>, stack: &gtk::Stack, back: &gtk::Button) {
-    let state_for_back = Rc::clone(state);
-    let stack_for_back = stack.clone();
+fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {
+    let dispatcher = dispatcher.clone();
     back.connect_clicked(move |_| {
-        if state_for_back.dispatch_mvu(AppMsg::Editor(EditorMsg::BackRequested)) {
-            return;
-        }
-        close_editor(&state_for_back, &stack_for_back);
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
     });
-}
-
-/// Closes the active MVU document before the legacy shell falls back to the browser.
-fn close_editor(state: &AppState, stack: &gtk::Stack) {
-    let Some(session) = state
-        .mvu_model()
-        .and_then(|model| model.editor)
-        .map(|document| document.session)
-    else {
-        stack.set_visible_child_name("browser");
-        return;
-    };
-    if !state.dispatch_mvu(AppMsg::Editor(EditorMsg::Close(session))) {
-        stack.set_visible_child_name("browser");
-    }
 }
 
 fn connect_source_preview(

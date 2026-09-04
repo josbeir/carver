@@ -1,12 +1,47 @@
 //! `GLib` runtime for executing reducer effects.
 
-use std::{cell::RefCell, future::Future, rc::Rc};
+use std::{
+    cell::RefCell,
+    future::Future,
+    rc::{Rc, Weak},
+};
 
 use carver_sdk::{LibraryBackend, LibraryClient};
 
 use crate::view::ViewRefs;
 
 use super::{ActionKey, AppModel, AppMsg, Effect, LibraryReply, TrashMutation, UiError, update};
+
+type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
+
+/// A weak, window-local route for GTK/WebKit adapters to submit MVU messages.
+#[derive(Clone, Default)]
+pub struct AppDispatcher {
+    callback: Rc<RefCell<Option<DispatchCallback>>>,
+}
+
+impl AppDispatcher {
+    /// Sends a message while the window runtime is still alive.
+    #[must_use]
+    pub fn dispatch(&self, message: AppMsg) -> bool {
+        let callback = self.callback.borrow().clone();
+        let Some(callback) = callback else {
+            return false;
+        };
+        callback(message)
+    }
+
+    fn bind<B: LibraryBackend>(&self, runtime: &AppRuntime<B>) {
+        let inner = Rc::downgrade(&runtime.inner);
+        self.callback.replace(Some(Rc::new(move |message| {
+            let Some(inner) = Weak::upgrade(&inner) else {
+                return false;
+            };
+            AppRuntime { inner }.dispatch(message);
+            true
+        })));
+    }
+}
 
 /// Main-thread dispatcher that renders model snapshots and executes typed effects.
 ///
@@ -41,6 +76,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 view,
             }),
         }
+    }
+
+    /// Binds a weak dispatcher for callbacks that are created before the runtime exists.
+    pub fn bind_dispatcher(&self, dispatcher: &AppDispatcher) {
+        dispatcher.bind(self);
     }
 
     /// Reduces a message, renders the resulting snapshot, and starts any requested effects.

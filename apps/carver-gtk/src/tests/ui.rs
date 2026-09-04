@@ -36,7 +36,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     let split_view = adw::NavigationSplitView::new();
     let toast = adw::ToastOverlay::new();
     let browser = build_browser(&state, &stack, &split_view, &toast);
-    let (editor, editor_view) = build_editor(&state, &stack, &toast, &split_view).into_parts();
+    let (editor, editor_view) = build_editor(&state, &toast, &split_view).into_parts();
     let trash = build_trash(&state, &stack);
     stack.add_named(&browser, Some("browser"));
     stack.add_named(&editor, Some("editor"));

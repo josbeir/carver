@@ -5,9 +5,9 @@ use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 
 use super::{
-    ActionKey, ActionMsg, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg, Effect,
-    LibraryReply, LoadState, NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg, TrashMutation,
-    UiError, update,
+    ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg,
+    Effect, LibraryReply, LoadState, NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg,
+    TrashMutation, UiError, update,
 };
 
 #[test]
@@ -31,6 +31,13 @@ fn startup_should_request_sidebar_and_browser_data() {
     );
     assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
     assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(2)));
+}
+
+#[test]
+fn unbound_dispatcher_should_not_dispatch_messages() {
+    let dispatcher = AppDispatcher::default();
+
+    assert!(!dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
 }
 
 #[test]
@@ -710,7 +717,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     let search_empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let empty_new_note = gtk::Button::new();
     let runtime = AppRuntime::new(
-        client,
+        client.clone(),
         AppModel::new(&Config::default()),
         crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new())
             .with_browser_and_sidebar(
@@ -754,5 +761,26 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         runtime.model().sidebar.state,
         LoadState::Failed(UiError::new("offline"))
     );
+
+    let dispatcher = AppDispatcher::default();
+    {
+        let detached_stack = gtk::Stack::new();
+        detached_stack.add_named(
+            &gtk::Box::new(gtk::Orientation::Vertical, 0),
+            Some("browser"),
+        );
+        let detached_runtime = AppRuntime::new(
+            client.clone(),
+            AppModel::new(&Config::default()),
+            crate::view::ViewRefs::new(
+                detached_stack,
+                libadwaita::StatusPage::new(),
+                libadwaita::StatusPage::new(),
+            ),
+        );
+        detached_runtime.bind_dispatcher(&dispatcher);
+        assert!(dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
+    }
+    assert!(!dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
     Ok(())
 }

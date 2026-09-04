@@ -101,6 +101,8 @@ pub enum EditorMsg {
     RetrySave,
     /// Return to the browser after saving the latest canonical source.
     BackRequested,
+    /// Move the active editor note to trash.
+    TrashRequested,
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }
