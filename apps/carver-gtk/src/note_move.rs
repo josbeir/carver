@@ -8,7 +8,10 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    browser::refresh_browser, controller::AppState, dialogs::show_category_name_dialog,
+    browser::refresh_browser,
+    controller::AppState,
+    dialogs::show_category_name_dialog,
+    mvu::{ActionMsg, AppMsg},
     sidebar::refresh_sidebar,
 };
 
@@ -297,6 +300,13 @@ pub(crate) fn move_note_to_category(
     toast_overlay: &adw::ToastOverlay,
 ) {
     if source_category_id == destination.id {
+        return;
+    }
+    if state.dispatch_mvu(AppMsg::Action(ActionMsg::MoveNote {
+        note_id,
+        source_category_id,
+        category_id: destination.id,
+    })) {
         return;
     }
     let source_category_name = state

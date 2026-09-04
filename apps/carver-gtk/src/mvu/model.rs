@@ -33,10 +33,26 @@ pub enum ActionKey {
     RenameCategory(CategoryId),
     /// Trash one category.
     TrashCategory(CategoryId),
-    /// Move one note.
-    MoveNote(NoteId),
+    /// Move one note away from its prior category.
+    MoveNote {
+        /// Note being moved.
+        note_id: NoteId,
+        /// Category restored by Undo.
+        source_category_id: CategoryId,
+    },
+    /// Undo one completed note move.
+    UndoMove(NoteId),
     /// Trash one note.
     TrashNote(NoteId),
+}
+
+/// The move that remains available for a one-click Undo action.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MoveUndo {
+    /// Note that can be moved back.
+    pub note_id: NoteId,
+    /// Category to restore.
+    pub source_category_id: CategoryId,
 }
 
 impl UiError {
@@ -157,6 +173,8 @@ pub struct AppModel {
     pub notice: Option<UiError>,
     /// Mutations currently admitted by the reducer.
     pub pending_actions: BTreeSet<ActionKey>,
+    /// The latest successful move that can be undone.
+    pub undo_move: Option<MoveUndo>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
     /// Active editor lifetime, if an editor is open.
@@ -178,6 +196,7 @@ impl AppModel {
             trash: Resource::default(),
             notice: None,
             pending_actions: BTreeSet::new(),
+            undo_move: None,
             preferences: Preferences::from(config),
             editor_session: None,
             next_request_id: 1,

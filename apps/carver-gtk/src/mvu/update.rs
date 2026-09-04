@@ -1,8 +1,8 @@
 //! Pure state transitions for the application model.
 
 use super::{
-    ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, NavigationMsg,
-    PreferencesMsg, SidebarMsg, TrashMsg, UiError,
+    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, Effect, LibraryReply, MoveUndo,
+    NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -81,7 +81,12 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
-    let key = action.key();
+    if matches!(action, ActionMsg::UndoMove) {
+        return update_undo_move(model);
+    }
+    let Some(key) = action.key() else {
+        return Vec::new();
+    };
     if !model.begin_action(key) {
         return Vec::new();
     }
@@ -95,12 +100,15 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::TrashCategory(category_id) => Some(Effect::TrashCategory { category_id }),
         ActionMsg::MoveNote {
             note_id,
+            source_category_id: _,
             category_id,
         } => Some(Effect::MoveNote {
+            action: key,
             note_id,
             category_id,
         }),
         ActionMsg::TrashNote(note_id) => Some(Effect::TrashNote { note_id }),
+        ActionMsg::UndoMove => None,
     };
     if let Some(effect) = effect {
         vec![effect]
@@ -109,6 +117,25 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         model.notice = Some(UiError::new("Category names cannot be empty."));
         Vec::new()
     }
+}
+
+fn update_undo_move(model: &mut AppModel) -> Vec<Effect> {
+    let Some(MoveUndo {
+        note_id,
+        source_category_id,
+    }) = model.undo_move
+    else {
+        return Vec::new();
+    };
+    let action = ActionKey::UndoMove(note_id);
+    if !model.begin_action(action) {
+        return Vec::new();
+    }
+    vec![Effect::MoveNote {
+        action,
+        note_id,
+        category_id: source_category_id,
+    }]
 }
 
 fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Option<Effect> {
@@ -122,6 +149,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             model.finish_action(action);
             match result {
                 Ok(()) => {
+                    update_undo_state(model, action);
                     model.notice = None;
                     reload_all_resources(model)
                 }
@@ -150,6 +178,25 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 Vec::new()
             }
         },
+    }
+}
+
+fn update_undo_state(model: &mut AppModel, action: ActionKey) {
+    match action {
+        ActionKey::MoveNote {
+            note_id,
+            source_category_id,
+        } => {
+            model.undo_move = Some(MoveUndo {
+                note_id,
+                source_category_id,
+            });
+        }
+        ActionKey::UndoMove(_) => model.undo_move = None,
+        ActionKey::CreateCategory
+        | ActionKey::RenameCategory(_)
+        | ActionKey::TrashCategory(_)
+        | ActionKey::TrashNote(_) => {}
     }
 }
 

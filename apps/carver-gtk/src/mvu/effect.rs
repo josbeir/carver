@@ -2,7 +2,7 @@
 
 use carver_sdk::{CategoryId, NoteId};
 
-use super::{RequestId, TimerId};
+use super::{ActionKey, RequestId, TimerId};
 
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +62,8 @@ pub enum Effect {
     },
     /// Move a note between categories.
     MoveNote {
+        /// Mutation identity used by the completion reply.
+        action: ActionKey,
         /// Note to move.
         note_id: NoteId,
         /// Destination category.

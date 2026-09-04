@@ -13,6 +13,9 @@ use libadwaita as adw;
 use crate::mvu::{AppMsg, AppRuntime};
 
 #[cfg(test)]
+use crate::mvu::AppModel;
+
+#[cfg(test)]
 use carver_sdk::{LibraryError, NoteId};
 #[cfg(test)]
 use carver_storage_sqlite::StorageError;
@@ -137,6 +140,12 @@ impl AppState {
     /// Reports whether a GTK signal was emitted during a programmatic MVU render.
     pub(crate) fn is_mvu_rendering(&self) -> bool {
         self.mvu_runtime.get().is_some_and(MvuRuntime::is_rendering)
+    }
+
+    /// Returns the current MVU snapshot for deterministic GTK interaction tests.
+    #[cfg(test)]
+    pub(crate) fn mvu_model_for_test(&self) -> Option<AppModel> {
+        self.mvu_runtime.get().map(MvuRuntime::model)
     }
 
     /// Updates and writes the source split-preview preference when a path is available.

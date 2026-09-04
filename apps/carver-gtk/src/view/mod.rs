@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::mvu::{AppModel, LoadState, Route};
+use crate::mvu::{AppModel, LoadState, MoveUndo, Route};
 
 /// GTK references used to render the high-level MVU resources.
 ///
@@ -25,6 +25,7 @@ pub struct ViewRefs {
     trash_status: adw::StatusPage,
     toast_overlay: Option<adw::ToastOverlay>,
     last_notice: RefCell<Option<String>>,
+    last_undo_move: RefCell<Option<MoveUndo>>,
     rendering: Cell<bool>,
 }
 
@@ -51,6 +52,7 @@ impl ViewRefs {
             trash_status,
             toast_overlay: None,
             last_notice: RefCell::new(None),
+            last_undo_move: RefCell::new(None),
             rendering: Cell::new(false),
         }
     }
@@ -108,6 +110,7 @@ impl ViewRefs {
         self.render_browser(model);
         self.render_trash(model);
         self.render_notice(model);
+        self.render_undo_move(model);
         self.rendering.set(false);
     }
 
@@ -274,6 +277,21 @@ impl ViewRefs {
         if let Some(toast_overlay) = &self.toast_overlay {
             toast_overlay.add_toast(adw::Toast::new(&error.message));
             self.last_notice.replace(Some(error.message.clone()));
+        }
+    }
+
+    fn render_undo_move(&self, model: &AppModel) {
+        if *self.last_undo_move.borrow() == model.undo_move {
+            return;
+        }
+        self.last_undo_move.replace(model.undo_move);
+        if model.undo_move.is_some()
+            && let Some(toast_overlay) = &self.toast_overlay
+        {
+            let toast = adw::Toast::new("Moved note");
+            toast.set_button_label(Some("Undo"));
+            toast.set_action_name(Some("mvu.undo-move"));
+            toast_overlay.add_toast(toast);
         }
     }
 }

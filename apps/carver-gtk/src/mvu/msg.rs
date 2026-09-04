@@ -110,22 +110,34 @@ pub enum ActionMsg {
     MoveNote {
         /// Note to move.
         note_id: NoteId,
+        /// Current category, retained for Undo.
+        source_category_id: CategoryId,
         /// Destination category.
         category_id: CategoryId,
     },
+    /// Move the most recently moved note back to its source category.
+    UndoMove,
     /// Move a note to trash.
     TrashNote(NoteId),
 }
 
 impl ActionMsg {
-    pub(super) fn key(&self) -> ActionKey {
-        match self {
+    pub(super) fn key(&self) -> Option<ActionKey> {
+        Some(match self {
             Self::CreateCategory(_) => ActionKey::CreateCategory,
             Self::RenameCategory { category_id, .. } => ActionKey::RenameCategory(*category_id),
             Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
-            Self::MoveNote { note_id, .. } => ActionKey::MoveNote(*note_id),
+            Self::MoveNote {
+                note_id,
+                source_category_id,
+                ..
+            } => ActionKey::MoveNote {
+                note_id: *note_id,
+                source_category_id: *source_category_id,
+            },
+            Self::UndoMove => return None,
             Self::TrashNote(note_id) => ActionKey::TrashNote(*note_id),
-        }
+        })
     }
 }
 

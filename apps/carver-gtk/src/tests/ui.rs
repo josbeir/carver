@@ -187,6 +187,32 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .ok()
         .flatten()
         .is_some_and(|note| note.category_id != second.id)));
+    let moved_note = state.client.note(note.id)?.ok_or("moved note")?;
+    move_note_to_category(
+        &state,
+        note.id,
+        moved_note.category_id,
+        second.clone(),
+        &toast,
+    );
+    assert!(run_main_context_until(|| state
+        .client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(|note| note.category_id == second.id)));
+    assert!(run_main_context_until(|| {
+        state
+            .mvu_model_for_test()
+            .is_some_and(|model| model.undo_move.is_some())
+    }));
+    window.activate_action("mvu.undo-move", None)?;
+    assert!(run_main_context_until(|| state
+        .client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(|note| note.category_id == moved_note.category_id)));
 
     rename_category(&state, second.id, "Projects renamed")?;
     refresh_sidebar(&state);

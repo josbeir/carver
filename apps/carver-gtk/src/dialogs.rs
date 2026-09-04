@@ -10,7 +10,7 @@ use libadwaita as adw;
 
 use crate::{
     controller::AppState,
-    mvu::{AppMsg, TrashMsg},
+    mvu::{ActionMsg, AppMsg, TrashMsg},
 };
 
 /// Installs actions exposed from the application menu.
@@ -38,6 +38,18 @@ pub(crate) fn install_window_actions(
     window.add_action(&about);
 
     install_trash_actions(window, state);
+    install_mvu_actions(window, state);
+}
+
+fn install_mvu_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
+    let actions = gtk::gio::SimpleActionGroup::new();
+    let undo_move = gtk::gio::SimpleAction::new("undo-move", None);
+    let state_for_undo = Rc::clone(state);
+    undo_move.connect_activate(move |_, _| {
+        let _ = state_for_undo.dispatch_mvu(AppMsg::Action(ActionMsg::UndoMove));
+    });
+    actions.add_action(&undo_move);
+    window.insert_action_group("mvu", Some(&actions));
 }
 
 fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
@@ -78,6 +90,7 @@ fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
 #[cfg(test)]
 pub(crate) fn install_trash_actions_for_test(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
     install_trash_actions(window, state);
+    install_mvu_actions(window, state);
 }
 
 fn show_preferences_dialog(

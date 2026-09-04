@@ -146,10 +146,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 self.trash_category(category_id);
             }
             Effect::MoveNote {
+                action,
                 note_id,
                 category_id,
             } => {
-                self.move_note(note_id, category_id);
+                self.move_note(action, note_id, category_id);
             }
             Effect::TrashNote { note_id } => {
                 self.trash_note(note_id);
@@ -181,9 +182,14 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn move_note(&self, note_id: carver_sdk::NoteId, category_id: carver_sdk::CategoryId) {
+    fn move_note(
+        &self,
+        action: ActionKey,
+        note_id: carver_sdk::NoteId,
+        category_id: carver_sdk::CategoryId,
+    ) {
         let client = self.inner.client.clone();
-        self.complete_action(ActionKey::MoveNote(note_id), async move {
+        self.complete_action(action, async move {
             client
                 .move_note_async(note_id, category_id)
                 .await
