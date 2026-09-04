@@ -210,7 +210,7 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
         .is_some_and(|note| note.category_id == second.id)));
     assert!(run_main_context_until(|| {
         state
-            .mvu_model_for_test()
+            .mvu_model()
             .is_some_and(|model| model.undo_move.is_some())
     }));
     window.activate_action("mvu.undo-move", None)?;
@@ -291,6 +291,15 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
     assert!(bold.has_css_class("flat"));
     source_mode.set_active(true);
     source.buffer().set_text("# Source\n\nA paragraph");
+    assert!(run_main_context_until(|| {
+        state
+            .mvu_model()
+            .and_then(|model| model.editor)
+            .is_some_and(|document| {
+                document.source == "# Source\n\nA paragraph"
+                    && document.save_state == crate::mvu::EditorSaveState::Dirty
+            })
+    }));
     preview.set_active(true);
     let rendered_preview =
         widget_as::<webkit6::WebView>(&editor, "rendered-preview").ok_or("rendered preview")?;

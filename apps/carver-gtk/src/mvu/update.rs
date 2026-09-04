@@ -48,16 +48,43 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Trash(TrashMsg::RestoreNote(note_id)) => vec![Effect::RestoreNote { note_id }],
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
-        AppMsg::Editor(EditorMsg::Open(_)) => {
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision,
+            source,
+        }) => {
             model.route = super::Route::Editor;
-            model.editor_session = Some(model.next_editor_session_id());
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.note_id == note_id)
+            {
+                return Vec::new();
+            }
+            let session = model.next_editor_session_id();
+            model.editor = Some(super::EditorDocument::new(
+                session,
+                note_id,
+                revision,
+                source,
+                model.preferences.editor_mode,
+            ));
+            Vec::new()
+        }
+        AppMsg::Editor(EditorMsg::SourceChanged(source)) => {
+            if let Some(document) = model.editor.as_mut() {
+                document.source_changed(source);
+            }
             Vec::new()
         }
         AppMsg::Editor(EditorMsg::Close(session_id))
-            if model.editor_session == Some(session_id) =>
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session_id) =>
         {
             model.route = super::Route::Browser;
-            model.editor_session = None;
+            model.editor = None;
             Vec::new()
         }
         AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) | AppMsg::Editor(EditorMsg::Close(_)) => {
@@ -69,6 +96,9 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)) => {
             model.preferences.editor_mode = mode;
+            if let Some(document) = model.editor.as_mut() {
+                document.mode = mode;
+            }
             Vec::new()
         }
         AppMsg::Preferences(PreferencesMsg::SetSourceSplitView(visible)) => {

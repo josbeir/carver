@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use carver_config::{Config, EditorMode};
-use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents};
+use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents};
 
 /// Identifies one asynchronous resource request.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -156,6 +156,59 @@ impl From<&Config> for Preferences {
     }
 }
 
+/// The save lifecycle of the active editor document.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum EditorSaveState {
+    /// The canonical source matches the last persisted source.
+    #[default]
+    Clean,
+    /// The canonical source has changed and needs to be persisted.
+    Dirty,
+}
+
+/// The UI-neutral, canonical representation of one note being edited.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorDocument {
+    /// Lifetime identity used to reject stale editor work.
+    pub session: EditorSessionId,
+    /// Persisted note represented by this document.
+    pub note_id: NoteId,
+    /// Last persisted revision of the note.
+    pub revision: Revision,
+    /// Canonical Carve source shared by the source and rich projections.
+    pub source: String,
+    /// Currently selected editor surface.
+    pub mode: EditorMode,
+    /// Current persistence state of the document.
+    pub save_state: EditorSaveState,
+}
+
+impl EditorDocument {
+    pub(super) fn new(
+        session: EditorSessionId,
+        note_id: NoteId,
+        revision: Revision,
+        source: String,
+        mode: EditorMode,
+    ) -> Self {
+        Self {
+            session,
+            note_id,
+            revision,
+            source,
+            mode,
+            save_state: EditorSaveState::Clean,
+        }
+    }
+
+    pub(super) fn source_changed(&mut self, source: String) {
+        if self.source != source {
+            self.source = source;
+            self.save_state = EditorSaveState::Dirty;
+        }
+    }
+}
+
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
@@ -177,8 +230,8 @@ pub struct AppModel {
     pub undo_move: Option<MoveUndo>,
     /// Preferences used by the view and effects.
     pub preferences: Preferences,
-    /// Active editor lifetime, if an editor is open.
-    pub editor_session: Option<EditorSessionId>,
+    /// Active editor document, if the editor is open.
+    pub editor: Option<EditorDocument>,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
@@ -198,7 +251,7 @@ impl AppModel {
             pending_actions: BTreeSet::new(),
             undo_move: None,
             preferences: Preferences::from(config),
-            editor_session: None,
+            editor: None,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,

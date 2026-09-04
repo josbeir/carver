@@ -1,6 +1,6 @@
 use carver_config::{AppPaths, Config};
 use carver_sdk::LibraryClient;
-use carver_sdk::{CategoryId, NoteId};
+use carver_sdk::{CategoryId, NoteId, Revision};
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 
@@ -110,24 +110,69 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
 }
 
 #[test]
-fn stale_editor_close_should_not_close_a_newer_session() {
+fn stale_editor_close_should_not_close_a_newer_document() {
     let mut model = AppModel::new(&Config::default());
+    let first_note_id = NoteId::new();
     let _ = update(
         &mut model,
-        AppMsg::Editor(EditorMsg::Open(carver_sdk::NoteId::new())),
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: first_note_id,
+            revision: Revision(1),
+            source: "first".to_owned(),
+        }),
     );
-    let Some(first_session) = model.editor_session else {
+    let Some(first_session) = model.editor.as_ref().map(|document| document.session) else {
         panic!("editor should be open");
     };
     let _ = update(
         &mut model,
-        AppMsg::Editor(EditorMsg::Open(carver_sdk::NoteId::new())),
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(2),
+            source: "second".to_owned(),
+        }),
     );
 
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::Close(first_session)));
 
     assert_eq!(model.route, Route::Editor);
-    assert_ne!(model.editor_session, Some(first_session));
+    assert_ne!(
+        model.editor.as_ref().map(|document| document.session),
+        Some(first_session)
+    );
+}
+
+#[test]
+fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let unsupported_source = "::: unsupported Carve block\\nverbatim".to_owned();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(4),
+            source: "Initial source".to_owned(),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(unsupported_source.clone())),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(
+        model.editor,
+        Some(super::EditorDocument {
+            session: super::EditorSessionId(1),
+            note_id,
+            revision: Revision(4),
+            source: unsupported_source,
+            mode: carver_config::EditorMode::Rich,
+            save_state: super::EditorSaveState::Dirty,
+        })
+    );
 }
 
 #[test]

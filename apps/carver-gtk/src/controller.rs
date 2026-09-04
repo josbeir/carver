@@ -10,10 +10,7 @@ use carver_sdk::{Category, CategoryId, LibraryClient, Note};
 use carver_storage_sqlite::SqliteLibrary;
 use libadwaita as adw;
 
-use crate::mvu::{AppMsg, AppRuntime};
-
-#[cfg(test)]
-use crate::mvu::AppModel;
+use crate::mvu::{AppModel, AppMsg, AppRuntime};
 
 #[cfg(test)]
 use carver_sdk::{LibraryError, NoteId};
@@ -142,9 +139,8 @@ impl AppState {
         self.mvu_runtime.get().is_some_and(MvuRuntime::is_rendering)
     }
 
-    /// Returns the current MVU snapshot for deterministic GTK interaction tests.
-    #[cfg(test)]
-    pub(crate) fn mvu_model_for_test(&self) -> Option<AppModel> {
+    /// Returns an immutable MVU snapshot for editor projection hydration.
+    pub(crate) fn mvu_model(&self) -> Option<AppModel> {
         self.mvu_runtime.get().map(MvuRuntime::model)
     }
 

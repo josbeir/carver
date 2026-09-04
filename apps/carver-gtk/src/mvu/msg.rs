@@ -2,7 +2,7 @@
 
 use carver_config::EditorMode;
 use carver_sdk::{
-    CategoryId, CategorySummary, NoteId, NoteSummary, TrashContents, TrashPurgeResult,
+    CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{ActionKey, EditorSessionId, RequestId, TimerId, UiError};
@@ -73,10 +73,19 @@ pub enum TrashMsg {
 }
 
 /// Editor events whose persistence is introduced in the editor migration parts.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
-    /// Open a note in a new editor lifetime.
-    Open(NoteId),
+    /// Load a persisted note into the canonical editor document.
+    Load {
+        /// Persisted note to edit.
+        note_id: NoteId,
+        /// Revision expected by the next save.
+        revision: Revision,
+        /// Canonical Carve source read from the library.
+        source: String,
+    },
+    /// Replace the canonical source after a source or rich projection changed it.
+    SourceChanged(String),
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }

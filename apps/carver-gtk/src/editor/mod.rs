@@ -9,8 +9,13 @@ use libadwaita::prelude::BreakpointBinExt;
 use webkit6::prelude::*;
 
 use crate::{
-    browser::refresh_browser, controller::AppState, formatting, sidebar::refresh_sidebar,
-    sidebar::sidebar_toggle_button, trash::refresh_trash,
+    browser::refresh_browser,
+    controller::AppState,
+    formatting,
+    mvu::{AppMsg, EditorMsg, PreferencesMsg},
+    sidebar::refresh_sidebar,
+    sidebar::sidebar_toggle_button,
+    trash::refresh_trash,
 };
 
 mod preview;
@@ -403,6 +408,8 @@ fn connect_mode_buttons(
             state.synchronizing_editor.set(false);
             if persist_selection {
                 let _ = state.set_last_editor_mode(surface);
+                let _ =
+                    state.dispatch_mvu(AppMsg::Preferences(PreferencesMsg::SetEditorMode(surface)));
             }
         });
     };
@@ -619,10 +626,10 @@ fn connect_trash_action(
             match client.trash_note_async(note.id).await {
                 Ok(()) => {
                     state.current_note.take();
+                    close_editor(&state, &stack);
                     refresh_browser(&state);
                     refresh_sidebar(&state);
                     refresh_trash(&state);
-                    stack.set_visible_child_name("browser");
                     let toast = adw::Toast::new("Moved note to Trash");
                     toast.set_button_label(Some("Undo"));
                     let state_for_undo = Rc::clone(&state);
@@ -664,7 +671,7 @@ fn connect_back_action(
     let toast_for_back = toast_overlay.clone();
     back.connect_clicked(move |_| {
         if state_for_back.current_note.borrow().is_none() {
-            stack_for_back.set_visible_child_name("browser");
+            close_editor(&state_for_back, &stack_for_back);
             return;
         }
         let source = buffer_text(&source_for_back);
@@ -672,8 +679,8 @@ fn connect_back_action(
             return;
         };
         if source.as_str() == note.source {
+            close_editor(&state_for_back, &stack_for_back);
             refresh_browser(&state_for_back);
-            stack_for_back.set_visible_child_name("browser");
             return;
         }
         state_for_back
@@ -690,8 +697,8 @@ fn connect_back_action(
             {
                 Ok(saved) => {
                     state.current_note.replace(Some(saved));
+                    close_editor(&state, &stack);
                     refresh_browser(&state);
-                    stack.set_visible_child_name("browser");
                 }
                 Err(error) => {
                     toast.add_toast(adw::Toast::new(&format!("Could not save note: {error}")));
@@ -699,6 +706,21 @@ fn connect_back_action(
             }
         });
     });
+}
+
+/// Closes the active MVU document before the legacy shell falls back to the browser.
+fn close_editor(state: &AppState, stack: &gtk::Stack) {
+    let Some(session) = state
+        .mvu_model()
+        .and_then(|model| model.editor)
+        .map(|document| document.session)
+    else {
+        stack.set_visible_child_name("browser");
+        return;
+    };
+    if !state.dispatch_mvu(AppMsg::Editor(EditorMsg::Close(session))) {
+        stack.set_visible_child_name("browser");
+    }
 }
 
 fn connect_autosave(
@@ -748,19 +770,36 @@ fn connect_note_loading(
     let split_preview_for_visible = split_preview.clone();
     let rendered_preview_for_visible = rendered_preview.clone();
     stack.connect_visible_child_notify(move |stack| {
+        let note = state_for_visible.current_note.borrow().clone();
         if stack.visible_child_name().as_deref() == Some("editor")
-            && let Some(note) = state_for_visible.current_note.borrow().as_ref()
+            && let Some(note) = note
         {
+            let source = state_for_visible
+                .mvu_model()
+                .and_then(|model| model.editor)
+                .filter(|document| document.note_id == note.id)
+                .map_or_else(
+                    || {
+                        let source = note.source.clone();
+                        let _ = state_for_visible.dispatch_mvu(AppMsg::Editor(EditorMsg::Load {
+                            note_id: note.id,
+                            revision: note.revision,
+                            source: source.clone(),
+                        }));
+                        source
+                    },
+                    |document| document.source,
+                );
             state_for_visible.synchronizing_editor.set(true);
-            source_for_visible.set_text(&note.source);
+            source_for_visible.set_text(&source);
             let remote = state_for_visible
                 .config
                 .borrow()
                 .images
                 .load_remote_automatically;
-            load_preview(&split_preview_for_visible, &note.source, remote);
-            load_preview(&rendered_preview_for_visible, &note.source, remote);
-            rich_for_visible.load_source(&note.source);
+            load_preview(&split_preview_for_visible, &source, remote);
+            load_preview(&rendered_preview_for_visible, &source, remote);
+            rich_for_visible.load_source(&source);
             if state_for_visible.source_mode.get() {
                 source_mode_for_visible.set_active(true);
                 editor_stack_for_visible.set_visible_child_name("source");
@@ -798,6 +837,9 @@ fn connect_source_preview(
         let source_text = source
             .text(&source.start_iter(), &source.end_iter(), false)
             .to_string();
+        let _ = state.dispatch_mvu(AppMsg::Editor(EditorMsg::SourceChanged(
+            source_text.clone(),
+        )));
         let remote = state.config.borrow().images.load_remote_automatically;
         let generation = state.preview_generation.get().saturating_add(1);
         state.preview_generation.set(generation);
