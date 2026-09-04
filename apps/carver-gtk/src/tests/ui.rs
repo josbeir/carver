@@ -142,6 +142,23 @@ fn gtk_surfaces_cover_navigation_and_web_editor_host() -> TestResult {
                 .as_ref()
                 .is_some_and(|title| title.title() == "Projects")
     }));
+    let all_notes_row = category_list
+        .first_child()
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("MVU all notes row")?;
+    let browser_pages =
+        widget_as::<gtk::Stack>(&browser, "browser-content-pages").ok_or("browser pages")?;
+    category_list.select_row(Some(&all_notes_row));
+    assert_eq!(
+        browser_pages.visible_child_name().as_deref(),
+        Some("contents"),
+        "category reloads should retain visible rows instead of flashing a status page"
+    );
+    assert!(run_main_context_until(|| {
+        state.selected_category.get().is_none()
+            && find_widget(browser.upcast_ref(), &format!("note-category:{}", note.id)).is_some()
+            && find_widget(browser.upcast_ref(), &format!("note-updated:{}", note.id)).is_some()
+    }));
 
     let search = widget_as::<gtk::SearchEntry>(&browser, "note-search-entry").ok_or("search")?;
     search.set_text("not-present");

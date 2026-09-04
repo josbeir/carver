@@ -178,18 +178,17 @@ impl ViewRefs {
                 "All recent notes"
             });
         }
-        while let Some(child) = list.first_child() {
-            list.remove(&child);
-        }
         match &model.browser.notes.state {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
             {
+                clear_list(list);
                 search_empty.set_visible(true);
                 empty_new_note.set_visible(false);
                 pages.set_visible_child_name("contents");
             }
             LoadState::Ready(notes) if notes.is_empty() => {
+                clear_list(list);
                 search_empty.set_visible(false);
                 empty_new_note.set_visible(true);
                 self.browser_status.set_title("No notes yet");
@@ -198,14 +197,22 @@ impl ViewRefs {
                 pages.set_visible_child_name("empty");
             }
             LoadState::Ready(notes) => {
+                clear_list(list);
                 search_empty.set_visible(false);
                 empty_new_note.set_visible(true);
                 pages.set_visible_child_name("contents");
+                let show_category = model.selected_category.is_none();
                 for note in notes {
-                    list.append(&browser_row(note));
+                    list.append(&browser_row(note, show_category));
                 }
             }
+            LoadState::Loading(_) if list.first_child().is_some() => {
+                search_empty.set_visible(false);
+                empty_new_note.set_visible(true);
+                pages.set_visible_child_name("contents");
+            }
             state => {
+                clear_list(list);
                 search_empty.set_visible(false);
                 empty_new_note.set_visible(false);
                 self.browser_status
@@ -339,27 +346,22 @@ fn sidebar_row(
     row
 }
 
-fn browser_row(note: &carver_sdk::NoteSummary) -> gtk::ListBoxRow {
+fn clear_list(list: &gtk::ListBox) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+}
+
+fn browser_row(note: &carver_sdk::NoteSummary, show_category: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("note:{}", note.id));
     row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     content.set_margin_start(12);
-    content.set_margin_end(12);
+    content.set_margin_end(8);
     content.set_margin_top(10);
     content.set_margin_bottom(10);
-    let title = gtk::Label::new(Some(&note.title));
-    title.set_xalign(0.0);
-    title.add_css_class("note-card-title");
-    content.append(&title);
-    if !note.excerpt.is_empty() {
-        let excerpt = gtk::Label::new(Some(&note.excerpt));
-        excerpt.set_xalign(0.0);
-        excerpt.add_css_class("note-card-excerpt");
-        excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        excerpt.set_single_line_mode(true);
-        content.append(&excerpt);
-    }
+    content.append(&crate::browser::note_card_details(note, show_category));
     row.set_child(Some(&content));
     row
 }

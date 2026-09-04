@@ -396,47 +396,53 @@ fn populate_note_list(
         content.set_margin_end(8);
         content.set_margin_top(10);
         content.set_margin_bottom(10);
-        let box_ = gtk::Box::new(gtk::Orientation::Vertical, 4);
-        box_.set_hexpand(true);
-        let title = gtk::Label::new(Some(&note.title));
-        title.set_widget_name(&format!("note-title:{}", note.id));
-        title.set_xalign(0.0);
-        title.add_css_class("note-card-title");
-        title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        title.set_single_line_mode(true);
-        box_.append(&title);
-        let excerpt_text = card_excerpt(&note.title, &note.excerpt);
+        let box_ = note_card_details(&note, show_category);
+        content.append(&box_);
+        content.append(&note_menu(state, &note, toast_overlay));
+        row.set_child(Some(&content));
+        list.append(&row);
+    }
+}
+
+/// Builds the shared note-card details used by both browser render paths.
+pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk::Box {
+    let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    details.set_hexpand(true);
+    let title = gtk::Label::new(Some(&note.title));
+    title.set_widget_name(&format!("note-title:{}", note.id));
+    title.set_xalign(0.0);
+    title.add_css_class("note-card-title");
+    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    title.set_single_line_mode(true);
+    details.append(&title);
+    let excerpt_text = card_excerpt(&note.title, &note.excerpt);
+    if !excerpt_text.is_empty() {
         let excerpt = gtk::Label::new(Some(&excerpt_text));
         excerpt.set_widget_name(&format!("note-excerpt:{}", note.id));
         excerpt.set_xalign(0.0);
         excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
         excerpt.set_single_line_mode(true);
         excerpt.add_css_class("note-card-excerpt");
-        if !excerpt_text.is_empty() {
-            box_.append(&excerpt);
-        }
-        let metadata = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        metadata.set_margin_top(8);
-        metadata.add_css_class("note-card-metadata");
-        if show_category {
-            let category = gtk::Label::new(Some(&note.category_name));
-            category.set_widget_name(&format!("note-category:{}", note.id));
-            category.add_css_class("note-category-pill");
-            metadata.append(&category);
-        }
-        let updated = gtk::Label::new(Some(&format!(
-            "Updated {}",
-            relative_update_time(note.updated_at, OffsetDateTime::now_utc())
-        )));
-        updated.set_widget_name(&format!("note-updated:{}", note.id));
-        updated.add_css_class("note-card-updated");
-        metadata.append(&updated);
-        box_.append(&metadata);
-        content.append(&box_);
-        content.append(&note_menu(state, &note, toast_overlay));
-        row.set_child(Some(&content));
-        list.append(&row);
+        details.append(&excerpt);
     }
+    let metadata = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    metadata.set_margin_top(8);
+    metadata.add_css_class("note-card-metadata");
+    if show_category {
+        let category = gtk::Label::new(Some(&note.category_name));
+        category.set_widget_name(&format!("note-category:{}", note.id));
+        category.add_css_class("note-category-pill");
+        metadata.append(&category);
+    }
+    let updated = gtk::Label::new(Some(&format!(
+        "Updated {}",
+        relative_update_time(note.updated_at, OffsetDateTime::now_utc())
+    )));
+    updated.set_widget_name(&format!("note-updated:{}", note.id));
+    updated.add_css_class("note-card-updated");
+    metadata.append(&updated);
+    details.append(&metadata);
+    details
 }
 
 fn note_menu(
