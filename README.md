@@ -38,6 +38,8 @@ Carver is a Cargo workspace with clear dependency boundaries:
 - `carver-gtk` is the GTK4/Libadwaita desktop application.
   Its sandboxed Tiptap surface uses [Carve Grammars](https://github.com/markup-carve/carve-grammars)
   for faithful Carve editing, while native WebKit preview uses the canonical Carve renderer.
+  Its window-local Model-View-Update runtime keeps application state UI-neutral: GTK/WebKit
+  callbacks dispatch messages, a pure reducer requests typed effects, and views render snapshots.
 
 ## Getting started
 
