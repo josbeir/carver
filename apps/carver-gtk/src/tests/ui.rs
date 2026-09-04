@@ -35,10 +35,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.source_highlight_current_line = true;
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
-    let preferences_dialog = crate::dialogs::present_dialogs_for_test(
+    let (preferences_dialog, about_dialog) = crate::dialogs::present_dialogs_for_test(
         &window,
         &config,
         &crate::mvu::AppDispatcher::default(),
+    );
+    assert_eq!(
+        about_dialog.application_icon(),
+        crate::app::APPLICATION_ICON
     );
     assert_eq!(
         widget_as::<adw::SwitchRow>(preferences_dialog.upcast_ref(), "remote-images-setting")

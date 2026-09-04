@@ -32,7 +32,9 @@ pub(crate) fn install_window_actions(
 
     let about = gtk::gio::SimpleAction::new("about", None);
     let window_for_about = window.clone();
-    about.connect_activate(move |_, _| show_about_window(&window_for_about));
+    about.connect_activate(move |_, _| {
+        let _ = show_about_window(&window_for_about);
+    });
     window.add_action(&about);
 
     install_trash_actions(window, dispatcher);
@@ -181,23 +183,25 @@ pub(crate) fn present_dialogs_for_test(
     parent: &adw::ApplicationWindow,
     config: &carver_config::Config,
     dispatcher: &AppDispatcher,
-) -> adw::PreferencesDialog {
+) -> (adw::PreferencesDialog, adw::AboutDialog) {
     let preferences = show_preferences_dialog(parent, dispatcher, config);
-    show_about_window(parent);
+    let about = show_about_window(parent);
     show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
     show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
-    preferences
+    (preferences, about)
 }
 
-fn show_about_window(parent: &adw::ApplicationWindow) {
+fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
     let about = adw::AboutDialog::builder()
         .application_name("Carver")
+        .application_icon(crate::app::APPLICATION_ICON)
         .version(env!("CARGO_PKG_VERSION"))
         .developer_name("Carver contributors")
         .comments("A native GNOME notebook for Carve markup.")
         .license_type(gtk::License::MitX11)
         .build();
     about.present(Some(parent));
+    about
 }
 
 /// Presents a validated single-line category name dialog.
