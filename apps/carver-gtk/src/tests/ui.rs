@@ -377,6 +377,18 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         source_buffer
             .iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-frontmatter-key")
     );
+    source.buffer().set_text("Before\n\n---\n\n# After");
+    let divider_offset = 8;
+    let heading_offset = 13;
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(source_buffer.iter_has_context_class(
+        &source.buffer().iter_at_offset(divider_offset),
+        "carve-thematic-break"
+    ));
+    assert!(source_buffer.iter_has_context_class(
+        &source.buffer().iter_at_offset(heading_offset),
+        "carve-heading"
+    ));
     source
         .buffer()
         .set_text(":: Carve\n: A post-Markdown lightweight markup language.");

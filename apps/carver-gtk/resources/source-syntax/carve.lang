@@ -65,13 +65,16 @@
     <context id="frontmatter-value" style-ref="frontmatter-value" class="carve-frontmatter-value">
       <match>:[ \t]*[^\n]*$</match>
     </context>
-    <context id="frontmatter" style-ref="frontmatter-fence" class="carve-frontmatter">
-      <start>\A---(?:[A-Za-z0-9]+| [A-Za-z0-9]+)?[ \t]*$</start>
+    <context id="frontmatter" style-ref="frontmatter-fence" class="carve-frontmatter" first-line-only="true">
+      <start>^---(?:[A-Za-z0-9]+| [A-Za-z0-9]+)?[ \t]*$</start>
       <end>^---$</end>
       <include>
         <context ref="frontmatter-key"/>
         <context ref="frontmatter-value"/>
       </include>
+    </context>
+    <context id="thematic-break" style-ref="table-divider" class="carve-thematic-break">
+      <match>^[ \t]*-{3,}[ \t]*$</match>
     </context>
     <context id="definition-term" style-ref="definition-term" class="carve-definition-term">
       <match>^[ \t]*:: [^\r\n]*\S[^\r\n]*$</match>
@@ -134,6 +137,7 @@
         <context ref="quote-marker"/>
         <context ref="table-row"/>
         <context ref="frontmatter"/>
+        <context ref="thematic-break"/>
         <context ref="definition-term"/>
         <context ref="definition-marker"/>
         <context ref="fenced-code"/>
