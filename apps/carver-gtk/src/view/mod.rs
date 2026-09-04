@@ -2,21 +2,24 @@
 
 use std::cell::{Cell, RefCell};
 
-use carver_sdk::{CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::mvu::{AppModel, EditorSaveState, LoadState, MoveUndo, Route};
+use crate::mvu::{
+    ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, LoadState, MoveUndo, Route,
+};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
-type SidebarSnapshot = (LoadState<Vec<CategorySummary>>, Option<CategoryId>);
+type SidebarSnapshot = (
+    LoadState<Vec<carver_sdk::CategorySummary>>,
+    Option<carver_sdk::CategoryId>,
+);
 
 /// GTK references used to render the high-level MVU resources.
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
     route_stack: gtk::Stack,
-    sidebar_list: Option<gtk::ListBox>,
     browser_list: Option<gtk::ListBox>,
     browser_pages: Option<gtk::Stack>,
     browser_search_empty_card: Option<gtk::Box>,
@@ -28,6 +31,7 @@ pub struct ViewRefs {
     empty_trash_button: Option<gtk::Button>,
     trash_status: adw::StatusPage,
     toast_overlay: Option<adw::ToastOverlay>,
+    dispatcher: Option<AppDispatcher>,
     last_notice: RefCell<Option<String>>,
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
@@ -48,7 +52,6 @@ impl ViewRefs {
     ) -> Self {
         Self {
             route_stack,
-            sidebar_list: None,
             browser_list: None,
             browser_pages: None,
             browser_search_empty_card: None,
@@ -60,6 +63,7 @@ impl ViewRefs {
             empty_trash_button: None,
             trash_status,
             toast_overlay: None,
+            dispatcher: None,
             last_notice: RefCell::new(None),
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
@@ -92,18 +96,23 @@ impl ViewRefs {
         self
     }
 
-    /// Adds the browser and sidebar widgets created by the legacy composition shell.
+    /// Adds the window-local message dispatcher used by rendered contextual actions.
     #[must_use]
-    pub fn with_browser_and_sidebar(
+    pub fn with_dispatcher(mut self, dispatcher: AppDispatcher) -> Self {
+        self.dispatcher = Some(dispatcher);
+        self
+    }
+
+    /// Adds the browser widgets created by the window composition.
+    #[must_use]
+    pub fn with_browser(
         mut self,
-        sidebar_list: gtk::ListBox,
         browser_list: gtk::ListBox,
         browser_pages: gtk::Stack,
         browser_search_empty_card: gtk::Box,
         browser_empty_new_note_button: gtk::Button,
         browser_title: adw::WindowTitle,
     ) -> Self {
-        self.sidebar_list = Some(sidebar_list);
         self.browser_list = Some(browser_list);
         self.browser_pages = Some(browser_pages);
         self.browser_search_empty_card = Some(browser_search_empty_card);
@@ -112,7 +121,7 @@ impl ViewRefs {
         self
     }
 
-    /// Uses the composition shell's full category-row renderer for changed MVU snapshots.
+    /// Uses the complete category-row renderer for changed MVU snapshots.
     #[must_use]
     pub fn with_sidebar_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
         self.sidebar_renderer = Some(Box::new(renderer));
@@ -154,43 +163,11 @@ impl ViewRefs {
     fn render_sidebar(&self, model: &AppModel) {
         if let Some(renderer) = &self.sidebar_renderer {
             let snapshot = (model.sidebar.state.clone(), model.selected_category);
-            let mut last_snapshot = self.last_sidebar_snapshot.borrow_mut();
-            if last_snapshot.as_ref() != Some(&snapshot) {
+            let changed = self.last_sidebar_snapshot.borrow().as_ref() != Some(&snapshot);
+            if changed {
+                self.last_sidebar_snapshot.replace(Some(snapshot));
                 renderer(model);
-                *last_snapshot = Some(snapshot);
             }
-            return;
-        }
-        let Some(list) = self.sidebar_list.as_ref() else {
-            return;
-        };
-        while let Some(child) = list.first_child() {
-            list.remove(&child);
-        }
-        let LoadState::Ready(categories) = &model.sidebar.state else {
-            let row = gtk::ListBoxRow::new();
-            row.set_selectable(false);
-            let label = gtk::Label::new(Some(resource_label(
-                &model.sidebar.state,
-                "No categories yet",
-            )));
-            label.set_margin_top(12);
-            label.set_margin_bottom(12);
-            row.set_child(Some(&label));
-            list.append(&row);
-            return;
-        };
-        let all_count = categories
-            .iter()
-            .map(|summary| summary.note_count)
-            .sum::<usize>();
-        list.append(&sidebar_row("All notes", all_count, None));
-        for summary in categories {
-            list.append(&sidebar_row(
-                &summary.category.name,
-                summary.note_count,
-                Some(summary.category.id),
-            ));
         }
     }
 
@@ -249,7 +226,12 @@ impl ViewRefs {
                 pages.set_visible_child_name("contents");
                 let show_category = model.selected_category.is_none();
                 for note in notes {
-                    list.append(&browser_row(note, show_category));
+                    list.append(&browser_row(
+                        note,
+                        show_category,
+                        &model.sidebar.state,
+                        self.dispatcher.as_ref(),
+                    ));
                 }
             }
             LoadState::Loading(_) if list.first_child().is_some() => {
@@ -408,37 +390,18 @@ fn resource_label<T>(resource: &LoadState<T>, empty: &'static str) -> &'static s
     }
 }
 
-fn sidebar_row(
-    name: &str,
-    count: usize,
-    category_id: Option<carver_sdk::CategoryId>,
-) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_selectable(true);
-    if let Some(category_id) = category_id {
-        row.set_widget_name(&format!("category:{category_id}"));
-    }
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    content.set_margin_start(16);
-    content.set_margin_end(16);
-    content.set_margin_top(6);
-    content.set_margin_bottom(6);
-    let label = gtk::Label::new(Some(name));
-    label.set_xalign(0.0);
-    label.set_hexpand(true);
-    content.append(&label);
-    content.append(&gtk::Label::new(Some(&format!("{count}"))));
-    row.set_child(Some(&content));
-    row
-}
-
 fn clear_list(list: &gtk::ListBox) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
 }
 
-fn browser_row(note: &carver_sdk::NoteSummary, show_category: bool) -> gtk::ListBoxRow {
+fn browser_row(
+    note: &carver_sdk::NoteSummary,
+    show_category: bool,
+    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
+    dispatcher: Option<&AppDispatcher>,
+) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("note:{}", note.id));
     row.add_css_class("note-card");
@@ -448,8 +411,56 @@ fn browser_row(note: &carver_sdk::NoteSummary, show_category: bool) -> gtk::List
     content.set_margin_top(10);
     content.set_margin_bottom(10);
     content.append(&crate::browser::note_card_details(note, show_category));
+    if let (LoadState::Ready(categories), Some(dispatcher)) = (sidebar, dispatcher) {
+        content.append(&note_actions(note, categories, dispatcher));
+    }
     row.set_child(Some(&content));
     row
+}
+
+fn note_actions(
+    note: &carver_sdk::NoteSummary,
+    categories: &[carver_sdk::CategorySummary],
+    dispatcher: &AppDispatcher,
+) -> gtk::MenuButton {
+    let menu = gtk::MenuButton::new();
+    menu.set_widget_name(&format!("note-menu:{}", note.id));
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some("Note actions"));
+    menu.add_css_class("flat");
+    let popover = gtk::Popover::new();
+    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    for category in categories {
+        if category.category.id == note.category_id {
+            continue;
+        }
+        let move_button = gtk::Button::with_label(&format!("Move to {}", category.category.name));
+        move_button.add_css_class("flat");
+        let dispatcher = dispatcher.clone();
+        let note_id = note.id;
+        let source_category_id = note.category_id;
+        let category_id = category.category.id;
+        move_button.connect_clicked(move |_| {
+            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::MoveNote {
+                note_id,
+                source_category_id,
+                category_id,
+            }));
+        });
+        actions.append(&move_button);
+    }
+    let trash_button = gtk::Button::with_label("Move to Trash");
+    trash_button.add_css_class("flat");
+    trash_button.add_css_class("destructive-action");
+    let dispatcher = dispatcher.clone();
+    let note_id = note.id;
+    trash_button.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::TrashNote(note_id)));
+    });
+    actions.append(&trash_button);
+    popover.set_child(Some(&actions));
+    menu.set_popover(Some(&popover));
+    menu
 }
 
 fn append_section_heading(list: &gtk::ListBox, text: &str) {

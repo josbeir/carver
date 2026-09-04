@@ -328,6 +328,10 @@ states remain visible.
 
 ### Part 12b: Remove legacy controller paths
 
+- **Completed:** the window now composes one MVU runtime directly; `AppState`, the controller,
+  note-move helper, callback registries, and direct browser/sidebar/trash refresh paths are gone.
+  Browser/sidebar/trash/editor actions dispatch typed messages, while `ViewRefs` and the sidebar
+  surface render immutable snapshots.
 - Delete `AppState`, legacy controller helpers, direct refresh calls, and widget callback registries.
 - Keep `main.rs` bootstrap-only.
 

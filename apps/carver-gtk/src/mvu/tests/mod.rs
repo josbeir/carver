@@ -2,7 +2,6 @@ use carver_config::{AppPaths, Config};
 use carver_sdk::LibraryClient;
 use carver_sdk::{CategoryId, NoteId, Revision};
 use carver_storage_sqlite::SqliteLibrary;
-use gtk::prelude::*;
 
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg,
@@ -36,6 +35,18 @@ fn startup_should_initialize_then_request_sidebar_and_browser_data() {
     );
     assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
     assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(2)));
+}
+
+#[test]
+fn new_note_should_create_in_the_selected_category() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+
+    assert_eq!(
+        update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote)),
+        vec![Effect::CreateNote { category_id }]
+    );
 }
 
 #[test]
@@ -914,7 +925,6 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     for name in ["browser", "editor", "trash"] {
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
     }
-    let sidebar_list = gtk::ListBox::new();
     let browser_list = gtk::ListBox::new();
     let browser_pages = gtk::Stack::new();
     let browser_status = libadwaita::StatusPage::new();
@@ -929,8 +939,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         client.clone(),
         AppModel::new(&Config::default()),
         crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new())
-            .with_browser_and_sidebar(
-                sidebar_list.clone(),
+            .with_browser(
                 browser_list,
                 browser_pages,
                 search_empty,
@@ -945,7 +954,6 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
     assert_eq!(client.categories()?.len(), 1);
-    assert!(sidebar_list.first_child().is_some());
 
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
         "needle".to_owned(),

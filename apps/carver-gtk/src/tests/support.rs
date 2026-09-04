@@ -1,17 +1,16 @@
 //! Shared fixtures and widget helpers for GTK tests.
 
-use std::{error::Error, rc::Rc};
+use std::error::Error;
 
-use carver_config::{AppPaths, Config};
+use carver_config::AppPaths;
 use carver_sdk::LibraryClient;
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use tempfile::TempDir;
 
-use crate::controller::AppState;
-
 pub(crate) type TestResult = Result<(), Box<dyn Error>>;
-pub(crate) type TestState = (TempDir, Rc<AppState>);
+pub(crate) type TestLibraryClient = LibraryClient<SqliteLibrary>;
+pub(crate) type TestState = (TempDir, TestLibraryClient);
 
 pub(crate) fn test_state() -> Result<TestState, Box<dyn Error>> {
     let temporary_directory = tempfile::tempdir()?;
@@ -22,10 +21,7 @@ pub(crate) fn test_state() -> Result<TestState, Box<dyn Error>> {
     };
     paths.ensure_exists()?;
     let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())?;
-    let client = LibraryClient::spawn(storage)?;
-    let _ = client.create_category("Notes")?;
-    let state = Rc::new(AppState::new(client, Config::default()));
-    Ok((temporary_directory, state))
+    Ok((temporary_directory, LibraryClient::spawn(storage)?))
 }
 
 pub(crate) fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {

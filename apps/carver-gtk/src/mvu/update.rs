@@ -26,6 +26,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 note_id,
             }]
         }
+        AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ShowTrash) => {
             model.route = super::Route::Trash;
             reload_trash(model).into_iter().collect()
@@ -206,6 +207,24 @@ fn persist_config_effect(model: &AppModel) -> Vec<Effect> {
     }]
 }
 
+fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
+    let category_id = model
+        .selected_category
+        .or_else(|| match &model.sidebar.state {
+            super::LoadState::Ready(categories) => {
+                categories.first().map(|category| category.category.id)
+            }
+            _ => None,
+        });
+    category_id.map_or_else(
+        || {
+            model.notice = Some(UiError::new("No category is available for the new note."));
+            Vec::new()
+        },
+        |category_id| vec![Effect::CreateNote { category_id }],
+    )
+}
+
 fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
@@ -300,13 +319,9 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
-        LibraryReply::ConfigPersisted { result } => {
-            if let Err(error) = result {
-                model.notice = Some(error);
-            }
-            Vec::new()
-        }
+        LibraryReply::ConfigPersisted { result } => update_config_persisted(model, result),
         LibraryReply::DefaultCategoryEnsured { result } => update_default_category(model, result),
+        LibraryReply::NoteCreated { result } => update_created_note(model, result),
         LibraryReply::ActionFinished { action, result } => {
             model.finish_action(action);
             match result {
@@ -399,6 +414,33 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_save(model, &request, result)
         }
     }
+}
+
+fn update_created_note(
+    model: &mut AppModel,
+    result: Result<carver_sdk::Note, UiError>,
+) -> Vec<Effect> {
+    match result {
+        Ok(note) => {
+            open_editor(model, note.id, note.revision, note.source);
+            model.route = super::Route::Editor;
+            [reload_sidebar(model), reload_browser(model)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
+}
+
+fn update_config_persisted(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
+    if let Err(error) = result {
+        model.notice = Some(error);
+    }
+    Vec::new()
 }
 
 fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {

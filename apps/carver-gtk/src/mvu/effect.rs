@@ -15,6 +15,11 @@ pub enum Effect {
     },
     /// Create the initial default category when a new library is empty.
     EnsureDefaultCategory,
+    /// Create a new note in an active category.
+    CreateNote {
+        /// Category that owns the note.
+        category_id: CategoryId,
+    },
     /// Wait before dispatching the current search timer identity.
     ScheduleSearch {
         /// Identity used to ignore a superseded debounce timer.

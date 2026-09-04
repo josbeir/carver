@@ -2,18 +2,18 @@
 
 use std::{
     cell::{Cell, RefCell},
+    path::Path,
     rc::Rc,
     time::Duration as StdDuration,
 };
 
-use carver_config::EditorMode;
+use carver_config::{Config, EditorMode};
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::BreakpointBinExt;
 use webkit6::prelude::*;
 
 use crate::{
-    controller::AppState,
     formatting,
     mvu::{AppDispatcher, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
     sidebar::sidebar_toggle_button,
@@ -159,12 +159,13 @@ impl EditorSurface {
     reason = "widget construction stays together so ownership and lifecycle are explicit"
 )]
 pub(crate) fn build_editor(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
+    config: &Config,
+    assets_dir: Option<&Path>,
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
 ) -> EditorSurface {
-    let allow_remote_images = state.config.borrow().images.load_remote_automatically;
-    let assets_dir = state.assets_dir.clone();
+    let allow_remote_images = config.images.load_remote_automatically;
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let toggle_sidebar = sidebar_toggle_button(split_view, "editor-toggle-categories-button");
@@ -230,25 +231,24 @@ pub(crate) fn build_editor(
     let source_buffer = gtk::TextBuffer::new(None);
     let source = text_view(&source_buffer, "source-editor", true);
     let rich = RichEditor::new(
-        assets_dir,
+        assets_dir.map(Path::to_path_buf),
         allow_remote_images,
-        &state.dispatcher,
+        dispatcher,
         &source_buffer,
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
-    let split_preview = build_preview(state.assets_dir.as_deref());
+    let split_preview = build_preview(assets_dir);
     split_preview.set_widget_name("source-split-preview");
-    let rendered_preview = build_preview(state.assets_dir.as_deref());
-    let rich_toolbar =
-        web::append_controls(&rich_format_bar, &rich, &state.dispatcher, toast_overlay);
+    let rendered_preview = build_preview(assets_dir);
+    let rich_toolbar = web::append_controls(&rich_format_bar, &rich, dispatcher, toast_overlay);
     rich.connect_selection_changed(move |selection| rich_toolbar.set_selection_state(&selection));
     formatting::append_source_controls(
         &source_format_bar,
         &source_buffer,
-        &state.dispatcher,
+        dispatcher,
         toast_overlay,
     );
     format_stack.add_named(&rich_format_bar, Some("rich"));
@@ -267,7 +267,7 @@ pub(crate) fn build_editor(
     view.set_content(Some(&editor_stack));
 
     connect_mode_buttons(
-        &state.dispatcher,
+        dispatcher,
         &rich_mode,
         &source_mode,
         &rendered_mode,
@@ -279,9 +279,9 @@ pub(crate) fn build_editor(
         &pages.split_supported,
         &rendering,
     );
-    connect_rich_fallback(&state.dispatcher, &rich);
+    connect_rich_fallback(dispatcher, &rich);
     connect_split_toggle(
-        &state.dispatcher,
+        dispatcher,
         &split_toggle,
         &editor_stack,
         &source,
@@ -296,14 +296,13 @@ pub(crate) fn build_editor(
         &pages.split_supported,
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
-    connect_theme_changes(&state.dispatcher);
-    connect_trash_action(&state.dispatcher, &trash);
-    connect_back_action(&state.dispatcher, &back);
-    connect_source_preview(&state.dispatcher, &source_buffer, &rendering);
-    let _source_image_paste = render::install_image_paste(&source, &state.dispatcher);
-    let _source_image_drop = render::install_image_drop(&source, &state.dispatcher, toast_overlay);
-    let _rich_image_drop =
-        render::install_image_drop(rich.view(), &state.dispatcher, toast_overlay);
+    connect_theme_changes(dispatcher);
+    connect_trash_action(dispatcher, &trash);
+    connect_back_action(dispatcher, &back);
+    connect_source_preview(dispatcher, &source_buffer, &rendering);
+    let _source_image_paste = render::install_image_paste(&source, dispatcher);
+    let _source_image_drop = render::install_image_drop(&source, dispatcher, toast_overlay);
+    let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, toast_overlay);
     let refs = EditorViewRefs {
         rich_mode,
         source_mode,

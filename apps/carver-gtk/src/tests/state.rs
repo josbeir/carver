@@ -1,95 +1,46 @@
-//! State, persistence, and storage-facing GTK tests.
-
-use crate::controller::{
-    active_category, create_next_category, create_note_for_active_category, open_note,
-    rename_category, save_current_note, store_pasted_image, trash_current_note,
-};
+//! Storage-facing regression tests for frontend fixtures.
 
 use super::support::{TestResult, test_state};
 
 #[test]
-fn state_actions_create_open_and_save_notes_without_reentrant_borrows() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let first_category = active_category(&state)?;
-    assert!(first_category.is_some());
-
-    let created = create_note_for_active_category(&state)?;
-    let Some(created) = created else {
-        panic!("a seeded library must have a category");
-    };
-    assert_eq!(
-        state.current_note.borrow().as_ref().map(|note| note.id),
-        Some(created.id)
-    );
-
-    let saved = save_current_note(&state, "# Regression note\nNo RefCell panic")?;
-    let Some(saved) = saved else {
-        panic!("the newly created note must remain active");
-    };
+fn library_fixture_should_create_open_and_save_notes() -> TestResult {
+    let (_temporary_directory, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let saved = client.save_note(created.id, created.revision, "# Regression note\nNo borrow")?;
     assert_eq!(saved.revision.0, 2);
-
-    state.current_note.take();
-    let reopened = open_note(&state, created.id)?;
-    assert_eq!(
-        reopened.as_ref().map(|note| note.source.as_str()),
-        Some("# Regression note\nNo RefCell panic")
-    );
-    assert_eq!(
-        reopened.as_ref().map(|note| note.updated_at),
-        Some(saved.updated_at)
-    );
-    assert_eq!(
-        reopened.as_ref().map(|note| note.revision),
-        Some(saved.revision)
-    );
+    let reopened = client.note(created.id)?.ok_or("saved note")?;
+    assert_eq!(reopened.source, "# Regression note\nNo borrow");
+    assert_eq!(reopened.updated_at, saved.updated_at);
     Ok(())
 }
 
 #[test]
-fn state_actions_create_numbered_categories() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let category = create_next_category(&state)?;
-    assert_eq!(category.name, "Category 2");
-    assert_eq!(state.client.categories()?.len(), 2);
-    Ok(())
-}
-
-#[test]
-fn state_actions_rename_categories_and_trash_notes() -> TestResult {
-    let (_temporary_directory, state) = test_state()?;
-    let category = state.client.categories()?.remove(0);
-    let renamed = rename_category(&state, category.id, "Work")?;
+fn library_fixture_should_rename_categories_and_restore_notes() -> TestResult {
+    let (_temporary_directory, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let renamed = client.rename_category(category.id, "Work")?;
     assert_eq!(renamed.name, "Work");
-
-    let created = create_note_for_active_category(&state)?;
-    assert!(created.is_some());
-    let Some(created) = created else {
-        return Ok(());
-    };
-    assert!(trash_current_note(&state)?);
-    assert!(state.current_note.borrow().is_none());
-    assert!(state.client.recent_notes(None, 10, 0)?.is_empty());
-    state.client.restore_note(created.id)?;
-    assert_eq!(state.client.recent_notes(None, 10, 0)?.len(), 1);
+    let created = client.create_note(category.id)?;
+    client.trash_note(created.id)?;
+    assert!(client.recent_notes(None, 10, 0)?.is_empty());
+    client.restore_note(created.id)?;
+    assert_eq!(client.recent_notes(None, 10, 0)?.len(), 1);
     Ok(())
 }
 
 #[test]
-fn state_action_stores_pasted_images_for_the_active_note() -> TestResult {
-    let (temporary_directory, state) = test_state()?;
-    let created = create_note_for_active_category(&state)?;
-    assert!(created.is_some());
-    let image_path = store_pasted_image(&state, b"test-png-bytes")?;
-    assert!(image_path.is_some());
-    let Some(image_path) = image_path else {
-        return Ok(());
-    };
+fn library_fixture_should_store_managed_images() -> TestResult {
+    let (temporary_directory, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let note = client.create_note(category.id)?;
+    let image_path = client.store_asset(note.id, "png", b"test-png-bytes")?;
     assert!(image_path.starts_with("assets/"));
     assert!(
         temporary_directory
             .path()
             .join("data")
-            .join(&image_path)
+            .join(image_path)
             .is_file()
     );
     Ok(())

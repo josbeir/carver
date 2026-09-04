@@ -1,28 +1,27 @@
 //! Application bootstrap and top-level window composition.
 
-use std::{
-    path::{Path, PathBuf},
-    rc::Rc,
-};
+use std::path::Path;
 
 use adw::prelude::*;
-use carver_config::{AppPaths, load, save};
+use carver_config::{AppPaths, Config, load, save};
+use carver_sdk::LibraryClient;
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
     browser::build_content,
-    controller::{AppLibraryClient, AppState},
     dialogs::install_window_actions,
-    mvu::{AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
-    sidebar::{build_sidebar, render_mvu_sidebar},
+    mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
+    sidebar::build_sidebar,
     view::ViewRefs,
 };
 
 pub(crate) const APPLICATION_ID: &str = "io.github.josbeir.Carver";
 const APPLICATION_NAME: &str = "Carver";
 pub(crate) const APPLICATION_ICON: &str = "io.github.josbeir.Carver";
+
+type AppLibraryClient = LibraryClient<SqliteLibrary>;
 
 /// Runs the Libadwaita application.
 pub(crate) fn run() -> glib::ExitCode {
@@ -48,13 +47,13 @@ fn build_application(application: &adw::Application) {
             return;
         }
     };
-
-    let state = Rc::new(AppState::new_with_assets(
+    build_window(
+        application,
         client,
-        config,
-        Some(paths.assets_dir()),
-    ));
-    build_window(application, &state, &config_path);
+        &config,
+        Some(paths.assets_dir()).as_deref(),
+        Some(config_path).as_deref(),
+    );
 }
 
 fn load_styles() {
@@ -86,143 +85,89 @@ fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {
     paths.ensure_exists().map_err(|error| error.to_string())?;
     let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())
         .map_err(|error| error.to_string())?;
-    AppLibraryClient::spawn(storage).map_err(|error| error.to_string())
+    LibraryClient::spawn(storage).map_err(|error| error.to_string())
 }
 
 fn build_window(
     application: &adw::Application,
-    state: &Rc<AppState>,
-    config_path: &Path,
+    client: AppLibraryClient,
+    config: &Config,
+    assets_dir: Option<&Path>,
+    config_path: Option<&Path>,
 ) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
-    let window_config = state.config.borrow().window.clone();
-    window.set_default_size(window_config.width, window_config.height);
-    window.set_maximized(window_config.maximized);
-    install_window_actions(&window, state, config_path);
-
+    window.set_default_size(config.window.width, config.window.height);
+    window.set_maximized(config.window.maximized);
+    let dispatcher = AppDispatcher::default();
     let toast_overlay = adw::ToastOverlay::new();
     let split_view = adw::NavigationSplitView::new();
     split_view.set_show_content(true);
-    split_view.set_collapsed(window_config.sidebar_collapsed);
-
-    let sidebar = build_sidebar(state, &split_view);
-    let (content, editor_view) = build_content(state, &split_view, &toast_overlay).into_parts();
-    let sidebar_page = adw::NavigationPage::new(&sidebar, "Categories");
-    let content_page = adw::NavigationPage::new(&content, "Notes");
-    // The content page has an explicit sidebar control in every view. Avoid
-    // NavigationSplitView adding a visually identical back affordance.
+    split_view.set_collapsed(config.window.sidebar_collapsed);
+    let sidebar = build_sidebar(&dispatcher, &split_view);
+    let content = build_content(&dispatcher, config, assets_dir, &split_view, &toast_overlay);
+    let sidebar_page = adw::NavigationPage::new(&sidebar.widget, "Categories");
+    let content_page = adw::NavigationPage::new(&content.widget, "Notes");
     content_page.set_can_pop(false);
     split_view.set_sidebar(Some(&sidebar_page));
     split_view.set_content(Some(&content_page));
-
     toast_overlay.set_child(Some(&split_view));
     window.set_content(Some(&toast_overlay));
-    install_mvu_runtime(state, editor_view, Some(config_path.to_path_buf()));
-    let state_for_close = Rc::clone(state);
+
+    let sidebar_for_render = sidebar.clone();
+    let view = ViewRefs::new(
+        content.route_stack,
+        content.browser.status.clone(),
+        content.trash.status.clone(),
+    )
+    .with_browser(
+        content.browser.list,
+        content.browser.pages,
+        content.browser.search_empty_card,
+        content.browser.empty_new_note_button,
+        content.browser.title,
+    )
+    .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
+    .with_editor(content.editor)
+    .with_trash(
+        content.trash.list,
+        content.trash.pages,
+        content.trash.empty_button,
+    )
+    .with_toast_overlay(toast_overlay)
+    .with_dispatcher(dispatcher.clone());
+    let runtime = AppRuntime::new_with_config_path(
+        client,
+        AppModel::new(config),
+        view,
+        config_path.map(Path::to_path_buf),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    install_window_actions(&window, &dispatcher, &runtime);
+    let dispatcher_for_close = dispatcher.clone();
+    let runtime_for_close = runtime.clone();
     window.connect_close_request(move |window| {
-        let _ = state_for_close.dispatch_mvu(AppMsg::Window(WindowMsg::SaveGeometry {
+        let _ = dispatcher_for_close.dispatch(AppMsg::Window(WindowMsg::SaveGeometry {
             width: window.default_width(),
             height: window.default_height(),
             maximized: window.is_maximized(),
         }));
+        let _ = runtime_for_close.model();
         glib::Propagation::Proceed
     });
+    let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     window.present();
     window
 }
 
-fn install_mvu_runtime(
-    state: &Rc<AppState>,
-    editor_view: crate::editor::EditorViewRefs,
-    config_path: Option<PathBuf>,
-) {
-    let (
-        Some(route_stack),
-        Some(sidebar_list),
-        Some(browser_list),
-        Some(browser_pages),
-        Some(browser_search_empty_card),
-        Some(browser_empty_new_note_button),
-        Some(browser_title),
-        Some(browser_status),
-        Some(trash_status),
-        Some(toast_overlay),
-    ) = (
-        state.browser_stack.borrow().clone(),
-        state.sidebar_list.borrow().clone(),
-        state.browser_list.borrow().clone(),
-        state.browser_content_stack.borrow().clone(),
-        state.browser_search_empty_card.borrow().clone(),
-        state.browser_empty_new_note_button.borrow().clone(),
-        state.browser_title.borrow().clone(),
-        state.browser_status.borrow().clone(),
-        state.trash_status.borrow().clone(),
-        state.browser_toast_overlay.borrow().clone(),
-    )
-    else {
-        return;
-    };
-    let (Some(trash_list), Some(trash_pages), Some(empty_trash_button)) = (
-        state.trash_list.borrow().clone(),
-        state.trash_content_stack.borrow().clone(),
-        state.empty_trash_button.borrow().clone(),
-    ) else {
-        return;
-    };
-    let state_for_sidebar_renderer = Rc::downgrade(state);
-    let view = ViewRefs::new(route_stack, browser_status, trash_status)
-        .with_browser_and_sidebar(
-            sidebar_list,
-            browser_list,
-            browser_pages,
-            browser_search_empty_card,
-            browser_empty_new_note_button,
-            browser_title,
-        )
-        .with_sidebar_renderer(move |model| {
-            if let Some(state) = state_for_sidebar_renderer.upgrade() {
-                render_mvu_sidebar(&state, model);
-            }
-        })
-        .with_editor(editor_view)
-        .with_trash(trash_list, trash_pages, empty_trash_button)
-        .with_toast_overlay(toast_overlay);
-    let model = AppModel::new(&state.config.borrow());
-    if state.install_mvu_runtime(AppRuntime::new_with_config_path(
-        state.client.clone(),
-        model,
-        view,
-        config_path,
-    )) {
-        let _ = state.dispatch_mvu(AppMsg::Navigation(NavigationMsg::Started));
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn install_mvu_runtime_for_test(
-    state: &Rc<AppState>,
-    editor_view: crate::editor::EditorViewRefs,
-) {
-    install_mvu_runtime(state, editor_view, None);
-}
-
-/// Builds the complete application window inside the shared GTK integration scenario.
-///
-/// Keeping this test-only seam here lets the scenario exercise private startup wiring
-/// on its one initialized GTK thread.
 #[cfg(test)]
 pub(crate) fn build_window_for_test(
     application: &adw::Application,
-    state: &Rc<AppState>,
+    client: AppLibraryClient,
+    config: &Config,
     config_path: &Path,
 ) -> adw::ApplicationWindow {
     load_styles();
-    build_window(application, state, config_path)
-}
-
-#[cfg(test)]
-pub(crate) fn open_library_for_test(paths: &AppPaths) -> Result<AppLibraryClient, String> {
-    open_library(paths)
+    build_window(application, client, config, None, Some(config_path))
 }

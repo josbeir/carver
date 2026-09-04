@@ -1,29 +1,29 @@
 //! In-app trash browser and recovery actions.
 
-use std::rc::Rc;
-
 use adw::prelude::*;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    controller::AppState,
-    mvu::{AppMsg, NavigationMsg, TrashMsg},
-};
+use crate::mvu::{AppDispatcher, AppMsg, NavigationMsg, TrashMsg};
+
+/// Widget references needed to render the trash portion of a window snapshot.
+pub(crate) struct TrashViewRefs {
+    pub(crate) list: gtk::ListBox,
+    pub(crate) pages: gtk::Stack,
+    pub(crate) status: adw::StatusPage,
+    pub(crate) empty_button: gtk::Button,
+}
 
 /// Builds the recoverable in-app trash page.
-pub(crate) fn build_trash(state: &Rc<AppState>, stack: &gtk::Stack) -> gtk::Widget {
+pub(crate) fn build_trash(dispatcher: &AppDispatcher) -> (gtk::Widget, TrashViewRefs) {
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name("back-from-trash-button");
     back.set_tooltip_text(Some("Back to notes"));
-    let stack_for_back = stack.clone();
-    let state_for_back = Rc::clone(state);
+    let dispatcher_for_back = dispatcher.clone();
     back.connect_clicked(move |_| {
-        if !state_for_back.dispatch_mvu(AppMsg::Navigation(NavigationMsg::ShowBrowser)) {
-            stack_for_back.set_visible_child_name("browser");
-        }
+        let _ = dispatcher_for_back.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser));
     });
     header.pack_start(&back);
     header.set_title_widget(Some(&adw::WindowTitle::new(
@@ -57,37 +57,35 @@ pub(crate) fn build_trash(state: &Rc<AppState>, stack: &gtk::Stack) -> gtk::Widg
     pages.add_named(&clamp, Some("contents"));
     view.set_content(Some(&pages));
 
-    state.trash_list.replace(Some(list));
-    state.trash_content_stack.replace(Some(pages));
-    state.trash_status.replace(Some(status));
-    state.empty_trash_button.replace(Some(empty.clone()));
-    connect_empty_action(state, &empty);
-    refresh_trash(state);
-    view.upcast()
+    connect_empty_action(dispatcher, &empty);
+    (
+        view.upcast(),
+        TrashViewRefs {
+            list,
+            pages,
+            status,
+            empty_button: empty,
+        },
+    )
 }
 
-/// Refreshes visible trash data after a recovery or deletion action.
-pub(crate) fn refresh_trash(state: &Rc<AppState>) {
-    let _ = state.dispatch_mvu(AppMsg::Trash(TrashMsg::Reload));
-}
-
-fn connect_empty_action(state: &Rc<AppState>, button: &gtk::Button) {
-    let state_for_empty = Rc::clone(state);
+fn connect_empty_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
+    let dispatcher = dispatcher.clone();
     button.connect_clicked(move |button| {
         let dialog = adw::AlertDialog::new(
             Some("Empty Trash?"),
             Some(
-            "All trashed notes, categories, and unreferenced images will be permanently deleted.",
+                "All trashed notes, categories, and unreferenced images will be permanently deleted.",
             ),
         );
         dialog.add_responses(&[("cancel", "Cancel"), ("empty", "Empty Trash")]);
         dialog.set_response_appearance("empty", adw::ResponseAppearance::Destructive);
         dialog.set_default_response(Some("cancel"));
         dialog.set_close_response("cancel");
-        let state = Rc::clone(&state_for_empty);
+        let dispatcher = dispatcher.clone();
         dialog.connect_response(None, move |_dialog, response| {
             if response == "empty" {
-                let _ = state.dispatch_mvu(AppMsg::Trash(TrashMsg::Empty));
+                let _ = dispatcher.dispatch(AppMsg::Trash(TrashMsg::Empty));
             }
         });
         dialog.present(button.root().as_ref());

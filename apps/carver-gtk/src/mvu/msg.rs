@@ -39,6 +39,8 @@ pub enum NavigationMsg {
     SelectCategory(Option<CategoryId>),
     /// Load a note into the editor.
     OpenNote(NoteId),
+    /// Create a note in the selected category, or the first active category.
+    CreateNote,
     /// Show the trash surface.
     ShowTrash,
     /// Return to the browser surface.
@@ -213,6 +215,11 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A newly created note is ready to open in the editor.
+    NoteCreated {
+        /// Created note or a displayable failure.
+        result: Result<carver_sdk::Note, UiError>,
+    },
     /// A configuration save completed.
     ConfigPersisted {
         /// Successful completion or an error that must remain visible.

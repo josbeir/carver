@@ -126,6 +126,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         match effect {
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
+            Effect::CreateNote { category_id } => self.create_note(category_id),
             Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
             Effect::ScheduleEditorSave {
                 session,
@@ -239,6 +240,18 @@ impl<B: LibraryBackend> AppRuntime<B> {
             runtime.dispatch(AppMsg::Library(LibraryReply::DefaultCategoryEnsured {
                 result,
             }));
+        });
+    }
+
+    fn create_note(&self, category_id: carver_sdk::CategoryId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .create_note_async(category_id)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::NoteCreated { result }));
         });
     }
 

@@ -1,63 +1,74 @@
-//! Recent-note browser, search, and responsive content composition.
+//! Recent-note browser and responsive content composition.
 
-use std::rc::Rc;
-
-use carver_sdk::{NoteId, NoteSummary};
+use carver_config::Config;
+use carver_sdk::NoteSummary;
 use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
-    controller::AppState,
     editor::{EditorViewRefs, build_editor},
-    mvu::{ActionMsg, AppMsg, BrowserMsg, NavigationMsg},
-    note_move::show_move_note_dialog,
-    sidebar::{refresh_sidebar, sidebar_toggle_button},
-    trash::build_trash,
+    mvu::{AppDispatcher, AppMsg, BrowserMsg, NavigationMsg},
+    sidebar::sidebar_toggle_button,
+    trash::{TrashViewRefs, build_trash},
 };
 
-/// Builds the browser and editor stack for the content pane.
+/// Widget references needed to render the browser portion of a window snapshot.
+pub(crate) struct BrowserViewRefs {
+    pub(crate) list: gtk::ListBox,
+    pub(crate) pages: gtk::Stack,
+    pub(crate) search_empty_card: gtk::Box,
+    pub(crate) empty_new_note_button: gtk::Button,
+    pub(crate) title: adw::WindowTitle,
+    pub(crate) status: adw::StatusPage,
+}
+
+/// The complete content surface and the view references it creates.
 pub(crate) struct ContentSurface {
-    widget: gtk::Widget,
-    editor: EditorViewRefs,
+    pub(crate) widget: gtk::Widget,
+    pub(crate) route_stack: gtk::Stack,
+    pub(crate) editor: EditorViewRefs,
+    pub(crate) browser: BrowserViewRefs,
+    pub(crate) trash: TrashViewRefs,
 }
 
-impl ContentSurface {
-    pub(crate) fn into_parts(self) -> (gtk::Widget, EditorViewRefs) {
-        (self.widget, self.editor)
-    }
-}
-
+/// Builds the browser, editor, and trash pages for the content pane.
 pub(crate) fn build_content(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
+    config: &Config,
+    assets_dir: Option<&std::path::Path>,
     split_view: &adw::NavigationSplitView,
     toast_overlay: &adw::ToastOverlay,
 ) -> ContentSurface {
     let stack = gtk::Stack::new();
+    stack.set_widget_name("content-route-stack");
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
-    let browser = build_browser(state, &stack, split_view, toast_overlay);
+    let (browser, browser_refs) = build_browser(dispatcher, split_view);
     stack.add_named(&browser, Some("browser"));
-    let (editor, editor_refs) = build_editor(state, toast_overlay, split_view).into_parts();
+    let (editor, editor_refs) =
+        build_editor(dispatcher, config, assets_dir, toast_overlay, split_view).into_parts();
     stack.add_named(&editor, Some("editor"));
-    let trash = build_trash(state, &stack);
+    let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
     ContentSurface {
-        widget: stack.upcast(),
+        widget: stack.clone().upcast(),
+        route_stack: stack,
         editor: editor_refs,
+        browser: browser_refs,
+        trash: trash_refs,
     }
 }
 
 /// Builds the default recent-note and search view.
 pub(crate) fn build_browser(
-    state: &Rc<AppState>,
-    stack: &gtk::Stack,
+    dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
-    toast_overlay: &adw::ToastOverlay,
-) -> gtk::Widget {
+) -> (gtk::Widget, BrowserViewRefs) {
     let view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
     let title = adw::WindowTitle::new("Home", "All recent notes");
+    title.set_widget_name("browser-window-title");
     header.set_title_widget(Some(&title));
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
@@ -72,8 +83,10 @@ pub(crate) fn build_browser(
     app_menu.set_menu_model(Some(&menu));
     header.pack_end(&app_menu);
     header.pack_end(&new_note);
-    let toggle_sidebar = sidebar_toggle_button(split_view, "toggle-categories-button");
-    header.pack_start(&toggle_sidebar);
+    header.pack_start(&sidebar_toggle_button(
+        split_view,
+        "toggle-categories-button",
+    ));
     view.add_top_bar(&header);
 
     let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
@@ -130,51 +143,36 @@ pub(crate) fn build_browser(
     pages.add_named(&status, Some("empty"));
     view.set_content(Some(&pages));
 
-    state.browser_list.replace(Some(list.clone()));
-    state.browser_stack.replace(Some(stack.clone()));
-    state.browser_title.replace(Some(title));
-    state.browser_content_stack.replace(Some(pages));
-    state.browser_status.replace(Some(status));
-    state
-        .browser_search_empty_card
-        .replace(Some(search_empty_card));
-    state
-        .browser_empty_new_note_button
-        .replace(Some(empty_new_note.clone()));
-    state
-        .browser_toast_overlay
-        .replace(Some(toast_overlay.clone()));
-    refresh_browser(state);
-    connect_browser_actions(state, &search, &new_note, &empty_new_note, &list, stack);
-    view.upcast()
+    connect_browser_actions(dispatcher, &search, &new_note, &empty_new_note, &list);
+    (
+        view.upcast(),
+        BrowserViewRefs {
+            list,
+            pages,
+            search_empty_card,
+            empty_new_note_button: empty_new_note,
+            title,
+            status,
+        },
+    )
 }
 
 fn connect_browser_actions(
-    state: &Rc<AppState>,
+    dispatcher: &AppDispatcher,
     search: &gtk::SearchEntry,
     new_note: &gtk::Button,
     empty_new_note: &gtk::Button,
     list: &gtk::ListBox,
-    stack: &gtk::Stack,
 ) {
-    let state_for_search = Rc::clone(state);
+    let dispatcher_for_search = dispatcher.clone();
     search.connect_search_changed(move |entry| {
-        if state_for_search.is_mvu_rendering() {
-            return;
-        }
-        if state_for_search.dispatch_mvu(AppMsg::Browser(BrowserMsg::SearchChanged(
+        let _ = dispatcher_for_search.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
             entry.text().to_string(),
-        ))) {
-            return;
-        }
-        state_for_search
-            .search_query
-            .replace(entry.text().to_string());
-        refresh_browser(&state_for_search);
+        )));
     });
-    connect_new_note_action(state, stack, new_note);
-    connect_new_note_action(state, stack, empty_new_note);
-    let state_for_row = Rc::clone(state);
+    connect_new_note_action(dispatcher, new_note);
+    connect_new_note_action(dispatcher, empty_new_note);
+    let dispatcher_for_row = dispatcher.clone();
     list.connect_row_activated(move |_list, row| {
         let widget_name = row.widget_name();
         let Some(raw_id) = widget_name.strip_prefix("note:") else {
@@ -183,235 +181,20 @@ fn connect_browser_actions(
         let Ok(id) = uuid::Uuid::parse_str(raw_id) else {
             return;
         };
-        let _ = state_for_row.dispatch_mvu(AppMsg::Navigation(NavigationMsg::OpenNote(
-            NoteId::from_uuid(id),
+        let _ = dispatcher_for_row.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
+            carver_sdk::NoteId::from_uuid(id),
         )));
     });
 }
 
-fn connect_new_note_action(state: &Rc<AppState>, stack: &gtk::Stack, button: &gtk::Button) {
-    let state_for_new = Rc::clone(state);
-    let stack_for_new = stack.clone();
+fn connect_new_note_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
+    let dispatcher = dispatcher.clone();
     button.connect_clicked(move |_| {
-        let state = Rc::clone(&state_for_new);
-        let stack = stack_for_new.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            let category_id = match state.selected_category.get() {
-                Some(category_id) => Some(category_id),
-                None => client
-                    .categories_async()
-                    .await
-                    .ok()
-                    .and_then(|categories| categories.first().map(|category| category.id)),
-            };
-            let Some(category_id) = category_id else {
-                return;
-            };
-            if let Ok(note) = client.create_note_async(category_id).await {
-                state.current_note.replace(Some(note));
-                refresh_browser(&state);
-                refresh_sidebar(&state);
-                stack.set_visible_child_name("editor");
-            }
-        });
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
     });
 }
 
-/// Refreshes the browser widgets after a note or category action.
-pub(crate) fn refresh_browser(state: &Rc<AppState>) {
-    if state.dispatch_mvu(AppMsg::Browser(BrowserMsg::Reload)) {
-        return;
-    }
-    refresh_browser_title(state);
-    let (list, stack, pages, status, search_empty_card, empty_new_note, toast_overlay) = {
-        let Some(list) = state.browser_list.borrow().clone() else {
-            return;
-        };
-        let Some(stack) = state.browser_stack.borrow().clone() else {
-            return;
-        };
-        let Some(pages) = state.browser_content_stack.borrow().clone() else {
-            return;
-        };
-        let Some(status) = state.browser_status.borrow().clone() else {
-            return;
-        };
-        let Some(search_empty_card) = state.browser_search_empty_card.borrow().clone() else {
-            return;
-        };
-        let Some(empty_new_note) = state.browser_empty_new_note_button.borrow().clone() else {
-            return;
-        };
-        let Some(toast_overlay) = state.browser_toast_overlay.borrow().clone() else {
-            return;
-        };
-        (
-            list,
-            stack,
-            pages,
-            status,
-            search_empty_card,
-            empty_new_note,
-            toast_overlay,
-        )
-    };
-    refresh_note_list(
-        &list,
-        &pages,
-        &status,
-        &search_empty_card,
-        &empty_new_note,
-        &toast_overlay,
-        state,
-        &stack,
-    );
-}
-
-fn refresh_browser_title(state: &AppState) {
-    let Some(title) = state.browser_title.borrow().clone() else {
-        return;
-    };
-    let category_name = state.selected_category_name.borrow();
-    if let Some(category_name) = category_name.as_deref() {
-        title.set_title(category_name);
-        title.set_subtitle("Recently edited");
-    } else {
-        title.set_title("Home");
-        title.set_subtitle("All recent notes");
-    }
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "browser refresh keeps its established page widgets and snapshot data explicit"
-)]
-fn refresh_note_list(
-    list: &gtk::ListBox,
-    pages: &gtk::Stack,
-    status: &adw::StatusPage,
-    search_empty_card: &gtk::Box,
-    empty_new_note: &gtk::Button,
-    toast_overlay: &adw::ToastOverlay,
-    state: &Rc<AppState>,
-    _stack: &gtk::Stack,
-) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    search_empty_card.set_visible(false);
-    let query = state.search_query.borrow().trim().to_owned();
-    let search_is_active = !query.is_empty();
-    let category_id = state.selected_category.get();
-    let show_category = category_id.is_none();
-    let category_name = state.selected_category_name.borrow().clone();
-    let generation = state.browser_generation.get().saturating_add(1);
-    state.browser_generation.set(generation);
-    let state = Rc::clone(state);
-    let list = list.clone();
-    let pages = pages.clone();
-    let status = status.clone();
-    let search_empty_card = search_empty_card.clone();
-    let empty_new_note = empty_new_note.clone();
-    let toast_overlay = toast_overlay.clone();
-    let client = state.client.clone();
-    glib::spawn_future_local(async move {
-        let entries = if search_is_active {
-            client
-                .search_async(query, category_id, 200)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|hit| hit.note)
-                .collect()
-        } else {
-            client
-                .recent_notes_async(category_id, 200, 0)
-                .await
-                .unwrap_or_default()
-        };
-        if state.browser_generation.get() != generation {
-            return;
-        }
-        populate_note_list(
-            &list,
-            &pages,
-            &status,
-            &search_empty_card,
-            &empty_new_note,
-            &toast_overlay,
-            &state,
-            entries,
-            search_is_active,
-            show_category,
-            category_name.as_deref(),
-        );
-    });
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "browser refresh keeps its established page widgets and snapshot data explicit"
-)]
-fn populate_note_list(
-    list: &gtk::ListBox,
-    pages: &gtk::Stack,
-    status: &adw::StatusPage,
-    search_empty_card: &gtk::Box,
-    empty_new_note: &gtk::Button,
-    toast_overlay: &adw::ToastOverlay,
-    state: &Rc<AppState>,
-    entries: Vec<NoteSummary>,
-    search_is_active: bool,
-    show_category: bool,
-    category_name: Option<&str>,
-) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    if entries.is_empty() {
-        if search_is_active {
-            search_empty_card.set_visible(true);
-            pages.set_visible_child_name("contents");
-            return;
-        }
-        configure_empty_state(status, empty_new_note, category_name);
-        pages.set_visible_child_name("empty");
-        return;
-    }
-    search_empty_card.set_visible(false);
-    pages.set_visible_child_name("contents");
-    let mut previous_day = None;
-    for note in entries {
-        let day = local_day(note.updated_at);
-        if !search_is_active && previous_day != Some(day) {
-            let header = gtk::ListBoxRow::new();
-            header.set_selectable(false);
-            header.add_css_class("date-heading");
-            let label = gtk::Label::new(Some(&day_label(day)));
-            label.set_xalign(0.0);
-            label.add_css_class("date-heading-label");
-            header.set_child(Some(&label));
-            list.append(&header);
-            previous_day = Some(day);
-        }
-        let row = gtk::ListBoxRow::new();
-        row.set_widget_name(&format!("note:{}", note.id));
-        row.add_css_class("note-card");
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        content.set_margin_start(12);
-        content.set_margin_end(8);
-        content.set_margin_top(10);
-        content.set_margin_bottom(10);
-        let box_ = note_card_details(&note, show_category);
-        content.append(&box_);
-        content.append(&note_menu(state, &note, toast_overlay));
-        row.set_child(Some(&content));
-        list.append(&row);
-    }
-}
-
-/// Builds the shared note-card details used by both browser render paths.
+/// Builds the shared note-card details rendered from browser snapshots.
 pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk::Box {
     let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
     details.set_hexpand(true);
@@ -452,114 +235,10 @@ pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk:
     details
 }
 
-fn note_menu(
-    state: &Rc<AppState>,
-    note: &NoteSummary,
-    toast_overlay: &adw::ToastOverlay,
-) -> gtk::MenuButton {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name(&format!("note-menu:{}", note.id));
-    menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some("Note actions"));
-    menu.add_css_class("flat");
-    let popover = gtk::Popover::new();
-    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let move_button = overflow_menu_action("Move to Category…");
-    let state_for_move = Rc::clone(state);
-    let toast_for_move = toast_overlay.clone();
-    let note_for_move = note.clone();
-    let popover_for_move = popover.clone();
-    move_button.connect_clicked(move |button| {
-        popover_for_move.popdown();
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        show_move_note_dialog(
-            &state_for_move,
-            note_for_move.id,
-            note_for_move.category_id,
-            &note_for_move.title,
-            &toast_for_move,
-            parent.as_ref(),
-        );
-    });
-    actions.append(&move_button);
-    let trash_button = overflow_menu_action("Move to Trash");
-    trash_button.add_css_class("destructive-action");
-    let state_for_trash = Rc::clone(state);
-    let toast_for_trash = toast_overlay.clone();
-    let note_for_trash = note.clone();
-    let popover_for_trash = popover.clone();
-    trash_button.connect_clicked(move |_| {
-        popover_for_trash.popdown();
-        let state = Rc::clone(&state_for_trash);
-        if state.dispatch_mvu(AppMsg::Action(ActionMsg::TrashNote(note_for_trash.id))) {
-            return;
-        }
-        let toast = toast_for_trash.clone();
-        let client = state.client.clone();
-        glib::spawn_future_local(async move {
-            match client.trash_note_async(note_for_trash.id).await {
-                Ok(()) => {
-                    refresh_browser(&state);
-                    refresh_sidebar(&state);
-                    toast.add_toast(adw::Toast::new("Moved note to Trash"));
-                }
-                Err(error) => toast.add_toast(adw::Toast::new(&format!(
-                    "Could not move note to Trash: {error}"
-                ))),
-            }
-        });
-    });
-    actions.append(&trash_button);
-    popover.set_child(Some(&actions));
-    menu.set_popover(Some(&popover));
-    menu
-}
-
-fn overflow_menu_action(label: &str) -> gtk::Button {
-    let button = gtk::Button::new();
-    button.add_css_class("flat");
-    let label = gtk::Label::new(Some(label));
-    label.set_xalign(0.0);
-    label.set_margin_start(8);
-    label.set_margin_end(8);
-    button.set_child(Some(&label));
-    button
-}
-
-fn configure_empty_state(
-    status: &adw::StatusPage,
-    new_note: &gtk::Button,
-    category_name: Option<&str>,
-) {
-    let title = category_name.map_or_else(
-        || "No notes yet".to_owned(),
-        |category_name| format!("No notes in {category_name}"),
-    );
-    status.set_title(&title);
-    status.set_description(Some("Create a note to get started."));
-    status.set_icon_name(Some("document-new-symbolic"));
-    new_note.set_visible(true);
-}
-
 fn local_day(timestamp: OffsetDateTime) -> time::Date {
     timestamp
         .to_offset(UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC))
         .date()
-}
-
-fn day_label(day: time::Date) -> String {
-    let today = OffsetDateTime::now_utc()
-        .to_offset(UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC))
-        .date();
-    if day == today {
-        return "Today".to_owned();
-    }
-    if day == today - Duration::days(1) {
-        return "Yesterday".to_owned();
-    }
-    day.to_string()
 }
 
 fn card_excerpt(title: &str, excerpt: &str) -> String {
@@ -584,7 +263,6 @@ fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTime) -> Stri
     if elapsed_hours < 24 {
         return elapsed_label(elapsed_hours, "hour");
     }
-
     let day = local_day(updated_at);
     let today = local_day(now);
     if day == today - Duration::days(1) {

@@ -1,32 +1,30 @@
 //! GNOME dialogs and window-scoped actions.
 
-use std::{path::Path, rc::Rc};
-
 use adw::prelude::*;
 use carver_sdk::{CategoryId, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    controller::AppState,
-    mvu::{ActionMsg, AppMsg, EditorMsg, PreferencesMsg, TrashMsg},
+use crate::mvu::{
+    ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, PreferencesMsg, TrashMsg,
 };
+use carver_storage_sqlite::SqliteLibrary;
 
 /// Installs actions exposed from the application menu.
 pub(crate) fn install_window_actions(
     window: &adw::ApplicationWindow,
-    state: &Rc<AppState>,
-    config_path: &Path,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
 ) {
     let preferences = gtk::gio::SimpleAction::new("preferences", None);
-    let state_for_preferences = Rc::clone(state);
-    let path_for_preferences = config_path.to_owned();
+    let dispatcher_for_preferences = dispatcher.clone();
+    let config_for_preferences = runtime.model().config;
     let window_for_preferences = window.clone();
     preferences.connect_activate(move |_, _| {
         show_preferences_dialog(
             &window_for_preferences,
-            &state_for_preferences,
-            &path_for_preferences,
+            &dispatcher_for_preferences,
+            &config_for_preferences,
         );
     });
     window.add_action(&preferences);
@@ -36,44 +34,46 @@ pub(crate) fn install_window_actions(
     about.connect_activate(move |_, _| show_about_window(&window_for_about));
     window.add_action(&about);
 
-    install_trash_actions(window, state);
-    install_mvu_actions(window, state);
+    install_trash_actions(window, dispatcher);
+    install_mvu_actions(window, dispatcher, runtime);
 }
 
-fn install_mvu_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
+fn install_mvu_actions(
+    window: &impl IsA<gtk::Widget>,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
+) {
     let actions = gtk::gio::SimpleActionGroup::new();
     let undo_move = gtk::gio::SimpleAction::new("undo-move", None);
-    let state_for_undo = Rc::clone(state);
+    let dispatcher_for_undo = dispatcher.clone();
     undo_move.connect_activate(move |_, _| {
-        let _ = state_for_undo.dispatch_mvu(AppMsg::Action(ActionMsg::UndoMove));
+        let _ = dispatcher_for_undo.dispatch(AppMsg::Action(ActionMsg::UndoMove));
     });
     actions.add_action(&undo_move);
     let undo_trash_note = gtk::gio::SimpleAction::new("undo-trash-note", None);
-    let state_for_trash_undo = Rc::clone(state);
+    let dispatcher_for_trash_undo = dispatcher.clone();
+    let runtime_for_trash_undo = runtime.clone();
     undo_trash_note.connect_activate(move |_, _| {
-        let Some(note_id) = state_for_trash_undo
-            .mvu_model()
-            .and_then(|model| model.undo_trash_note)
-        else {
+        let Some(note_id) = runtime_for_trash_undo.model().undo_trash_note else {
             return;
         };
-        let _ = state_for_trash_undo.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
+        let _ = dispatcher_for_trash_undo.dispatch(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
     });
     actions.add_action(&undo_trash_note);
     let retry_save = gtk::gio::SimpleAction::new("retry-save", None);
-    let state_for_retry = Rc::clone(state);
+    let dispatcher_for_retry = dispatcher.clone();
     retry_save.connect_activate(move |_, _| {
-        let _ = state_for_retry.dispatch_mvu(AppMsg::Editor(EditorMsg::RetrySave));
+        let _ = dispatcher_for_retry.dispatch(AppMsg::Editor(EditorMsg::RetrySave));
     });
     actions.add_action(&retry_save);
     window.insert_action_group("mvu", Some(&actions));
 }
 
-fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
+fn install_trash_actions(window: &impl IsA<gtk::Widget>, dispatcher: &AppDispatcher) {
     let actions = gtk::gio::SimpleActionGroup::new();
     let restore_category =
         gtk::gio::SimpleAction::new("restore-category", Some(&String::static_variant_type()));
-    let state_for_category = Rc::clone(state);
+    let dispatcher_for_category = dispatcher.clone();
     restore_category.connect_activate(move |_, parameter| {
         let Some(category_id) = parameter
             .and_then(gtk::glib::Variant::get::<String>)
@@ -83,13 +83,13 @@ fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
             return;
         };
         let _ =
-            state_for_category.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreCategory(category_id)));
+            dispatcher_for_category.dispatch(AppMsg::Trash(TrashMsg::RestoreCategory(category_id)));
     });
     actions.add_action(&restore_category);
 
     let restore_note =
         gtk::gio::SimpleAction::new("restore-note", Some(&String::static_variant_type()));
-    let state_for_note = Rc::clone(state);
+    let dispatcher_for_note = dispatcher.clone();
     restore_note.connect_activate(move |_, parameter| {
         let Some(note_id) = parameter
             .and_then(gtk::glib::Variant::get::<String>)
@@ -98,24 +98,17 @@ fn install_trash_actions(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
         else {
             return;
         };
-        let _ = state_for_note.dispatch_mvu(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
+        let _ = dispatcher_for_note.dispatch(AppMsg::Trash(TrashMsg::RestoreNote(note_id)));
     });
     actions.add_action(&restore_note);
     window.insert_action_group("trash", Some(&actions));
 }
 
-#[cfg(test)]
-pub(crate) fn install_trash_actions_for_test(window: &impl IsA<gtk::Widget>, state: &Rc<AppState>) {
-    install_trash_actions(window, state);
-    install_mvu_actions(window, state);
-}
-
 fn show_preferences_dialog(
     parent: &adw::ApplicationWindow,
-    state: &Rc<AppState>,
-    _config_path: &Path,
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
 ) {
-    let config = state.config.borrow().clone();
     let dialog = adw::PreferencesDialog::new();
     dialog.set_search_enabled(false);
     let page = adw::PreferencesPage::new();
@@ -140,20 +133,32 @@ fn show_preferences_dialog(
     page.add(&group);
     dialog.add(&page);
 
-    let state_for_images = Rc::clone(state);
+    let dispatcher_for_images = dispatcher.clone();
     remote_images.connect_active_notify(move |remote_images| {
-        let _ = state_for_images.dispatch_mvu(AppMsg::Preferences(
+        let _ = dispatcher_for_images.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetRemoteImages(remote_images.is_active()),
         ));
     });
-    let state_for_delay = Rc::clone(state);
+    let dispatcher_for_delay = dispatcher.clone();
     autosave.connect_value_changed(move |autosave| {
         let delay_ms = u64::try_from(autosave.value_as_int()).unwrap_or(100);
-        let _ = state_for_delay.dispatch_mvu(AppMsg::Preferences(
+        let _ = dispatcher_for_delay.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetAutosaveDelay(delay_ms),
         ));
     });
     dialog.present(Some(parent));
+}
+
+#[cfg(test)]
+pub(crate) fn present_dialogs_for_test(
+    parent: &adw::ApplicationWindow,
+    config: &carver_config::Config,
+    dispatcher: &AppDispatcher,
+) {
+    show_preferences_dialog(parent, dispatcher, config);
+    show_about_window(parent);
+    show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
+    show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
 }
 
 fn show_about_window(parent: &adw::ApplicationWindow) {
@@ -234,20 +239,4 @@ pub(crate) fn category_trash_dialog(
         }
     });
     dialog
-}
-
-/// Presents every window-scoped dialog in the shared GTK integration scenario.
-///
-/// Libadwaita requires a single initialized display thread in tests, so these
-/// private constructors are exercised by the Weston-backed surface test.
-#[cfg(test)]
-pub(crate) fn present_dialogs_for_test(
-    parent: &adw::ApplicationWindow,
-    state: &Rc<AppState>,
-    config_path: &Path,
-) {
-    show_preferences_dialog(parent, state, config_path);
-    show_about_window(parent);
-    show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
-    show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
 }
