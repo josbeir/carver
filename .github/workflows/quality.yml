@@ -33,7 +33,7 @@ jobs:
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
-          libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev weston
+          libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev weston
       - name: Format
         run: cargo fmt --all -- --check
       - name: Build the bundled editor
@@ -90,6 +90,6 @@ jobs:
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
-          libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev
+          libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev
       - name: Check MSRV compatibility
         run: npm ci --prefix apps/carver-gtk/web && npm run build --prefix apps/carver-gtk/web && cargo check --workspace --all-targets --all-features --locked
