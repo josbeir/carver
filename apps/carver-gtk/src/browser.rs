@@ -1,5 +1,7 @@
 //! Recent-note browser and responsive content composition.
 
+use std::borrow::Cow;
+
 use carver_config::Config;
 use carver_sdk::NoteSummary;
 use gtk::prelude::*;
@@ -15,6 +17,51 @@ use crate::{
 };
 
 const MOUSE_BACK_BUTTON: u32 = 8;
+
+/// A relative calendar section used to group the recent-notes browser.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum NoteDateGroup {
+    /// Notes updated on the current local calendar day.
+    Today,
+    /// Notes updated on the previous local calendar day.
+    Yesterday,
+    /// Notes updated earlier in the current Monday-to-Sunday week.
+    ThisWeek,
+    /// Notes updated earlier in the current calendar month.
+    ThisMonth,
+    /// Notes updated earlier in the current calendar year.
+    EarlierThisYear,
+    /// Notes updated in a previous calendar year.
+    Year(i32),
+}
+
+impl NoteDateGroup {
+    /// Returns the user-visible heading for this group.
+    #[must_use]
+    pub(crate) fn label(self) -> Cow<'static, str> {
+        match self {
+            Self::Today => Cow::Borrowed("Today"),
+            Self::Yesterday => Cow::Borrowed("Yesterday"),
+            Self::ThisWeek => Cow::Borrowed("This Week"),
+            Self::ThisMonth => Cow::Borrowed("This Month"),
+            Self::EarlierThisYear => Cow::Borrowed("Earlier This Year"),
+            Self::Year(year) => Cow::Owned(year.to_string()),
+        }
+    }
+
+    /// Returns a stable widget-name suffix for this group.
+    #[must_use]
+    pub(crate) fn identifier(self) -> Cow<'static, str> {
+        match self {
+            Self::Today => Cow::Borrowed("today"),
+            Self::Yesterday => Cow::Borrowed("yesterday"),
+            Self::ThisWeek => Cow::Borrowed("this-week"),
+            Self::ThisMonth => Cow::Borrowed("this-month"),
+            Self::EarlierThisYear => Cow::Borrowed("earlier-this-year"),
+            Self::Year(year) => Cow::Owned(year.to_string()),
+        }
+    }
+}
 
 /// Widget references needed to render the browser portion of a window snapshot.
 pub(crate) struct BrowserViewRefs {
@@ -315,6 +362,32 @@ fn local_day(timestamp: OffsetDateTime) -> time::Date {
         .date()
 }
 
+/// Returns the relative calendar group for a note updated at `updated_at`.
+#[must_use]
+pub(crate) fn note_date_group(updated_at: OffsetDateTime, now: OffsetDateTime) -> NoteDateGroup {
+    note_date_group_for_days(local_day(updated_at), local_day(now))
+}
+
+fn note_date_group_for_days(updated_day: time::Date, today: time::Date) -> NoteDateGroup {
+    if updated_day >= today {
+        return NoteDateGroup::Today;
+    }
+    if updated_day == today - Duration::days(1) {
+        return NoteDateGroup::Yesterday;
+    }
+    let week_start = today - Duration::days(i64::from(today.weekday().number_days_from_monday()));
+    if updated_day >= week_start {
+        return NoteDateGroup::ThisWeek;
+    }
+    if updated_day.year() == today.year() && updated_day.month() == today.month() {
+        return NoteDateGroup::ThisMonth;
+    }
+    if updated_day.year() == today.year() {
+        return NoteDateGroup::EarlierThisYear;
+    }
+    NoteDateGroup::Year(updated_day.year())
+}
+
 /// Returns the one-line excerpt used by every note card.
 pub(crate) fn compact_note_excerpt(title: &str, excerpt: &str) -> String {
     let excerpt = excerpt.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -374,38 +447,4 @@ const fn month_name(month: Month) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
-    use time::macros::datetime;
-
-    use super::{compact_note_excerpt, relative_update_time};
-
-    #[test]
-    fn compact_note_excerpt_should_collapse_whitespace_and_omit_a_repeated_title() {
-        assert_eq!(
-            compact_note_excerpt("Heading 1", "Heading 1\n\n  Relevant   body text"),
-            "Relevant body text"
-        );
-    }
-
-    #[test]
-    fn relative_update_time_reports_seconds_before_a_minute() {
-        assert_eq!(
-            relative_update_time(
-                datetime!(2026-09-03 12:00:00 UTC),
-                datetime!(2026-09-03 12:00:30 UTC)
-            ),
-            "30 seconds ago"
-        );
-    }
-
-    #[test]
-    fn relative_update_time_uses_yesterday_for_the_previous_day() {
-        assert_eq!(
-            relative_update_time(
-                datetime!(2026-09-02 08:00:00 UTC),
-                datetime!(2026-09-03 12:00:00 UTC)
-            ),
-            "Yesterday"
-        );
-    }
-}
+mod tests;

@@ -334,11 +334,26 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_some_and(|title| title.title() == "Notes")
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
+    let destination_category_row = find_widget(
+        sidebar.upcast_ref(),
+        &format!("category:{}", destination.id),
+    )
+    .and_downcast::<gtk::ListBoxRow>()
+    .ok_or("destination category row")?;
+    sidebar.select_row(Some(&destination_category_row));
+    assert!(run_main_context_until(|| {
+        widget_as::<adw::WindowTitle>(&root, "browser-window-title")
+            .is_some_and(|title| title.title() == "Projects")
+            && find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "note-group:today").is_some()
+            && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
+    }));
     assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
     let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     sidebar.select_row(Some(&all_notes));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note-category:{}", note.id)).is_some()
+            && find_widget(&root, "note-group:today").is_some()
     }));
     let note_row = find_widget(&root, &format!("note:{}", note.id))
         .and_downcast::<gtk::ListBoxRow>()
@@ -776,6 +791,17 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             false
         )
         .contains("assets/second.png")));
+    source_mode.set_active(true);
+    source
+        .buffer()
+        .set_text("# Searchable note\n\nBrowser grouping");
+    assert!(run_main_context_until(|| client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(
+            |saved| saved.source == "# Searchable note\n\nBrowser grouping"
+        )));
     let open_trash = widget_as::<gtk::Button>(&root, "open-trash-button").ok_or("open trash")?;
     open_trash.emit_clicked();
     assert!(run_main_context_until(|| {
@@ -788,6 +814,17 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         route_stack.visible_child_name().as_deref() == Some("browser")
     }));
     let search = widget_as::<gtk::SearchEntry>(&root, "note-search-entry").ok_or("search")?;
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "note-group:today")
+                .and_downcast::<gtk::ListBoxRow>()
+                .is_some_and(|row| !row.is_selectable())
+    }));
+    search.set_text("Searchable");
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "note-group:today").is_none()
+    }));
     search.set_text("not-present");
     assert!(run_main_context_until(|| widget_as::<gtk::Box>(
         &root,
@@ -802,6 +839,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     .is_some_and(|card| !card.is_visible())));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "note-group:today").is_some()
     }));
     let moved_note_row = find_widget(&root, &format!("note:{}", note.id))
         .and_downcast::<gtk::ListBoxRow>()

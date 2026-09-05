@@ -4,6 +4,7 @@ use std::cell::{Cell, RefCell};
 
 use gtk::prelude::*;
 use libadwaita as adw;
+use time::OffsetDateTime;
 
 use crate::{
     dialogs::show_move_note_dialog,
@@ -228,7 +229,17 @@ impl ViewRefs {
                 empty_new_note.set_visible(true);
                 pages.set_visible_child_name("contents");
                 let show_category = model.selected_category.is_none();
+                let show_date_groups = model.browser.search_query.trim().is_empty();
+                let now = OffsetDateTime::now_utc();
+                let mut previous_group = None;
                 for note in notes {
+                    if show_date_groups {
+                        let group = crate::browser::note_date_group(note.updated_at, now);
+                        if previous_group != Some(group) {
+                            append_note_date_group_heading(list, group);
+                            previous_group = Some(group);
+                        }
+                    }
                     list.append(&browser_row(
                         note,
                         show_category,
@@ -478,6 +489,18 @@ fn append_section_heading(list: &gtk::ListBox, text: &str) {
     row.set_selectable(false);
     row.add_css_class("date-heading");
     let label = gtk::Label::new(Some(text));
+    label.set_xalign(0.0);
+    label.add_css_class("date-heading-label");
+    row.set_child(Some(&label));
+    list.append(&row);
+}
+
+fn append_note_date_group_heading(list: &gtk::ListBox, group: crate::browser::NoteDateGroup) {
+    let row = gtk::ListBoxRow::new();
+    row.set_widget_name(&format!("note-group:{}", group.identifier()));
+    row.set_selectable(false);
+    row.add_css_class("date-heading");
+    let label = gtk::Label::new(Some(&group.label()));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
     row.set_child(Some(&label));
