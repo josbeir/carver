@@ -46,10 +46,33 @@ Carver—turning them into a useful, organized project context instead of an iso
 - **Native GNOME by design**<br>
   Responsive GTK4/Libadwaita design with light/dark themes and accessible controls.
 
-## Getting started
+## Install
 
-Carver currently runs from source. It requires Rust 1.92 or newer, GTK 4.22+, Libadwaita
-1.9+, GtkSourceView 5, and WebKitGTK 6 development libraries.
+Download `carver-x86_64.flatpak` and `carver-x86_64.flatpak.sha256` from the
+[latest release](https://github.com/josbeir/carver/releases/latest). Verify the
+download, then install and launch Carver:
+
+```sh
+sha256sum -c carver-x86_64.flatpak.sha256
+flatpak install --user --or-update --bundle ./carver-x86_64.flatpak
+flatpak run io.github.josbeir.Carver
+```
+
+Carver needs the GNOME runtime. If Flatpak asks to add Flathub, accept the
+prompt; otherwise add it once with:
+
+```sh
+flatpak remote-add --if-not-exists --user flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+GitHub release bundles do not provide automatic updates yet. To update, download
+the bundle from a newer release and run the same install command.
+
+## Develop from source
+
+For development, Carver requires Rust 1.92 or newer, GTK 4.22+, Libadwaita 1.9+,
+GtkSourceView 5, and WebKitGTK 6 development libraries.
 
 ```sh
 git clone https://github.com/josbeir/carver.git
@@ -63,15 +86,6 @@ the local desktop assets once before launching it:
 ```bash
 ./scripts/install-dev-assets.sh
 ```
-
-## Distribution
-
-Carver has a reproducible Flatpak build for testing and CI. It builds both the
-desktop application and its optional local MCP server from the committed Rust
-and JavaScript lockfiles, with no dependency downloads during compilation. See
-[the Flatpak packaging guide](packaging/flatpak/README.md) to build a local
-bundle. CI uploads a test bundle for every push and pull request; it does not
-publish an application update or contact Flathub.
 
 ## Architecture
 
