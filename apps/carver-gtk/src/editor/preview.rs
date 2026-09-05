@@ -35,6 +35,7 @@ pub(super) fn build_preview(
     settings.set_enable_html5_database(false);
     settings.set_enable_html5_local_storage(false);
     settings.set_auto_load_images(true);
+    settings.set_print_backgrounds(false);
     let view = webkit6::WebView::builder()
         .web_context(&context)
         .user_content_manager(&manager)

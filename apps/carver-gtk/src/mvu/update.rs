@@ -181,6 +181,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
         EditorMsg::CopyRequested => request_editor_copy(model),
+        message @ (EditorMsg::ExportDialogRequested
+        | EditorMsg::ExportRequested { .. }
+        | EditorMsg::ExportConfirmed { .. }
+        | EditorMsg::ExportCancelled { .. }
+        | EditorMsg::PdfExportCompleted { .. }
+        | EditorMsg::PdfExportFailed { .. }
+        | EditorMsg::PdfExportCancelled { .. }
+        | EditorMsg::PrintRequested) => update_editor_export(model, message),
         EditorMsg::CopyCompleted {
             request_id,
             omitted_images,
@@ -195,26 +203,53 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             alt,
             source_selection,
         } => store_editor_asset_effect(model, extension, bytes, alt, source_selection),
-        EditorMsg::Close(session_id)
-            if model
-                .editor
-                .as_ref()
-                .is_some_and(|document| document.session == session_id) =>
-        {
-            model.route = super::Route::Browser;
-            model.editor = None;
-            model.editor_preview = None;
-            model.editor_copy_request = None;
-            model.preview_timer = None;
-            model.editor_load_request = None;
-            Vec::new()
-        }
-        EditorMsg::PreviewElapsed { .. } | EditorMsg::Close(_) => Vec::new(),
+        EditorMsg::Close(session_id) => close_editor(model, session_id),
+        EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
             model.editor_theme_revision = model.editor_theme_revision.wrapping_add(1);
             Vec::new()
         }
     }
+}
+
+fn update_editor_export(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
+    match message {
+        EditorMsg::ExportDialogRequested => request_editor_export_dialog(model),
+        EditorMsg::ExportRequested {
+            request_id,
+            format,
+            include_assets,
+            target_uri,
+        } => request_editor_export(model, request_id, format, include_assets, target_uri),
+        EditorMsg::ExportConfirmed { request_id } => confirm_editor_export(model, request_id),
+        EditorMsg::ExportCancelled { request_id } => cancel_editor_export(model, request_id),
+        EditorMsg::PdfExportCompleted { request_id } => complete_pdf_export(model, request_id),
+        EditorMsg::PdfExportFailed { request_id } => fail_pdf_export(model, request_id),
+        EditorMsg::PdfExportCancelled { request_id } => cancel_pdf_export(model, request_id),
+        EditorMsg::PrintRequested => request_editor_print(model),
+        _ => Vec::new(),
+    }
+}
+
+fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec<Effect> {
+    if model
+        .editor
+        .as_ref()
+        .is_none_or(|document| document.session != session_id)
+    {
+        return Vec::new();
+    }
+    model.route = super::Route::Browser;
+    model.editor = None;
+    model.editor_preview = None;
+    model.editor_copy_request = None;
+    model.editor_export_dialog_request = None;
+    model.editor_export_warning_request = None;
+    model.editor_export_progress = None;
+    model.editor_pdf_export_request = None;
+    model.preview_timer = None;
+    model.editor_load_request = None;
+    Vec::new()
 }
 
 fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
@@ -264,6 +299,10 @@ fn open_editor(
     ));
     model.editor_preview = Some(super::EditorPreview { session, source });
     model.editor_copy_request = None;
+    model.editor_export_dialog_request = None;
+    model.editor_export_warning_request = None;
+    model.editor_export_progress = None;
+    model.editor_pdf_export_request = None;
     model.preview_timer = None;
 }
 
@@ -316,6 +355,146 @@ fn fail_copy_request(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
     Vec::new()
 }
 
+fn request_editor_export_dialog(model: &mut AppModel) -> Vec<Effect> {
+    let Some((session, note_id, source)) = model
+        .editor
+        .as_ref()
+        .map(|document| (document.session, document.note_id, document.source.clone()))
+    else {
+        return Vec::new();
+    };
+    let request = super::EditorExportDialogRequest {
+        request_id: model.next_editor_export_request_id(),
+        session,
+        note_id,
+        source: source.clone(),
+        filename_stem: carver_export::sanitized_filename_stem(
+            &carver_domain::derive_content(&source).title,
+        ),
+    };
+    model.editor_export_dialog_request = Some(request);
+    Vec::new()
+}
+
+fn request_editor_export(
+    model: &mut AppModel,
+    request_id: u64,
+    format: super::EditorExportFormat,
+    include_assets: bool,
+    target_uri: String,
+) -> Vec<Effect> {
+    let Some(request) = model
+        .editor_export_dialog_request
+        .take()
+        .filter(|request| request.request_id == request_id)
+    else {
+        return Vec::new();
+    };
+    if matches!(format, super::EditorExportFormat::Pdf) {
+        model.editor_pdf_export_request = Some(super::EditorPdfExportRequest {
+            request_id,
+            session: request.session,
+            source: request.source,
+            target_uri,
+            print_dialog: false,
+        });
+        return Vec::new();
+    }
+    model.editor_export_progress = Some(super::EditorExportProgress {
+        request_id,
+        session: request.session,
+    });
+    vec![Effect::PrepareEditorExport {
+        request_id,
+        session: request.session,
+        note_id: request.note_id,
+        source: request.source,
+        filename_stem: request.filename_stem,
+        format,
+        include_assets,
+        target_uri,
+    }]
+}
+
+fn confirm_editor_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    let Some(request) = model.editor_export_warning_request.take() else {
+        return Vec::new();
+    };
+    if request.request_id != request_id {
+        model.editor_export_warning_request = Some(request);
+        return Vec::new();
+    }
+    vec![Effect::WriteEditorExport { request_id }]
+}
+
+fn cancel_editor_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    let Some(request) = model.editor_export_warning_request.take() else {
+        return Vec::new();
+    };
+    if request.request_id != request_id {
+        model.editor_export_warning_request = Some(request);
+        return Vec::new();
+    }
+    model.editor_export_progress = None;
+    vec![Effect::DiscardEditorExport { request_id }]
+}
+
+fn complete_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    if model
+        .editor_pdf_export_request
+        .as_ref()
+        .is_none_or(|request| request.request_id != request_id)
+    {
+        return Vec::new();
+    }
+    model.editor_pdf_export_request = None;
+    model.notice = Some(UiError::new("Note exported as PDF"));
+    Vec::new()
+}
+
+fn fail_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    if model
+        .editor_pdf_export_request
+        .as_ref()
+        .is_none_or(|request| request.request_id != request_id)
+    {
+        return Vec::new();
+    }
+    model.editor_pdf_export_request = None;
+    model.notice = Some(UiError::new("Could not export the note as PDF."));
+    Vec::new()
+}
+
+fn cancel_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    if model
+        .editor_pdf_export_request
+        .as_ref()
+        .is_none_or(|request| request.request_id != request_id)
+    {
+        return Vec::new();
+    }
+    model.editor_pdf_export_request = None;
+    Vec::new()
+}
+
+fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
+    let Some((session, source)) = model
+        .editor
+        .as_ref()
+        .map(|document| (document.session, document.source.clone()))
+    else {
+        return Vec::new();
+    };
+    model.editor_pdf_export_request = Some(super::EditorPdfExportRequest {
+        request_id: model.next_editor_export_request_id(),
+        session,
+        source,
+        target_uri: String::new(),
+        print_dialog: true,
+    });
+    Vec::new()
+}
+
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
     if matches!(action, ActionMsg::UndoMove) {
         return update_undo_move(model);
@@ -336,6 +515,10 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         model.editor = None;
         model.editor_preview = None;
         model.editor_copy_request = None;
+        model.editor_export_dialog_request = None;
+        model.editor_export_warning_request = None;
+        model.editor_export_progress = None;
+        model.editor_pdf_export_request = None;
         model.preview_timer = None;
     }
     let effect = match action {
@@ -471,6 +654,14 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 }
             }
         }
+        LibraryReply::EditorExportPrepared {
+            request_id,
+            session,
+            result,
+        } => update_editor_export_prepared(model, request_id, session, result),
+        LibraryReply::EditorExportWritten { request_id, result } => {
+            update_editor_export_written(model, request_id, result)
+        }
         LibraryReply::TrashLoaded { request_id, result } => {
             reload_trash_after(model.trash.finish(request_id, result), model)
         }
@@ -488,6 +679,63 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_save(model, &request, result)
         }
     }
+}
+
+fn update_editor_export_prepared(
+    model: &mut AppModel,
+    request_id: u64,
+    session: super::EditorSessionId,
+    result: Result<Vec<String>, UiError>,
+) -> Vec<Effect> {
+    if model.editor_export_progress
+        != Some(super::EditorExportProgress {
+            request_id,
+            session,
+        })
+        || model
+            .editor
+            .as_ref()
+            .is_none_or(|document| document.session != session)
+    {
+        return vec![Effect::DiscardEditorExport { request_id }];
+    }
+    match result {
+        Ok(warnings) if warnings.is_empty() => vec![Effect::WriteEditorExport { request_id }],
+        Ok(warnings) => {
+            model.editor_export_warning_request = Some(super::EditorExportWarningRequest {
+                request_id,
+                session,
+                warnings,
+            });
+            Vec::new()
+        }
+        Err(error) => {
+            model.editor_export_progress = None;
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
+}
+
+fn update_editor_export_written(
+    model: &mut AppModel,
+    request_id: u64,
+    result: Result<(), UiError>,
+) -> Vec<Effect> {
+    if model
+        .editor_export_progress
+        .as_ref()
+        .is_none_or(|request| request.request_id != request_id)
+    {
+        return Vec::new();
+    }
+    model.editor_export_warning_request = None;
+    model.editor_export_progress = None;
+    match result {
+        Ok(()) => model.notice = Some(UiError::new("Note exported")),
+        Err(error) => model.notice = Some(error),
+    }
+    Vec::new()
 }
 
 fn update_created_note(

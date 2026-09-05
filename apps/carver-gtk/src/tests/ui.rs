@@ -1,6 +1,7 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
 use carver_config::Config;
+use gtk::gio::prelude::FileExt;
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::{ActionRowExt, PreferencesRowExt};
@@ -287,6 +288,64 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "First line\\\n"
     );
     let copy_note = widget_as::<gtk::Button>(&root, "copy-note-button").ok_or("copy note")?;
+    let export_menu =
+        widget_as::<gtk::MenuButton>(&root, "export-note-button").ok_or("export menu")?;
+    let gtk_window = window.clone().upcast::<gtk::Window>();
+    let export_actions = export_menu
+        .popover()
+        .and_then(|popover| popover.child())
+        .ok_or("export actions")?;
+    assert!(widget_as::<gtk::Button>(&export_actions, "export-note-menu-item").is_some());
+    assert!(widget_as::<gtk::Button>(&export_actions, "print-note-menu-item").is_some());
+    let export_request = crate::mvu::EditorExportDialogRequest {
+        request_id: 91,
+        session: crate::mvu::EditorSessionId(1),
+        note_id: note.id,
+        source: "# Exported note".to_owned(),
+        filename_stem: "Exported note".to_owned(),
+    };
+    let export_options = crate::editor::show_export_options_dialog(
+        export_request,
+        Some(&gtk_window),
+        crate::mvu::AppDispatcher::default(),
+    );
+    assert_eq!(
+        widget_as::<adw::ComboRow>(export_options.upcast_ref(), "export-format-setting")
+            .map(|row| row.title()),
+        Some("Format".into())
+    );
+    assert_eq!(
+        widget_as::<adw::SwitchRow>(export_options.upcast_ref(), "export-assets-setting")
+            .map(|row| row.title()),
+        Some("Include managed images".into())
+    );
+    export_options.emit_by_name::<()>("response", &[&"cancel"]);
+    let export_warning = crate::editor::show_export_warning_dialog(
+        &crate::mvu::EditorExportWarningRequest {
+            request_id: 92,
+            session: crate::mvu::EditorSessionId(1),
+            warnings: vec!["Markdown cannot preserve this construct".to_owned()],
+        },
+        Some(&gtk_window),
+        crate::mvu::AppDispatcher::default(),
+    );
+    export_warning.emit_by_name::<()>("response", &[&"cancel"]);
+    let export_directory = tempfile::tempdir()?;
+    let pdf_path = export_directory.path().join("exported-note.pdf");
+    let pdf_uri = gtk::gio::File::for_path(&pdf_path).uri().to_string();
+    crate::editor::export_rendered_snapshot(
+        "# Exported note\n\nPDF body",
+        false,
+        false,
+        &pdf_uri,
+        Some(&gtk_window),
+        None,
+        crate::mvu::AppDispatcher::default(),
+        93,
+    );
+    assert!(run_main_context_until(|| {
+        std::fs::read(&pdf_path).is_ok_and(|bytes| bytes.starts_with(b"%PDF"))
+    }));
     source.buffer().set_text("# Copied note");
     copy_note.emit_clicked();
     let clipboard = source.display().clipboard();

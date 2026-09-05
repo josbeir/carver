@@ -2,16 +2,21 @@
 
 use std::{
     cell::RefCell,
+    collections::BTreeMap,
     future::Future,
     path::PathBuf,
     rc::{Rc, Weak},
 };
 
 use carver_sdk::{LibraryBackend, LibraryClient};
+use gtk::gio::prelude::FileExt;
 
 use crate::view::ViewRefs;
 
-use super::{ActionKey, AppModel, AppMsg, Effect, LibraryReply, TrashMutation, UiError, update};
+use super::{
+    ActionKey, AppModel, AppMsg, EditorExportFormat, Effect, LibraryReply, TrashMutation, UiError,
+    update,
+};
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 
@@ -57,6 +62,12 @@ struct RuntimeInner<B: LibraryBackend> {
     config_path: Option<PathBuf>,
     model: RefCell<AppModel>,
     view: ViewRefs,
+    prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
+}
+
+struct PreparedExport {
+    artifact: carver_export::ExportArtifact,
+    target_uri: String,
 }
 
 impl<B: LibraryBackend> Clone for AppRuntime<B> {
@@ -88,6 +99,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 config_path,
                 model: RefCell::new(model),
                 view,
+                prepared_exports: RefCell::new(BTreeMap::new()),
             }),
         }
     }
@@ -124,6 +136,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
+            effect @ (Effect::PrepareEditorExport { .. }
+            | Effect::WriteEditorExport { .. }
+            | Effect::DiscardEditorExport { .. }) => self.run_editor_export_effect(effect),
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::CreateNote { category_id } => self.create_note(category_id),
@@ -219,6 +234,35 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::TrashNote { note_id } => {
                 self.trash_note(note_id);
             }
+        }
+    }
+
+    fn run_editor_export_effect(&self, effect: Effect) {
+        match effect {
+            Effect::PrepareEditorExport {
+                request_id,
+                session,
+                note_id,
+                source,
+                filename_stem,
+                format,
+                include_assets,
+                target_uri,
+            } => self.prepare_editor_export(
+                request_id,
+                session,
+                note_id,
+                source,
+                filename_stem,
+                format,
+                include_assets,
+                target_uri,
+            ),
+            Effect::WriteEditorExport { request_id } => self.write_editor_export(request_id),
+            Effect::DiscardEditorExport { request_id } => {
+                self.inner.prepared_exports.borrow_mut().remove(&request_id);
+            }
+            _ => {}
         }
     }
 
@@ -394,6 +438,106 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 result,
             }));
         });
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the effect is the fully typed immutable export snapshot"
+    )]
+    fn prepare_editor_export(
+        &self,
+        request_id: u64,
+        session: super::EditorSessionId,
+        note_id: carver_sdk::NoteId,
+        source: String,
+        filename_stem: String,
+        format: EditorExportFormat,
+        include_assets: bool,
+        target_uri: String,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = async {
+                let mut assets = Vec::new();
+                if include_assets {
+                    for path in carver_export::managed_asset_paths(&source) {
+                        if let Some(bytes) = client
+                            .note_asset_bytes_async(note_id, path.clone())
+                            .await
+                            .map_err(display_error)?
+                        {
+                            assets.push(carver_export::ManagedAsset { path, bytes });
+                        }
+                    }
+                }
+                let format = match format {
+                    EditorExportFormat::Carve => carver_export::ExportFormat::Carve,
+                    EditorExportFormat::Markdown => carver_export::ExportFormat::Markdown,
+                    EditorExportFormat::Pdf => {
+                        return Err(UiError::new(
+                            "PDF export must be rendered by the GTK adapter.",
+                        ));
+                    }
+                };
+                carver_export::prepare_export(
+                    &source,
+                    &filename_stem,
+                    format,
+                    include_assets,
+                    &assets,
+                )
+                .map_err(display_error)
+            }
+            .await;
+
+            let result = result.map(|artifact| {
+                let warnings = artifact
+                    .warnings
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
+                runtime.inner.prepared_exports.borrow_mut().insert(
+                    request_id,
+                    PreparedExport {
+                        artifact,
+                        target_uri,
+                    },
+                );
+                warnings
+            });
+            runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportPrepared {
+                request_id,
+                session,
+                result,
+            }));
+        });
+    }
+
+    fn write_editor_export(&self, request_id: u64) {
+        let Some(prepared) = self.inner.prepared_exports.borrow_mut().remove(&request_id) else {
+            self.dispatch(AppMsg::Library(LibraryReply::EditorExportWritten {
+                request_id,
+                result: Err(UiError::new("The prepared export is no longer available.")),
+            }));
+            return;
+        };
+        let file = gtk::gio::File::for_uri(&prepared.target_uri);
+        let bytes = glib::Bytes::from_owned(prepared.artifact.bytes);
+        let runtime = self.clone();
+        file.replace_contents_bytes_async(
+            &bytes,
+            None,
+            false,
+            gtk::gio::FileCreateFlags::REPLACE_DESTINATION,
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportWritten {
+                    request_id,
+                    result: result.map(|_| ()).map_err(display_error),
+                }));
+            },
+        );
     }
 
     fn rename_category(&self, category_id: carver_sdk::CategoryId, name: String) {

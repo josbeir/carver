@@ -194,5 +194,61 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
   --border-color: #b7b7c0;
   --table-header-background: #e7e7ec;
 }
+@page {
+  margin: 18mm;
+}
+@media print {
+  :root,
+  :root[data-theme=light] {
+    color-scheme: light;
+    --document-background: #ffffff;
+    --document-foreground: #1d1d20;
+    --code-background: #f3f3f5;
+    --border-color: #8b8b92;
+    --table-header-background: #f0f0f2;
+  }
+  html,
+  body {
+    min-height: 0;
+    background: #ffffff !important;
+    color: var(--document-foreground) !important;
+  }
+  body[data-preview] {
+    padding: 0;
+  }
+  :where(.ProseMirror, body[data-preview]) a {
+    color: inherit;
+    text-decoration: underline;
+  }
+  :where(.ProseMirror, body[data-preview]) pre {
+    overflow: visible;
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--code-background) !important;
+  }
+  :where(.ProseMirror, body[data-preview]) th {
+    background: var(--table-header-background) !important;
+  }
+  :where(.ProseMirror, body[data-preview]) h1,
+  :where(.ProseMirror, body[data-preview]) h2,
+  :where(.ProseMirror, body[data-preview]) h3,
+  :where(.ProseMirror, body[data-preview]) h4,
+  :where(.ProseMirror, body[data-preview]) h5,
+  :where(.ProseMirror, body[data-preview]) h6,
+  :where(.ProseMirror, body[data-preview]) pre,
+  :where(.ProseMirror, body[data-preview]) blockquote,
+  :where(.ProseMirror, body[data-preview]) img,
+  :where(.ProseMirror, body[data-preview]) table {
+    break-inside: avoid;
+  }
+  :where(.ProseMirror, body[data-preview]) h1,
+  :where(.ProseMirror, body[data-preview]) h2,
+  :where(.ProseMirror, body[data-preview]) h3,
+  :where(.ProseMirror, body[data-preview]) h4,
+  :where(.ProseMirror, body[data-preview]) h5,
+  :where(.ProseMirror, body[data-preview]) h6 {
+    break-after: avoid;
+  }
+}
 
 /* src/preview.css */

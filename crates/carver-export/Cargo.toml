@@ -1,0 +1,15 @@
+[package]
+name = "carver-export"
+description = "UI-neutral Carver note export formats and portable archives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+carve-lang.workspace = true
+thiserror.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

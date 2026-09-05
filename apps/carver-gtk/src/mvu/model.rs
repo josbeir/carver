@@ -248,6 +248,56 @@ pub struct EditorCopyRequest {
     pub source: String,
 }
 
+/// A requested native export dialog for the active editor snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorExportDialogRequest {
+    /// Monotonic identity used to ignore duplicate view renders.
+    pub request_id: u64,
+    /// Editor lifetime that owns the snapshot.
+    pub session: EditorSessionId,
+    /// Note that owns the managed assets.
+    pub note_id: NoteId,
+    /// Canonical source captured when the export started.
+    pub source: String,
+    /// Safe user-facing filename stem derived from the snapshot.
+    pub filename_stem: String,
+}
+
+/// A completed export request waiting for warning acknowledgement.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorExportWarningRequest {
+    /// Identity of the prepared export retained by the runtime.
+    pub request_id: u64,
+    /// Editor lifetime that initiated the request.
+    pub session: EditorSessionId,
+    /// Human-readable non-fatal conversion or asset warnings.
+    pub warnings: Vec<String>,
+}
+
+/// An export retained by the runtime until it is written or discarded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EditorExportProgress {
+    /// Prepared export identity.
+    pub request_id: u64,
+    /// Editor session that owns the export snapshot.
+    pub session: EditorSessionId,
+}
+
+/// A one-shot request for the GTK adapter to render and print a PDF export.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorPdfExportRequest {
+    /// Monotonic identity used to ignore duplicate view renders.
+    pub request_id: u64,
+    /// Editor lifetime that owns the source snapshot.
+    pub session: EditorSessionId,
+    /// Canonical Carve source to render.
+    pub source: String,
+    /// Destination URI selected through GTK's file chooser.
+    pub target_uri: String,
+    /// Whether the native printer dialog should be shown instead of writing PDF directly.
+    pub print_dialog: bool,
+}
+
 impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,
@@ -345,6 +395,14 @@ pub struct AppModel {
     pub editor_preview: Option<EditorPreview>,
     /// One-shot request for the GTK adapter to copy a canonical source snapshot.
     pub editor_copy_request: Option<EditorCopyRequest>,
+    /// One-shot request for the view to show native export options.
+    pub editor_export_dialog_request: Option<EditorExportDialogRequest>,
+    /// Prepared export that requires user acknowledgement before writing.
+    pub editor_export_warning_request: Option<EditorExportWarningRequest>,
+    /// Native export currently being prepared, confirmed, or written.
+    pub editor_export_progress: Option<EditorExportProgress>,
+    /// One-shot native PDF or print request for the current editor snapshot.
+    pub editor_pdf_export_request: Option<EditorPdfExportRequest>,
     /// Monotonic revision that asks editor projections to refresh their theme.
     pub editor_theme_revision: u64,
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
@@ -355,6 +413,7 @@ pub struct AppModel {
     next_timer_id: u64,
     next_preview_timer_id: u64,
     next_editor_copy_request_id: u64,
+    next_editor_export_request_id: u64,
 }
 
 impl AppModel {
@@ -376,6 +435,10 @@ impl AppModel {
             editor: None,
             editor_preview: None,
             editor_copy_request: None,
+            editor_export_dialog_request: None,
+            editor_export_warning_request: None,
+            editor_export_progress: None,
+            editor_pdf_export_request: None,
             editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,
@@ -384,6 +447,7 @@ impl AppModel {
             next_timer_id: 1,
             next_preview_timer_id: 1,
             next_editor_copy_request_id: 1,
+            next_editor_export_request_id: 1,
         }
     }
 
@@ -422,6 +486,12 @@ impl AppModel {
     pub(super) fn next_editor_copy_request_id(&mut self) -> u64 {
         let request_id = self.next_editor_copy_request_id;
         self.next_editor_copy_request_id = self.next_editor_copy_request_id.wrapping_add(1);
+        request_id
+    }
+
+    pub(super) fn next_editor_export_request_id(&mut self) -> u64 {
+        let request_id = self.next_editor_export_request_id;
+        self.next_editor_export_request_id = self.next_editor_export_request_id.wrapping_add(1);
         request_id
     }
 }

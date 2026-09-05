@@ -10,11 +10,17 @@ use std::{
 use carver_config::{Config, EditorMode};
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::BreakpointBinExt;
+use libadwaita::prelude::{
+    ActionRowExt, AdwDialogExt, AlertDialogExt, AlertDialogExtManual, BreakpointBinExt,
+    ComboRowExt, PreferencesGroupExt, PreferencesRowExt,
+};
 use webkit6::prelude::*;
 
 use crate::{
-    mvu::{AppDispatcher, AppModel, AppMsg, EditorMsg, EditorSessionId, PreferencesMsg},
+    mvu::{
+        AppDispatcher, AppModel, AppMsg, EditorExportFormat, EditorExportWarningRequest, EditorMsg,
+        EditorSessionId, PreferencesMsg,
+    },
     sidebar::sidebar_toggle_button,
 };
 
@@ -62,6 +68,9 @@ pub(crate) struct EditorViewRefs {
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
     copied_request: Cell<Option<u64>>,
+    shown_export_dialog: Cell<Option<u64>>,
+    shown_export_warning: Cell<Option<u64>>,
+    printed_request: Cell<Option<u64>>,
 }
 
 impl EditorViewRefs {
@@ -160,7 +169,7 @@ impl EditorViewRefs {
             }
         }
         self.find.set_mode(document.mode);
-        self.render_copy_request(model, document);
+        self.render_auxiliary_requests(model, document);
         self.rendering.set(false);
         if new_document {
             self.loaded_session.replace(Some(document.session));
@@ -193,6 +202,71 @@ impl EditorViewRefs {
             };
             let _ = dispatcher.dispatch(message);
         });
+    }
+
+    fn render_auxiliary_requests(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
+        self.render_copy_request(model, document);
+        self.render_export_dialog_request(model);
+        self.render_export_warning_request(model);
+        self.render_pdf_export_request(model, document);
+    }
+
+    fn render_export_dialog_request(&self, model: &AppModel) {
+        let Some(request) = model.editor_export_dialog_request.as_ref() else {
+            return;
+        };
+        if self.shown_export_dialog.replace(Some(request.request_id)) == Some(request.request_id) {
+            return;
+        }
+        let parent = self
+            .source_editor
+            .view()
+            .root()
+            .and_downcast::<gtk::Window>();
+        show_export_options_dialog(request.clone(), parent.as_ref(), self.dispatcher.clone());
+    }
+
+    fn render_export_warning_request(&self, model: &AppModel) {
+        let Some(request) = model.editor_export_warning_request.as_ref() else {
+            return;
+        };
+        if self.shown_export_warning.replace(Some(request.request_id)) == Some(request.request_id) {
+            return;
+        }
+        let parent = self
+            .source_editor
+            .view()
+            .root()
+            .and_downcast::<gtk::Window>();
+        show_export_warning_dialog(request, parent.as_ref(), self.dispatcher.clone());
+    }
+
+    fn render_pdf_export_request(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
+        let Some(request) = model
+            .editor_pdf_export_request
+            .as_ref()
+            .filter(|request| request.session == document.session)
+        else {
+            return;
+        };
+        if self.printed_request.replace(Some(request.request_id)) == Some(request.request_id) {
+            return;
+        }
+        let parent = self
+            .source_editor
+            .view()
+            .root()
+            .and_downcast::<gtk::Window>();
+        export_rendered_snapshot(
+            &request.source,
+            model.preferences.load_remote_images,
+            request.print_dialog,
+            &request.target_uri,
+            parent.as_ref(),
+            self.assets_dir.as_deref(),
+            self.dispatcher.clone(),
+            request.request_id,
+        );
     }
 }
 
@@ -267,8 +341,10 @@ pub(crate) fn build_editor(
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
+    let export_menu = export_menu_button(dispatcher);
     header.pack_end(&trash);
     header.pack_end(&copy_note);
+    header.pack_end(&export_menu);
     view.add_top_bar(&header);
 
     let split_toggle = gtk::ToggleButton::new();
@@ -386,6 +462,9 @@ pub(crate) fn build_editor(
         dispatcher: dispatcher.clone(),
         assets_dir,
         copied_request: Cell::new(None),
+        shown_export_dialog: Cell::new(None),
+        shown_export_warning: Cell::new(None),
+        printed_request: Cell::new(None),
     };
     Ok(EditorSurface {
         widget: view.upcast(),
@@ -781,6 +860,282 @@ fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
     copy_note.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopyRequested));
     });
+}
+
+fn export_menu_button(dispatcher: &AppDispatcher) -> gtk::MenuButton {
+    let menu = gtk::MenuButton::new();
+    menu.set_icon_name("document-save-as-symbolic");
+    menu.set_tooltip_text(Some("Export or print note"));
+    menu.add_css_class("flat");
+    menu.set_widget_name("export-note-button");
+    let popover = gtk::Popover::new();
+    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    actions.add_css_class("menu");
+    let export = gtk::Button::with_label("Export note…");
+    export.set_widget_name("export-note-menu-item");
+    export.add_css_class("flat");
+    export.set_halign(gtk::Align::Fill);
+    let print = gtk::Button::with_label("Print…");
+    print.set_widget_name("print-note-menu-item");
+    print.add_css_class("flat");
+    print.set_halign(gtk::Align::Fill);
+    actions.append(&export);
+    actions.append(&print);
+    popover.set_child(Some(&actions));
+    menu.set_popover(Some(&popover));
+
+    let dispatcher_for_export = dispatcher.clone();
+    let popover_for_export = popover.clone();
+    export.connect_clicked(move |_| {
+        popover_for_export.popdown();
+        let _ = dispatcher_for_export.dispatch(AppMsg::Editor(EditorMsg::ExportDialogRequested));
+    });
+    let dispatcher_for_print = dispatcher.clone();
+    print.connect_clicked(move |_| {
+        popover.popdown();
+        let _ = dispatcher_for_print.dispatch(AppMsg::Editor(EditorMsg::PrintRequested));
+    });
+    menu
+}
+
+/// Presents the export-format chooser for the currently open note.
+pub(crate) fn show_export_options_dialog(
+    request: crate::mvu::EditorExportDialogRequest,
+    parent: Option<&gtk::Window>,
+    dispatcher: AppDispatcher,
+) -> adw::AlertDialog {
+    let format_options = gtk::StringList::new(&["Carve", "Markdown", "PDF"]);
+    let format_expression = gtk::PropertyExpression::new(
+        gtk::StringObject::static_type(),
+        None::<gtk::Expression>,
+        "string",
+    );
+    let format = adw::ComboRow::new();
+    format.set_widget_name("export-format-setting");
+    format.set_title("Format");
+    format.set_model(Some(&format_options));
+    format.set_expression(Some(&format_expression));
+    format.set_selected(0);
+    let include_assets = adw::SwitchRow::new();
+    include_assets.set_widget_name("export-assets-setting");
+    include_assets.set_title("Include managed images");
+    include_assets.set_subtitle("Create a portable ZIP archive with the document and its images.");
+    let format_for_toggle = format.clone();
+    let assets_for_toggle = include_assets.clone();
+    format.connect_selected_notify(move |_| {
+        let pdf_selected = format_for_toggle.selected() == 2;
+        assets_for_toggle.set_sensitive(!pdf_selected);
+        if pdf_selected {
+            assets_for_toggle.set_active(false);
+        }
+    });
+    let contents = adw::PreferencesGroup::new();
+    contents.add(&format);
+    contents.add(&include_assets);
+    let dialog = adw::AlertDialog::builder()
+        .heading("Export note")
+        .body("Export the current note, including any unsaved edits.")
+        .extra_child(&contents)
+        .default_response("export")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("export", "Export…")]);
+    let parent_for_response = parent.cloned();
+    dialog.connect_response(None, move |_, response| {
+        if response != "export" {
+            return;
+        }
+        let format = match format.selected() {
+            0 => EditorExportFormat::Carve,
+            1 => EditorExportFormat::Markdown,
+            _ => EditorExportFormat::Pdf,
+        };
+        let include_assets =
+            include_assets.is_active() && !matches!(format, EditorExportFormat::Pdf);
+        show_export_file_dialog(
+            request.request_id,
+            &request.filename_stem,
+            format,
+            include_assets,
+            parent_for_response.as_ref(),
+            dispatcher.clone(),
+        );
+    });
+    dialog.present(parent);
+    dialog
+}
+
+fn show_export_file_dialog(
+    request_id: u64,
+    filename_stem: &str,
+    format: EditorExportFormat,
+    include_assets: bool,
+    parent: Option<&gtk::Window>,
+    dispatcher: AppDispatcher,
+) {
+    let extension = format.extension(include_assets);
+    let filter = gtk::FileFilter::new();
+    filter.set_name(Some(match extension {
+        "carve" => "Carve documents",
+        "md" => "Markdown documents",
+        "pdf" => "PDF documents",
+        _ => "Portable ZIP archives",
+    }));
+    filter.add_suffix(extension);
+    let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
+    filters.append(&filter);
+    let dialog = gtk::FileDialog::builder()
+        .title("Export note")
+        .accept_label("Export")
+        .initial_name(format!("{filename_stem}.{extension}"))
+        .build();
+    dialog.set_filters(Some(&filters));
+    dialog.set_default_filter(Some(&filter));
+    dialog.save(parent, None::<&gtk::gio::Cancellable>, move |result| {
+        let Ok(file) = result else {
+            return;
+        };
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ExportRequested {
+            request_id,
+            format,
+            include_assets,
+            target_uri: file.uri().to_string(),
+        }));
+    });
+}
+
+/// Presents a loss-warning confirmation before a lossy export is written.
+pub(crate) fn show_export_warning_dialog(
+    request: &EditorExportWarningRequest,
+    parent: Option<&gtk::Window>,
+    dispatcher: AppDispatcher,
+) -> adw::AlertDialog {
+    let details = request.warnings.join("\n");
+    let dialog = adw::AlertDialog::builder()
+        .heading("Export may lose content")
+        .body(format!("{details}\n\nExport anyway?"))
+        .default_response("export")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("export", "Export anyway")]);
+    let request_id = request.request_id;
+    dialog.connect_response(None, move |_, response| {
+        let message = if response == "export" {
+            EditorMsg::ExportConfirmed { request_id }
+        } else {
+            EditorMsg::ExportCancelled { request_id }
+        };
+        let _ = dispatcher.dispatch(AppMsg::Editor(message));
+    });
+    dialog.present(parent);
+    dialog
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a PDF request is an immutable rendering snapshot supplied by the MVU view"
+)]
+/// Renders a canonical source snapshot to PDF or submits it to the native print dialog.
+pub(crate) fn export_rendered_snapshot(
+    source: &str,
+    allow_remote_images: bool,
+    print_dialog: bool,
+    target_uri: &str,
+    parent: Option<&gtk::Window>,
+    assets_dir: Option<&Path>,
+    dispatcher: AppDispatcher,
+    request_id: u64,
+) {
+    let toast_overlay = adw::ToastOverlay::new();
+    let preview = build_preview(assets_dir, &toast_overlay);
+    let source = source.to_owned();
+    let target_uri = target_uri.to_owned();
+    let parent = parent.cloned();
+    // WebKit can only print a realized view. Keep the implementation detail in a tiny,
+    // transient window rather than disturbing the editor's live preview state.
+    let print_window = gtk::Window::new();
+    print_window.set_default_size(1, 1);
+    print_window.set_decorated(false);
+    print_window.set_resizable(false);
+    if let Some(parent) = parent.as_ref() {
+        print_window.set_transient_for(Some(parent));
+    }
+    print_window.set_child(Some(&preview));
+    print_window.present();
+    let print_window_weak = print_window.downgrade();
+    let load_started = Rc::new(Cell::new(false));
+    let load_started_for_callback = Rc::clone(&load_started);
+    preview.connect_load_changed(move |preview, event| {
+        if event != webkit6::LoadEvent::Finished || load_started_for_callback.replace(true) {
+            return;
+        }
+        let Some(print_window) = print_window_weak.upgrade() else {
+            return;
+        };
+        let operation = webkit6::PrintOperation::new(preview);
+        let reported = Rc::new(Cell::new(false));
+        if print_dialog {
+            if operation.run_dialog(parent.as_ref()) == webkit6::PrintOperationResponse::Print {
+                if !reported.replace(true) {
+                    let _ = dispatcher
+                        .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
+                }
+            } else if !reported.replace(true) {
+                let _ = dispatcher
+                    .dispatch(AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }));
+            }
+            // CONTEXT: Escape makes WebKit unwind the native print dialog before returning.
+            // Closing its realized host in that stack can double-destroy a GTK window. Defer
+            // cleanup until the next main-loop turn, and only close a host that still exists.
+            let print_window_for_cleanup = print_window.downgrade();
+            glib::idle_add_local_once(move || {
+                if let Some(print_window) = print_window_for_cleanup.upgrade() {
+                    print_window.close();
+                }
+            });
+            return;
+        }
+        let settings = gtk::PrintSettings::new();
+        settings.set(gtk::PRINT_SETTINGS_PRINTER, Some("Print to File"));
+        settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI, Some(&target_uri));
+        settings.set(gtk::PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
+        operation.set_print_settings(&settings);
+        let page_setup = gtk::PageSetup::new();
+        page_setup.set_paper_size(&gtk::PaperSize::new(Some("iso_a4")));
+        page_setup.set_orientation(gtk::PageOrientation::Portrait);
+        operation.set_page_setup(&page_setup);
+        // The printing operation is asynchronous. Retain it until it reports completion;
+        // otherwise the Rust wrapper can be dropped before GTK writes the file.
+        let retained_operation = Rc::new(RefCell::new(Some(operation.clone())));
+        let retained_for_finished = Rc::clone(&retained_operation);
+        let reported_for_finished = Rc::clone(&reported);
+        let dispatcher_for_finished = dispatcher.clone();
+        let print_window_for_finished = print_window.clone();
+        operation.connect_finished(move |_| {
+            let _ = retained_for_finished.borrow_mut().take();
+            if reported_for_finished.replace(true) {
+                return;
+            }
+            print_window_for_finished.close();
+            let _ = dispatcher_for_finished
+                .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
+        });
+        let retained_for_failed = Rc::clone(&retained_operation);
+        let reported_for_failed = Rc::clone(&reported);
+        let dispatcher_for_failed = dispatcher.clone();
+        let print_window_for_failed = print_window.clone();
+        operation.connect_failed(move |_, _| {
+            let _ = retained_for_failed.borrow_mut().take();
+            if reported_for_failed.replace(true) {
+                return;
+            }
+            print_window_for_failed.close();
+            let _ = dispatcher_for_failed
+                .dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
+        });
+        operation.print();
+    });
+    load_preview(&preview, &source, allow_remote_images);
 }
 
 fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {

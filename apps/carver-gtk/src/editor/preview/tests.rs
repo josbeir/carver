@@ -54,3 +54,10 @@ fn rendered_document_uses_the_active_dark_palette() {
     assert!(html.contains("data-theme=\"dark\""));
     assert!(PREVIEW_STYLESHEET.contains("--document-background: #1e1e1e"));
 }
+
+#[test]
+fn preview_stylesheet_should_use_a_document_specific_print_palette() {
+    assert!(PREVIEW_STYLESHEET.contains("@media print"));
+    assert!(PREVIEW_STYLESHEET.contains("background: #ffffff !important"));
+    assert!(PREVIEW_STYLESHEET.contains("break-inside: avoid"));
+}

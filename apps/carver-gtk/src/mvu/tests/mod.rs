@@ -1,12 +1,13 @@
 use carver_config::{AppPaths, Config};
-use carver_sdk::LibraryClient;
 use carver_sdk::{CategoryId, NoteId, Revision};
+use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::SqliteLibrary;
+use gtk::gio::prelude::FileExt;
 
 use super::{
-    ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorMsg,
-    Effect, LibraryReply, LoadState, NavigationMsg, RequestId, Route, SidebarMsg, TrashMsg,
-    TrashMutation, UiError, update,
+    ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg,
+    EditorExportFormat, EditorMsg, Effect, LibraryReply, LoadState, NavigationMsg, RequestId,
+    Route, SidebarMsg, TrashMsg, TrashMutation, UiError, update,
 };
 
 #[test]
@@ -513,6 +514,166 @@ fn stale_copy_completion_should_not_replace_the_current_copy_request() {
             .as_ref()
             .map(|request| request.request_id),
         Some(request_id)
+    );
+}
+
+#[test]
+fn export_should_prepare_the_unsaved_editor_snapshot_before_writing() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Saved"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("# Unsaved draft"))),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ExportDialogRequested));
+    let dialog = model
+        .editor_export_dialog_request
+        .clone()
+        .unwrap_or_else(|| panic!("export dialog should capture a snapshot"));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ExportRequested {
+            request_id: dialog.request_id,
+            format: EditorExportFormat::Carve,
+            include_assets: false,
+            target_uri: String::from("file:///tmp/draft.carve"),
+        }),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::PrepareEditorExport { source, note_id: effect_note_id, .. }]
+            if source == "# Unsaved draft" && effect_note_id == &note_id
+    ));
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorExportPrepared {
+            request_id: dialog.request_id,
+            session: dialog.session,
+            result: Ok(Vec::new()),
+        }),
+    );
+    assert_eq!(
+        effects,
+        vec![Effect::WriteEditorExport {
+            request_id: dialog.request_id
+        }]
+    );
+}
+
+#[test]
+fn export_warning_should_require_confirmation_before_writing() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("# Note"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ExportDialogRequested));
+    let dialog = model
+        .editor_export_dialog_request
+        .clone()
+        .unwrap_or_else(|| panic!("export dialog should be present"));
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ExportRequested {
+            request_id: dialog.request_id,
+            format: EditorExportFormat::Markdown,
+            include_assets: false,
+            target_uri: String::from("file:///tmp/note.md"),
+        }),
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorExportPrepared {
+            request_id: dialog.request_id,
+            session: dialog.session,
+            result: Ok(vec![String::from(
+                "Markdown cannot represent one construct exactly.",
+            )]),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(
+        model
+            .editor_export_warning_request
+            .as_ref()
+            .map(|request| request.request_id),
+        Some(dialog.request_id)
+    );
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::ExportCancelled {
+                request_id: dialog.request_id,
+            }),
+        ),
+        vec![Effect::DiscardEditorExport {
+            request_id: dialog.request_id,
+        }]
+    );
+}
+
+#[test]
+fn closing_print_dialog_should_clear_the_request_without_an_error_notice() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "print this".to_owned(),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::PrintRequested));
+    let Some(request_id) = model
+        .editor_pdf_export_request
+        .as_ref()
+        .map(|request| request.request_id)
+    else {
+        panic!("print request should be pending");
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }),
+    );
+
+    assert!(effects.is_empty());
+    assert!(model.editor_pdf_export_request.is_none());
+    assert!(model.notice.is_none());
+}
+
+#[test]
+fn stale_export_preparation_should_discard_its_artifact() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorExportPrepared {
+            request_id: 42,
+            session: super::EditorSessionId(7),
+            result: Ok(Vec::new()),
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::DiscardEditorExport { request_id: 42 }]
     );
 }
 
@@ -1222,6 +1383,8 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         LoadState::Failed(UiError::new("offline"))
     );
 
+    runtime_should_write_the_current_carve_snapshot(&runtime, &temporary_directory)?;
+
     let dispatcher = AppDispatcher::default();
     {
         let detached_stack = gtk::Stack::new();
@@ -1242,5 +1405,35 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         assert!(dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
     }
     assert!(!dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
+    Ok(())
+}
+
+fn runtime_should_write_the_current_carve_snapshot<B: LibraryBackend>(
+    runtime: &AppRuntime<B>,
+    temporary_directory: &tempfile::TempDir,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let export_note_id = NoteId::new();
+    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: export_note_id,
+        revision: Revision(1),
+        source: String::from("# Exported draft\n\nUnsaved body"),
+    }));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::ExportDialogRequested));
+    let export_dialog = runtime
+        .model()
+        .editor_export_dialog_request
+        .ok_or("export dialog request")?;
+    let export_path = temporary_directory.path().join("exported-draft.crv");
+    let export_target = gtk::gio::File::for_path(&export_path).uri().to_string();
+    runtime.dispatch(AppMsg::Editor(EditorMsg::ExportRequested {
+        request_id: export_dialog.request_id,
+        format: EditorExportFormat::Carve,
+        include_assets: false,
+        target_uri: export_target,
+    }));
+    assert!(crate::tests::support::run_main_context_until(|| {
+        std::fs::read_to_string(&export_path)
+            .is_ok_and(|source| source == "# Exported draft\n\nUnsaved body")
+    }));
     Ok(())
 }

@@ -9,6 +9,32 @@ use carver_sdk::{
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
 
+/// A user-selectable format for exporting a note outside the Carver library.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EditorExportFormat {
+    /// Canonical Carve source.
+    Carve,
+    /// Markdown converted by Carve's native codec.
+    Markdown,
+    /// A rendered PDF generated through the native `WebKit` print pipeline.
+    Pdf,
+}
+
+impl EditorExportFormat {
+    /// Returns the default extension for the selected file format.
+    #[must_use]
+    pub const fn extension(self, include_assets: bool) -> &'static str {
+        if include_assets && !matches!(self, Self::Pdf) {
+            return "zip";
+        }
+        match self {
+            Self::Carve => "carve",
+            Self::Markdown => "md",
+            Self::Pdf => "pdf",
+        }
+    }
+}
+
 /// A UI event or asynchronous completion accepted by the reducer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AppMsg {
@@ -120,6 +146,46 @@ pub enum EditorMsg {
     TrashRequested,
     /// Copy the complete active note as rendered clipboard content.
     CopyRequested,
+    /// Open the native export format and packaging options for the current note snapshot.
+    ExportDialogRequested,
+    /// Export options selected by the native GTK dialog.
+    ExportRequested {
+        /// Dialog identity that owns the captured source snapshot.
+        request_id: u64,
+        /// Output representation selected by the user.
+        format: EditorExportFormat,
+        /// Whether Carve/Markdown should be packed with managed images in a ZIP archive.
+        include_assets: bool,
+        /// User-selected output target URI.
+        target_uri: String,
+    },
+    /// Write a prepared export after the user accepts its warnings.
+    ExportConfirmed {
+        /// Prepared export identity.
+        request_id: u64,
+    },
+    /// Discard a prepared export after the user declines its warnings.
+    ExportCancelled {
+        /// Prepared export identity.
+        request_id: u64,
+    },
+    /// The GTK adapter finished writing a PDF export.
+    PdfExportCompleted {
+        /// Export identity.
+        request_id: u64,
+    },
+    /// The GTK adapter could not write a requested PDF export.
+    PdfExportFailed {
+        /// Export identity.
+        request_id: u64,
+    },
+    /// The user dismissed the native print dialog without printing.
+    PdfExportCancelled {
+        /// Export identity.
+        request_id: u64,
+    },
+    /// Open the native print dialog for the current note snapshot.
+    PrintRequested,
     /// The GTK adapter published a requested note copy.
     CopyCompleted {
         /// Monotonic identity of the fulfilled request.
@@ -328,6 +394,22 @@ pub enum LibraryReply {
         source_selection: Option<Range<usize>>,
         /// Portable managed asset path or a user-displayable failure.
         result: Result<String, UiError>,
+    },
+    /// A Carve or Markdown export has been prepared and retained by the runtime.
+    EditorExportPrepared {
+        /// Prepared export identity.
+        request_id: u64,
+        /// Editor session that initiated the export.
+        session: EditorSessionId,
+        /// Non-fatal warnings that must be confirmed before writing.
+        result: Result<Vec<String>, UiError>,
+    },
+    /// Writing a prepared Carve, Markdown, or ZIP export completed.
+    EditorExportWritten {
+        /// Prepared export identity.
+        request_id: u64,
+        /// User-visible result.
+        result: Result<(), UiError>,
     },
 }
 

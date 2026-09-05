@@ -5,7 +5,9 @@ use std::ops::Range;
 use carver_config::Config;
 use carver_sdk::{CategoryId, NoteId};
 
-use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId};
+use super::{
+    ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId, TimerId,
+};
 
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,6 +49,35 @@ pub enum Effect {
     SaveNote {
         /// Session, revision, and source to persist.
         request: EditorSaveRequest,
+    },
+    /// Prepare a non-PDF export from an immutable editor snapshot.
+    PrepareEditorExport {
+        /// Request identity used to retain and later write the prepared bytes.
+        request_id: u64,
+        /// Editor session that owns the source and assets.
+        session: EditorSessionId,
+        /// Managed note whose assets may be packaged.
+        note_id: NoteId,
+        /// Canonical source captured when export started.
+        source: String,
+        /// Root filename for portable archives.
+        filename_stem: String,
+        /// Selected direct export format.
+        format: EditorExportFormat,
+        /// Whether to package available managed images in a ZIP archive.
+        include_assets: bool,
+        /// URI selected by the user through the GTK file dialog.
+        target_uri: String,
+    },
+    /// Persist a previously prepared export after confirmation.
+    WriteEditorExport {
+        /// Prepared export identity.
+        request_id: u64,
+    },
+    /// Drop a prepared export whose warnings the user declined.
+    DiscardEditorExport {
+        /// Prepared export identity.
+        request_id: u64,
     },
     /// Store a rich-editor image as a managed asset for the active note.
     StoreEditorAsset {

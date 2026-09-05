@@ -11,13 +11,15 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    ActionKey, AppModel, BrowserModel, EditorCopyRequest, EditorDocument, EditorPreview,
-    EditorSaveRequest, EditorSaveState, EditorSessionId, LoadState, MoveUndo, Preferences,
-    RequestId, Resource, Route, SourceEditorPreferences, TimerId, UiError,
+    ActionKey, AppModel, BrowserModel, EditorCopyRequest, EditorDocument,
+    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
+    EditorPdfExportRequest, EditorPreview, EditorSaveRequest, EditorSaveState, EditorSessionId,
+    LoadState, MoveUndo, Preferences, RequestId, Resource, Route, SourceEditorPreferences, TimerId,
+    UiError,
 };
 pub use msg::{
-    ActionMsg, AppMsg, BrowserMsg, EditorMsg, LibraryReply, NavigationMsg, PreferencesMsg,
-    SidebarMsg, TrashMsg, TrashMutation, WindowMsg,
+    ActionMsg, AppMsg, BrowserMsg, EditorExportFormat, EditorMsg, LibraryReply, NavigationMsg,
+    PreferencesMsg, SidebarMsg, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use update::update;
