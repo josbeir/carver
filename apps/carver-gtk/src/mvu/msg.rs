@@ -118,6 +118,20 @@ pub enum EditorMsg {
     BackRequested,
     /// Move the active editor note to trash.
     TrashRequested,
+    /// Copy the complete active note as rendered clipboard content.
+    CopyRequested,
+    /// The GTK adapter published a requested note copy.
+    CopyCompleted {
+        /// Monotonic identity of the fulfilled request.
+        request_id: u64,
+        /// Managed images omitted because they were unavailable or exceeded limits.
+        omitted_images: usize,
+    },
+    /// The GTK adapter could not claim the clipboard for a requested note copy.
+    CopyFailed {
+        /// Monotonic identity of the attempted request.
+        request_id: u64,
+    },
     /// Store an image supplied by the rich editor as a managed note asset.
     PasteImage {
         /// File extension selected from the `WebKit` MIME type.

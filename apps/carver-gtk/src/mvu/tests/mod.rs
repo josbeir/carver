@@ -433,6 +433,90 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
 }
 
 #[test]
+fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Saved source".to_owned(),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Unsaved source".to_owned())),
+    );
+
+    assert!(update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested)).is_empty());
+    assert_eq!(
+        model
+            .editor_copy_request
+            .as_ref()
+            .map(|request| request.source.as_str()),
+        Some("Unsaved source")
+    );
+    let request_id = model
+        .editor_copy_request
+        .as_ref()
+        .map(|request| request.request_id)
+        .unwrap_or_default();
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::CopyCompleted {
+                request_id,
+                omitted_images: 2,
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(model.editor_copy_request, None);
+    assert_eq!(
+        model.notice.as_ref().map(|notice| notice.message.as_str()),
+        Some("Note copied; 2 images were omitted.")
+    );
+}
+
+#[test]
+fn stale_copy_completion_should_not_replace_the_current_copy_request() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::new(),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested));
+    let request_id = model
+        .editor_copy_request
+        .as_ref()
+        .map(|request| request.request_id)
+        .unwrap_or_default();
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::CopyCompleted {
+                request_id: request_id.wrapping_add(1),
+                omitted_images: 0,
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model
+            .editor_copy_request
+            .as_ref()
+            .map(|request| request.request_id),
+        Some(request_id)
+    );
+}
+
+#[test]
 fn latest_preview_timer_should_reject_a_superseded_source_snapshot() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(

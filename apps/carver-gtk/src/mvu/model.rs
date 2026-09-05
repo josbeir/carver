@@ -237,6 +237,17 @@ pub struct EditorPreview {
     pub source: String,
 }
 
+/// A one-shot request to copy the active canonical document through the GTK adapter.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorCopyRequest {
+    /// Monotonic identity that allows identical repeated copy requests.
+    pub request_id: u64,
+    /// Editor lifetime that owns the canonical source snapshot.
+    pub session: EditorSessionId,
+    /// Canonical source to copy, including unsaved edits.
+    pub source: String,
+}
+
 impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,
@@ -332,6 +343,8 @@ pub struct AppModel {
     pub editor: Option<EditorDocument>,
     /// Latest debounced editor preview snapshot.
     pub editor_preview: Option<EditorPreview>,
+    /// One-shot request for the GTK adapter to copy a canonical source snapshot.
+    pub editor_copy_request: Option<EditorCopyRequest>,
     /// Monotonic revision that asks editor projections to refresh their theme.
     pub editor_theme_revision: u64,
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
@@ -341,6 +354,7 @@ pub struct AppModel {
     next_editor_session_id: u64,
     next_timer_id: u64,
     next_preview_timer_id: u64,
+    next_editor_copy_request_id: u64,
 }
 
 impl AppModel {
@@ -361,6 +375,7 @@ impl AppModel {
             preferences: Preferences::from(config),
             editor: None,
             editor_preview: None,
+            editor_copy_request: None,
             editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,
@@ -368,6 +383,7 @@ impl AppModel {
             next_editor_session_id: 1,
             next_timer_id: 1,
             next_preview_timer_id: 1,
+            next_editor_copy_request_id: 1,
         }
     }
 
@@ -401,5 +417,11 @@ impl AppModel {
         let timer_id = TimerId(self.next_preview_timer_id);
         self.next_preview_timer_id = self.next_preview_timer_id.wrapping_add(1);
         timer_id
+    }
+
+    pub(super) fn next_editor_copy_request_id(&mut self) -> u64 {
+        let request_id = self.next_editor_copy_request_id;
+        self.next_editor_copy_request_id = self.next_editor_copy_request_id.wrapping_add(1);
+        request_id
     }
 }

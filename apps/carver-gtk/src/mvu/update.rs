@@ -180,6 +180,12 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .map_or_else(Vec::new, |note_id| {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
+        EditorMsg::CopyRequested => request_editor_copy(model),
+        EditorMsg::CopyCompleted {
+            request_id,
+            omitted_images,
+        } => complete_copy_request(model, request_id, omitted_images),
+        EditorMsg::CopyFailed { request_id } => fail_copy_request(model, request_id),
         EditorMsg::PasteImage { extension, bytes } => {
             store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"), None)
         }
@@ -198,6 +204,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             model.route = super::Route::Browser;
             model.editor = None;
             model.editor_preview = None;
+            model.editor_copy_request = None;
             model.preview_timer = None;
             model.editor_load_request = None;
             Vec::new()
@@ -256,7 +263,57 @@ fn open_editor(
         model.preferences.editor_mode,
     ));
     model.editor_preview = Some(super::EditorPreview { session, source });
+    model.editor_copy_request = None;
     model.preview_timer = None;
+}
+
+fn complete_copy_request(
+    model: &mut AppModel,
+    request_id: u64,
+    omitted_images: usize,
+) -> Vec<Effect> {
+    let Some(request) = model.editor_copy_request.as_ref() else {
+        return Vec::new();
+    };
+    if request.request_id != request_id {
+        return Vec::new();
+    }
+    model.editor_copy_request = None;
+    let message = if omitted_images == 0 {
+        String::from("Note copied")
+    } else {
+        format!("Note copied; {omitted_images} images were omitted.")
+    };
+    model.notice = Some(UiError::new(message));
+    Vec::new()
+}
+
+fn request_editor_copy(model: &mut AppModel) -> Vec<Effect> {
+    let Some((session, source)) = model
+        .editor
+        .as_ref()
+        .map(|document| (document.session, document.source.clone()))
+    else {
+        return Vec::new();
+    };
+    model.editor_copy_request = Some(super::EditorCopyRequest {
+        request_id: model.next_editor_copy_request_id(),
+        session,
+        source,
+    });
+    Vec::new()
+}
+
+fn fail_copy_request(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
+    let Some(request) = model.editor_copy_request.as_ref() else {
+        return Vec::new();
+    };
+    if request.request_id != request_id {
+        return Vec::new();
+    }
+    model.editor_copy_request = None;
+    model.notice = Some(UiError::new("Could not copy the note."));
+    Vec::new()
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
@@ -278,6 +335,7 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         model.route = super::Route::Browser;
         model.editor = None;
         model.editor_preview = None;
+        model.editor_copy_request = None;
         model.preview_timer = None;
     }
     let effect = match action {

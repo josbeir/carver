@@ -286,6 +286,23 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         ),
         "First line\\\n"
     );
+    let copy_note = widget_as::<gtk::Button>(&root, "copy-note-button").ok_or("copy note")?;
+    source.buffer().set_text("# Copied note");
+    copy_note.emit_clicked();
+    let clipboard = source.display().clipboard();
+    assert!(run_main_context_until(|| {
+        clipboard.formats().contain_mime_type("text/html")
+            && clipboard
+                .formats()
+                .contain_mime_type("text/plain;charset=utf-8")
+    }));
+    let copied_text = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let copied_text_for_callback = std::rc::Rc::clone(&copied_text);
+    clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+        *copied_text_for_callback.borrow_mut() = result.ok().flatten().map(|text| text.to_string());
+    });
+    assert!(run_main_context_until(|| copied_text.borrow().is_some()));
+    assert_eq!(copied_text.borrow().as_deref(), Some("Copied note\n"));
     let find_bar = widget_as::<gtk::SearchBar>(&root, "editor-find-bar").ok_or("find bar")?;
     let find_entry =
         widget_as::<gtk::SearchEntry>(&root, "editor-find-entry").ok_or("find entry")?;

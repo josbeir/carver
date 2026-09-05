@@ -18,6 +18,7 @@ use crate::{
     sidebar::sidebar_toggle_button,
 };
 
+mod clipboard;
 mod find;
 mod preview;
 mod render;
@@ -27,6 +28,7 @@ mod source_context;
 mod toolbar;
 mod web;
 
+use clipboard::publish_note;
 use find::FindController;
 use preview::{build_preview, load_preview};
 use source::SourceEditor;
@@ -57,6 +59,9 @@ pub(crate) struct EditorViewRefs {
     preview_source: Rc<RefCell<Option<(EditorSessionId, String)>>>,
     rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
+    dispatcher: AppDispatcher,
+    assets_dir: Option<std::path::PathBuf>,
+    copied_request: Cell<Option<u64>>,
 }
 
 impl EditorViewRefs {
@@ -155,10 +160,39 @@ impl EditorViewRefs {
             }
         }
         self.find.set_mode(document.mode);
+        self.render_copy_request(model, document);
         self.rendering.set(false);
         if new_document {
             self.loaded_session.replace(Some(document.session));
         }
+    }
+
+    fn render_copy_request(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
+        let Some(request) = model
+            .editor_copy_request
+            .as_ref()
+            .filter(|request| request.session == document.session)
+        else {
+            return;
+        };
+        if self.copied_request.replace(Some(request.request_id)) == Some(request.request_id) {
+            return;
+        }
+        let dispatcher = self.dispatcher.clone();
+        let source = request.source.clone();
+        let assets_dir = self.assets_dir.clone();
+        let clipboard = self.source_editor.view().display().clipboard();
+        let request_id = request.request_id;
+        glib::idle_add_local_once(move || {
+            let message = match publish_note(&clipboard, &source, assets_dir.as_deref()) {
+                Ok(document) => AppMsg::Editor(EditorMsg::CopyCompleted {
+                    request_id,
+                    omitted_images: document.omitted_images,
+                }),
+                Err(_) => AppMsg::Editor(EditorMsg::CopyFailed { request_id }),
+            };
+            let _ = dispatcher.dispatch(message);
+        });
     }
 }
 
@@ -188,6 +222,7 @@ pub(crate) fn build_editor(
     split_view: &adw::NavigationSplitView,
 ) -> Result<EditorSurface, SourceSyntaxError> {
     let allow_remote_images = config.images.load_remote_automatically;
+    let assets_dir = assets_dir.map(Path::to_path_buf);
     let view = adw::ToolbarView::new();
     view.set_widget_name("editor-surface");
     let header = adw::HeaderBar::new();
@@ -228,7 +263,12 @@ pub(crate) fn build_editor(
     trash.set_widget_name("delete-note-button");
     trash.set_tooltip_text(Some("Move Note to Trash"));
     trash.add_css_class("flat");
+    let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
+    copy_note.set_widget_name("copy-note-button");
+    copy_note.set_tooltip_text(Some("Copy note"));
+    copy_note.add_css_class("flat");
     header.pack_end(&trash);
+    header.pack_end(&copy_note);
     view.add_top_bar(&header);
 
     let split_toggle = gtk::ToggleButton::new();
@@ -250,7 +290,7 @@ pub(crate) fn build_editor(
     let source_buffer = source_editor.buffer().clone();
     let source = source_editor.view().clone();
     let rich = RichEditor::new(
-        assets_dir.map(Path::to_path_buf),
+        assets_dir.clone(),
         allow_remote_images,
         dispatcher,
         &source_buffer,
@@ -259,9 +299,9 @@ pub(crate) fn build_editor(
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
-    let split_preview = build_preview(assets_dir, toast_overlay);
+    let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     split_preview.set_widget_name("source-split-preview");
-    let rendered_preview = build_preview(assets_dir, toast_overlay);
+    let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
     let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
@@ -319,6 +359,7 @@ pub(crate) fn build_editor(
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     connect_theme_changes(dispatcher);
     connect_trash_action(dispatcher, &trash);
+    connect_copy_action(dispatcher, &copy_note);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher);
@@ -342,6 +383,9 @@ pub(crate) fn build_editor(
         preview_source,
         rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
+        dispatcher: dispatcher.clone(),
+        assets_dir,
+        copied_request: Cell::new(None),
     };
     Ok(EditorSurface {
         widget: view.upcast(),
@@ -729,6 +773,13 @@ fn connect_trash_action(dispatcher: &AppDispatcher, trash: &gtk::Button) {
     let dispatcher = dispatcher.clone();
     trash.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::TrashRequested));
+    });
+}
+
+fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
+    let dispatcher = dispatcher.clone();
+    copy_note.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopyRequested));
     });
 }
 

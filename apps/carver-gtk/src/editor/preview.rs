@@ -125,7 +125,15 @@ pub(super) fn install_editor_asset_scheme(
 }
 
 fn asset_filename(path: &str) -> Option<&str> {
-    let relative = path.strip_prefix("/assets/")?;
+    valid_asset_filename(path.strip_prefix("/assets/")?)
+}
+
+/// Returns a validated filename for a source-relative managed asset path.
+pub(super) fn managed_asset_filename(path: &str) -> Option<&str> {
+    valid_asset_filename(path.strip_prefix("assets/")?)
+}
+
+fn valid_asset_filename(relative: &str) -> Option<&str> {
     let candidate = Path::new(relative);
     if candidate
         .components()
@@ -137,7 +145,8 @@ fn asset_filename(path: &str) -> Option<&str> {
     }
 }
 
-fn mime_type(path: &str) -> &'static str {
+/// Returns the MIME type that Carver supports for a managed image filename.
+pub(super) fn mime_type(path: &str) -> &'static str {
     match Path::new(path)
         .extension()
         .and_then(|extension| extension.to_str())
