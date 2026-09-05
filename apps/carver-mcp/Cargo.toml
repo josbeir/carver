@@ -9,9 +9,10 @@ license.workspace = true
 [dependencies]
 carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.1.0" }
 carver-sdk = { path = "../../crates/carver-sdk", version = "0.1.0" }
+carve-lang.workspace = true
 rmcp.workspace = true
 schemars.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tokio.workspace = true
 time.workspace = true

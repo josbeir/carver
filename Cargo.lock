@@ -198,6 +198,7 @@ dependencies = [
 name = "carver-mcp"
 version = "0.1.0"
 dependencies = [
+ "carve-lang",
  "carver-agent-integration",
  "carver-sdk",
  "rmcp",

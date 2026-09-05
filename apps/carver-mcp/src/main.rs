@@ -4,6 +4,7 @@
 
 use std::{env, process::ExitCode};
 
+use carve::{CheckedRenderOptions, to_markdown_with_report};
 use carver_sdk::{
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, DocumentImportFormat,
     InstalledLibraryClient, NoteId, Revision, open_installed_library,
@@ -68,6 +69,13 @@ struct CategoryRequest {
 #[derive(Deserialize, JsonSchema)]
 struct NoteRequest {
     note_id: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct GetNoteRequest {
+    note_id: String,
+    /// Return Markdown in `source` instead of canonical Carve source.
+    markdown: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -257,20 +265,29 @@ impl CarverServer {
             .and_then(json)
     }
 
-    /// Loads one active note with canonical source and its revision.
+    /// Loads one active note with canonical Carve source or, with `markdown: true`, Markdown source.
     #[tool(annotations(title = "Get note", read_only_hint = true))]
     async fn get_note(
         &self,
-        Parameters(request): Parameters<NoteRequest>,
+        Parameters(request): Parameters<GetNoteRequest>,
     ) -> Result<String, ErrorData> {
         let note = self
             .client
             .note_async(parse_note(&request.note_id)?)
             .await
             .map_err(storage_error)?;
-        note.filter(|note| note.trashed_at.is_none())
-            .ok_or_else(|| ErrorData::invalid_params("active note was not found", None))
-            .and_then(json)
+        let note = note
+            .filter(|note| note.trashed_at.is_none())
+            .ok_or_else(|| ErrorData::invalid_params("active note was not found", None))?;
+        if request.markdown.unwrap_or(false) {
+            let markdown = to_markdown_with_report(&note.source, CheckedRenderOptions::default())
+                .map_err(markdown_error)?;
+            return json(carver_sdk::Note {
+                source: markdown.value,
+                ..note
+            });
+        }
+        json(note)
     }
 
     /// Lists recoverable notes and categories in Carver's trash.
@@ -577,6 +594,9 @@ fn limit(value: Option<usize>) -> Result<usize, ErrorData> {
 }
 fn storage_error(error: impl std::fmt::Display) -> ErrorData {
     ErrorData::internal_error(error.to_string(), None)
+}
+fn markdown_error(error: impl std::fmt::Display) -> ErrorData {
+    ErrorData::internal_error(format!("could not convert note to Markdown: {error}"), None)
 }
 fn json(value: impl serde::Serialize) -> Result<String, ErrorData> {
     serde_json::to_string_pretty(&value).map_err(storage_error)

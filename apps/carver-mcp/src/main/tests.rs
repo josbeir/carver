@@ -67,12 +67,23 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
         .map_err(|error| error.to_string())?;
     assert!(search.contains("Planning"));
     let note = server
-        .get_note(Parameters(NoteRequest {
+        .get_note(Parameters(GetNoteRequest {
             note_id: note_id.clone(),
+            markdown: None,
         }))
         .await
         .map_err(|error| error.to_string())?;
     assert!(note.contains("Planning"));
+    let markdown = server
+        .get_note(Parameters(GetNoteRequest {
+            note_id: note_id.clone(),
+            markdown: Some(true),
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let markdown =
+        serde_json::from_str::<serde_json::Value>(&markdown).map_err(|error| error.to_string())?;
+    assert_eq!(markdown["source"], "# Planning\n\nPrepare the launch.\n");
     Ok((category_id, note_id))
 }
 
@@ -126,8 +137,9 @@ async fn save_move_and_restore_note(
     assert_eq!(trashed, "note moved to trash");
     assert!(
         server
-            .get_note(Parameters(NoteRequest {
+            .get_note(Parameters(GetNoteRequest {
                 note_id: note_id.clone(),
+                markdown: None,
             }))
             .await
             .is_err()

@@ -5,8 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
 [![MSRV: 1.92](https://img.shields.io/badge/MSRV-1.92-93450a.svg)](https://www.rust-lang.org/)
 
-Carver is a beautiful native GNOME note-taking app written in Rust, with optional local AI agent
-access through MCP.
+Carver is a beautiful native GNOME note-taking app written in Rust. Its optional local MCP
+connection lets an AI agent work with the plans, ideas, and project notes you already keep in
+Carver—turning them into a useful, organized project context instead of an isolated chat.
 
 <p align="center">
   <img src="docs/Screenshot%20From%202026-09-05%2016-43-51.png" alt="Carver editing Carve source in dark mode" width="49%" />
@@ -40,7 +41,8 @@ access through MCP.
 - **Preferences that respect your workflow**<br>
   Configure editing mode, source presentation, remote images, and the formatting toolbar.
 - **Local agent access**<br>
-  Connect stdio-MCP clients with explicitly opt-in, reversible note changes.
+  Let an agent use your notes as project context to find ideas, build plans, and organize work,
+  with explicitly opt-in, reversible changes.
 - **Native GNOME by design**<br>
   Responsive GTK4/Libadwaita design with light/dark themes and accessible controls.
 
@@ -115,9 +117,30 @@ Carver follows the XDG base-directory convention:
 
 ## Agent access
 
-Carver can expose its library to local AI clients through the `carver-mcp` stdio server. Open
-the **Connect an agent** entry in Carver's menu to choose Codex, Claude Code, GitHub Copilot CLI,
-VS Code Copilot, or a generic stdio-MCP client and copy a user-level setup command. The setup
+Carver can expose its library to local AI clients through the `carver-mcp` stdio server. This is
+especially handy when your notes are where thinking happens: write down rough ideas, meeting
+notes, research, and project plans in Carver, then let an agent search and read that context when
+helping you plan a project. With write access enabled, it can also draft or update plans, create
+notes for new work, and organize notes and categories—so the useful result stays in your library
+rather than disappearing into a chat transcript.
+
+### Carve for writing, Markdown for interchange
+
+Carver stores notes as [Carve](https://github.com/markup-carve), not Markdown. Markdown is a
+great lowest-common-denominator interchange format, but its extensions and renderer-specific
+dialects make complex documents ambiguous and difficult to round-trip reliably. Carve provides a
+single canonical representation for the structured notes Carver edits—rich inline formatting,
+tables, tasks, managed images, and target-specific content—so source mode, rich editing, and
+preview can preserve the same document instead of guessing which Markdown dialect was intended.
+
+That does not lock your notes in. Carver cleanly imports CommonMark and exports Markdown whenever
+you need to share a note. MCP agents can pass Markdown to `create_note` or `save_note` with
+`markdown: true`, and can pass `markdown: true` to `get_note` to receive a Markdown rendering in
+the returned `source` field. Carver always keeps the canonical Carve source as the lossless
+original, even when a Markdown export cannot represent every Carve construct exactly.
+
+Open the **Connect an agent** entry in Carver's menu to choose Codex, Claude Code, GitHub Copilot
+CLI, VS Code Copilot, or a generic stdio-MCP client and copy a user-level setup command. The setup
 screen detects native, Flatpak, and Snap installs so the agent process opens the same private
 library as Carver.
 
@@ -131,8 +154,8 @@ enabled, agents can create, rename, and update category appearance; create, save
 restore, and adjust the creation and modification timestamps of notes; and trash or restore
 categories. Every note write uses Carver's revision check, so an agent must reload a note after a
 conflicting edit. `create_note` and `save_note` accept `markdown: true` to convert CommonMark
-input into Carver's canonical source; all stored and returned note content remains canonical
-Carve.
+input into Carver's canonical source. `get_note` returns that canonical source, while
+`get_note` with `markdown: true` returns a Markdown rendering for agents that prefer it.
 
 `carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library
 as the installed application, including the separate Flatpak or Snap data area when applicable.
