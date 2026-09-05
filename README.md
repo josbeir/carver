@@ -64,6 +64,15 @@ the local desktop assets once before launching it:
 ./scripts/install-dev-assets.sh
 ```
 
+## Distribution
+
+Carver has a reproducible Flatpak build for testing and CI. It builds both the
+desktop application and its optional local MCP server from the committed Rust
+and JavaScript lockfiles, with no dependency downloads during compilation. See
+[the Flatpak packaging guide](packaging/flatpak/README.md) to build a local
+bundle. CI uploads a test bundle for every push and pull request; it does not
+publish an application update or contact Flathub.
+
 ## Architecture
 
 Carver is a Cargo workspace with clear dependency boundaries:

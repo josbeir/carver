@@ -1,0 +1,7 @@
+allow-branch = ["main"]
+consolidate-commits = true
+pre-release-commit-message = "chore: release {{version}}"
+publish = false
+shared-version = true
+tag-message = "Carver {{version}}"
+tag-name = "v{{version}}"

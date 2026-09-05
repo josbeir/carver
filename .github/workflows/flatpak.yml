@@ -1,0 +1,31 @@
+name: Flatpak
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Build test bundle (x86_64)
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate packaging metadata
+        run: |
+          flatpak-builder --show-manifest packaging/flatpak/io.github.josbeir.Carver.json > /dev/null
+          appstreamcli validate --no-net apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+          desktop-file-validate apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/io.github.josbeir.Carver.json
+          bundle: carver-x86_64.flatpak
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: true
+          artifact-name: carver-flatpak-x86_64

@@ -1,0 +1,68 @@
+{
+    "$schema": "https://raw.githubusercontent.com/flatpak/flatpak-builder/main/data/flatpak-manifest.schema.json",
+    "id": "io.github.josbeir.Carver",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "50",
+    "sdk": "org.gnome.Sdk",
+    "sdk-extensions": [
+        "org.freedesktop.Sdk.Extension.rust-stable",
+        "org.freedesktop.Sdk.Extension.node24"
+    ],
+    "command": "carver-gtk",
+    "finish-args": [
+        "--share=ipc",
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--share=network"
+    ],
+    "modules": [
+        {
+            "name": "carver",
+            "buildsystem": "simple",
+            "build-options": {
+                "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin",
+                "env": {
+                    "CARGO_NET_OFFLINE": "true",
+                    "npm_config_cache": "/run/build/carver/flatpak-node/npm-cache",
+                    "npm_config_offline": "true"
+                }
+            },
+            "build-commands": [
+                "mkdir -p .cargo",
+                "cp packaging/flatpak/cargo-config.toml .cargo/config.toml",
+                "npm ci --prefix apps/carver-gtk/web --offline",
+                "npm test --prefix apps/carver-gtk/web",
+                "npm run build --prefix apps/carver-gtk/web",
+                "cargo build --release --locked --offline --package carver-gtk --package carver-mcp",
+                "install -Dm755 target/release/carver-gtk /app/bin/carver-gtk",
+                "install -Dm755 target/release/carver-mcp /app/bin/carver-mcp",
+                "install -Dm644 apps/carver-gtk/resources/io.github.josbeir.Carver.desktop /app/share/applications/io.github.josbeir.Carver.desktop",
+                "install -Dm644 apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml /app/share/metainfo/io.github.josbeir.Carver.metainfo.xml",
+                "install -Dm644 apps/carver-gtk/resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg /app/share/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg",
+                "install -Dm644 LICENSE /app/share/licenses/io.github.josbeir.Carver/LICENSE"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../..",
+                    "skip": [
+                        ".agents",
+                        ".codex",
+                        ".flatpak-builder",
+                        "build-dir",
+                        ".carver-flatpak-build",
+                        ".carver-flatpak-build.log",
+                        ".carver-flatpak-repo",
+                        ".git",
+                        "apps/carver-gtk/web/node_modules",
+                        "repo",
+                        "target"
+                    ]
+                },
+                "cargo-sources.json",
+                "node-sources.json"
+            ]
+        }
+    ]
+}
