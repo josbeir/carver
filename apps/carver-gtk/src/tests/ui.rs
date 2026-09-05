@@ -275,10 +275,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .recent_notes(None, 10, 0)?
         .pop()
         .ok_or("created note")?;
-    let all_notes = sidebar
-        .first_child()
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("refreshed all notes row")?;
+    assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
+    let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     sidebar.select_row(Some(&all_notes));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note-category:{}", note.id)).is_some()
@@ -336,10 +334,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_some_and(|title| title.title() == "Notes")
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
-    let all_notes = sidebar
-        .first_child()
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("refreshed all notes row")?;
+    assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
+    let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     sidebar.select_row(Some(&all_notes));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note-category:{}", note.id)).is_some()
@@ -1005,6 +1001,10 @@ fn select_all(buffer: &gtk::TextBuffer) {
     let start = buffer.start_iter();
     let end = buffer.end_iter();
     buffer.select_range(&start, &end);
+}
+
+fn all_notes_row(sidebar: &gtk::ListBox) -> Option<gtk::ListBoxRow> {
+    sidebar.first_child().and_downcast::<gtk::ListBoxRow>()
 }
 
 fn assert_split_preview_tracks_source_scroll(
