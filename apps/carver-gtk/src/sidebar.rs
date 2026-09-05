@@ -67,6 +67,7 @@ pub(crate) fn build_sidebar(
 /// Builds the window-level settings menu shown in the persistent sidebar.
 fn settings_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
+    menu.append(Some("Connect an agent"), Some("win.connect-agent"));
     menu.append(Some("Preferences"), Some("win.preferences"));
     menu.append(
         Some("Keyboard Shortcuts"),

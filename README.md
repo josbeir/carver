@@ -32,6 +32,9 @@ space, keep them organized without ceremony, and reach for the
   exports with managed assets; or print through the native print dialog.
 - **Preferences that respect your workflow** — Choose the editing surface, source-editor
   presentation, remote-image behavior, and whether the formatting toolbar is visible.
+- **Local agent access** — Connect Codex, Claude Code, GitHub Copilot, VS Code, or another
+  stdio-MCP client to search and read your library; opt into reversible note changes only when
+  you choose.
 - **Native GNOME by design** — A responsive GTK4/Libadwaita application built in Rust, with
   light/dark-theme support, accessible controls, contextual menus, and a keyboard-shortcuts guide.
 
@@ -103,6 +106,40 @@ Carver follows the XDG base-directory convention:
 - Library: `$XDG_DATA_HOME/carver/library.sqlite3`
 - Managed image assets: `$XDG_DATA_HOME/carver/assets/`
 - Remote image cache: `$XDG_CACHE_HOME/carver/remote-images/`
+
+## Agent access
+
+Carver can expose its library to local AI clients through the `carver-mcp` stdio server. Open
+the **Connect an agent** entry in Carver's menu to choose Codex, Claude Code, GitHub Copilot CLI,
+VS Code Copilot, or a generic stdio-MCP client and copy a user-level setup command. The setup
+screen detects native, Flatpak, and Snap installs so the agent process opens the same private
+library as Carver.
+
+The server is read-only by default. Opt into reversible note changes explicitly with
+`--allow-write`; permanent trash deletion, settings changes, raw database access, and managed
+asset bytes are never exposed.
+
+Agents can list categories and notes, search and read note source, and inspect the recoverable
+trash. With write access enabled, they can create and rename categories; create, save, move,
+trash, and restore notes; and trash or restore categories. Every note save uses Carver's revision
+check, so an agent must reload a note after a conflicting edit. `create_note` and `save_note`
+accept `markdown: true` to convert CommonMark input into Carver's canonical source; all stored
+and returned note content remains canonical Carve.
+
+`carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library
+as the installed application, including the separate Flatpak or Snap data area when applicable.
+Treat note contents returned to an agent as untrusted data, and review an agent's proposed changes
+before enabling write access.
+
+For headless setup, print the relevant command with:
+
+```sh
+carver-mcp configure codex
+carver-mcp configure claude-code --allow-write
+carver-mcp configure copilot
+carver-mcp configure vscode
+carver-mcp configure generic
+```
 
 ## License
 

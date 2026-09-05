@@ -248,6 +248,38 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Creates a note with canonical Carve source without blocking the caller.
+    pub async fn create_note_with_source_async(
+        &self,
+        category_id: CategoryId,
+        source: String,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.create_note_with_source(category_id, &source, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
+    /// Saves a note after converting the supplied document into canonical Carve source.
+    pub async fn save_note_with_format_async(
+        &self,
+        note_id: NoteId,
+        expected_revision: Revision,
+        source: String,
+        format: DocumentImportFormat,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            let source = carver_domain::import_document(&source, format);
+            backend.save_note(
+                note_id,
+                expected_revision,
+                &source,
+                OffsetDateTime::now_utc(),
+            )
+        })
+        .await
+    }
+
     /// Converts one supported source format and creates the resulting note without blocking.
     ///
     /// # Errors
@@ -414,6 +446,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
     /// Creates a blank note synchronously for bootstrap code and tests.
     pub fn create_note(&self, category_id: CategoryId) -> Result<Note, LibraryError<B::Error>> {
         self.blocking(move |backend| backend.create_note(category_id, OffsetDateTime::now_utc()))
+    }
+
+    /// Creates a note with canonical Carve source synchronously for bootstrap code and tests.
+    pub fn create_note_with_source(
+        &self,
+        category_id: CategoryId,
+        source: &str,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        let source = source.to_owned();
+        self.blocking(move |backend| {
+            backend.create_note_with_source(category_id, &source, OffsetDateTime::now_utc())
+        })
     }
 
     /// Converts one supported source format and creates the resulting note synchronously.

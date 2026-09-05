@@ -71,7 +71,17 @@ fn build_application(application: &adw::Application) {
     }
 }
 
-fn load_styles() {
+pub(crate) fn load_styles() {
+    let resource = gtk::gio::Resource::from_data(&glib::Bytes::from_static(include_bytes!(
+        concat!(env!("OUT_DIR"), "/carver-agent-icons.gresource")
+    )));
+    if let Ok(resource) = resource {
+        gtk::gio::resources_register(&resource);
+        if let Some(display) = gtk::gdk::Display::default() {
+            let icon_theme = gtk::IconTheme::for_display(&display);
+            icon_theme.add_resource_path("/io/github/josbeir/Carver/icons");
+        }
+    }
     let provider = gtk::CssProvider::new();
     provider.load_from_string(include_str!("style.css"));
     if let Some(display) = gtk::gdk::Display::default() {

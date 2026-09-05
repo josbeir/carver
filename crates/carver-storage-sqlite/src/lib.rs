@@ -8,6 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use std::time::Duration;
+
 use carver_domain::{
     Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
     TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
@@ -64,6 +66,7 @@ impl SqliteLibrary {
         }
         fs::create_dir_all(assets_dir)?;
         let connection = Connection::open(database_path)?;
+        connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;

@@ -22,6 +22,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    crate::app::load_styles();
+    let display = gtk::gdk::Display::default().ok_or("display")?;
+    assert!(
+        gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),
+        "registered agent icons should be discoverable by GTK's icon theme"
+    );
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
@@ -54,6 +60,32 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         about_dialog.issue_url(),
         "https://github.com/josbeir/carver/issues"
     );
+    assert!(window.lookup_action("connect-agent").is_some());
+    let agent_setup = crate::dialogs::show_agent_setup_dialog_for_test(&window);
+    let agent = widget_as::<adw::ComboRow>(agent_setup.upcast_ref(), "agent-setup-agent")
+        .ok_or("agent setup selection")?;
+    let allow_agent_write =
+        widget_as::<adw::SwitchRow>(agent_setup.upcast_ref(), "agent-setup-allow-write")
+            .ok_or("agent write switch")?;
+    let agent_command =
+        widget_as::<adw::ActionRow>(agent_setup.upcast_ref(), "agent-setup-command")
+            .ok_or("agent setup command")?;
+    let claude_card = widget_as::<adw::ActionRow>(agent_setup.upcast_ref(), "agent-card-1")
+        .ok_or("Claude Code agent card")?;
+    claude_card.emit_by_name::<()>("activated", &[]);
+    assert_eq!(agent.selected(), 1);
+    assert!(
+        agent_command
+            .subtitle()
+            .is_some_and(|command| command.contains("claude mcp add"))
+    );
+    allow_agent_write.set_active(true);
+    assert!(
+        agent_command
+            .subtitle()
+            .is_some_and(|command| command.contains("--allow-write"))
+    );
+    agent_setup.close();
     assert_eq!(
         widget_as::<adw::SwitchRow>(preferences_dialog.upcast_ref(), "remote-images-setting")
             .map(|row| row.subtitle()),
@@ -158,7 +190,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok_or("sidebar settings menu")?;
     assert_eq!(
         settings_menu.menu_model().map(|model| model.n_items()),
-        Some(3)
+        Some(4)
     );
     assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());
     assert!(window.lookup_action("keyboard-shortcuts").is_some());

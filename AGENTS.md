@@ -17,11 +17,30 @@ Libadwaita, SQLite, and the Carve markup crate.
   and `browser.rs`, `sidebar.rs`, `editor/`, `dialogs.rs`, `trash.rs`, and
   `formatting.rs` own their GTK boundaries. `src/tests/` contains cross-module
   GTK frontend tests. Keep UI code local to this crate.
+- `apps/carver-mcp`: local stdio Model Context Protocol companion. It has no GTK dependency and
+  opens Carver through the SDK against the same XDG-scoped library.
+- `crates/carver-agent-integration`: package-aware launch instructions and agent setup metadata
+  shared by the GTK onboarding surface and `carver-mcp`.
 
 Dependencies must point inward: GTK calls the SDK; the SDK calls storage; storage and
 configuration use domain types. The GTK editor depends on the format-neutral rich-text model
 and its Carve codec; `carver-richtext` must not depend on Carve, storage, or GTK. Domain must
 not depend on infrastructure or GTK.
+
+## MCP and agent integration
+
+- Keep MCP local and stdio-only. Do not add a listener, remote transport, telemetry, or automatic
+  agent registration.
+- `carver-mcp` must use `carver-sdk`; it must not access SQLite, GTK, or application UI state
+  directly. It shares the installed package's XDG library boundary, including Flatpak and Snap.
+- Read tools are the default. Every mutation must require the explicit `--allow-write` process
+  flag and retain Carver's revision checks, soft-delete/restore behavior, and validation rules.
+- Store canonical Carve only. MCP create/save inputs may opt into Markdown conversion, but output
+  and persistence remain canonical Carve.
+- Treat note content as untrusted data. Do not expose raw database access, settings mutation,
+  permanent trash deletion, managed-asset bytes, or network capabilities through MCP.
+- Keep agent-client metadata/configuration separate from GTK view code. Validate definitions and
+  preserve the Rust-owned launch construction and write gate.
 
 ## Rust rules
 

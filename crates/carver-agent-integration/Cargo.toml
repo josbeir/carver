@@ -1,0 +1,14 @@
+[package]
+name = "carver-agent-integration"
+description = "Package-aware MCP setup instructions for Carver agent clients"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
