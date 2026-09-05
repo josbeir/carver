@@ -28,6 +28,22 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),
         "registered agent icons should be discoverable by GTK's icon theme"
     );
+    assert!(
+        gtk::IconTheme::for_display(&display).has_icon("package-x-generic-symbolic"),
+        "the Adwaita package icon should be available to the category picker"
+    );
+    assert!(
+        gtk::IconTheme::for_display(&display).has_icon("bookmark-new-symbolic"),
+        "the Adwaita bookmark icon should be available to the category picker"
+    );
+    assert!(
+        gtk::IconTheme::for_display(&display).has_icon("x-office-calendar-symbolic"),
+        "the Adwaita calendar icon should be available to the category picker"
+    );
+    assert!(
+        gtk::IconTheme::for_display(&display).has_icon("system-users-symbolic"),
+        "the Adwaita people icon should be available to the category picker"
+    );
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
@@ -330,8 +346,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok_or("category row")?;
     sidebar.select_row(Some(&category_row));
     assert!(run_main_context_until(|| {
-        widget_as::<adw::WindowTitle>(&root, "browser-window-title")
-            .is_some_and(|title| title.title() == "Notes")
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "Notes")
+            && widget_as::<gtk::Button>(&root, "edit-selected-category-button").is_some()
+            && widget_as::<gtk::Button>(&root, "trash-selected-category-button").is_some()
+            && find_widget(
+                sidebar.upcast_ref(),
+                &format!("category-actions:{}", category.id),
+            )
+            .is_none()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
     let destination_category_row = find_widget(
@@ -342,8 +365,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     .ok_or("destination category row")?;
     sidebar.select_row(Some(&destination_category_row));
     assert!(run_main_context_until(|| {
-        widget_as::<adw::WindowTitle>(&root, "browser-window-title")
-            .is_some_and(|title| title.title() == "Projects")
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "Projects")
             && find_widget(&root, &format!("note:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today").is_some()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
@@ -352,7 +375,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     sidebar.select_row(Some(&all_notes));
     assert!(run_main_context_until(|| {
-        find_widget(&root, &format!("note-category:{}", note.id)).is_some()
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "All notes")
+            && widget_as::<gtk::Button>(&root, "edit-selected-category-button").is_none()
+            && find_widget(&root, &format!("note-category:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today").is_some()
     }));
     let note_row = find_widget(&root, &format!("note:{}", note.id))

@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use carver_config::{EditorMode, SourceSyntaxStyle};
 use carver_sdk::{
-    CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId, NoteSummary,
-    Revision, TrashContents, TrashPurgeResult,
+    CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
+    NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
@@ -275,6 +275,13 @@ pub enum WindowMsg {
 pub enum ActionMsg {
     /// Create a category with a user-entered name.
     CreateCategory(String),
+    /// Create a category with its user-selected visual identity.
+    CreateCategoryWithAppearance {
+        /// User-entered category name.
+        name: String,
+        /// Appearance chosen in the category dialog.
+        appearance: CategoryAppearance,
+    },
     /// Create a category, then move a note into it.
     CreateCategoryAndMoveNote {
         /// User-entered category name.
@@ -290,6 +297,15 @@ pub enum ActionMsg {
         category_id: CategoryId,
         /// Replacement name.
         name: String,
+    },
+    /// Update a category name and visual identity.
+    UpdateCategory {
+        /// Category to update.
+        category_id: CategoryId,
+        /// Replacement name.
+        name: String,
+        /// Replacement visual identity.
+        appearance: CategoryAppearance,
     },
     /// Move a category and its notes to trash.
     TrashCategory(CategoryId),
@@ -311,7 +327,9 @@ pub enum ActionMsg {
 impl ActionMsg {
     pub(super) fn key(&self) -> Option<ActionKey> {
         Some(match self {
-            Self::CreateCategory(_) => ActionKey::CreateCategory,
+            Self::CreateCategory(_) | Self::CreateCategoryWithAppearance { .. } => {
+                ActionKey::CreateCategory
+            }
             Self::CreateCategoryAndMoveNote {
                 note_id,
                 source_category_id,
@@ -326,6 +344,7 @@ impl ActionMsg {
                 source_category_id: *source_category_id,
             },
             Self::RenameCategory { category_id, .. } => ActionKey::RenameCategory(*category_id),
+            Self::UpdateCategory { category_id, .. } => ActionKey::UpdateCategory(*category_id),
             Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
             Self::UndoMove => return None,
             Self::TrashNote(note_id) => ActionKey::TrashNote(*note_id),

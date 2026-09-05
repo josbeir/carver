@@ -3,15 +3,18 @@
 use std::{borrow::Cow, cell::Cell, rc::Rc};
 
 use carver_config::Config;
-use carver_sdk::NoteSummary;
+use carver_sdk::{Category, CategorySummary, NoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
-    dialogs::{IMPORT_NOTE_ACTION, NEW_NOTE_ACTION},
+    dialogs::{
+        IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
+        show_category_dialog, show_category_trash_confirmation,
+    },
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
-    mvu::{AppDispatcher, AppMsg, BrowserMsg, EditorMsg, NavigationMsg},
+    mvu::{ActionMsg, AppDispatcher, AppMsg, BrowserMsg, EditorMsg, LoadState, NavigationMsg},
     sidebar::sidebar_toggle_button,
     trash::{TrashViewRefs, build_trash},
 };
@@ -100,7 +103,7 @@ pub(crate) struct BrowserViewRefs {
     pub(crate) pages: gtk::Stack,
     pub(crate) search_empty_card: gtk::Box,
     pub(crate) empty_new_note_button: gtk::Button,
-    pub(crate) title: adw::WindowTitle,
+    pub(crate) category_hero: gtk::Box,
     pub(crate) status: adw::StatusPage,
 }
 
@@ -229,9 +232,6 @@ pub(crate) fn build_browser(
     let view = adw::ToolbarView::new();
     view.set_widget_name("browser-surface");
     let header = adw::HeaderBar::new();
-    let title = adw::WindowTitle::new("Home", "All recent notes");
-    title.set_widget_name("browser-window-title");
-    header.set_title_widget(Some(&title));
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
@@ -251,6 +251,10 @@ pub(crate) fn build_browser(
     content.set_margin_end(18);
     content.set_margin_top(18);
     content.set_margin_bottom(18);
+    let category_hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    category_hero.set_widget_name("browser-category-hero");
+    category_hero.add_css_class("category-hero");
+    content.append(&category_hero);
     let search = gtk::SearchEntry::new();
     search.set_widget_name("note-search-entry");
     search.set_placeholder_text(Some("Search notes"));
@@ -317,7 +321,7 @@ pub(crate) fn build_browser(
             pages,
             search_empty_card,
             empty_new_note_button: empty_new_note,
-            title,
+            category_hero,
             status,
         },
     )
@@ -390,6 +394,159 @@ fn connect_new_note_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
     button.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
     });
+}
+
+/// Renders the browser's current-library or category hero from an immutable sidebar snapshot.
+pub(crate) fn render_category_hero(
+    hero: &gtk::Box,
+    sidebar: &LoadState<Vec<CategorySummary>>,
+    selected_category: Option<carver_sdk::CategoryId>,
+    dispatcher: Option<&AppDispatcher>,
+) {
+    while let Some(child) = hero.first_child() {
+        hero.remove(&child);
+    }
+    let LoadState::Ready(categories) = sidebar else {
+        hero.set_visible(false);
+        return;
+    };
+    hero.set_visible(true);
+    let selected = selected_category.and_then(|category_id| {
+        categories
+            .iter()
+            .find(|summary| summary.category.id == category_id)
+    });
+    let content = match selected {
+        Some(summary) => category_hero(summary, dispatcher),
+        None => all_notes_hero(categories),
+    };
+    hero.append(&content);
+}
+
+fn all_notes_hero(categories: &[CategorySummary]) -> gtk::Widget {
+    let note_count = categories.iter().map(|summary| summary.note_count).sum();
+    category_hero_content(
+        "go-home-symbolic",
+        "all-notes-icon",
+        "All notes",
+        &note_count_label(note_count),
+        None,
+    )
+}
+
+fn category_hero(summary: &CategorySummary, dispatcher: Option<&AppDispatcher>) -> gtk::Widget {
+    let category = &summary.category;
+    let color = category.appearance.color.resolved_for(category.id);
+    let actions = dispatcher.map(|dispatcher| category_hero_actions(category, dispatcher));
+    category_hero_content(
+        category_icon_name(category.appearance.icon),
+        category_color_css_class(color),
+        &category.name,
+        &note_count_label(summary.note_count),
+        actions.as_ref(),
+    )
+}
+
+fn category_hero_content(
+    icon_name: &str,
+    color_class: &str,
+    title: &str,
+    subtitle: &str,
+    actions: Option<&gtk::Box>,
+) -> gtk::Widget {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    content.add_css_class("category-hero-content");
+    let icon = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    icon.set_widget_name("browser-hero-icon");
+    icon.add_css_class("category-icon-tile");
+    icon.add_css_class("category-hero-icon");
+    icon.add_css_class(color_class);
+    icon.set_halign(gtk::Align::Fill);
+    icon.set_valign(gtk::Align::Fill);
+    icon.set_homogeneous(true);
+    let image = gtk::Image::from_icon_name(icon_name);
+    image.set_pixel_size(24);
+    image.set_halign(gtk::Align::Center);
+    image.set_valign(gtk::Align::Center);
+    icon.append(&image);
+    content.append(&icon);
+    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    text.set_hexpand(true);
+    let title_label = gtk::Label::new(Some(title));
+    title_label.set_widget_name("browser-hero-title");
+    title_label.add_css_class("title-2");
+    title_label.set_xalign(0.0);
+    title_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    title_label.set_single_line_mode(true);
+    text.append(&title_label);
+    let subtitle_label = gtk::Label::new(Some(subtitle));
+    subtitle_label.set_widget_name("browser-hero-subtitle");
+    subtitle_label.add_css_class("dim-label");
+    subtitle_label.set_xalign(0.0);
+    text.append(&subtitle_label);
+    content.append(&text);
+    if let Some(actions) = actions {
+        content.append(actions);
+    }
+    content.upcast()
+}
+
+fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk::Box {
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    actions.set_widget_name("browser-category-hero-actions");
+    let edit = gtk::Button::from_icon_name("document-edit-symbolic");
+    edit.set_widget_name("edit-selected-category-button");
+    edit.set_tooltip_text(Some("Edit Category"));
+    edit.add_css_class("flat");
+    let dispatcher_for_edit = dispatcher.clone();
+    let category_id = category.id;
+    let category_name = category.name.clone();
+    let appearance = category.appearance;
+    edit.connect_clicked(move |button| {
+        let parent = button
+            .root()
+            .and_then(|root| root.downcast::<gtk::Window>().ok());
+        let dispatcher = dispatcher_for_edit.clone();
+        show_category_dialog(
+            parent.as_ref(),
+            "Edit Category",
+            &category_name,
+            appearance,
+            move |name, appearance| {
+                let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::UpdateCategory {
+                    category_id,
+                    name,
+                    appearance,
+                }));
+            },
+        );
+    });
+    actions.append(&edit);
+    let trash = gtk::Button::from_icon_name("user-trash-symbolic");
+    trash.set_widget_name("trash-selected-category-button");
+    trash.set_tooltip_text(Some("Move Category to Trash"));
+    trash.add_css_class("flat");
+    let dispatcher_for_trash = dispatcher.clone();
+    let category_name = category.name.clone();
+    trash.connect_clicked(move |button| {
+        let parent = button
+            .root()
+            .and_then(|root| root.downcast::<gtk::Window>().ok());
+        let dispatcher = dispatcher_for_trash.clone();
+        show_category_trash_confirmation(parent.as_ref(), &category_name, move || {
+            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::TrashCategory(category_id)));
+        });
+    });
+    actions.append(&trash);
+    actions
+}
+
+fn note_count_label(note_count: usize) -> String {
+    if note_count == 1 {
+        "1 note".to_owned()
+    } else {
+        format!("{note_count} notes")
+    }
 }
 
 /// Builds the shared note-card details rendered from browser snapshots.

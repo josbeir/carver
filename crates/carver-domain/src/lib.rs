@@ -109,6 +109,86 @@ impl fmt::Display for NoteId {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Revision(pub i64);
 
+/// The visual identity chosen for a category.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CategoryAppearance {
+    /// Symbolic icon shown for the category.
+    pub icon: CategoryIcon,
+    /// Accent colour shown behind the category icon.
+    pub color: CategoryColor,
+}
+
+/// A curated symbolic icon available for a category.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CategoryIcon {
+    /// A general-purpose folder.
+    #[default]
+    Folder,
+    /// Work and projects.
+    Briefcase,
+    /// Plans and scheduled events.
+    Calendar,
+    /// Reading and reference material.
+    Book,
+    /// Personal or favourite material.
+    Heart,
+    /// Home and household material.
+    Home,
+    /// People and relationships.
+    People,
+    /// Highlights and goals.
+    Star,
+    /// Labels and collections.
+    Tag,
+    /// Ideas and inspiration.
+    Lightbulb,
+}
+
+/// A warm accent colour available for a category.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CategoryColor {
+    /// Select a stable colour from the category identity.
+    #[default]
+    Auto,
+    /// A soft rose accent.
+    Rose,
+    /// A warm tangerine accent.
+    Tangerine,
+    /// A mellow yellow accent.
+    Yellow,
+    /// A grounded olive accent.
+    Olive,
+    /// A calm teal accent.
+    Teal,
+    /// A clear blue accent.
+    Blue,
+    /// A gentle purple accent.
+    Purple,
+}
+
+const AUTOMATIC_CATEGORY_COLORS: [CategoryColor; 7] = [
+    CategoryColor::Rose,
+    CategoryColor::Tangerine,
+    CategoryColor::Yellow,
+    CategoryColor::Olive,
+    CategoryColor::Teal,
+    CategoryColor::Blue,
+    CategoryColor::Purple,
+];
+
+impl CategoryColor {
+    /// Resolves an automatic colour into a stable palette entry for one category.
+    #[must_use]
+    pub fn resolved_for(self, category_id: CategoryId) -> Self {
+        if !matches!(self, Self::Auto) {
+            return self;
+        }
+        let index =
+            (category_id.as_uuid().as_u128() % AUTOMATIC_CATEGORY_COLORS.len() as u128) as usize;
+        AUTOMATIC_CATEGORY_COLORS[index]
+    }
+}
+
 /// A logical container for notes.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Category {
@@ -116,6 +196,8 @@ pub struct Category {
     pub id: CategoryId,
     /// User-visible category name.
     pub name: String,
+    /// User-selected visual identity.
+    pub appearance: CategoryAppearance,
     /// Explicit sidebar order.
     pub position: i64,
     /// Creation time.

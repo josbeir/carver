@@ -153,7 +153,7 @@ fn build_window(
         content.browser.pages,
         content.browser.search_empty_card,
         content.browser.empty_new_note_button,
-        content.browser.title,
+        content.browser.category_hero,
     )
     .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
     .with_editor(content.editor)

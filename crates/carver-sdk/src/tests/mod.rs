@@ -57,6 +57,7 @@ impl LibraryBackend for TestBackend {
         let category = Category {
             id: CategoryId::new(),
             name: name.to_owned(),
+            appearance: CategoryAppearance::default(),
             position: i64::try_from(categories.len()).map_err(|_| TestError)?,
             created_at: now,
             updated_at: now,
@@ -64,6 +65,16 @@ impl LibraryBackend for TestBackend {
         };
         categories.push(category.clone());
         Ok(category)
+    }
+
+    fn create_category_with_appearance(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        let category = self.create_category(name, now)?;
+        self.update_category(category.id, name, appearance, now)
     }
 
     fn categories(&self) -> Result<Vec<Category>, Self::Error> {
@@ -96,6 +107,24 @@ impl LibraryBackend for TestBackend {
         _now: OffsetDateTime,
     ) -> Result<Category, Self::Error> {
         Self::unsupported()
+    }
+
+    fn update_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        let mut categories = self.categories.lock().map_err(|_| TestError)?;
+        let category = categories
+            .iter_mut()
+            .find(|category| category.id == category_id)
+            .ok_or(TestError)?;
+        category.name = name.to_owned();
+        category.appearance = appearance;
+        category.updated_at = now;
+        Ok(category.clone())
     }
 
     fn trash_category(
@@ -221,6 +250,34 @@ fn async_requests_are_serialized_by_the_backend_worker() -> Result<(), LibraryEr
             note_count: 0,
         }]
     );
+    Ok(())
+}
+
+#[test]
+fn category_appearance_should_round_trip_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let initial_appearance = CategoryAppearance {
+        icon: CategoryIcon::Heart,
+        color: CategoryColor::Rose,
+    };
+    let updated_appearance = CategoryAppearance {
+        icon: CategoryIcon::Briefcase,
+        color: CategoryColor::Teal,
+    };
+
+    let created = block_on(
+        client.create_category_with_appearance_async("Personal".to_owned(), initial_appearance),
+    )?;
+    let updated = block_on(client.update_category_async(
+        created.id,
+        "Projects".to_owned(),
+        updated_appearance,
+    ))?;
+
+    assert_eq!(created.appearance, initial_appearance);
+    assert_eq!(updated.name, "Projects");
+    assert_eq!(updated.appearance, updated_appearance);
     Ok(())
 }
 

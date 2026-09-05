@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 use carver_config::Config;
-use carver_sdk::{CategoryId, DocumentImportFormat, NoteId};
+use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId};
 
 use super::{
     ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId, TimerId,
@@ -151,6 +151,13 @@ pub enum Effect {
         /// User-entered category name.
         name: String,
     },
+    /// Create a category with its selected visual identity.
+    CreateCategoryWithAppearance {
+        /// User-entered category name.
+        name: String,
+        /// Selected visual identity.
+        appearance: CategoryAppearance,
+    },
     /// Create a category, then move a note into it as one user action.
     CreateCategoryAndMoveNote {
         /// Mutation identity used by the completion reply and Undo state.
@@ -166,6 +173,15 @@ pub enum Effect {
         category_id: CategoryId,
         /// User-entered category name.
         name: String,
+    },
+    /// Update a category name and visual identity.
+    UpdateCategory {
+        /// Category to update.
+        category_id: CategoryId,
+        /// User-entered category name.
+        name: String,
+        /// Selected visual identity.
+        appearance: CategoryAppearance,
     },
     /// Move a category to trash.
     TrashCategory {

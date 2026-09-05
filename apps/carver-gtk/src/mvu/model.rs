@@ -33,6 +33,8 @@ pub enum ActionKey {
     CreateCategory,
     /// Rename one category.
     RenameCategory(CategoryId),
+    /// Update one category's name and visual identity.
+    UpdateCategory(CategoryId),
     /// Trash one category.
     TrashCategory(CategoryId),
     /// Move one note away from its prior category.

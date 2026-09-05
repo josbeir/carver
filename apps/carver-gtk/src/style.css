@@ -8,17 +8,61 @@
   margin: 2px 4px;
 }
 
-.category-card-content {
-  min-height: 38px;
+.category-row-content {
+  min-height: 30px;
 }
 
 .category-card-title {
   font-weight: 600;
 }
 
-.category-card-count {
-  font-size: 0.9em;
-  opacity: 0.72;
+.category-icon-tile {
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 9px;
+  color: @window_fg_color;
+}
+
+.category-count-badge {
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 999px;
+  background: alpha(currentColor, 0.10);
+  font-size: 0.82em;
+  padding: 0 5px;
+}
+
+.all-notes-icon {
+  background: alpha(@accent_bg_color, 0.24);
+  color: @accent_color;
+}
+
+.category-color-rose { background: #e37d97; }
+.category-color-tangerine { background: #df8d57; }
+.category-color-yellow { background: #c9a83e; }
+.category-color-olive { background: #849a52; }
+.category-color-teal { background: #4f9b8c; }
+.category-color-blue { background: #6299c9; }
+.category-color-purple { background: #9676bf; }
+.category-color-auto { background: alpha(@accent_bg_color, 0.60); }
+
+.category-appearance-option {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+}
+
+.category-color-option {
+  min-width: 68px;
+  min-height: 32px;
+  border-radius: 8px;
+  color: white;
+  padding: 0 8px;
+}
+
+.category-color-option.category-color-yellow,
+.category-color-option.category-color-olive {
+  color: black;
 }
 
 .category-actions button {
@@ -36,6 +80,20 @@
 
 .sidebar-footer button {
   border-radius: 0;
+}
+
+.category-hero {
+  margin-bottom: 2px;
+}
+
+.category-hero-content {
+  padding: 10px 2px 8px;
+}
+
+.category-hero-icon {
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 14px;
 }
 
 .note-feed {

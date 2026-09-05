@@ -248,6 +248,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::CreateCategory { name } => {
                 self.create_category(name);
             }
+            Effect::CreateCategoryWithAppearance { name, appearance } => {
+                self.create_category_with_appearance(name, appearance);
+            }
             Effect::CreateCategoryAndMoveNote {
                 action,
                 name,
@@ -258,6 +261,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::RenameCategory { category_id, name } => {
                 self.rename_category(category_id, name);
             }
+            Effect::UpdateCategory {
+                category_id,
+                name,
+                appearance,
+            } => self.update_category(category_id, name, appearance),
             Effect::TrashCategory { category_id } => {
                 self.trash_category(category_id);
             }
@@ -636,6 +644,35 @@ impl<B: LibraryBackend> AppRuntime<B> {
         self.complete_action(ActionKey::RenameCategory(category_id), async move {
             client
                 .rename_category_async(category_id, name)
+                .await
+                .map(|_| ())
+        });
+    }
+
+    fn create_category_with_appearance(
+        &self,
+        name: String,
+        appearance: carver_sdk::CategoryAppearance,
+    ) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::CreateCategory, async move {
+            client
+                .create_category_with_appearance_async(name, appearance)
+                .await
+                .map(|_| ())
+        });
+    }
+
+    fn update_category(
+        &self,
+        category_id: carver_sdk::CategoryId,
+        name: String,
+        appearance: carver_sdk::CategoryAppearance,
+    ) {
+        let client = self.inner.client.clone();
+        self.complete_action(ActionKey::UpdateCategory(category_id), async move {
+            client
+                .update_category_async(category_id, name, appearance)
                 .await
                 .map(|_| ())
         });

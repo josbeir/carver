@@ -8,8 +8,8 @@
 use std::error::Error;
 
 use carver_domain::{
-    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
-    TrashContents, TrashPurgeResult,
+    Category, CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision,
+    SearchHit, TrashContents, TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -36,6 +36,13 @@ pub trait LibraryBackend: Send + 'static {
     fn change_revision(&self) -> Result<LibraryRevision, Self::Error>;
     /// Creates a category at the supplied time.
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error>;
+    /// Creates a category with an explicit visual identity at the supplied time.
+    fn create_category_with_appearance(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error>;
     /// Lists active categories in their display order.
     fn categories(&self) -> Result<Vec<Category>, Self::Error>;
     /// Lists active categories with their active-note counts in display order.
@@ -47,6 +54,14 @@ pub trait LibraryBackend: Send + 'static {
         &self,
         category_id: CategoryId,
         name: &str,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error>;
+    /// Updates an active category's name and visual identity at the supplied time.
+    fn update_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
         now: OffsetDateTime,
     ) -> Result<Category, Self::Error>;
     /// Moves a category to trash at the supplied time.

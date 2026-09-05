@@ -138,6 +138,7 @@ fn import_should_use_the_first_category_when_all_notes_is_selected() {
         category: carver_sdk::Category {
             id: category_id,
             name: String::from("Notes"),
+            appearance: carver_sdk::CategoryAppearance::default(),
             position: 0,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
             updated_at: time::OffsetDateTime::UNIX_EPOCH,
@@ -1293,6 +1294,38 @@ fn duplicate_category_rename_should_start_one_mutation() {
 }
 
 #[test]
+fn category_appearance_update_should_start_one_mutation() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let appearance = carver_sdk::CategoryAppearance {
+        icon: carver_sdk::CategoryIcon::Heart,
+        color: carver_sdk::CategoryColor::Rose,
+    };
+    let message = AppMsg::Action(ActionMsg::UpdateCategory {
+        category_id,
+        name: "Personal".to_owned(),
+        appearance,
+    });
+
+    let first = update(&mut model, message.clone());
+    let second = update(&mut model, message);
+
+    assert_eq!(
+        first,
+        vec![Effect::UpdateCategory {
+            category_id,
+            name: "Personal".to_owned(),
+            appearance,
+        }]
+    );
+    assert!(second.is_empty());
+    assert_eq!(
+        model.pending_actions,
+        std::collections::BTreeSet::from([ActionKey::UpdateCategory(category_id)])
+    );
+}
+
+#[test]
 fn invalid_category_name_should_preserve_loaded_resources_and_surface_an_error() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(&mut model, AppMsg::Sidebar(SidebarMsg::Reload));
@@ -1506,7 +1539,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
                 browser_pages,
                 search_empty,
                 empty_new_note,
-                libadwaita::WindowTitle::new("Home", "All recent notes"),
+                gtk::Box::new(gtk::Orientation::Vertical, 0),
             ),
     );
 

@@ -10,8 +10,9 @@ use std::{
 use std::time::Duration;
 
 use carver_domain::{
-    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
-    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note,
+    NoteId, NoteSummary, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -125,18 +126,43 @@ impl SqliteLibrary {
         name: &str,
         now: OffsetDateTime,
     ) -> Result<Category, StorageError> {
+        self.create_category_with_appearance(name, CategoryAppearance::default(), now)
+    }
+
+    /// Creates a category at the end of the sidebar with an explicit visual identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the category name is invalid, the next position cannot be queried,
+    /// or the category cannot be persisted.
+    pub fn create_category_with_appearance(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, StorageError> {
         let name = category_name(name)?;
         let category = Category {
             id: CategoryId::new(),
             name: name.to_owned(),
+            appearance,
             position: self.next_category_position()?,
             created_at: now,
             updated_at: now,
             trashed_at: None,
         };
         self.connection.execute(
-            "INSERT INTO categories (id, name, position, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![category.id.to_string(), category.name, category.position, timestamp(now), timestamp(now)],
+            "INSERT INTO categories (id, name, icon, color, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                category.id.to_string(),
+                category.name,
+                category_icon_value(category.appearance.icon),
+                category_color_value(category.appearance.color),
+                category.position,
+                timestamp(now),
+                timestamp(now),
+            ],
         )?;
         Ok(category)
     }
@@ -148,7 +174,7 @@ impl SqliteLibrary {
     /// Returns an error when categories cannot be read or stored values are corrupt.
     pub fn list_categories(&self) -> Result<Vec<Category>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT id, name, position, created_at, updated_at, trashed_at
+            "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
              FROM categories WHERE trashed_at IS NULL ORDER BY position, name COLLATE NOCASE",
         )?;
         statement
@@ -164,7 +190,7 @@ impl SqliteLibrary {
     /// Returns an error when category summaries cannot be read or stored values are corrupt.
     pub fn list_category_summaries(&self) -> Result<Vec<CategorySummary>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT c.id, c.name, c.position, c.created_at, c.updated_at, c.trashed_at,
+            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at,
                     COUNT(n.id)
              FROM categories c
              LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
@@ -252,7 +278,46 @@ impl SqliteLibrary {
         }
         self.connection
             .query_row(
-                "SELECT id, name, position, created_at, updated_at, trashed_at FROM categories WHERE id = ?1",
+                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
+                 FROM categories WHERE id = ?1",
+                [category_id.to_string()],
+                category_from_row,
+            )
+            .map_err(Into::into)
+    }
+
+    /// Updates an active category's name and visual identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the name is empty, the category is absent, or the update cannot be
+    /// persisted.
+    pub fn update_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, StorageError> {
+        let name = category_name(name)?;
+        let affected = self.connection.execute(
+            "UPDATE categories SET name = ?2, icon = ?3, color = ?4, updated_at = ?5
+             WHERE id = ?1 AND trashed_at IS NULL",
+            params![
+                category_id.to_string(),
+                name,
+                category_icon_value(appearance.icon),
+                category_color_value(appearance.color),
+                timestamp(now),
+            ],
+        )?;
+        if affected != 1 {
+            return Err(StorageError::Corrupt("category was not found".to_owned()));
+        }
+        self.connection
+            .query_row(
+                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
+                 FROM categories WHERE id = ?1",
                 [category_id.to_string()],
                 category_from_row,
             )
@@ -486,7 +551,7 @@ impl SqliteLibrary {
     /// Returns an error when the trash cannot be read or stored values are corrupt.
     pub fn trash_contents(&self) -> Result<TrashContents, StorageError> {
         let mut categories = self.connection.prepare(
-            "SELECT c.id, c.name, c.position, c.created_at, c.updated_at, c.trashed_at,
+            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at,
                     COUNT(n.id)
              FROM categories c
              LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
@@ -631,7 +696,8 @@ impl SqliteLibrary {
         self.connection.execute_batch(
             "CREATE TABLE IF NOT EXISTS categories (
                 id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL CHECK(length(trim(name)) > 0),
-                position INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER
+                icon TEXT NOT NULL DEFAULT 'folder', color TEXT NOT NULL DEFAULT 'auto', position INTEGER NOT NULL,
+                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER
             );
             CREATE TABLE IF NOT EXISTS notes (
                 id TEXT PRIMARY KEY NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id), source TEXT NOT NULL,
@@ -653,6 +719,7 @@ impl SqliteLibrary {
             INSERT OR IGNORE INTO library_metadata (singleton, change_revision) VALUES (1, 0);
             CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(note_id UNINDEXED, title, plain_text);",
         )?;
+        self.migrate_category_appearance_columns()?;
         self.connection.execute_batch(
             "CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_insert
                 AFTER INSERT ON categories
@@ -685,6 +752,24 @@ impl SqliteLibrary {
                     UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
                 END;",
         )?;
+        Ok(())
+    }
+
+    fn migrate_category_appearance_columns(&self) -> Result<(), StorageError> {
+        let mut statement = self.connection.prepare("PRAGMA table_info(categories)")?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if !columns.iter().any(|column| column == "icon") {
+            self.connection.execute_batch(
+                "ALTER TABLE categories ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder';",
+            )?;
+        }
+        if !columns.iter().any(|column| column == "color") {
+            self.connection.execute_batch(
+                "ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT 'auto';",
+            )?;
+        }
         Ok(())
     }
 
@@ -738,6 +823,15 @@ impl LibraryBackend for SqliteLibrary {
         Self::create_category(self, name, now)
     }
 
+    fn create_category_with_appearance(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        Self::create_category_with_appearance(self, name, appearance, now)
+    }
+
     fn categories(&self) -> Result<Vec<Category>, Self::Error> {
         self.list_categories()
     }
@@ -757,6 +851,16 @@ impl LibraryBackend for SqliteLibrary {
         now: OffsetDateTime,
     ) -> Result<Category, Self::Error> {
         Self::rename_category(self, category_id, name, now)
+    }
+
+    fn update_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        Self::update_category(self, category_id, name, appearance, now)
     }
 
     fn trash_category(
@@ -871,11 +975,15 @@ fn category_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Category> {
     Ok(Category {
         id: category_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
         name: row.get(1)?,
-        position: row.get(2)?,
-        created_at: parse_timestamp(row.get(3)?).map_err(to_sql_error)?,
-        updated_at: parse_timestamp(row.get(4)?).map_err(to_sql_error)?,
+        appearance: CategoryAppearance {
+            icon: category_icon_from_value(&row.get::<_, String>(2)?).map_err(to_sql_error)?,
+            color: category_color_from_value(&row.get::<_, String>(3)?).map_err(to_sql_error)?,
+        },
+        position: row.get(4)?,
+        created_at: parse_timestamp(row.get(5)?).map_err(to_sql_error)?,
+        updated_at: parse_timestamp(row.get(6)?).map_err(to_sql_error)?,
         trashed_at: row
-            .get::<_, Option<i64>>(5)?
+            .get::<_, Option<i64>>(7)?
             .map(parse_timestamp)
             .transpose()
             .map_err(to_sql_error)?,
@@ -883,7 +991,7 @@ fn category_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Category> {
 }
 
 fn category_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CategorySummary> {
-    let note_count: i64 = row.get(6)?;
+    let note_count: i64 = row.get(8)?;
     let note_count = usize::try_from(note_count).map_err(|_| {
         to_sql_error(StorageError::Corrupt(
             "note count does not fit usize".to_owned(),
@@ -929,7 +1037,7 @@ fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
 fn trashed_category_summary_from_row(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<TrashedCategorySummary> {
-    let recoverable_note_count: i64 = row.get(6)?;
+    let recoverable_note_count: i64 = row.get(8)?;
     let recoverable_note_count = usize::try_from(recoverable_note_count).map_err(|_| {
         to_sql_error(StorageError::Corrupt(
             "recoverable note count does not fit usize".to_owned(),
@@ -972,6 +1080,68 @@ fn category_name(name: &str) -> Result<&str, StorageError> {
         return Err(StorageError::InvalidCategoryName);
     }
     Ok(name)
+}
+
+fn category_icon_value(icon: CategoryIcon) -> &'static str {
+    match icon {
+        CategoryIcon::Folder => "folder",
+        CategoryIcon::Briefcase => "briefcase",
+        CategoryIcon::Calendar => "calendar",
+        CategoryIcon::Book => "book",
+        CategoryIcon::Heart => "heart",
+        CategoryIcon::Home => "home",
+        CategoryIcon::People => "people",
+        CategoryIcon::Star => "star",
+        CategoryIcon::Tag => "tag",
+        CategoryIcon::Lightbulb => "lightbulb",
+    }
+}
+
+fn category_icon_from_value(value: &str) -> Result<CategoryIcon, StorageError> {
+    match value {
+        "folder" => Ok(CategoryIcon::Folder),
+        "briefcase" => Ok(CategoryIcon::Briefcase),
+        "calendar" => Ok(CategoryIcon::Calendar),
+        "book" => Ok(CategoryIcon::Book),
+        "heart" => Ok(CategoryIcon::Heart),
+        "home" => Ok(CategoryIcon::Home),
+        "people" => Ok(CategoryIcon::People),
+        "star" => Ok(CategoryIcon::Star),
+        "tag" => Ok(CategoryIcon::Tag),
+        "lightbulb" => Ok(CategoryIcon::Lightbulb),
+        _ => Err(StorageError::Corrupt(format!(
+            "unknown category icon: {value}"
+        ))),
+    }
+}
+
+fn category_color_value(color: CategoryColor) -> &'static str {
+    match color {
+        CategoryColor::Auto => "auto",
+        CategoryColor::Rose => "rose",
+        CategoryColor::Tangerine => "tangerine",
+        CategoryColor::Yellow => "yellow",
+        CategoryColor::Olive => "olive",
+        CategoryColor::Teal => "teal",
+        CategoryColor::Blue => "blue",
+        CategoryColor::Purple => "purple",
+    }
+}
+
+fn category_color_from_value(value: &str) -> Result<CategoryColor, StorageError> {
+    match value {
+        "auto" => Ok(CategoryColor::Auto),
+        "rose" => Ok(CategoryColor::Rose),
+        "tangerine" => Ok(CategoryColor::Tangerine),
+        "yellow" => Ok(CategoryColor::Yellow),
+        "olive" => Ok(CategoryColor::Olive),
+        "teal" => Ok(CategoryColor::Teal),
+        "blue" => Ok(CategoryColor::Blue),
+        "purple" => Ok(CategoryColor::Purple),
+        _ => Err(StorageError::Corrupt(format!(
+            "unknown category color: {value}"
+        ))),
+    }
 }
 
 fn asset_extension(extension: &str) -> Result<&'static str, StorageError> {

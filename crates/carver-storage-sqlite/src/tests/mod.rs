@@ -39,6 +39,66 @@ fn category_creation_should_increment_the_semantic_library_revision() {
 
     assert_eq!(changed_revision, LibraryRevision(initial_revision.0 + 1));
 }
+
+#[test]
+fn category_appearance_should_round_trip_through_storage() {
+    let (_directory, library) = library();
+    let created_at = OffsetDateTime::UNIX_EPOCH;
+    let appearance = CategoryAppearance {
+        icon: CategoryIcon::Calendar,
+        color: CategoryColor::Rose,
+    };
+    let category = library
+        .create_category_with_appearance("Personal", appearance, created_at)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let updated_at = created_at + time::Duration::days(1);
+    let updated_appearance = CategoryAppearance {
+        icon: CategoryIcon::People,
+        color: CategoryColor::Teal,
+    };
+
+    let updated = library
+        .update_category(category.id, "Projects", updated_appearance, updated_at)
+        .unwrap_or_else(|error| panic!("category update failed: {error}"));
+
+    assert_eq!(updated.name, "Projects");
+    assert_eq!(updated.appearance, updated_appearance);
+    assert_eq!(updated.updated_at, updated_at);
+}
+
+#[test]
+fn opening_a_legacy_library_should_assign_the_default_category_appearance() {
+    let directory =
+        tempfile::tempdir().unwrap_or_else(|error| panic!("temporary directory failed: {error}"));
+    let database_path = directory.path().join("library.sqlite3");
+    let category_id = CategoryId::new();
+    let connection = rusqlite::Connection::open(&database_path)
+        .unwrap_or_else(|error| panic!("legacy database open failed: {error}"));
+    connection
+        .execute_batch(
+            "CREATE TABLE categories (
+                id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+                position INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER
+            );",
+        )
+        .unwrap_or_else(|error| panic!("legacy schema creation failed: {error}"));
+    connection
+        .execute(
+            "INSERT INTO categories (id, name, position, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![category_id.to_string(), "Legacy", 0_i64, 0_i64, 0_i64],
+        )
+        .unwrap_or_else(|error| panic!("legacy category creation failed: {error}"));
+    drop(connection);
+
+    let library = SqliteLibrary::open(&database_path, &directory.path().join("assets"))
+        .unwrap_or_else(|error| panic!("legacy library migration failed: {error}"));
+    let categories = library
+        .list_categories()
+        .unwrap_or_else(|error| panic!("categories failed: {error}"));
+
+    assert_eq!(categories[0].appearance, CategoryAppearance::default());
+}
 #[test]
 fn fts_search_finds_saved_notes() {
     let (_directory, library) = library();

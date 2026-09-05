@@ -5,7 +5,10 @@ use std::rc::Rc;
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
 use carver_config::SourceSyntaxStyle;
-use carver_sdk::{CategoryId, CategorySummary, DocumentImportFormat, NoteId};
+use carver_sdk::{
+    CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
+    DocumentImportFormat, NoteId,
+};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -823,6 +826,13 @@ pub(crate) fn present_dialogs_for_test(
     let preferences = show_preferences_dialog(parent, dispatcher, config);
     let about = show_about_window(parent);
     show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
+    show_category_dialog(
+        Some(parent.upcast_ref()),
+        "New Category",
+        "",
+        CategoryAppearance::default(),
+        |_, _| {},
+    );
     show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
     (preferences, about)
 }
@@ -903,6 +913,228 @@ pub(crate) fn show_category_name_dialog(
         }
     });
     dialog.present(parent);
+}
+
+/// Presents one category form with a validated name and an explicit visual identity.
+pub(crate) fn show_category_dialog(
+    parent: Option<&gtk::Window>,
+    title: &str,
+    initial_name: &str,
+    initial_appearance: CategoryAppearance,
+    on_submit: impl Fn(String, CategoryAppearance) + 'static,
+) {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.set_widget_name("category-dialog-content");
+    let entry = gtk::Entry::new();
+    entry.set_widget_name("category-name-entry");
+    entry.set_text(initial_name);
+    entry.set_placeholder_text(Some("Category name"));
+    entry.set_activates_default(true);
+    content.append(&entry);
+    let (appearance_picker, icon, color) = category_appearance_picker(initial_appearance);
+    content.append(&appearance_picker);
+    let dialog = adw::AlertDialog::builder()
+        .heading(title)
+        .extra_child(&content)
+        .default_response("save")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("save", "Save")]);
+    dialog.set_response_enabled("save", !initial_name.trim().is_empty());
+    let dialog_for_entry = dialog.clone();
+    entry.connect_changed(move |entry| {
+        dialog_for_entry.set_response_enabled("save", !entry.text().trim().is_empty());
+    });
+    dialog.connect_response(None, move |_dialog, response| {
+        if response == "save" {
+            let name = entry.text().trim().to_owned();
+            if !name.is_empty() {
+                on_submit(
+                    name,
+                    CategoryAppearance {
+                        icon: icon.get(),
+                        color: color.get(),
+                    },
+                );
+            }
+        }
+    });
+    dialog.present(parent);
+}
+
+fn category_appearance_picker(
+    initial: CategoryAppearance,
+) -> (
+    gtk::Box,
+    Rc<std::cell::Cell<CategoryIcon>>,
+    Rc<std::cell::Cell<CategoryColor>>,
+) {
+    let picker = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let icon_label = gtk::Label::new(Some("Icon"));
+    icon_label.set_xalign(0.0);
+    icon_label.add_css_class("heading");
+    picker.append(&icon_label);
+    let icons = gtk::FlowBox::new();
+    icons.set_selection_mode(gtk::SelectionMode::None);
+    icons.set_column_spacing(6);
+    icons.set_row_spacing(6);
+    let selected_icon = Rc::new(std::cell::Cell::new(initial.icon));
+    let mut icon_group = None;
+    for icon in CATEGORY_ICONS {
+        let button = gtk::ToggleButton::new();
+        button.set_widget_name(&format!("category-icon-{}", category_icon_id(icon)));
+        button.set_tooltip_text(Some(category_icon_label(icon)));
+        button.add_css_class("category-appearance-option");
+        button.set_active(icon == initial.icon);
+        button.set_child(Some(&gtk::Image::from_icon_name(category_icon_name(icon))));
+        button.set_group(icon_group.as_ref());
+        icon_group.get_or_insert_with(|| button.clone());
+        let selected_icon = Rc::clone(&selected_icon);
+        button.connect_toggled(move |button| {
+            if button.is_active() {
+                selected_icon.set(icon);
+            }
+        });
+        icons.insert(&button, -1);
+    }
+    picker.append(&icons);
+    let color_label = gtk::Label::new(Some("Colour"));
+    color_label.set_xalign(0.0);
+    color_label.add_css_class("heading");
+    picker.append(&color_label);
+    let colors = gtk::FlowBox::new();
+    colors.set_selection_mode(gtk::SelectionMode::None);
+    colors.set_column_spacing(6);
+    colors.set_row_spacing(6);
+    let selected_color = Rc::new(std::cell::Cell::new(initial.color));
+    let mut color_group = None;
+    for color in CATEGORY_COLORS {
+        let button = gtk::ToggleButton::with_label(category_color_label(color));
+        button.set_widget_name(&format!("category-color-{}", category_color_id(color)));
+        button.set_tooltip_text(Some(category_color_label(color)));
+        button.add_css_class("category-color-option");
+        button.add_css_class(category_color_css_class(color));
+        button.set_active(color == initial.color);
+        button.set_group(color_group.as_ref());
+        color_group.get_or_insert_with(|| button.clone());
+        let selected_color = Rc::clone(&selected_color);
+        button.connect_toggled(move |button| {
+            if button.is_active() {
+                selected_color.set(color);
+            }
+        });
+        colors.insert(&button, -1);
+    }
+    picker.append(&colors);
+    (picker, selected_icon, selected_color)
+}
+
+const CATEGORY_ICONS: [CategoryIcon; 10] = [
+    CategoryIcon::Folder,
+    CategoryIcon::Briefcase,
+    CategoryIcon::Calendar,
+    CategoryIcon::Book,
+    CategoryIcon::Heart,
+    CategoryIcon::Home,
+    CategoryIcon::People,
+    CategoryIcon::Star,
+    CategoryIcon::Tag,
+    CategoryIcon::Lightbulb,
+];
+
+const CATEGORY_COLORS: [CategoryColor; 8] = [
+    CategoryColor::Auto,
+    CategoryColor::Rose,
+    CategoryColor::Tangerine,
+    CategoryColor::Yellow,
+    CategoryColor::Olive,
+    CategoryColor::Teal,
+    CategoryColor::Blue,
+    CategoryColor::Purple,
+];
+
+pub(crate) fn category_icon_name(icon: CategoryIcon) -> &'static str {
+    match icon {
+        CategoryIcon::Folder => "folder-symbolic",
+        CategoryIcon::Briefcase => "package-x-generic-symbolic",
+        CategoryIcon::Calendar => "x-office-calendar-symbolic",
+        CategoryIcon::Book => "x-office-document-symbolic",
+        CategoryIcon::Heart => "emblem-favorite-symbolic",
+        CategoryIcon::Home => "user-home-symbolic",
+        CategoryIcon::People => "system-users-symbolic",
+        CategoryIcon::Star => "starred-symbolic",
+        CategoryIcon::Tag => "bookmark-new-symbolic",
+        CategoryIcon::Lightbulb => "dialog-information-symbolic",
+    }
+}
+
+fn category_icon_id(icon: CategoryIcon) -> &'static str {
+    match icon {
+        CategoryIcon::Folder => "folder",
+        CategoryIcon::Briefcase => "briefcase",
+        CategoryIcon::Calendar => "calendar",
+        CategoryIcon::Book => "book",
+        CategoryIcon::Heart => "heart",
+        CategoryIcon::Home => "home",
+        CategoryIcon::People => "people",
+        CategoryIcon::Star => "star",
+        CategoryIcon::Tag => "tag",
+        CategoryIcon::Lightbulb => "lightbulb",
+    }
+}
+
+fn category_icon_label(icon: CategoryIcon) -> &'static str {
+    match icon {
+        CategoryIcon::Folder => "Folder",
+        CategoryIcon::Briefcase => "Briefcase",
+        CategoryIcon::Calendar => "Calendar",
+        CategoryIcon::Book => "Book",
+        CategoryIcon::Heart => "Heart",
+        CategoryIcon::Home => "Home",
+        CategoryIcon::People => "People",
+        CategoryIcon::Star => "Star",
+        CategoryIcon::Tag => "Tag",
+        CategoryIcon::Lightbulb => "Idea",
+    }
+}
+
+fn category_color_id(color: CategoryColor) -> &'static str {
+    match color {
+        CategoryColor::Auto => "auto",
+        CategoryColor::Rose => "rose",
+        CategoryColor::Tangerine => "tangerine",
+        CategoryColor::Yellow => "yellow",
+        CategoryColor::Olive => "olive",
+        CategoryColor::Teal => "teal",
+        CategoryColor::Blue => "blue",
+        CategoryColor::Purple => "purple",
+    }
+}
+
+fn category_color_label(color: CategoryColor) -> &'static str {
+    match color {
+        CategoryColor::Auto => "Auto",
+        CategoryColor::Rose => "Rose",
+        CategoryColor::Tangerine => "Tangerine",
+        CategoryColor::Yellow => "Yellow",
+        CategoryColor::Olive => "Olive",
+        CategoryColor::Teal => "Teal",
+        CategoryColor::Blue => "Blue",
+        CategoryColor::Purple => "Purple",
+    }
+}
+
+pub(crate) fn category_color_css_class(color: CategoryColor) -> &'static str {
+    match color {
+        CategoryColor::Auto => "category-color-auto",
+        CategoryColor::Rose => "category-color-rose",
+        CategoryColor::Tangerine => "category-color-tangerine",
+        CategoryColor::Yellow => "category-color-yellow",
+        CategoryColor::Olive => "category-color-olive",
+        CategoryColor::Teal => "category-color-teal",
+        CategoryColor::Blue => "category-color-blue",
+        CategoryColor::Purple => "category-color-purple",
+    }
 }
 
 /// Presents a searchable category picker for moving one note.

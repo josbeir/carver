@@ -5,12 +5,12 @@ use std::{
     rc::Rc,
 };
 
-use carver_sdk::{Category, CategoryId, CategorySummary};
+use carver_sdk::{Category, CategoryAppearance, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    dialogs::{show_category_name_dialog, show_category_trash_confirmation},
+    dialogs::{category_color_css_class, category_icon_name, show_category_dialog},
     mvu::{ActionMsg, AppDispatcher, AppModel, AppMsg, EditorMsg, LoadState, NavigationMsg, Route},
 };
 
@@ -164,9 +164,19 @@ fn connect_new_category(dispatcher: &AppDispatcher, button: &gtk::Button) {
             .root()
             .and_then(|root| root.downcast::<gtk::Window>().ok());
         let dispatcher = dispatcher.clone();
-        show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
-            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategory(name)));
-        });
+        show_category_dialog(
+            parent.as_ref(),
+            "New Category",
+            "",
+            CategoryAppearance::default(),
+            move |name, appearance| {
+                let _ =
+                    dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
+                        name,
+                        appearance,
+                    }));
+            },
+        );
     });
 }
 
@@ -259,25 +269,24 @@ fn sidebar_row(
     count_widget_name: Option<&str>,
 ) -> gtk::Widget {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    row.add_css_class("category-card-content");
-    row.set_margin_start(16);
-    row.set_margin_end(16);
-    row.set_margin_top(5);
-    row.set_margin_bottom(5);
-    row.append(&gtk::Image::from_icon_name(icon_name));
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    row.add_css_class("category-row-content");
+    row.set_margin_start(10);
+    row.set_margin_end(10);
+    row.set_margin_top(6);
+    row.set_margin_bottom(6);
+    row.append(&sidebar_icon_tile(icon_name, "all-notes-icon"));
     let title = gtk::Label::new(Some(label));
     title.add_css_class("category-card-title");
     title.set_xalign(0.0);
-    text.append(&title);
-    let count = gtk::Label::new(Some(&note_count_label(note_count)));
+    title.set_hexpand(true);
+    row.append(&title);
+    let count = gtk::Label::new(Some(&note_count.to_string()));
     if let Some(widget_name) = count_widget_name {
         count.set_widget_name(widget_name);
     }
-    count.add_css_class("category-card-count");
-    count.set_xalign(0.0);
-    text.append(&count);
-    row.append(&text);
+    count.set_tooltip_text(Some(&note_count_label(note_count)));
+    count.add_css_class("category-count-badge");
+    row.append(&count);
     row.upcast()
 }
 
@@ -293,11 +302,12 @@ fn category_sidebar_row(
     row.set_widget_name(&format!("category:{}", category.id));
     row.add_css_class("category-card");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    content.set_margin_start(16);
-    content.set_margin_end(16);
-    content.set_margin_top(5);
-    content.set_margin_bottom(5);
-    let (primary_content, name) = category_primary_content(category, note_count);
+    content.add_css_class("category-row-content");
+    content.set_margin_start(10);
+    content.set_margin_end(10);
+    content.set_margin_top(6);
+    content.set_margin_bottom(6);
+    let primary_content = category_primary_content(category, note_count);
     install_active_row_navigation(
         &primary_content,
         dispatcher,
@@ -306,76 +316,50 @@ fn category_sidebar_row(
         Some(category.id),
     );
     content.append(&primary_content);
-    let rename = gtk::Button::from_icon_name("document-edit-symbolic");
-    rename.set_widget_name(&format!("rename-category:{}", category.id));
-    rename.set_tooltip_text(Some("Rename Category"));
-    rename.add_css_class("flat");
-    let dispatcher_for_rename = dispatcher.clone();
-    let category_id = category.id;
-    rename.connect_clicked(move |button| {
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        let current_name = name.text().to_string();
-        let dispatcher = dispatcher_for_rename.clone();
-        show_category_name_dialog(
-            parent.as_ref(),
-            "Rename Category",
-            &current_name,
-            move |name| {
-                let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::RenameCategory {
-                    category_id,
-                    name,
-                }));
-            },
-        );
-    });
-    let trash = gtk::Button::from_icon_name("user-trash-symbolic");
-    trash.set_widget_name(&format!("delete-category:{}", category.id));
-    trash.set_tooltip_text(Some("Move Category to Trash"));
-    trash.add_css_class("flat");
-    let dispatcher_for_trash = dispatcher.clone();
-    let category_id = category.id;
-    let category_name = category.name.clone();
-    trash.connect_clicked(move |button| {
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        let dispatcher = dispatcher_for_trash.clone();
-        show_category_trash_confirmation(parent.as_ref(), &category_name, move || {
-            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::TrashCategory(category_id)));
-        });
-    });
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-    actions.set_widget_name(&format!("category-actions:{}", category.id));
-    actions.add_css_class("category-actions");
-    actions.append(&rename);
-    actions.append(&trash);
-    install_category_action_visibility(&row, &actions);
-    content.append(&actions);
     row.set_child(Some(&content));
     row
 }
 
-fn category_primary_content(category: &Category, note_count: usize) -> (gtk::Box, gtk::Label) {
+fn category_primary_content(category: &Category, note_count: usize) -> gtk::Box {
     let primary_content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     primary_content.set_hexpand(true);
-    primary_content.append(&gtk::Image::from_icon_name("folder-symbolic"));
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    text.set_hexpand(true);
+    primary_content.append(&category_icon_tile(category));
     let name = gtk::Label::new(Some(&category.name));
     name.set_xalign(0.0);
     name.set_ellipsize(gtk::pango::EllipsizeMode::End);
     name.set_single_line_mode(true);
+    name.set_hexpand(true);
     name.add_css_class("category-card-title");
-    text.append(&name);
-    let count_label = gtk::Label::new(Some(&note_count_label(note_count)));
+    primary_content.append(&name);
+    let count_label = gtk::Label::new(Some(&note_count.to_string()));
     count_label.set_widget_name(&format!("category-count:{}", category.id));
-    count_label.set_xalign(0.0);
-    count_label.add_css_class("category-card-count");
-    text.append(&count_label);
-    primary_content.append(&text);
-    (primary_content, name)
+    count_label.set_tooltip_text(Some(&note_count_label(note_count)));
+    count_label.add_css_class("category-count-badge");
+    primary_content.append(&count_label);
+    primary_content
+}
+
+fn sidebar_icon_tile(icon_name: &str, color_class: &str) -> gtk::Box {
+    let tile = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    tile.add_css_class("category-icon-tile");
+    tile.add_css_class(color_class);
+    tile.set_halign(gtk::Align::Fill);
+    tile.set_valign(gtk::Align::Fill);
+    tile.set_homogeneous(true);
+    let image = gtk::Image::from_icon_name(icon_name);
+    image.set_pixel_size(16);
+    image.set_halign(gtk::Align::Center);
+    image.set_valign(gtk::Align::Center);
+    tile.append(&image);
+    tile
+}
+
+fn category_icon_tile(category: &Category) -> gtk::Box {
+    let color = category.appearance.color.resolved_for(category.id);
+    sidebar_icon_tile(
+        category_icon_name(category.appearance.icon),
+        category_color_css_class(color),
+    )
 }
 
 fn install_active_row_navigation(
@@ -402,63 +386,6 @@ fn install_active_row_navigation(
         }
     });
     widget.add_controller(click);
-}
-
-fn install_category_action_visibility(row: &gtk::ListBoxRow, actions: &gtk::Box) {
-    actions.set_visible(false);
-    let actions_for_selection = actions.clone();
-    let row_for_selection = row.clone();
-    row.connect_state_flags_changed(move |row, previous| {
-        let selected = row.state_flags().contains(gtk::StateFlags::SELECTED);
-        let was_selected = previous.contains(gtk::StateFlags::SELECTED);
-        if selected == was_selected {
-            return;
-        }
-        actions_for_selection.set_visible(selected);
-        if selected {
-            row_for_selection.add_css_class("category-actions-visible");
-        } else {
-            row_for_selection.remove_css_class("category-actions-visible");
-        }
-    });
-    let motion = gtk::EventControllerMotion::new();
-    let actions_for_enter = actions.clone();
-    let row_for_motion_enter = row.clone();
-    motion.connect_enter(move |_, _, _| {
-        actions_for_enter.set_visible(true);
-        row_for_motion_enter.add_css_class("category-actions-visible");
-    });
-    let actions_for_leave = actions.clone();
-    let row_for_motion_leave = row.clone();
-    motion.connect_leave(move |_| {
-        if !row_for_motion_leave
-            .state_flags()
-            .contains(gtk::StateFlags::SELECTED)
-        {
-            actions_for_leave.set_visible(false);
-            row_for_motion_leave.remove_css_class("category-actions-visible");
-        }
-    });
-    row.add_controller(motion);
-    let focus = gtk::EventControllerFocus::new();
-    let actions_for_focus = actions.clone();
-    let row_for_enter = row.clone();
-    focus.connect_enter(move |_| {
-        actions_for_focus.set_visible(true);
-        row_for_enter.add_css_class("category-actions-visible");
-    });
-    let actions_for_blur = actions.clone();
-    let row_for_leave = row.clone();
-    focus.connect_leave(move |_| {
-        if !row_for_leave
-            .state_flags()
-            .contains(gtk::StateFlags::SELECTED)
-        {
-            actions_for_blur.set_visible(false);
-            row_for_leave.remove_css_class("category-actions-visible");
-        }
-    });
-    actions.add_controller(focus);
 }
 
 fn note_count_label(note_count: usize) -> String {

@@ -572,6 +572,12 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::CreateCategory(name) => {
             category_name_effect(&name, |name| Effect::CreateCategory { name })
         }
+        ActionMsg::CreateCategoryWithAppearance { name, appearance } => {
+            category_name_effect(&name, |name| Effect::CreateCategoryWithAppearance {
+                name,
+                appearance,
+            })
+        }
         ActionMsg::CreateCategoryAndMoveNote { name, note_id, .. } => {
             category_name_effect(&name, |name| Effect::CreateCategoryAndMoveNote {
                 action: key,
@@ -582,6 +588,15 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::RenameCategory { category_id, name } => {
             category_name_effect(&name, |name| Effect::RenameCategory { category_id, name })
         }
+        ActionMsg::UpdateCategory {
+            category_id,
+            name,
+            appearance,
+        } => category_name_effect(&name, |name| Effect::UpdateCategory {
+            category_id,
+            name,
+            appearance,
+        }),
         ActionMsg::TrashCategory(category_id) => Some(Effect::TrashCategory { category_id }),
         ActionMsg::MoveNote {
             note_id,
@@ -989,6 +1004,7 @@ fn update_undo_state(model: &mut AppModel, action: ActionKey) {
         ActionKey::UndoMove(_) => model.undo_move = None,
         ActionKey::CreateCategory
         | ActionKey::RenameCategory(_)
+        | ActionKey::UpdateCategory(_)
         | ActionKey::TrashCategory(_)
         | ActionKey::TrashNote(_) => {}
     }

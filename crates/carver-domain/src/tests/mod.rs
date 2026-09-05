@@ -36,3 +36,13 @@ fn derives_title_from_first_text_when_heading_is_missing() {
 fn gives_empty_notes_a_safe_title() {
     assert_eq!(derive_content(" ").title, "Untitled Note");
 }
+
+#[test]
+fn automatic_category_color_should_be_stable_for_one_category() {
+    let category_id = CategoryId::new();
+
+    assert_eq!(
+        CategoryColor::Auto.resolved_for(category_id),
+        CategoryColor::Auto.resolved_for(category_id)
+    );
+}

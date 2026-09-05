@@ -7,9 +7,9 @@ use std::{error::Error, path::Path, thread};
 use async_channel::{Receiver, Sender};
 use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
-    Category, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
-    Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
-    TrashedNoteSummary,
+    Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
+    DocumentImportFormat, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -138,6 +138,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Creates a category with its user-selected visual identity without blocking the caller.
+    pub async fn create_category_with_appearance_async(
+        &self,
+        name: String,
+        appearance: CategoryAppearance,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.create_category_with_appearance(&name, appearance, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
     /// Lists sidebar categories without blocking the caller.
     pub async fn categories_async(&self) -> Result<Vec<Category>, LibraryError<B::Error>> {
         self.request(LibraryBackend::categories).await
@@ -168,6 +180,19 @@ impl<B: LibraryBackend> LibraryClient<B> {
     ) -> Result<Category, LibraryError<B::Error>> {
         self.request(move |backend| {
             backend.rename_category(category_id, &name, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
+    /// Updates a category name and visual identity without blocking the caller.
+    pub async fn update_category_async(
+        &self,
+        category_id: CategoryId,
+        name: String,
+        appearance: CategoryAppearance,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.update_category(category_id, &name, appearance, OffsetDateTime::now_utc())
         })
         .await
     }
@@ -355,6 +380,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
         self.blocking(move |backend| backend.create_category(&name, OffsetDateTime::now_utc()))
     }
 
+    /// Creates a category with its user-selected visual identity synchronously.
+    pub fn create_category_with_appearance(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        let name = name.to_owned();
+        self.blocking(move |backend| {
+            backend.create_category_with_appearance(&name, appearance, OffsetDateTime::now_utc())
+        })
+    }
+
     /// Reads the current semantic library revision synchronously for bootstrap code and tests.
     ///
     /// # Errors
@@ -390,6 +427,19 @@ impl<B: LibraryBackend> LibraryClient<B> {
         let name = name.to_owned();
         self.blocking(move |backend| {
             backend.rename_category(category_id, &name, OffsetDateTime::now_utc())
+        })
+    }
+
+    /// Updates a category name and visual identity synchronously.
+    pub fn update_category(
+        &self,
+        category_id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        let name = name.to_owned();
+        self.blocking(move |backend| {
+            backend.update_category(category_id, &name, appearance, OffsetDateTime::now_utc())
         })
     }
 

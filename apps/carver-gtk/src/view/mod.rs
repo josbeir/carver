@@ -28,7 +28,7 @@ pub struct ViewRefs {
     browser_pages: Option<gtk::Stack>,
     browser_search_empty_card: Option<gtk::Box>,
     browser_empty_new_note_button: Option<gtk::Button>,
-    browser_title: Option<adw::WindowTitle>,
+    browser_category_hero: Option<gtk::Box>,
     browser_status: adw::StatusPage,
     trash_list: Option<gtk::ListBox>,
     trash_pages: Option<gtk::Stack>,
@@ -60,7 +60,7 @@ impl ViewRefs {
             browser_pages: None,
             browser_search_empty_card: None,
             browser_empty_new_note_button: None,
-            browser_title: None,
+            browser_category_hero: None,
             browser_status,
             trash_list: None,
             trash_pages: None,
@@ -115,13 +115,13 @@ impl ViewRefs {
         browser_pages: gtk::Stack,
         browser_search_empty_card: gtk::Box,
         browser_empty_new_note_button: gtk::Button,
-        browser_title: adw::WindowTitle,
+        browser_category_hero: gtk::Box,
     ) -> Self {
         self.browser_list = Some(browser_list);
         self.browser_pages = Some(browser_pages);
         self.browser_search_empty_card = Some(browser_search_empty_card);
         self.browser_empty_new_note_button = Some(browser_empty_new_note_button);
-        self.browser_title = Some(browser_title);
+        self.browser_category_hero = Some(browser_category_hero);
         self
     }
 
@@ -190,20 +190,13 @@ impl ViewRefs {
         ) else {
             return;
         };
-        if let Some(title) = &self.browser_title {
-            let selected_name = match (&model.sidebar.state, model.selected_category) {
-                (LoadState::Ready(categories), Some(category_id)) => categories
-                    .iter()
-                    .find(|summary| summary.category.id == category_id)
-                    .map(|summary| summary.category.name.as_str()),
-                _ => None,
-            };
-            title.set_title(selected_name.unwrap_or("Home"));
-            title.set_subtitle(if selected_name.is_some() {
-                "Recently edited"
-            } else {
-                "All recent notes"
-            });
+        if let Some(hero) = &self.browser_category_hero {
+            crate::browser::render_category_hero(
+                hero,
+                &model.sidebar.state,
+                model.selected_category,
+                self.dispatcher.as_ref(),
+            );
         }
         match &model.browser.notes.state {
             LoadState::Ready(notes)
