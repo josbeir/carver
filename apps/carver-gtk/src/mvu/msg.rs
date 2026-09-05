@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use carver_config::{EditorMode, SourceSyntaxStyle};
 use carver_sdk::{
-    CategoryId, CategorySummary, DocumentImportFormat, NoteId, NoteSummary, Revision,
-    TrashContents, TrashPurgeResult,
+    CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId, NoteSummary,
+    Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
@@ -55,6 +55,8 @@ pub enum AppMsg {
     Window(WindowMsg),
     /// Note and category mutation intent.
     Action(ActionMsg),
+    /// The locally shared library changed in another process, such as the MCP companion.
+    LibraryChangedExternally,
     /// Completion from an effect that accessed the library.
     Library(LibraryReply),
 }
@@ -334,6 +336,13 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A semantic library revision completed loading.
+    LibraryRevisionLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Successful revision or a displayable failure.
+        result: Result<LibraryRevision, UiError>,
+    },
     /// A newly created note is ready to open in the editor.
     NoteCreated {
         /// Created note or a displayable failure.

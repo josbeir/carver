@@ -1,5 +1,6 @@
 //! Pure state transitions for the application model.
 
+use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest};
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
     LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
@@ -81,6 +82,11 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             persist_config_effect(model)
         }
         AppMsg::Action(action) => update_action(model, action),
+        AppMsg::LibraryChangedExternally => {
+            request_library_revision(model, LibraryRevisionCheckReason::ExternalWakeup)
+                .into_iter()
+                .collect()
+        }
         AppMsg::Library(reply) => update_library(model, reply),
     }
 }
@@ -624,6 +630,9 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::LibraryRevisionLoaded { request_id, result } => {
+            update_library_revision(model, request_id, result)
+        }
         LibraryReply::ConfigPersisted { result } => update_config_persisted(model, result),
         LibraryReply::DefaultCategoryEnsured { result } => update_default_category(model, result),
         LibraryReply::NoteCreated { result } => update_created_note(model, result),
@@ -636,7 +645,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         model.undo_trash_note = Some(note_id);
                     }
                     model.notice = None;
-                    reload_all_resources(model)
+                    reload_after_local_mutation(model)
                 }
                 Err(error) => {
                     model.notice = Some(error);
@@ -709,7 +718,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::TrashMutationFinished { result } => match result {
             Ok(_) => {
                 model.notice = None;
-                reload_all_resources(model)
+                reload_after_local_mutation(model)
             }
             Err(error) => {
                 model.notice = Some(error);
@@ -787,10 +796,7 @@ fn update_created_note(
         Ok(note) => {
             open_editor(model, note.id, note.revision, note.source);
             model.route = super::Route::Editor;
-            [reload_sidebar(model), reload_browser(model)]
-                .into_iter()
-                .flatten()
-                .collect()
+            reload_after_local_mutation(model)
         }
         Err(error) => {
             model.notice = Some(error);
@@ -808,10 +814,17 @@ fn update_config_persisted(model: &mut AppModel, result: Result<(), UiError>) ->
 
 fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
     match result {
-        Ok(()) => [reload_sidebar(model), reload_browser(model)]
-            .into_iter()
-            .flatten()
-            .collect(),
+        Ok(()) => {
+            let mut effects = [reload_sidebar(model), reload_browser(model)]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            effects.extend(request_library_revision(
+                model,
+                LibraryRevisionCheckReason::InitialLoad,
+            ));
+            effects
+        }
         Err(error) => {
             model.notice = Some(error);
             Vec::new()
@@ -937,7 +950,12 @@ fn update_editor_save(
         model.editor_preview = None;
         model.preview_timer = None;
     }
-    reload_browser(model).into_iter().collect()
+    let mut effects = reload_browser(model).into_iter().collect::<Vec<_>>();
+    effects.extend(request_library_revision(
+        model,
+        LibraryRevisionCheckReason::LocalMutation,
+    ));
+    effects
 }
 
 fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
@@ -1009,6 +1027,58 @@ fn reload_all_resources(model: &mut AppModel) -> Vec<Effect> {
     .into_iter()
     .flatten()
     .collect()
+}
+
+fn reload_after_local_mutation(model: &mut AppModel) -> Vec<Effect> {
+    let mut effects = reload_all_resources(model);
+    effects.extend(request_library_revision(
+        model,
+        LibraryRevisionCheckReason::LocalMutation,
+    ));
+    effects
+}
+
+fn request_library_revision(
+    model: &mut AppModel,
+    reason: LibraryRevisionCheckReason,
+) -> Option<Effect> {
+    if model.library_revision_request.is_some() {
+        return None;
+    }
+    let request_id = model.next_request_id();
+    model.library_revision_request = Some(LibraryRevisionRequest { request_id, reason });
+    Some(Effect::LoadLibraryRevision { request_id })
+}
+
+fn update_library_revision(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<carver_sdk::LibraryRevision, UiError>,
+) -> Vec<Effect> {
+    let Some(request) = model.library_revision_request else {
+        return Vec::new();
+    };
+    if request.request_id != request_id {
+        return Vec::new();
+    }
+    model.library_revision_request = None;
+    match result {
+        Ok(revision) => {
+            let changed = model
+                .library_revision
+                .is_some_and(|current| current != revision);
+            model.library_revision = Some(revision);
+            if request.reason == LibraryRevisionCheckReason::ExternalWakeup && changed {
+                reload_all_resources(model)
+            } else {
+                Vec::new()
+            }
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
 }
 
 fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {

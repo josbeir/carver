@@ -9,6 +9,36 @@ fn library() -> (tempfile::TempDir, SqliteLibrary) {
     .unwrap_or_else(|error| panic!("library open failed: {error}"));
     (directory, library)
 }
+
+#[test]
+fn change_notification_files_should_include_sqlite_wal_sidecars() {
+    assert_eq!(
+        change_notification_files(std::path::Path::new("/library/library.sqlite3")),
+        Some([
+            std::path::PathBuf::from("/library/library.sqlite3"),
+            std::path::PathBuf::from("/library/library.sqlite3-wal"),
+            std::path::PathBuf::from("/library/library.sqlite3-shm"),
+        ])
+    );
+}
+
+#[test]
+fn category_creation_should_increment_the_semantic_library_revision() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+
+    let initial_revision = library
+        .change_revision()
+        .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
+    let _category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let changed_revision = library
+        .change_revision()
+        .unwrap_or_else(|error| panic!("changed revision failed: {error}"));
+
+    assert_eq!(changed_revision, LibraryRevision(initial_revision.0 + 1));
+}
 #[test]
 fn fts_search_finds_saved_notes() {
     let (_directory, library) = library();
@@ -108,6 +138,47 @@ fn category_summaries_count_only_active_notes_in_active_categories() {
     assert_eq!(summaries[0].category.id, work.id);
     assert_eq!(summaries[0].note_count, 1);
     assert_eq!(summaries[0].category.id, active_note.category_id);
+}
+
+#[test]
+fn trash_and_restore_should_reject_stale_or_repeated_requests() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note(category.id, now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .trash_note(note.id, now)
+        .unwrap_or_else(|error| panic!("note trash failed: {error}"));
+    assert!(matches!(
+        library.trash_note(note.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .restore_note(note.id)
+        .unwrap_or_else(|error| panic!("note restore failed: {error}"));
+    assert!(matches!(
+        library.restore_note(note.id),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .trash_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+    assert!(matches!(
+        library.trash_category(category.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .restore_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category restore failed: {error}"));
+    assert!(matches!(
+        library.restore_category(category.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
 }
 
 #[test]

@@ -3,16 +3,17 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
+
+use std::time::Duration;
 
 use carver_domain::{
     Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
     TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
-use carver_sdk::LibraryBackend;
+use carver_library_port::{LibraryBackend, LibraryRevision};
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -23,6 +24,21 @@ use uuid::Uuid;
 pub struct SqliteLibrary {
     connection: Connection,
     assets_dir: PathBuf,
+}
+
+/// Returns SQLite files whose changes can wake a consumer to query the library revision.
+///
+/// SQLite WAL mode writes commits to the `-wal` sidecar and maintains a `-shm` sidecar alongside
+/// the main database. A file event is not itself authoritative: consumers compare
+/// [`SqliteLibrary::change_revision`] after receiving one.
+#[must_use]
+pub fn change_notification_files(database_path: &Path) -> Option<[PathBuf; 3]> {
+    let database_name = database_path.file_name()?.to_string_lossy();
+    Some([
+        database_path.to_owned(),
+        database_path.with_file_name(format!("{database_name}-wal")),
+        database_path.with_file_name(format!("{database_name}-shm")),
+    ])
 }
 
 /// Storage-layer failures.
@@ -49,6 +65,9 @@ pub enum StorageError {
     /// A note or destination category was missing or no longer active.
     #[error("note or destination category is unavailable")]
     MoveUnavailable,
+    /// A requested trash or restore target was missing or not in the expected state.
+    #[error("item is unavailable for this action")]
+    MutationUnavailable,
 }
 
 impl SqliteLibrary {
@@ -57,13 +76,15 @@ impl SqliteLibrary {
     /// # Errors
     ///
     /// Returns an error when the database, its parent directory, managed assets, or
-    /// migration schema cannot be opened or prepared.
+    /// migration schema cannot be opened or prepared. Asset cleanup is intentionally deferred to
+    /// explicit trash purges so a second process cannot remove an in-flight asset write.
     pub fn open(database_path: &Path, assets_dir: &Path) -> Result<Self, StorageError> {
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::create_dir_all(assets_dir)?;
         let connection = Connection::open(database_path)?;
+        connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
@@ -74,8 +95,23 @@ impl SqliteLibrary {
             assets_dir: assets_dir.to_owned(),
         };
         library.migrate()?;
-        library.cleanup_orphan_assets()?;
         Ok(library)
+    }
+
+    /// Returns the semantic revision for the current committed library state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the revision cannot be read or is malformed.
+    pub fn change_revision(&self) -> Result<LibraryRevision, StorageError> {
+        let revision: i64 = self.connection.query_row(
+            "SELECT change_revision FROM library_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        u64::try_from(revision)
+            .map(LibraryRevision)
+            .map_err(|_| StorageError::Corrupt("library change revision is negative".to_owned()))
     }
 
     /// Creates a category at the end of the sidebar.
@@ -168,11 +204,12 @@ impl SqliteLibrary {
         category_id: CategoryId,
         now: OffsetDateTime,
     ) -> Result<(), StorageError> {
-        self.connection.execute(
-            "UPDATE categories SET trashed_at = ?2, updated_at = ?2 WHERE id = ?1",
+        let affected = self.connection.execute(
+            "UPDATE categories SET trashed_at = ?2, updated_at = ?2
+             WHERE id = ?1 AND trashed_at IS NULL",
             params![category_id.to_string(), timestamp(now)],
         )?;
-        Ok(())
+        mutation_applied(affected)
     }
 
     /// Restores a previously trashed category.
@@ -185,11 +222,12 @@ impl SqliteLibrary {
         category_id: CategoryId,
         now: OffsetDateTime,
     ) -> Result<(), StorageError> {
-        self.connection.execute(
-            "UPDATE categories SET trashed_at = NULL, updated_at = ?2 WHERE id = ?1",
+        let affected = self.connection.execute(
+            "UPDATE categories SET trashed_at = NULL, updated_at = ?2
+             WHERE id = ?1 AND trashed_at IS NOT NULL",
             params![category_id.to_string(), timestamp(now)],
         )?;
-        Ok(())
+        mutation_applied(affected)
     }
 
     /// Renames an active category while retaining its position and notes.
@@ -418,11 +456,11 @@ impl SqliteLibrary {
     ///
     /// Returns an error when the note cannot be updated.
     pub fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), StorageError> {
-        self.connection.execute(
-            "UPDATE notes SET trashed_at = ?2 WHERE id = ?1",
+        let affected = self.connection.execute(
+            "UPDATE notes SET trashed_at = ?2 WHERE id = ?1 AND trashed_at IS NULL",
             params![note_id.to_string(), timestamp(now)],
         )?;
-        Ok(())
+        mutation_applied(affected)
     }
 
     /// Restores a note from trash.
@@ -431,11 +469,11 @@ impl SqliteLibrary {
     ///
     /// Returns an error when the note cannot be updated.
     pub fn restore_note(&self, note_id: NoteId) -> Result<(), StorageError> {
-        self.connection.execute(
-            "UPDATE notes SET trashed_at = NULL WHERE id = ?1",
+        let affected = self.connection.execute(
+            "UPDATE notes SET trashed_at = NULL WHERE id = ?1 AND trashed_at IS NOT NULL",
             [note_id.to_string()],
         )?;
-        Ok(())
+        mutation_applied(affected)
     }
 
     /// Lists the top-level items available for recovery from trash.
@@ -608,7 +646,44 @@ impl SqliteLibrary {
                 asset_hash TEXT NOT NULL REFERENCES assets(hash) ON DELETE CASCADE,
                 PRIMARY KEY(note_id, asset_hash)
             );
+            CREATE TABLE IF NOT EXISTS library_metadata (
+                singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+                change_revision INTEGER NOT NULL CHECK(change_revision >= 0)
+            );
+            INSERT OR IGNORE INTO library_metadata (singleton, change_revision) VALUES (1, 0);
             CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(note_id UNINDEXED, title, plain_text);",
+        )?;
+        self.connection.execute_batch(
+            "CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_insert
+                AFTER INSERT ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_update
+                AFTER UPDATE ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_delete
+                AFTER DELETE ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_insert
+                AFTER INSERT ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_update
+                AFTER UPDATE ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_delete
+                AFTER DELETE ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;",
         )?;
         Ok(())
     }
@@ -639,29 +714,6 @@ impl SqliteLibrary {
             .map_err(Into::into)
     }
 
-    fn cleanup_orphan_assets(&self) -> Result<(), StorageError> {
-        let mut statement = self.connection.prepare("SELECT filename FROM assets")?;
-        let known_assets = statement
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<Result<HashSet<_>, _>>()?;
-        for entry in fs::read_dir(&self.assets_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            let is_partial = path
-                .extension()
-                .is_some_and(|extension| extension == "partial");
-            let is_orphan = entry.file_type()?.is_file()
-                && entry
-                    .file_name()
-                    .to_str()
-                    .is_some_and(|filename| !known_assets.contains(filename));
-            if is_partial || is_orphan {
-                fs::remove_file(entry.path())?;
-            }
-        }
-        Ok(())
-    }
-
     fn managed_asset_path(&self, filename: &str) -> Result<PathBuf, StorageError> {
         let path = Path::new(filename);
         let is_single_filename = path.components().count() == 1
@@ -677,6 +729,10 @@ impl SqliteLibrary {
 
 impl LibraryBackend for SqliteLibrary {
     type Error = StorageError;
+
+    fn change_revision(&self) -> Result<LibraryRevision, Self::Error> {
+        Self::change_revision(self)
+    }
 
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error> {
         Self::create_category(self, name, now)
@@ -902,6 +958,12 @@ fn category_id(value: &str) -> Result<CategoryId, StorageError> {
     Uuid::parse_str(value)
         .map(CategoryId::from_uuid)
         .map_err(|error| StorageError::Corrupt(error.to_string()))
+}
+
+fn mutation_applied(affected: usize) -> Result<(), StorageError> {
+    (affected == 1)
+        .then_some(())
+        .ok_or(StorageError::MutationUnavailable)
 }
 
 fn category_name(name: &str) -> Result<&str, StorageError> {

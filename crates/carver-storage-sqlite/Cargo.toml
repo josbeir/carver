@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 carver-domain = { path = "../carver-domain", version = "0.1.0" }
-carver-sdk = { path = "../carver-sdk", version = "0.1.0" }
+carver-library-port = { path = "../carver-library-port", version = "0.1.0" }
 rusqlite.workspace = true
 sha2.workspace = true
 thiserror.workspace = true

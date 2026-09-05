@@ -4,8 +4,7 @@ use std::path::Path;
 
 use adw::prelude::*;
 use carver_config::{AppPaths, Config, load, save};
-use carver_sdk::LibraryClient;
-use carver_storage_sqlite::SqliteLibrary;
+use carver_sdk::{InstalledLibraryClient, open_installed_library};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -22,7 +21,7 @@ pub(crate) const APPLICATION_ID: &str = "io.github.josbeir.Carver";
 const APPLICATION_NAME: &str = "Carver";
 pub(crate) const APPLICATION_ICON: &str = "io.github.josbeir.Carver";
 
-type AppLibraryClient = LibraryClient<SqliteLibrary>;
+type AppLibraryClient = InstalledLibraryClient;
 
 /// Runs the Libadwaita application.
 pub(crate) fn run() -> glib::ExitCode {
@@ -52,10 +51,10 @@ fn build_application(application: &adw::Application) {
             return;
         }
     };
-    let client = match open_library(&paths) {
+    let client = match open_installed_library() {
         Ok(client) => client,
         Err(error) => {
-            show_startup_error(application, &error);
+            show_startup_error(application, &error.to_string());
             return;
         }
     };
@@ -66,12 +65,23 @@ fn build_application(application: &adw::Application) {
         Some(paths.assets_dir()).as_deref(),
         &source_syntax_dir,
         Some(config_path).as_deref(),
+        Some(paths.database_file()).as_deref(),
     ) {
         show_startup_error(application, &error.to_string());
     }
 }
 
-fn load_styles() {
+pub(crate) fn load_styles() {
+    let resource = gtk::gio::Resource::from_data(&glib::Bytes::from_static(include_bytes!(
+        concat!(env!("OUT_DIR"), "/carver-agent-icons.gresource")
+    )));
+    if let Ok(resource) = resource {
+        gtk::gio::resources_register(&resource);
+        if let Some(display) = gtk::gdk::Display::default() {
+            let icon_theme = gtk::IconTheme::for_display(&display);
+            icon_theme.add_resource_path("/io/github/josbeir/Carver/icons");
+        }
+    }
     let provider = gtk::CssProvider::new();
     provider.load_from_string(include_str!("style.css"));
     if let Some(display) = gtk::gdk::Display::default() {
@@ -96,13 +106,6 @@ fn show_startup_error(application: &adw::Application, error: &str) {
     window.present();
 }
 
-fn open_library(paths: &AppPaths) -> Result<AppLibraryClient, String> {
-    paths.ensure_exists().map_err(|error| error.to_string())?;
-    let storage = SqliteLibrary::open(&paths.database_file(), &paths.assets_dir())
-        .map_err(|error| error.to_string())?;
-    LibraryClient::spawn(storage).map_err(|error| error.to_string())
-}
-
 fn build_window(
     application: &adw::Application,
     client: AppLibraryClient,
@@ -110,6 +113,7 @@ fn build_window(
     assets_dir: Option<&Path>,
     source_syntax_dir: &Path,
     config_path: Option<&Path>,
+    database_path: Option<&Path>,
 ) -> Result<adw::ApplicationWindow, crate::editor::SourceSyntaxError> {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
@@ -167,6 +171,11 @@ fn build_window(
         config_path.map(Path::to_path_buf),
     );
     runtime.bind_dispatcher(&dispatcher);
+    if let Some(database_path) = database_path
+        && let Err(error) = runtime.monitor_library(database_path, dispatcher.clone())
+    {
+        eprintln!("Carver could not monitor its shared library: {error}");
+    }
     install_window_actions(&window, &dispatcher, &runtime);
     let dispatcher_for_close = dispatcher.clone();
     let runtime_for_close = runtime.clone();
@@ -201,5 +210,6 @@ pub(crate) fn build_window_for_test(
         None,
         &source_syntax_dir,
         Some(config_path),
+        None,
     )
 }

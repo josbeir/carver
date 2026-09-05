@@ -37,6 +37,17 @@ impl TestBackend {
 impl LibraryBackend for TestBackend {
     type Error = TestError;
 
+    fn change_revision(&self) -> Result<LibraryRevision, Self::Error> {
+        self.categories
+            .lock()
+            .map_err(|_| TestError)
+            .and_then(|categories| {
+                u64::try_from(categories.len())
+                    .map(LibraryRevision)
+                    .map_err(|_| TestError)
+            })
+    }
+
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error> {
         if let Some(gate) = &self.gate {
             gate.started.send_blocking(()).map_err(|_| TestError)?;
@@ -210,6 +221,17 @@ fn async_requests_are_serialized_by_the_backend_worker() -> Result<(), LibraryEr
             note_count: 0,
         }]
     );
+    Ok(())
+}
+
+#[test]
+fn change_revision_should_be_available_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+
+    let revision = block_on(client.change_revision_async())?;
+
+    assert_eq!(revision, LibraryRevision(0));
     Ok(())
 }
 

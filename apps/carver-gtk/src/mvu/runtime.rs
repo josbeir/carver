@@ -4,12 +4,16 @@ use std::{
     cell::RefCell,
     collections::BTreeMap,
     future::Future,
-    path::PathBuf,
+    path::{Path, PathBuf},
     rc::{Rc, Weak},
 };
 
 use carver_sdk::{LibraryBackend, LibraryClient};
-use gtk::gio::prelude::FileExt;
+use carver_storage_sqlite::change_notification_files;
+use gtk::gio::{
+    self, FileMonitor, FileMonitorEvent,
+    prelude::{FileExt, FileMonitorExt},
+};
 
 use crate::view::ViewRefs;
 
@@ -63,6 +67,7 @@ struct RuntimeInner<B: LibraryBackend> {
     model: RefCell<AppModel>,
     view: ViewRefs,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
+    library_monitor: RefCell<Option<FileMonitor>>,
 }
 
 struct PreparedExport {
@@ -100,6 +105,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 model: RefCell::new(model),
                 view,
                 prepared_exports: RefCell::new(BTreeMap::new()),
+                library_monitor: RefCell::new(None),
             }),
         }
     }
@@ -107,6 +113,49 @@ impl<B: LibraryBackend> AppRuntime<B> {
     /// Binds a weak dispatcher for callbacks that are created before the runtime exists.
     pub fn bind_dispatcher(&self, dispatcher: &AppDispatcher) {
         dispatcher.bind(self);
+    }
+
+    /// Watches the shared library database and asks the reducer to verify semantic change state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the desktop cannot monitor `database_path`.
+    pub fn monitor_library(
+        &self,
+        database_path: &Path,
+        dispatcher: AppDispatcher,
+    ) -> Result<(), glib::Error> {
+        let Some(directory) = database_path.parent() else {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::InvalidArgument,
+                "database path must have a parent directory",
+            ));
+        };
+        let Some(watched_files) = change_notification_files(database_path) else {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::InvalidArgument,
+                "database path must have a file name",
+            ));
+        };
+        let directory = gio::File::for_path(directory);
+        let monitor =
+            directory.monitor_directory(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)?;
+        monitor.set_rate_limit(250);
+        monitor.connect_changed(move |_, file, _, event| {
+            let is_library_database = file
+                .path()
+                .is_some_and(|path| watched_files.contains(&path));
+            if is_library_database
+                && matches!(
+                    event,
+                    FileMonitorEvent::Changed | FileMonitorEvent::ChangesDoneHint
+                )
+            {
+                let _ = dispatcher.dispatch(AppMsg::LibraryChangedExternally);
+            }
+        });
+        self.inner.library_monitor.replace(Some(monitor));
+        Ok(())
     }
 
     /// Reduces a message, renders the resulting snapshot, and starts any requested effects.
@@ -166,6 +215,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 source_selection,
             } => self.store_editor_asset(session, note_id, extension, bytes, alt, source_selection),
             Effect::LoadSidebar { request_id } => self.load_sidebar(request_id),
+            Effect::LoadLibraryRevision { request_id } => self.load_library_revision(request_id),
             Effect::LoadBrowser {
                 request_id,
                 category_id,
@@ -395,6 +445,18 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error)
                 .and_then(|note| note.ok_or_else(|| UiError::new("The note no longer exists")));
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_library_revision(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.change_revision_async().await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
                 request_id,
                 result,
             }));

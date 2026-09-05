@@ -1,5 +1,5 @@
 use carver_config::{AppPaths, Config};
-use carver_sdk::{CategoryId, DocumentImportFormat, NoteId, Revision};
+use carver_sdk::{CategoryId, DocumentImportFormat, LibraryRevision, NoteId, Revision};
 use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::gio::prelude::FileExt;
@@ -32,10 +32,68 @@ fn startup_should_initialize_then_request_sidebar_and_browser_data() {
                 category_id: None,
                 query: String::new(),
             },
+            Effect::LoadLibraryRevision {
+                request_id: RequestId(3),
+            },
         ]
     );
     assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
     assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(2)));
+}
+
+#[test]
+fn external_library_change_should_reload_visible_resources_after_the_revision_changes() {
+    let mut model = AppModel::new(&Config::default());
+    model.library_revision = Some(LibraryRevision(4));
+
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+
+    assert_eq!(
+        effects,
+        vec![Effect::LoadLibraryRevision {
+            request_id: RequestId(1),
+        }]
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id: RequestId(1),
+            result: Ok(LibraryRevision(5)),
+        }),
+    );
+    assert_eq!(
+        effects,
+        vec![
+            Effect::LoadSidebar {
+                request_id: RequestId(2),
+            },
+            Effect::LoadBrowser {
+                request_id: RequestId(3),
+                category_id: None,
+                query: String::new(),
+            },
+            Effect::LoadTrash {
+                request_id: RequestId(4),
+            },
+        ]
+    );
+}
+
+#[test]
+fn unchanged_external_library_wakeup_should_not_reload_resources() {
+    let mut model = AppModel::new(&Config::default());
+    model.library_revision = Some(LibraryRevision(4));
+    let _ = update(&mut model, AppMsg::LibraryChangedExternally);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id: RequestId(1),
+            result: Ok(LibraryRevision(4)),
+        }),
+    );
+
+    assert!(effects.is_empty());
 }
 
 #[test]
@@ -1144,7 +1202,13 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
             result: Ok(Revision(9)),
         }),
     );
-    assert!(matches!(effects.as_slice(), [Effect::LoadBrowser { .. }]));
+    assert!(matches!(
+        effects.as_slice(),
+        [
+            Effect::LoadBrowser { .. },
+            Effect::LoadLibraryRevision { .. }
+        ]
+    ));
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.editor, None);
 }
@@ -1178,6 +1242,9 @@ fn successful_trash_mutation_should_reload_each_dependent_resource_once() {
             },
             Effect::LoadTrash {
                 request_id: RequestId(3),
+            },
+            Effect::LoadLibraryRevision {
+                request_id: RequestId(4),
             },
         ]
     );
@@ -1314,7 +1381,8 @@ fn moved_note_should_offer_undo_and_reload_dependent_resources_once() {
         [
             Effect::LoadSidebar { .. },
             Effect::LoadBrowser { .. },
-            Effect::LoadTrash { .. }
+            Effect::LoadTrash { .. },
+            Effect::LoadLibraryRevision { .. }
         ]
     ));
 }
@@ -1365,7 +1433,8 @@ fn creating_a_category_for_a_note_should_move_it_as_one_undoable_action() {
         [
             Effect::LoadSidebar { .. },
             Effect::LoadBrowser { .. },
-            Effect::LoadTrash { .. }
+            Effect::LoadTrash { .. },
+            Effect::LoadLibraryRevision { .. }
         ]
     ));
 }
@@ -1507,6 +1576,62 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     }
     assert!(!dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
     Ok(())
+}
+
+pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let paths = AppPaths {
+        config_dir: temporary_directory.path().join("config"),
+        data_dir: temporary_directory.path().join("data"),
+        cache_dir: temporary_directory.path().join("cache"),
+    };
+    paths.ensure_exists()?;
+    let client = LibraryClient::spawn(SqliteLibrary::open(
+        &paths.database_file(),
+        &paths.assets_dir(),
+    )?)?;
+    let stack = gtk::Stack::new();
+    for name in ["browser", "editor", "trash"] {
+        stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
+    }
+    let browser_status = libadwaita::StatusPage::new();
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&Config::default()),
+        crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new()),
+    );
+    let dispatcher = AppDispatcher::default();
+    runtime.bind_dispatcher(&dispatcher);
+    runtime.monitor_library(&paths.database_file(), dispatcher)?;
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
+    if !crate::tests::support::run_main_context_until(|| {
+        matches!(runtime.model().sidebar.state, LoadState::Ready(_))
+            && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
+            && runtime.model().library_revision.is_some()
+    }) {
+        return Err("initial library resources did not load".into());
+    }
+
+    let agent_client = carver_sdk::open_local_library(&paths.database_file(), &paths.assets_dir())?;
+    let category = agent_client.create_category("From agent")?;
+    let note = agent_client.create_note_with_source(category.id, "# Created by agent")?;
+
+    if crate::tests::support::run_main_context_until(|| {
+        let model = runtime.model();
+        matches!(
+            model.sidebar.state,
+            LoadState::Ready(ref categories)
+                if categories.iter().any(|summary| summary.category.id == category.id)
+        ) && matches!(
+            model.browser.notes.state,
+            LoadState::Ready(ref notes) if notes.iter().any(|summary| summary.id == note.id)
+        )
+    }) {
+        Ok(())
+    } else {
+        Err("separate client mutation did not refresh visible resources".into())
+    }
 }
 
 fn runtime_should_write_the_current_carve_snapshot<B: LibraryBackend>(

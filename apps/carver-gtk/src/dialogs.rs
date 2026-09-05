@@ -1,6 +1,9 @@
 //! GNOME dialogs and window-scoped actions.
 
+use std::rc::Rc;
+
 use adw::prelude::*;
+use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
 use carver_config::SourceSyntaxStyle;
 use carver_sdk::{CategoryId, CategorySummary, DocumentImportFormat, NoteId};
 use gtk::prelude::*;
@@ -175,6 +178,13 @@ pub(crate) fn install_window_actions(
         );
     });
     window.add_action(&preferences);
+
+    let connect_agent = gtk::gio::SimpleAction::new("connect-agent", None);
+    let window_for_agent_setup = window.clone();
+    connect_agent.connect_activate(move |_, _| {
+        let _ = show_agent_setup_dialog(&window_for_agent_setup);
+    });
+    window.add_action(&connect_agent);
 
     let about = gtk::gio::SimpleAction::new("about", None);
     let window_for_about = window.clone();
@@ -475,6 +485,142 @@ fn show_preferences_dialog(
     dialog
 }
 
+fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesDialog {
+    let dialog = adw::PreferencesDialog::new();
+    dialog.set_title("Agents & MCP");
+    dialog.set_search_enabled(false);
+    let page = adw::PreferencesPage::new();
+    let group = adw::PreferencesGroup::new();
+    group.set_title("MCP setup");
+
+    let agent = adw::ComboRow::new();
+    agent.set_widget_name("agent-setup-agent");
+    agent.set_title("Agent");
+    agent.set_model(Some(&gtk::StringList::new(&[
+        "Codex",
+        "Claude Code",
+        "GitHub Copilot CLI",
+        "VS Code Copilot",
+        "Generic / Other",
+    ])));
+    group.add(&agent);
+
+    let cards = agent_cards_group(&agent);
+
+    let allow_write = adw::SwitchRow::new();
+    allow_write.set_widget_name("agent-setup-allow-write");
+    allow_write.set_title("Allow note changes");
+    allow_write.set_subtitle("Enable reversible create, save, move, trash, and restore actions.");
+    group.add(&allow_write);
+
+    let command = adw::ActionRow::new();
+    command.set_widget_name("agent-setup-command");
+    command.set_title("Setup command");
+    command.set_subtitle_selectable(true);
+    let copy = gtk::Button::from_icon_name("edit-copy-symbolic");
+    copy.set_tooltip_text(Some("Copy setup configuration"));
+    copy.add_css_class("flat");
+    copy.add_css_class("circular");
+    copy.set_valign(gtk::Align::Center);
+    command.add_suffix(&copy);
+    group.add(&command);
+    page.add(&cards);
+    page.add(&group);
+    dialog.add(&page);
+
+    let update: Rc<dyn Fn()> = Rc::new({
+        let command = command.clone();
+        let agent = agent.clone();
+        let allow_write = allow_write.clone();
+        move || {
+            let client = match agent.selected() {
+                0 => AgentClient::Codex,
+                1 => AgentClient::ClaudeCode,
+                2 => AgentClient::CopilotCli,
+                3 => AgentClient::VsCodeCopilot,
+                _ => AgentClient::Generic,
+            };
+            let text =
+                match setup_instruction(client, &InstallChannel::detect(), allow_write.is_active())
+                {
+                    Ok(instruction) => match instruction.command.or(instruction.configuration) {
+                        Some(text) => text,
+                        None => "No setup instruction is available.".to_owned(),
+                    },
+                    Err(error) => error.to_string(),
+                };
+            command.set_subtitle(&text);
+        }
+    });
+    let command_for_copy = command.clone();
+    copy.connect_clicked(move |_| {
+        if let (Some(display), Some(text)) =
+            (gtk::gdk::Display::default(), command_for_copy.subtitle())
+        {
+            display.clipboard().set_text(&text);
+        }
+    });
+    update();
+    let update_for_agent = update.clone();
+    agent.connect_selected_notify(move |_| update_for_agent());
+    allow_write.connect_active_notify(move |_| update());
+    dialog.present(Some(parent));
+    dialog
+}
+
+fn agent_cards_group(agent: &adw::ComboRow) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Choose your agent");
+    group.set_description(Some(
+        "Select a client to reveal its private, user-level MCP setup.",
+    ));
+    for (index, title, subtitle, icon) in [
+        (0, "Codex", "OpenAI's coding agent", "codex-openai"),
+        (1, "Claude Code", "Anthropic's terminal agent", "anthropic"),
+        (
+            2,
+            "GitHub Copilot CLI",
+            "GitHub's terminal assistant",
+            "copilot",
+        ),
+        (
+            3,
+            "VS Code Copilot",
+            "Configure VS Code's MCP server list",
+            "copilot",
+        ),
+        (
+            4,
+            "Generic / Other",
+            "Any client that supports stdio MCP",
+            "applications-system-symbolic",
+        ),
+    ] {
+        let card = adw::ActionRow::new();
+        card.set_widget_name(&format!("agent-card-{index}"));
+        card.set_title(title);
+        card.set_subtitle(subtitle);
+        card.set_activatable(true);
+        card.add_prefix(&agent_icon(icon));
+        let agent_for_card = agent.clone();
+        card.connect_activated(move |_| agent_for_card.set_selected(index));
+        group.add(&card);
+    }
+    group
+}
+
+fn agent_icon(icon: &str) -> gtk::Image {
+    let icon_name = match icon {
+        "codex-openai" => "carver-agent-codex-symbolic",
+        "anthropic" => "carver-agent-claude-symbolic",
+        "copilot" => "carver-agent-copilot-symbolic",
+        _ => icon,
+    };
+    let image = gtk::Image::from_icon_name(icon_name);
+    image.set_pixel_size(24);
+    image
+}
+
 fn source_editor_preferences_group(
     parent: &adw::ApplicationWindow,
     dispatcher: &AppDispatcher,
@@ -679,6 +825,13 @@ pub(crate) fn present_dialogs_for_test(
     show_category_name_dialog(Some(parent.upcast_ref()), "New Category", "", |_| {});
     show_category_trash_confirmation(Some(parent.upcast_ref()), "Category", || {});
     (preferences, about)
+}
+
+#[cfg(test)]
+pub(crate) fn show_agent_setup_dialog_for_test(
+    parent: &adw::ApplicationWindow,
+) -> adw::PreferencesDialog {
+    show_agent_setup_dialog(parent)
 }
 
 fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
