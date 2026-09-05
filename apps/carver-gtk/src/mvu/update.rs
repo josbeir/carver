@@ -20,12 +20,10 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             reload_browser(model).into_iter().collect()
         }
         AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
-            let request_id = model.next_request_id();
-            model.editor_load_request = Some(request_id);
-            vec![Effect::LoadEditorNote {
-                request_id,
-                note_id,
-            }]
+            request_editor_load(model, note_id, false)
+        }
+        AppMsg::Navigation(NavigationMsg::ExportNote(note_id)) => {
+            request_editor_load(model, note_id, true)
         }
         AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
@@ -43,19 +41,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.route = super::Route::Browser;
             Vec::new()
         }
-        AppMsg::Browser(BrowserMsg::Reload) => reload_browser(model).into_iter().collect(),
-        AppMsg::Browser(BrowserMsg::SearchTimerFired(timer_id))
-            if model.browser.search_timer == Some(timer_id) =>
-        {
-            model.browser.search_timer = None;
-            reload_browser(model).into_iter().collect()
-        }
-        AppMsg::Browser(BrowserMsg::SearchChanged(query)) => {
-            model.browser.search_query = query;
-            let timer_id = model.next_timer_id();
-            model.browser.search_timer = Some(timer_id);
-            vec![Effect::ScheduleSearch { timer_id }]
-        }
+        AppMsg::Browser(message) => update_browser(model, message),
         AppMsg::Sidebar(SidebarMsg::Reload) => reload_sidebar(model).into_iter().collect(),
         AppMsg::Trash(TrashMsg::Reload) => reload_trash(model).into_iter().collect(),
         AppMsg::Trash(TrashMsg::RestoreCategory(category_id)) => {
@@ -69,7 +55,6 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
         AppMsg::Editor(message) => update_editor(model, message),
-        AppMsg::Browser(BrowserMsg::SearchTimerFired(_)) => Vec::new(),
         AppMsg::Preferences(preference) => update_preferences(model, preference),
         AppMsg::Window(WindowMsg::SaveGeometry {
             width,
@@ -89,6 +74,77 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Library(reply) => update_library(model, reply),
     }
+}
+
+fn request_editor_load(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    export_after_load: bool,
+) -> Vec<Effect> {
+    let request_id = model.next_request_id();
+    model.editor_load_request = Some(request_id);
+    model.editor_export_after_load = export_after_load.then_some(request_id);
+    vec![Effect::LoadEditorNote {
+        request_id,
+        note_id,
+    }]
+}
+
+fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
+    match message {
+        BrowserMsg::Reload => reload_browser(model).into_iter().collect(),
+        BrowserMsg::SearchTimerFired(timer_id) if model.browser.search_timer == Some(timer_id) => {
+            model.browser.search_timer = None;
+            reload_browser(model).into_iter().collect()
+        }
+        BrowserMsg::LoadingIndicatorElapsed(request_id)
+            if model.browser.loading_indicator_request == Some(request_id)
+                && matches!(model.browser.notes.state, super::LoadState::Loading(current) if current == request_id) =>
+        {
+            model.browser.loading_indicator_visible = true;
+            Vec::new()
+        }
+        BrowserMsg::SearchChanged(query) => {
+            if model.browser.search_query == query {
+                return Vec::new();
+            }
+            model.browser.search_query = query;
+            let timer_id = model.next_timer_id();
+            model.browser.search_timer = Some(timer_id);
+            vec![Effect::ScheduleSearch { timer_id }]
+        }
+        BrowserMsg::SearchShortcutRequested if model.route == super::Route::Browser => {
+            open_browser_search(model)
+        }
+        BrowserMsg::SearchOpened => open_browser_search(model),
+        BrowserMsg::SearchVisibilityChanged(visible) => {
+            update_browser_search_visibility(model, visible)
+        }
+        BrowserMsg::SearchShortcutRequested
+        | BrowserMsg::SearchTimerFired(_)
+        | BrowserMsg::LoadingIndicatorElapsed(_) => Vec::new(),
+    }
+}
+
+fn update_browser_search_visibility(model: &mut AppModel, visible: bool) -> Vec<Effect> {
+    if model.browser.search_open == visible {
+        return Vec::new();
+    }
+    model.browser.search_open = visible;
+    if visible {
+        return Vec::new();
+    }
+    model.browser.search_timer = None;
+    model.browser.search_query.clear();
+    reload_browser(model).into_iter().collect()
+}
+
+fn open_browser_search(model: &mut AppModel) -> Vec<Effect> {
+    if model.browser.search_open {
+        return Vec::new();
+    }
+    model.browser.search_open = true;
+    Vec::new()
 }
 
 fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<Effect> {
@@ -266,6 +322,7 @@ fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec
     model.editor_pdf_export_request = None;
     model.preview_timer = None;
     model.editor_load_request = None;
+    model.editor_export_after_load = None;
     Vec::new()
 }
 
@@ -567,6 +624,7 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         model.editor_export_progress = None;
         model.editor_pdf_export_request = None;
         model.preview_timer = None;
+        model.editor_export_after_load = None;
     }
     let effect = match action {
         ActionMsg::CreateCategory(name) => {
@@ -659,8 +717,17 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     if let ActionKey::TrashNote(note_id) = action {
                         model.undo_trash_note = Some(note_id);
                     }
+                    if let ActionKey::TrashCategory(category_id) = action
+                        && model.selected_category == Some(category_id)
+                    {
+                        model.selected_category = None;
+                    }
                     model.notice = None;
-                    reload_after_local_mutation(model)
+                    let mut effects = reload_after_local_mutation(model);
+                    if matches!(action, ActionKey::TrashCategory(_)) {
+                        effects.push(Effect::EnsureDefaultCategory);
+                    }
+                    effects
                 }
                 Err(error) => {
                     model.notice = Some(error);
@@ -672,21 +739,10 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             reload_sidebar_after(model.sidebar.finish(request_id, result), model)
         }
         LibraryReply::BrowserLoaded { request_id, result } => {
-            reload_browser_after(model.browser.notes.finish(request_id, result), model)
+            update_browser_loaded(model, request_id, result)
         }
         LibraryReply::EditorLoaded { request_id, result } => {
-            if model.editor_load_request != Some(request_id) {
-                return Vec::new();
-            }
-            model.editor_load_request = None;
-            match result {
-                Ok(note) => {
-                    open_editor(model, note.id, note.revision, note.source);
-                    model.route = super::Route::Editor;
-                }
-                Err(error) => model.notice = Some(error),
-            }
-            Vec::new()
+            update_editor_loaded(model, request_id, result)
         }
         LibraryReply::EditorAssetStored {
             session,
@@ -742,6 +798,54 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         },
         LibraryReply::EditorSaved { request, result } => {
             update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn update_browser_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<Vec<carver_sdk::NoteSummary>, UiError>,
+) -> Vec<Effect> {
+    let is_current = matches!(
+        model.browser.notes.state,
+        super::LoadState::Loading(current) if current == request_id
+    );
+    let reload = model.browser.notes.finish(request_id, result);
+    if is_current {
+        model.browser.loading_indicator_request = None;
+        model.browser.loading_indicator_visible = false;
+    }
+    reload_browser_after(reload, model)
+}
+
+fn update_editor_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<carver_sdk::Note, UiError>,
+) -> Vec<Effect> {
+    if model.editor_load_request != Some(request_id) {
+        return Vec::new();
+    }
+    model.editor_load_request = None;
+    let export_after_load = model.editor_export_after_load == Some(request_id);
+    if export_after_load {
+        model.editor_export_after_load = None;
+    }
+    match result {
+        Ok(note) => {
+            model.selected_category = Some(note.category_id);
+            open_editor(model, note.id, note.revision, note.source);
+            model.route = super::Route::Editor;
+            if export_after_load {
+                request_editor_export_dialog(model)
+            } else {
+                Vec::new()
+            }
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
         }
     }
 }
@@ -1107,15 +1211,16 @@ fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {
     let request_id = model.next_request_id();
-    model
-        .browser
-        .notes
-        .begin_reload(request_id)
-        .then_some(Effect::LoadBrowser {
-            request_id,
-            category_id: model.selected_category,
-            query: model.browser.search_query.clone(),
-        })
+    let started = model.browser.notes.begin_reload(request_id);
+    if started {
+        model.browser.loading_indicator_request = Some(request_id);
+        model.browser.loading_indicator_visible = false;
+    }
+    started.then_some(Effect::LoadBrowser {
+        request_id,
+        category_id: model.selected_category,
+        query: model.browser.search_query.clone(),
+    })
 }
 
 fn reload_trash(model: &mut AppModel) -> Option<Effect> {

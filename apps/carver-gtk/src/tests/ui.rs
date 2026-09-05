@@ -49,7 +49,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
     let (temporary_directory, client) = test_state()?;
-    let category = client.create_category("Notes")?;
+    let category = client.create_category_with_appearance(
+        "Notes",
+        carver_sdk::CategoryAppearance {
+            icon: carver_sdk::CategoryIcon::Folder,
+            color: carver_sdk::CategoryColor::Rose,
+        },
+    )?;
     let destination = client.create_category("Projects")?;
     let application = adw::Application::new(
         Some("io.github.josbeir.Carver.Tests"),
@@ -230,6 +236,18 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
     }));
+    let sidebar_surface =
+        widget_as::<gtk::Box>(&root, "sidebar-surface").ok_or("sidebar surface")?;
+    let sidebar_controllers = sidebar_surface.observe_controllers();
+    let sidebar_search_shortcut = (0..sidebar_controllers.n_items())
+        .filter_map(|index| sidebar_controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("sidebar-search-shortcut"))
+        .ok_or("sidebar search shortcut")?;
+    assert_eq!(
+        sidebar_search_shortcut.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
     let browser_view =
         widget_as::<adw::ToolbarView>(&root, "browser-surface").ok_or("browser view")?;
     let browser_controllers = browser_view.observe_controllers();
@@ -243,7 +261,18 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         gtk::PropagationPhase::Capture
     );
     assert!(widget_as::<gtk::Button>(&root, "new-note-button").is_some());
-    assert!(widget_as::<gtk::Button>(&root, "import-note-button").is_some());
+    let browser_menu = widget_as::<gtk::MenuButton>(&root, "browser-menu-button")
+        .ok_or("browser overflow menu")?;
+    assert_eq!(
+        browser_menu.menu_model().map(|model| model.n_items()),
+        Some(1)
+    );
+    assert!(
+        browser_menu
+            .popover()
+            .and_downcast::<gtk::PopoverMenu>()
+            .is_some()
+    );
     assert!(window.lookup_action("import-note").is_some());
     assert_eq!(
         crate::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
@@ -298,9 +327,22 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         find_widget(&root, &format!("note-category:{}", note.id)).is_some()
             && find_widget(&root, &format!("note-updated:{}", note.id)).is_some()
             && find_widget(&root, &format!("note-excerpt:{}", note.id)).is_none()
+            && widget_as::<gtk::Label>(&root, &format!("note-category:{}", note.id))
+                .is_some_and(|category| category.has_css_class("category-color-rose"))
     }));
     let note_menu = widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
         .ok_or("note actions")?;
+    assert!(
+        note_menu
+            .popover()
+            .and_then(|popover| popover.child())
+            .and_then(|actions| {
+                find_widget(&actions, &format!("export-note-button:{}", note.id))
+            })
+            .and_downcast::<gtk::Button>()
+            .is_some(),
+        "note actions should expose export"
+    );
     let move_button = note_menu
         .popover()
         .and_then(|popover| popover.child())
@@ -348,8 +390,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(&root, "browser-hero-title")
             .is_some_and(|title| title.text() == "Notes")
-            && widget_as::<gtk::Button>(&root, "edit-selected-category-button").is_some()
-            && widget_as::<gtk::Button>(&root, "trash-selected-category-button").is_some()
+            && widget_as::<gtk::Button>(&root, "edit-selected-category-button")
+                .is_some_and(|button| button.is_visible())
+            && widget_as::<gtk::Button>(&root, "trash-selected-category-button")
+                .is_some_and(|button| button.is_visible())
+            && widget_as::<gtk::Box>(&root, "browser-category-empty-card")
+                .is_some_and(|card| card.is_visible())
+            && widget_as::<gtk::Button>(&root, "browser-category-empty-new-note-button")
+                .is_some_and(|button| button.is_visible())
+            && widget_as::<gtk::Stack>(&root, "browser-content-pages")
+                .is_some_and(|pages| pages.visible_child_name().as_deref() == Some("contents"))
             && find_widget(
                 sidebar.upcast_ref(),
                 &format!("category-actions:{}", category.id),
@@ -357,6 +407,26 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_none()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
+    let browser_scroll = widget_as::<gtk::ScrolledWindow>(&root, "browser-content-scroll")
+        .ok_or("browser content scroll")?;
+    let browser_viewport = browser_scroll
+        .child()
+        .and_downcast::<gtk::Viewport>()
+        .ok_or("browser content viewport")?;
+    let browser_clamp = browser_viewport
+        .child()
+        .and_downcast::<adw::Clamp>()
+        .ok_or("browser content clamp")?;
+    let browser_content = browser_clamp
+        .child()
+        .and_downcast::<gtk::Box>()
+        .ok_or("browser content")?;
+    let note_list = widget_as::<gtk::ListBox>(&root, "note-list").ok_or("note list")?;
+    assert!(
+        note_list
+            .parent()
+            .is_some_and(|parent| parent == browser_content)
+    );
     let destination_category_row = find_widget(
         sidebar.upcast_ref(),
         &format!("category:{}", destination.id),
@@ -388,8 +458,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(note_row.has_css_class("activatable"));
     note_row.activate();
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
+    let destination_category_name = format!("category:{}", destination.id);
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
+            && sidebar
+                .selected_row()
+                .is_some_and(|row| row.widget_name() == destination_category_name)
     }));
     let controllers = route_stack.observe_controllers();
     let mouse_back = (0..controllers.n_items())
@@ -884,7 +958,25 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("browser")
     }));
+    let search_bar = widget_as::<gtk::SearchBar>(&root, "note-search-bar").ok_or("search bar")?;
     let search = widget_as::<gtk::SearchEntry>(&root, "note-search-entry").ok_or("search")?;
+    let search_toggle =
+        widget_as::<gtk::ToggleButton>(&root, "note-search-toggle").ok_or("search toggle")?;
+    assert!(!search_bar.is_search_mode());
+    assert!(!search_toggle.is_active());
+    let _ = open_trash.grab_focus();
+    let search_handled = sidebar_search_shortcut.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::f,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(search_handled);
+    assert!(run_main_context_until(|| {
+        search_bar.is_search_mode() && search_toggle.is_active()
+    }));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today")
@@ -902,16 +994,29 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "browser-search-empty-card"
     )
     .is_some_and(|card| card.is_visible())));
-    search.set_text("");
+    search.emit_stop_search();
+    assert!(run_main_context_until(|| {
+        !search_bar.is_search_mode() && !search_toggle.is_active() && search.text().is_empty()
+    }));
     assert!(run_main_context_until(|| widget_as::<gtk::Box>(
         &root,
         "browser-search-empty-card"
     )
     .is_some_and(|card| !card.is_visible())));
-    assert!(run_main_context_until(|| {
+    let restored_groups = run_main_context_until(|| {
         find_widget(&root, &format!("note:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today").is_some()
-    }));
+    });
+    if !restored_groups {
+        return Err(format!(
+            "search restore state: note={}, group={}, empty-card={}",
+            find_widget(&root, &format!("note:{}", note.id)).is_some(),
+            find_widget(&root, "note-group:today").is_some(),
+            widget_as::<gtk::Box>(&root, "browser-search-empty-card")
+                .is_some_and(|card| card.is_visible()),
+        )
+        .into());
+    }
     let moved_note_row = find_widget(&root, &format!("note:{}", note.id))
         .and_downcast::<gtk::ListBoxRow>()
         .ok_or("moved note row")?;

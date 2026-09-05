@@ -141,29 +141,20 @@ fn build_window(
     split_view.set_content(Some(&content_page));
     toast_overlay.set_child(Some(&split_view));
     window.set_content(Some(&toast_overlay));
-
     let sidebar_for_render = sidebar.clone();
-    let view = ViewRefs::new(
-        content.route_stack,
-        content.browser.status.clone(),
-        content.trash.status.clone(),
-    )
-    .with_browser(
-        content.browser.list,
-        content.browser.pages,
-        content.browser.search_empty_card,
-        content.browser.empty_new_note_button,
-        content.browser.category_hero,
-    )
-    .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
-    .with_editor(content.editor)
-    .with_trash(
-        content.trash.list,
-        content.trash.pages,
-        content.trash.empty_button,
-    )
-    .with_toast_overlay(toast_overlay)
-    .with_dispatcher(dispatcher.clone());
+    let browser_status = content.browser.status.clone();
+    let trash_status = content.trash.status.clone();
+    let view = ViewRefs::new(content.route_stack, browser_status, trash_status)
+        .with_browser(content.browser)
+        .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
+        .with_editor(content.editor)
+        .with_trash(
+            content.trash.list,
+            content.trash.pages,
+            content.trash.empty_button,
+        )
+        .with_toast_overlay(toast_overlay)
+        .with_dispatcher(dispatcher.clone());
     let runtime = AppRuntime::new_with_config_path(
         client,
         AppModel::new(config),

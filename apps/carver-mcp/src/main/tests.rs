@@ -25,6 +25,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
     let category = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Journal".to_owned(),
+            appearance: None,
         }))
         .await
         .map_err(|error| error.to_string())?;
@@ -100,6 +101,7 @@ async fn save_move_and_restore_note(
     let category = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Archive".to_owned(),
+            appearance: None,
         }))
         .await
         .map_err(|error| error.to_string())?;
@@ -172,11 +174,134 @@ async fn write_tools_should_manage_a_note_lifecycle() -> TestResult {
 }
 
 #[tokio::test]
+async fn create_category_should_return_requested_appearance() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let created = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Ideas".to_owned(),
+            appearance: Some(CategoryAppearanceRequest {
+                icon: CategoryIconRequest::Lightbulb,
+                color: CategoryColorRequest::Yellow,
+            }),
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        created["appearance"],
+        serde_json::json!({ "icon": "Lightbulb", "color": "Yellow" })
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_category_should_return_requested_appearance() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let created = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Ideas".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let category_id = id(&created)?;
+
+    let updated = server
+        .update_category(Parameters(UpdateCategoryRequest {
+            category_id,
+            name: "Personal ideas".to_owned(),
+            appearance: CategoryAppearanceRequest {
+                icon: CategoryIconRequest::Heart,
+                color: CategoryColorRequest::Rose,
+            },
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let updated =
+        serde_json::from_str::<serde_json::Value>(&updated).map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        updated["appearance"],
+        serde_json::json!({ "icon": "Heart", "color": "Rose" })
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_note_timestamps_should_return_requested_dates() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let category = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Journal".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: id(&category)?,
+            source: "# Dated entry".to_owned(),
+            markdown: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let note_id = id(&created)?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+    let revision = created["revision"]
+        .as_i64()
+        .ok_or_else(|| "created note did not include a revision".to_owned())?;
+
+    let updated = server
+        .update_note_timestamps(Parameters(UpdateNoteTimestampsRequest {
+            note_id,
+            revision,
+            created_at: "2020-01-02T03:04:05Z".to_owned(),
+            updated_at: "2021-02-03T04:05:06Z".to_owned(),
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let updated =
+        serde_json::from_str::<serde_json::Value>(&updated).map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        (updated["created_at"].clone(), updated["updated_at"].clone()),
+        (
+            serde_json::json!("2020-01-02T03:04:05Z"),
+            serde_json::json!("2021-02-03T04:05:06Z"),
+        )
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_note_timestamps_should_reject_non_rfc3339_dates() -> TestResult {
+    let (_directory, server) = server(true)?;
+
+    let error = server
+        .update_note_timestamps(Parameters(UpdateNoteTimestampsRequest {
+            note_id: uuid::Uuid::new_v4().to_string(),
+            revision: 1,
+            created_at: "yesterday".to_owned(),
+            updated_at: "2021-02-03T04:05:06Z".to_owned(),
+        }))
+        .await
+        .err()
+        .ok_or_else(|| "an invalid timestamp should be rejected".to_owned())?;
+
+    assert!(error.message.contains("created_at"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn read_only_server_should_reject_writes_and_validate_requests() -> TestResult {
     let (_directory, server) = server(false)?;
     let error = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Blocked".to_owned(),
+            appearance: None,
         }))
         .await
         .err()

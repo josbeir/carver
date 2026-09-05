@@ -52,7 +52,12 @@ fn external_links_should_only_route_web_uris_to_the_desktop_browser() {
 fn rendered_document_uses_the_active_dark_palette() {
     let html = rendered_document_for_theme("# Heading", false, true);
     assert!(html.contains("data-theme=\"dark\""));
-    assert!(PREVIEW_STYLESHEET.contains("--document-background: #1e1e1e"));
+    assert!(PREVIEW_STYLESHEET.contains("--document-background: #1d1d20"));
+}
+
+#[test]
+fn rendered_document_uses_the_native_view_background_when_provided() {
+    assert!(PREVIEW_STYLESHEET.contains("--document-background: #1d1d20"));
 }
 
 #[test]

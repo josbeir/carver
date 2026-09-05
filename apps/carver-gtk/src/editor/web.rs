@@ -28,6 +28,7 @@ pub(crate) struct RichEditor {
     session: Rc<Cell<u64>>,
     ready: Rc<Cell<bool>>,
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
+    current_theme: Rc<RefCell<Option<EditorTheme>>>,
     unsupported_handler: UnsupportedHandler,
     selection_handler: SelectionHandler,
 }
@@ -78,6 +79,7 @@ impl RichEditor {
             session: Rc::new(Cell::new(0)),
             ready: Rc::new(Cell::new(false)),
             pending_source: Rc::new(RefCell::new(None)),
+            current_theme: Rc::new(RefCell::new(None)),
             unsupported_handler: Rc::new(RefCell::new(None)),
             selection_handler: Rc::new(RefCell::new(None)),
         };
@@ -149,15 +151,10 @@ impl RichEditor {
         show_rich_link_dialog(anchor, self);
     }
 
-    /// Applies GNOME's color scheme and system accent without reloading the document.
-    pub(crate) fn set_theme(&self, dark: bool, accent: &gtk::gdk::RGBA) {
-        let selection = selection_theme(dark, accent);
-        self.evaluate(&format!(
-            "window.carverEditor.setTheme({dark}, {}, {}, {});",
-            json(&selection.accent),
-            json(&selection.background),
-            json(selection.foreground)
-        ));
+    /// Applies GNOME's resolved editor colors without reloading the document.
+    pub(super) fn set_theme(&self, theme: &EditorTheme) {
+        self.current_theme.replace(Some(theme.clone()));
+        self.apply_theme();
     }
 
     /// Invokes `handler` when a source document cannot be edited without loss.
@@ -206,6 +203,7 @@ impl RichEditor {
                 EditorEvent::Ready => {
                     editor.ready.set(true);
                     editor.flush_pending_source();
+                    editor.apply_theme();
                 }
                 EditorEvent::Changed {
                     session, source, ..
@@ -279,6 +277,16 @@ impl RichEditor {
             "window.carverEditor.load({}, {session});",
             json(&source)
         ));
+    }
+
+    fn apply_theme(&self) {
+        if !self.ready.get() {
+            return;
+        }
+        let Some(theme) = self.current_theme.borrow().clone() else {
+            return;
+        };
+        self.evaluate(&theme_javascript(&theme));
     }
 
     fn evaluate(&self, script: &str) {
@@ -406,21 +414,60 @@ fn rgba_components(rgba: &gtk::gdk::RGBA) -> (u8, u8, u8) {
     )
 }
 
+#[derive(Clone)]
 pub(super) struct SelectionTheme {
     pub(super) accent: String,
     pub(super) background: String,
-    pub(super) foreground: &'static str,
+    pub(super) foreground: String,
 }
 
 /// Matches GTK text views: a translucent accent keeps selected text readable
 /// while the document foreground remains unchanged in both color schemes.
+#[cfg(test)]
 pub(super) fn selection_theme(dark: bool, accent: &gtk::gdk::RGBA) -> SelectionTheme {
+    selection_theme_with_foreground(accent, default_document_foreground(dark))
+}
+
+fn selection_theme_with_foreground(accent: &gtk::gdk::RGBA, foreground: &str) -> SelectionTheme {
     let (red, green, blue) = rgba_components(accent);
     SelectionTheme {
         accent: rgba_css(accent),
         background: format!("rgb({red} {green} {blue} / 25%)"),
-        foreground: if dark { "#f6f5f4" } else { "#242424" },
+        foreground: foreground.to_owned(),
     }
+}
+
+/// Color-scheme and selection colors transferred from Adwaita into `WebKit`.
+#[derive(Clone)]
+pub(super) struct EditorTheme {
+    pub(super) dark: bool,
+    pub(super) selection: SelectionTheme,
+}
+
+/// Builds the `WebKit` palette from Adwaita's selected color scheme.
+///
+/// The bundled stylesheet owns the canonical Adwaita document surface for the
+/// active scheme. Passing a native background across the `WebKit` boundary is
+/// unreliable because GTK can update it after the style-manager notification.
+pub(super) fn editor_theme(dark: bool, accent: &gtk::gdk::RGBA) -> EditorTheme {
+    EditorTheme {
+        dark,
+        selection: selection_theme_with_foreground(accent, default_document_foreground(dark)),
+    }
+}
+
+fn default_document_foreground(dark: bool) -> &'static str {
+    if dark { "#ffffff" } else { "#333334" }
+}
+
+fn theme_javascript(theme: &EditorTheme) -> String {
+    format!(
+        "window.carverEditor.setTheme({}, {}, {}, {});",
+        theme.dark,
+        json(&theme.selection.accent),
+        json(&theme.selection.background),
+        json(&theme.selection.foreground),
+    )
 }
 
 /// Builds the sandboxed editor shell using the configured image source policy.
@@ -437,7 +484,10 @@ fn editor_document(allow_remote_images: bool) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{LinkContext, editor_document, parse_link_context, selection_theme};
+    use super::{
+        LinkContext, editor_document, editor_theme, parse_link_context, selection_theme,
+        theme_javascript,
+    };
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
@@ -453,7 +503,7 @@ mod tests {
     fn selection_theme_preserves_dark_document_text() {
         let accent = gtk::gdk::RGBA::new(0.102, 0.373, 0.706, 1.0);
         let theme = selection_theme(true, &accent);
-        assert_eq!(theme.foreground, "#f6f5f4");
+        assert_eq!(theme.foreground, "#ffffff");
     }
 
     #[test]
@@ -461,6 +511,20 @@ mod tests {
         let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
         let theme = selection_theme(false, &accent);
         assert_eq!(theme.background, "rgb(53 142 69 / 25%)");
+    }
+
+    #[test]
+    fn editor_theme_uses_the_adwaita_dark_selection_foreground() {
+        let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+        let theme = editor_theme(true, &accent);
+        assert_eq!(theme.selection.foreground, "#ffffff");
+    }
+
+    #[test]
+    fn theme_javascript_applies_the_selected_adwaita_scheme_to_webkit() {
+        let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+        let theme = editor_theme(true, &accent);
+        assert!(theme_javascript(&theme).contains("setTheme(true"));
     }
 
     #[test]

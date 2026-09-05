@@ -131,12 +131,18 @@ pub enum Route {
 /// Browser-specific UI-neutral state.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BrowserModel {
+    /// Whether the native notes search bar is currently shown.
+    pub search_open: bool,
     /// Current untrimmed search text as entered by the user.
     pub search_query: String,
     /// Loaded note summaries for the active category and query.
     pub notes: Resource<Vec<NoteSummary>>,
     /// The debounce timer authorized to reload after the latest search change.
     pub search_timer: Option<TimerId>,
+    /// Browser load allowed to reveal the loading state after a short delay.
+    pub loading_indicator_request: Option<RequestId>,
+    /// Whether the current browser load has exceeded the loading-indicator delay.
+    pub loading_indicator_visible: bool,
 }
 
 /// User preferences needed by the renderer.
@@ -415,6 +421,8 @@ pub struct AppModel {
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
     /// The request currently loading a note into the editor.
     pub editor_load_request: Option<RequestId>,
+    /// The editor load that should open export options after its note snapshot is ready.
+    pub editor_export_after_load: Option<RequestId>,
     pub(crate) library_revision: Option<LibraryRevision>,
     pub(crate) library_revision_request: Option<LibraryRevisionRequest>,
     next_request_id: u64,
@@ -451,6 +459,7 @@ impl AppModel {
             editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,
+            editor_export_after_load: None,
             library_revision: None,
             library_revision_request: None,
             next_request_id: 1,

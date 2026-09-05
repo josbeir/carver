@@ -67,6 +67,92 @@ fn category_appearance_should_round_trip_through_storage() {
 }
 
 #[test]
+fn updating_note_timestamps_should_preserve_source_and_increment_the_revision() {
+    let (_directory, library) = library();
+    let initial_time = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Journal", initial_time)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note_with_source(category.id, "# Entry", initial_time)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    let created_at = initial_time - time::Duration::days(2);
+    let updated_at = initial_time + time::Duration::days(3);
+
+    let updated = library
+        .update_note_timestamps(note.id, note.revision, created_at, updated_at)
+        .unwrap_or_else(|error| panic!("timestamp update failed: {error}"));
+
+    assert_eq!(
+        (
+            updated.source,
+            updated.revision,
+            updated.created_at,
+            updated.updated_at
+        ),
+        (
+            "# Entry".to_owned(),
+            Revision(note.revision.0 + 1),
+            created_at,
+            updated_at
+        )
+    );
+}
+
+#[test]
+fn updating_note_timestamps_should_reject_modification_before_creation() {
+    let (_directory, library) = library();
+    let timestamp = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Journal", timestamp)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note(category.id, timestamp)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    let result = library.update_note_timestamps(
+        note.id,
+        note.revision,
+        timestamp,
+        timestamp - time::Duration::seconds(1),
+    );
+
+    assert!(matches!(result, Err(StorageError::InvalidNoteTimestamps)));
+}
+
+#[test]
+fn creating_a_note_in_a_trashed_category_should_return_category_unavailable() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Archived", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    library
+        .trash_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+
+    let result = library.create_note(category.id, now);
+
+    assert!(matches!(result, Err(StorageError::CategoryUnavailable)));
+}
+
+#[test]
+fn importing_a_note_in_a_trashed_category_should_return_category_unavailable() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Archived", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    library
+        .trash_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+
+    let result = library.create_note_with_source(category.id, "# Hidden", now);
+
+    assert!(matches!(result, Err(StorageError::CategoryUnavailable)));
+}
+
+#[test]
 fn opening_a_legacy_library_should_assign_the_default_category_appearance() {
     let directory =
         tempfile::tempdir().unwrap_or_else(|error| panic!("temporary directory failed: {error}"));

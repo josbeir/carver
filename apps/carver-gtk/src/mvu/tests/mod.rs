@@ -1,8 +1,9 @@
 use carver_config::{AppPaths, Config};
-use carver_sdk::{CategoryId, DocumentImportFormat, LibraryRevision, NoteId, Revision};
+use carver_sdk::{CategoryId, DocumentImportFormat, LibraryRevision, Note, NoteId, Revision};
 use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::gio::prelude::FileExt;
+use time::OffsetDateTime;
 
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg,
@@ -241,6 +242,131 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
 }
 
 #[test]
+fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading() {
+    let mut model = AppModel::new(&Config::default());
+    let initial_load = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    let initial_request = match initial_load.as_slice() {
+        [Effect::LoadBrowser { request_id, .. }] => *request_id,
+        _ => panic!("browser reload should produce one browser effect"),
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id: initial_request,
+            result: Ok(Vec::new()),
+        }),
+    );
+
+    let reload = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    let request_id = match reload.as_slice() {
+        [Effect::LoadBrowser { request_id, .. }] => *request_id,
+        _ => panic!("browser reload should produce one browser effect"),
+    };
+    assert_eq!(model.browser.loading_indicator_request, Some(request_id));
+    assert!(!model.browser.loading_indicator_visible);
+
+    let indicator_effects = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::LoadingIndicatorElapsed(request_id)),
+    );
+    assert!(indicator_effects.is_empty());
+    assert!(model.browser.loading_indicator_visible);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id,
+            result: Ok(Vec::new()),
+        }),
+    );
+    assert_eq!(model.browser.loading_indicator_request, None);
+    assert!(!model.browser.loading_indicator_visible);
+}
+
+#[test]
+fn opening_note_search_should_update_only_the_browser_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(&mut model, AppMsg::Browser(BrowserMsg::SearchOpened));
+
+    assert!(effects.is_empty());
+    assert!(model.browser.search_open);
+}
+
+#[test]
+fn browser_search_shortcut_should_open_search_from_the_browser_route() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::SearchShortcutRequested),
+    );
+
+    assert!(effects.is_empty());
+    assert!(model.browser.search_open);
+}
+
+#[test]
+fn browser_search_shortcut_should_not_change_the_editor_route() {
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Editor;
+    let effects = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::SearchShortcutRequested),
+    );
+
+    assert!(effects.is_empty());
+    assert!(!model.browser.search_open);
+}
+
+#[test]
+fn closing_note_search_should_clear_the_query_and_reload_the_browser() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::SearchChanged("roadmap".to_owned())),
+    );
+    model.browser.search_open = true;
+
+    let effects = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::SearchVisibilityChanged(false)),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::LoadBrowser {
+            request_id: RequestId(1),
+            category_id: None,
+            query: String::new(),
+        }]
+    );
+    assert!(!model.browser.search_open);
+    assert!(model.browser.search_query.is_empty());
+    assert!(model.browser.search_timer.is_none());
+}
+
+#[test]
+fn closing_note_search_should_reload_after_the_native_entry_clears_its_text() {
+    let mut model = AppModel::new(&Config::default());
+    model.browser.search_open = true;
+
+    let effects = update(
+        &mut model,
+        AppMsg::Browser(BrowserMsg::SearchVisibilityChanged(false)),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::LoadBrowser {
+            request_id: RequestId(1),
+            category_id: None,
+            query: String::new(),
+        }]
+    );
+}
+
+#[test]
 fn selecting_a_category_should_reload_the_browser_for_that_category() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
@@ -260,6 +386,42 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
             query: String::new(),
         }]
     );
+}
+
+#[test]
+fn opening_a_note_from_all_notes_should_select_its_category() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let note_id = NoteId::new();
+    let request_id = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+    )
+    .as_slice()
+    {
+        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        _ => panic!("opening a note should start one load"),
+    };
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id,
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("# Categorized note"),
+                title: String::from("Categorized note"),
+                plain_text: String::from("Categorized note"),
+                revision: Revision(1),
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    assert_eq!(model.selected_category, Some(category_id));
 }
 
 #[test]
@@ -295,6 +457,60 @@ fn opening_a_note_should_ignore_an_older_load_completion() {
     );
     assert_eq!(model.editor_load_request, Some(second_request));
     assert_eq!(model.editor, None);
+}
+
+#[test]
+fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let note_id = NoteId::new();
+    let request_id = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::ExportNote(note_id)),
+    )
+    .as_slice()
+    {
+        [
+            Effect::LoadEditorNote {
+                request_id,
+                note_id: effect_note_id,
+            },
+        ] if *effect_note_id == note_id => *request_id,
+        _ => panic!("exporting a browser note should load its editor snapshot"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id,
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("# Browser note"),
+                title: String::from("Browser note"),
+                plain_text: String::from("Browser note"),
+                revision: Revision(1),
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.route, Route::Editor);
+    assert_eq!(
+        model.editor.as_ref().map(|document| document.note_id),
+        Some(note_id)
+    );
+    assert!(model.editor_export_after_load.is_none());
+    assert_eq!(
+        model
+            .editor_export_dialog_request
+            .as_ref()
+            .map(|request| (&request.note_id, request.source.as_str())),
+        Some((&note_id, "# Browser note"))
+    );
 }
 
 #[test]
@@ -1368,6 +1584,28 @@ fn failed_action_should_not_invalidate_loaded_resources() {
 }
 
 #[test]
+fn trashing_the_selected_category_should_clear_selection_and_ensure_a_default() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+    let _ = update(
+        &mut model,
+        AppMsg::Action(ActionMsg::TrashCategory(category_id)),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::ActionFinished {
+            action: ActionKey::TrashCategory(category_id),
+            result: Ok(()),
+        }),
+    );
+
+    assert_eq!(model.selected_category, None);
+    assert!(effects.contains(&Effect::EnsureDefaultCategory));
+}
+
+#[test]
 fn moved_note_should_offer_undo_and_reload_dependent_resources_once() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
@@ -1528,19 +1766,12 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         Some("contents"),
     );
     browser_pages.add_named(&browser_status, Some("empty"));
-    let search_empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let empty_new_note = gtk::Button::new();
+    let browser = browser_view_refs(browser_list, browser_pages, browser_status.clone());
     let runtime = AppRuntime::new(
         client.clone(),
         AppModel::new(&Config::default()),
         crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new())
-            .with_browser(
-                browser_list,
-                browser_pages,
-                search_empty,
-                empty_new_note,
-                gtk::Box::new(gtk::Orientation::Vertical, 0),
-            ),
+            .with_browser(browser),
     );
 
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
@@ -1609,6 +1840,26 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     }
     assert!(!dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser)));
     Ok(())
+}
+
+fn browser_view_refs(
+    list: gtk::ListBox,
+    pages: gtk::Stack,
+    status: libadwaita::StatusPage,
+) -> crate::browser::BrowserViewRefs {
+    crate::browser::BrowserViewRefs {
+        list,
+        pages,
+        search_bar: gtk::SearchBar::new(),
+        search_entry: gtk::SearchEntry::new(),
+        search_toggle: gtk::ToggleButton::new(),
+        search_empty_card: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        category_empty_card: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        empty_new_note_button: gtk::Button::new(),
+        category_empty_new_note_button: gtk::Button::new(),
+        category_hero: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        status,
+    }
 }
 
 pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()

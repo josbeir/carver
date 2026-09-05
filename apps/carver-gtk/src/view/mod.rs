@@ -1,5 +1,8 @@
 //! Imperative GTK rendering adapters for MVU model snapshots.
 
+#[cfg(test)]
+mod tests;
+
 use std::cell::{Cell, RefCell};
 
 use gtk::prelude::*;
@@ -19,6 +22,15 @@ type SidebarSnapshot = (
     Option<carver_sdk::CategoryId>,
 );
 
+struct BrowserContentRefs<'a> {
+    list: &'a gtk::ListBox,
+    pages: &'a gtk::Stack,
+    search_empty: &'a gtk::Box,
+    category_empty: &'a gtk::Box,
+    empty_new_note: &'a gtk::Button,
+    category_empty_new_note: &'a gtk::Button,
+}
+
 /// GTK references used to render the high-level MVU resources.
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
@@ -26,8 +38,13 @@ pub struct ViewRefs {
     route_stack: gtk::Stack,
     browser_list: Option<gtk::ListBox>,
     browser_pages: Option<gtk::Stack>,
+    browser_search_bar: Option<gtk::SearchBar>,
+    browser_search_entry: Option<gtk::SearchEntry>,
+    browser_search_toggle: Option<gtk::ToggleButton>,
     browser_search_empty_card: Option<gtk::Box>,
+    browser_category_empty_card: Option<gtk::Box>,
     browser_empty_new_note_button: Option<gtk::Button>,
+    browser_category_empty_new_note_button: Option<gtk::Button>,
     browser_category_hero: Option<gtk::Box>,
     browser_status: adw::StatusPage,
     trash_list: Option<gtk::ListBox>,
@@ -40,6 +57,8 @@ pub struct ViewRefs {
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
+    last_browser_search_open: Cell<bool>,
+    has_browser_snapshot: Cell<bool>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
@@ -58,8 +77,13 @@ impl ViewRefs {
             route_stack,
             browser_list: None,
             browser_pages: None,
+            browser_search_bar: None,
+            browser_search_entry: None,
+            browser_search_toggle: None,
             browser_search_empty_card: None,
+            browser_category_empty_card: None,
             browser_empty_new_note_button: None,
+            browser_category_empty_new_note_button: None,
             browser_category_hero: None,
             browser_status,
             trash_list: None,
@@ -72,6 +96,8 @@ impl ViewRefs {
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
+            last_browser_search_open: Cell::new(false),
+            has_browser_snapshot: Cell::new(false),
             sidebar_renderer: None,
             editor: None,
             last_sidebar_snapshot: RefCell::new(None),
@@ -109,19 +135,17 @@ impl ViewRefs {
 
     /// Adds the browser widgets created by the window composition.
     #[must_use]
-    pub fn with_browser(
-        mut self,
-        browser_list: gtk::ListBox,
-        browser_pages: gtk::Stack,
-        browser_search_empty_card: gtk::Box,
-        browser_empty_new_note_button: gtk::Button,
-        browser_category_hero: gtk::Box,
-    ) -> Self {
-        self.browser_list = Some(browser_list);
-        self.browser_pages = Some(browser_pages);
-        self.browser_search_empty_card = Some(browser_search_empty_card);
-        self.browser_empty_new_note_button = Some(browser_empty_new_note_button);
-        self.browser_category_hero = Some(browser_category_hero);
+    pub(crate) fn with_browser(mut self, browser: crate::browser::BrowserViewRefs) -> Self {
+        self.browser_list = Some(browser.list);
+        self.browser_pages = Some(browser.pages);
+        self.browser_search_bar = Some(browser.search_bar);
+        self.browser_search_entry = Some(browser.search_entry);
+        self.browser_search_toggle = Some(browser.search_toggle);
+        self.browser_search_empty_card = Some(browser.search_empty_card);
+        self.browser_category_empty_card = Some(browser.category_empty_card);
+        self.browser_empty_new_note_button = Some(browser.empty_new_note_button);
+        self.browser_category_empty_new_note_button = Some(browser.category_empty_new_note_button);
+        self.browser_category_hero = Some(browser.category_hero);
         self
     }
 
@@ -182,12 +206,16 @@ impl ViewRefs {
     }
 
     fn render_browser(&self, model: &AppModel) {
-        let (Some(list), Some(pages), Some(search_empty), Some(empty_new_note)) = (
-            self.browser_list.as_ref(),
-            self.browser_pages.as_ref(),
-            self.browser_search_empty_card.as_ref(),
-            self.browser_empty_new_note_button.as_ref(),
-        ) else {
+        self.render_browser_search(model);
+        let Some(BrowserContentRefs {
+            list,
+            pages,
+            search_empty,
+            category_empty,
+            empty_new_note,
+            category_empty_new_note,
+        }) = self.browser_content_refs()
+        else {
             return;
         };
         if let Some(hero) = &self.browser_category_hero {
@@ -198,19 +226,36 @@ impl ViewRefs {
                 self.dispatcher.as_ref(),
             );
         }
+        if matches!(model.browser.notes.state, LoadState::Ready(_)) {
+            self.has_browser_snapshot.set(true);
+        }
         match &model.browser.notes.state {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
             {
                 clear_list(list);
                 search_empty.set_visible(true);
+                category_empty.set_visible(false);
                 empty_new_note.set_visible(false);
+                category_empty_new_note.set_visible(false);
                 pages.set_visible_child_name("contents");
+            }
+            LoadState::Ready(notes) if notes.is_empty() && model.selected_category.is_some() => {
+                render_empty_category(
+                    list,
+                    pages,
+                    search_empty,
+                    category_empty,
+                    empty_new_note,
+                    category_empty_new_note,
+                );
             }
             LoadState::Ready(notes) if notes.is_empty() => {
                 clear_list(list);
                 search_empty.set_visible(false);
+                category_empty.set_visible(false);
                 empty_new_note.set_visible(true);
+                category_empty_new_note.set_visible(false);
                 self.browser_status.set_title("No notes yet");
                 self.browser_status
                     .set_description(Some("Create a note to get started."));
@@ -219,7 +264,9 @@ impl ViewRefs {
             LoadState::Ready(notes) => {
                 clear_list(list);
                 search_empty.set_visible(false);
+                category_empty.set_visible(false);
                 empty_new_note.set_visible(true);
+                category_empty_new_note.set_visible(false);
                 pages.set_visible_child_name("contents");
                 let show_category = model.selected_category.is_none();
                 let show_date_groups = model.browser.search_query.trim().is_empty();
@@ -241,15 +288,16 @@ impl ViewRefs {
                     ));
                 }
             }
-            LoadState::Loading(_) if list.first_child().is_some() => {
-                search_empty.set_visible(false);
-                empty_new_note.set_visible(true);
-                pages.set_visible_child_name("contents");
-            }
+            // CONTEXT: Fast reloads retain the last rendered snapshot rather than flashing a
+            // loading status between category selections.
+            LoadState::Loading(_)
+                if self.has_browser_snapshot.get() && !model.browser.loading_indicator_visible => {}
             state => {
                 clear_list(list);
                 search_empty.set_visible(false);
+                category_empty.set_visible(false);
                 empty_new_note.set_visible(false);
+                category_empty_new_note.set_visible(false);
                 self.browser_status
                     .set_title(resource_label(state, "No notes yet"));
                 if let LoadState::Failed(error) = state {
@@ -257,6 +305,54 @@ impl ViewRefs {
                 }
                 pages.set_visible_child_name("empty");
             }
+        }
+    }
+
+    fn browser_content_refs(&self) -> Option<BrowserContentRefs<'_>> {
+        Some(BrowserContentRefs {
+            list: self.browser_list.as_ref()?,
+            pages: self.browser_pages.as_ref()?,
+            search_empty: self.browser_search_empty_card.as_ref()?,
+            category_empty: self.browser_category_empty_card.as_ref()?,
+            empty_new_note: self.browser_empty_new_note_button.as_ref()?,
+            category_empty_new_note: self.browser_category_empty_new_note_button.as_ref()?,
+        })
+    }
+
+    fn render_browser_search(&self, model: &AppModel) {
+        let (Some(bar), Some(entry), Some(toggle)) = (
+            self.browser_search_bar.as_ref(),
+            self.browser_search_entry.as_ref(),
+            self.browser_search_toggle.as_ref(),
+        ) else {
+            return;
+        };
+        let was_open = self
+            .last_browser_search_open
+            .replace(model.browser.search_open);
+        let opening = model.browser.search_open && !was_open;
+        let closing = was_open && !model.browser.search_open;
+        if bar.is_search_mode() != model.browser.search_open {
+            bar.set_search_mode(model.browser.search_open);
+        }
+        if toggle.is_active() != model.browser.search_open {
+            toggle.set_active(model.browser.search_open);
+        }
+        if entry.text().as_str() != model.browser.search_query {
+            entry.set_text(&model.browser.search_query);
+        }
+        if opening {
+            let bar = bar.clone();
+            let entry = entry.clone();
+            glib::idle_add_local_once(move || {
+                if bar.is_search_mode() {
+                    entry.grab_focus();
+                    entry.select_region(0, -1);
+                }
+            });
+        }
+        if closing && let Some(list) = &self.browser_list {
+            list.grab_focus();
         }
     }
 
@@ -378,6 +474,22 @@ impl ViewRefs {
     }
 }
 
+fn render_empty_category(
+    list: &gtk::ListBox,
+    pages: &gtk::Stack,
+    search_empty: &gtk::Box,
+    category_empty: &gtk::Box,
+    empty_new_note: &gtk::Button,
+    category_empty_new_note: &gtk::Button,
+) {
+    clear_list(list);
+    search_empty.set_visible(false);
+    category_empty.set_visible(true);
+    empty_new_note.set_visible(false);
+    category_empty_new_note.set_visible(true);
+    pages.set_visible_child_name("contents");
+}
+
 fn render_resource<T>(status: &adw::StatusPage, resource: &LoadState<T>, empty_title: &str) {
     match resource {
         LoadState::Idle | LoadState::Ready(_) => status.set_title(empty_title),
@@ -419,12 +531,38 @@ fn browser_row(
     content.set_margin_end(8);
     content.set_margin_top(10);
     content.set_margin_bottom(10);
-    content.append(&crate::browser::note_card_details(note, show_category));
+    let category_color = show_category
+        .then(|| note_category_color(note, sidebar))
+        .flatten();
+    content.append(&crate::browser::note_card_details(
+        note,
+        show_category,
+        category_color,
+    ));
     if let (LoadState::Ready(categories), Some(dispatcher)) = (sidebar, dispatcher) {
         content.append(&note_actions(note, categories, dispatcher));
     }
     row.set_child(Some(&content));
     row
+}
+
+fn note_category_color(
+    note: &carver_sdk::NoteSummary,
+    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
+) -> Option<carver_sdk::CategoryColor> {
+    let LoadState::Ready(categories) = sidebar else {
+        return None;
+    };
+    categories
+        .iter()
+        .find(|summary| summary.category.id == note.category_id)
+        .map(|summary| {
+            summary
+                .category
+                .appearance
+                .color
+                .resolved_for(note.category_id)
+        })
 }
 
 fn note_actions(
@@ -463,6 +601,19 @@ fn note_actions(
         );
     });
     actions.append(&move_button);
+    let export_button = gtk::Button::with_label("Export note…");
+    export_button.set_widget_name(&format!("export-note-button:{}", note.id));
+    export_button.add_css_class("flat");
+    let dispatcher_for_export = dispatcher.clone();
+    let note_id = note.id;
+    let popover_for_export = popover.clone();
+    export_button.connect_clicked(move |_| {
+        popover_for_export.popdown();
+        let _ = dispatcher_for_export.dispatch(AppMsg::Navigation(
+            crate::mvu::NavigationMsg::ExportNote(note_id),
+        ));
+    });
+    actions.append(&export_button);
     let trash_button = gtk::Button::with_label("Move to Trash");
     trash_button.add_css_class("flat");
     trash_button.add_css_class("destructive-action");

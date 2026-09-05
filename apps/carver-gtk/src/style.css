@@ -134,6 +134,41 @@
   padding: 2px 7px;
 }
 
+.note-category-pill.category-color-rose {
+  background: alpha(#e37d97, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-tangerine {
+  background: alpha(#df8d57, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-yellow {
+  background: alpha(#c9a83e, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-olive {
+  background: alpha(#849a52, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-teal {
+  background: alpha(#4f9b8c, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-blue {
+  background: alpha(#6299c9, 0.28);
+  color: @theme_fg_color;
+}
+
+.note-category-pill.category-color-purple {
+  background: alpha(#9676bf, 0.28);
+  color: @theme_fg_color;
+}
+
 .note-card-updated {
   opacity: 0.72;
   font-size: 0.9em;
@@ -149,6 +184,15 @@
 }
 
 .search-empty-card-title {
+  font-weight: 700;
+}
+
+.category-empty-card {
+  margin: 0 4px;
+  padding: 18px 14px;
+}
+
+.category-empty-card-title {
   font-weight: 700;
 }
 

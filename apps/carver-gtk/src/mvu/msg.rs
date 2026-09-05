@@ -70,6 +70,8 @@ pub enum NavigationMsg {
     SelectCategory(Option<CategoryId>),
     /// Load a note into the editor.
     OpenNote(NoteId),
+    /// Load a note into the editor and open its export options.
+    ExportNote(NoteId),
     /// Create a note in the selected category, or the first active category.
     CreateNote,
     /// Import one source document into the selected category, or the first active category.
@@ -92,10 +94,18 @@ pub enum NavigationMsg {
 pub enum BrowserMsg {
     /// Reload the current browser query and category.
     Reload,
+    /// Open note search when a browser or sidebar shortcut is received on the browser route.
+    SearchShortcutRequested,
+    /// Reveal the notes search controls and focus their entry.
+    SearchOpened,
+    /// Synchronize visibility changes made by the native search bar.
+    SearchVisibilityChanged(bool),
     /// Replace the user-entered search text.
     SearchChanged(String),
     /// A delayed search timer fired.
     SearchTimerFired(TimerId),
+    /// A browser load has exceeded the delay before its loading state is shown.
+    LoadingIndicatorElapsed(RequestId),
 }
 
 /// Sidebar events.

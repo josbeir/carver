@@ -24,6 +24,8 @@ use super::{
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 
+const BROWSER_LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
+
 /// A weak, window-local route for GTK/WebKit adapters to submit MVU messages.
 #[derive(Clone, Default)]
 pub struct AppDispatcher {
@@ -375,6 +377,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         category_id: Option<carver_sdk::CategoryId>,
         query: String,
     ) {
+        self.schedule_browser_loading_indicator(request_id);
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -391,6 +394,16 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 result,
             }));
+        });
+    }
+
+    fn schedule_browser_loading_indicator(&self, request_id: super::RequestId) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(BROWSER_LOADING_INDICATOR_DELAY).await;
+            runtime.dispatch(AppMsg::Browser(super::BrowserMsg::LoadingIndicatorElapsed(
+                request_id,
+            )));
         });
     }
 

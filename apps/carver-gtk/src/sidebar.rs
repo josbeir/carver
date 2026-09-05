@@ -11,7 +11,10 @@ use libadwaita as adw;
 
 use crate::{
     dialogs::{category_color_css_class, category_icon_name, show_category_dialog},
-    mvu::{ActionMsg, AppDispatcher, AppModel, AppMsg, EditorMsg, LoadState, NavigationMsg, Route},
+    mvu::{
+        ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, EditorMsg, LoadState,
+        NavigationMsg, Route,
+    },
 };
 
 /// Responsive category sidebar and its snapshot renderer.
@@ -31,6 +34,7 @@ pub(crate) fn build_sidebar(
     split_view: &adw::NavigationSplitView,
 ) -> SidebarSurface {
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    container.set_widget_name("sidebar-surface");
     container.add_css_class("sidebar");
     let header = adw::HeaderBar::new();
     let new_category = gtk::Button::from_icon_name("folder-new-symbolic");
@@ -48,6 +52,7 @@ pub(crate) fn build_sidebar(
     let route = Rc::new(RefCell::new(Route::Browser));
     connect_selection(dispatcher, split_view, &list, &rendering);
     connect_new_category(dispatcher, &new_category);
+    install_sidebar_search_shortcut(&container, dispatcher);
 
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_child(Some(&list));
@@ -62,6 +67,25 @@ pub(crate) fn build_sidebar(
         rendering,
         route,
     }
+}
+
+/// Captures note search from the sidebar without intercepting editor shortcuts.
+fn install_sidebar_search_shortcut(container: &gtk::Box, dispatcher: &AppDispatcher) {
+    let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("sidebar-search-shortcut"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let dispatcher = dispatcher.clone();
+    controller.connect_key_pressed(move |_, key, _, modifiers| {
+        if key != gtk::gdk::Key::f
+            || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
+            || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+        let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::SearchShortcutRequested));
+        glib::Propagation::Stop
+    });
+    container.add_controller(controller);
 }
 
 /// Builds the window-level settings menu shown in the persistent sidebar.

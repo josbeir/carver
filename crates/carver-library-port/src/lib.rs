@@ -99,6 +99,14 @@ pub trait LibraryBackend: Send + 'static {
         source: &str,
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error>;
+    /// Updates the user-managed creation and modification timestamps of an active note.
+    fn update_note_timestamps(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        created_at: OffsetDateTime,
+        updated_at: OffsetDateTime,
+    ) -> Result<Note, Self::Error>;
     /// Moves an active note to an active category without changing its content timestamp.
     fn move_note(
         &self,

@@ -174,6 +174,16 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn update_note_timestamps(
+        &self,
+        _note_id: NoteId,
+        _revision: Revision,
+        _created_at: OffsetDateTime,
+        _updated_at: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::unsupported()
+    }
+
     fn move_note(
         &self,
         _note_id: NoteId,
@@ -316,6 +326,12 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
         note_id,
         Revision(0),
         "Updated source".to_owned(),
+    )));
+    assert_backend_error(&block_on(client.update_note_timestamps_async(
+        note_id,
+        Revision(0),
+        OffsetDateTime::UNIX_EPOCH,
+        OffsetDateTime::UNIX_EPOCH,
     )));
     assert_backend_error(&block_on(client.move_note_async(note_id, category_id)));
     assert_backend_error(&block_on(client.trash_note_async(note_id)));

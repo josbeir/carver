@@ -165,34 +165,28 @@ pub(super) fn mime_type(path: &str) -> &'static str {
 
 /// Renders source using Carve's full HTML renderer under a restrictive CSP.
 pub(crate) fn rendered_document(source: &str, allow_remote_images: bool) -> String {
-    let (dark, theme) = if gtk::is_initialized() {
+    let (dark, accent) = if gtk::is_initialized() {
         let style_manager = libadwaita::StyleManager::default();
         let dark = style_manager.is_dark();
-        let theme = super::web::selection_theme(
-            dark,
-            &style_manager.accent_color().to_standalone_rgba(dark),
-        );
-        (dark, theme)
+        (dark, style_manager.accent_color().to_standalone_rgba(dark))
     } else {
-        let dark = false;
-        let theme =
-            super::web::selection_theme(dark, &gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0));
-        (dark, theme)
+        (false, gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0))
     };
-    rendered_document_with_selection(source, allow_remote_images, dark, &theme)
+    let theme = super::web::editor_theme(dark, &accent);
+    rendered_document_with_theme(source, allow_remote_images, &theme)
 }
 
 #[cfg(test)]
 fn rendered_document_for_theme(source: &str, allow_remote_images: bool, dark: bool) -> String {
-    let theme = super::web::selection_theme(dark, &gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0));
-    rendered_document_with_selection(source, allow_remote_images, dark, &theme)
+    let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+    let theme = super::web::editor_theme(dark, &accent);
+    rendered_document_with_theme(source, allow_remote_images, &theme)
 }
 
-fn rendered_document_with_selection(
+fn rendered_document_with_theme(
     source: &str,
     allow_remote_images: bool,
-    dark: bool,
-    selection: &super::web::SelectionTheme,
+    theme: &super::web::EditorTheme,
 ) -> String {
     let image_sources = if allow_remote_images {
         "img-src data: https: http: carver-asset:"
@@ -201,12 +195,17 @@ fn rendered_document_with_selection(
     };
     let body = carve::to_html(source).replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let selection_style = format!(
-        "--preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
-        selection.accent, selection.background, selection.foreground,
+        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
     );
     format!(
         "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview>{body}</body></html>",
-        color_scheme = if dark { "dark" } else { "light" },
+        color_scheme = if theme.dark { "dark" } else { "light" },
     )
 }
 
@@ -214,6 +213,19 @@ fn rendered_document_with_selection(
 pub(super) fn load_preview(view: &webkit6::WebView, source: &str, allow_remote_images: bool) {
     view.load_html(
         &rendered_document(source, allow_remote_images),
+        Some("carver-preview://document/"),
+    );
+}
+
+/// Loads source into a preview using Adwaita's selected color scheme.
+pub(super) fn load_preview_with_theme(
+    view: &webkit6::WebView,
+    source: &str,
+    allow_remote_images: bool,
+    theme: &super::web::EditorTheme,
+) {
+    view.load_html(
+        &rendered_document_with_theme(source, allow_remote_images, theme),
         Some("carver-preview://document/"),
     );
 }

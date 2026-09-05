@@ -54,6 +54,11 @@ const NOTES_SHORTCUTS: &[Shortcut] = &[
     },
 ];
 
+const BROWSER_SHORTCUTS: &[Shortcut] = &[Shortcut {
+    title: "Search notes",
+    accelerator: "<Control>f",
+}];
+
 const EDITOR_SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         title: "Export note",
@@ -147,6 +152,10 @@ const SHORTCUT_SECTIONS: &[ShortcutSection] = &[
     ShortcutSection {
         title: "Notes",
         shortcuts: NOTES_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Browser",
+        shortcuts: BROWSER_SHORTCUTS,
     },
     ShortcutSection {
         title: "Editor",

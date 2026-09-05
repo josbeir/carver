@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  --document-background: #1e1e1e;
-  --document-foreground: #f6f5f4;
+  --document-background: #1d1d20;
+  --document-foreground: #ffffff;
   --code-background: #303036;
   --code-language-background: #25252a;
   --border-color: #5b5b63;
@@ -135,8 +135,8 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --document-background: #fafafa;
-  --document-foreground: #242424;
+  --document-background: #ffffff;
+  --document-foreground: #333334;
   --code-background: #ededf1;
   --code-language-background: #ffffff;
   --border-color: #b7b7c0;

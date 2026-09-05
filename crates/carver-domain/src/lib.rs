@@ -201,10 +201,13 @@ pub struct Category {
     /// Explicit sidebar order.
     pub position: i64,
     /// Creation time.
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     /// Last metadata modification time.
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     /// Time the category was moved to trash.
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub trashed_at: Option<OffsetDateTime>,
 }
 
@@ -233,10 +236,13 @@ pub struct Note {
     /// Optimistic concurrency token.
     pub revision: Revision,
     /// Creation time.
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     /// Last content modification time.
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     /// Time the note was moved to trash.
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub trashed_at: Option<OffsetDateTime>,
 }
 
@@ -254,6 +260,7 @@ pub struct NoteSummary {
     /// Short plaintext excerpt.
     pub excerpt: String,
     /// Last edit time.
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     /// Whether the note has managed image assets.
     pub has_images: bool,
@@ -282,6 +289,7 @@ pub struct TrashedNoteSummary {
     /// Short plaintext excerpt.
     pub excerpt: String,
     /// Time the note was moved to trash.
+    #[serde(with = "time::serde::rfc3339")]
     pub trashed_at: OffsetDateTime,
     /// Whether the note has managed image assets.
     pub has_images: bool,

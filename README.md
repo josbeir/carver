@@ -10,8 +10,18 @@ space, keep them organized without ceremony, and reach for the
 [Carve](https://github.com/markup-carve) source whenever you want full control.
 
 <p align="center">
-  <img src="docs/Screenshot%20From%202026-09-03%2000-36-17.png" alt="Carver notes view" width="49%" />
-  <img src="docs/Screenshot%20From%202026-09-03%2000-36-28.png" alt="Carver source and preview view" width="49%" />
+  <img src="docs/Screenshot%20From%202026-09-05%2016-43-51.png" alt="Carver editing Carve source in dark mode" width="49%" />
+  <img src="docs/Screenshot%20From%202026-09-05%2016-44-25.png" alt="Carver rich-text editing view in dark mode" width="49%" />
+</p>
+
+<p align="center">
+  <img src="docs/Screenshot%20From%202026-09-05%2016-45-29.png" alt="Carver Agents and MCP connection panel" width="49%" />
+  <img src="docs/Screenshot%20From%202026-09-05%2016-45-35.png" alt="Carver preferences dialog" width="49%" />
+</p>
+
+<p align="center">
+  <img src="docs/Screenshot%20From%202026-09-05%2016-45-50.png" alt="Carver editing Carve source in light mode" width="49%" />
+  <img src="docs/Screenshot%20From%202026-09-05%2016-46-44.png" alt="Carver split source and preview view" width="49%" />
 </p>
 
 ## Notes, without the clutter
@@ -120,11 +130,13 @@ The server is read-only by default. Opt into reversible note changes explicitly 
 asset bytes are never exposed.
 
 Agents can list categories and notes, search and read note source, and inspect the recoverable
-trash. With write access enabled, they can create and rename categories; create, save, move,
-trash, and restore notes; and trash or restore categories. Every note save uses Carver's revision
-check, so an agent must reload a note after a conflicting edit. `create_note` and `save_note`
-accept `markdown: true` to convert CommonMark input into Carver's canonical source; all stored
-and returned note content remains canonical Carve.
+trash. Category listings include each category's icon and accent colour. With write access
+enabled, agents can create, rename, and update category appearance; create, save, move, trash,
+restore, and adjust the creation and modification timestamps of notes; and trash or restore
+categories. Every note write uses Carver's revision check, so an agent must reload a note after a
+conflicting edit. `create_note` and `save_note` accept `markdown: true` to convert CommonMark
+input into Carver's canonical source; all stored and returned note content remains canonical
+Carve.
 
 `carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library
 as the installed application, including the separate Flatpak or Snap data area when applicable.

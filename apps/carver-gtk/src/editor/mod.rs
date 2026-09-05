@@ -118,21 +118,11 @@ impl EditorViewRefs {
                 source_commands::replace_source_buffer(&self.source_buffer, &document.source);
             }
         }
+        let theme = editor_theme();
         if (preview_changed || remote_images_changed || theme_changed)
             && let Some(preview) = preview.as_ref()
         {
-            load_preview(
-                &self.split_preview,
-                &preview.source,
-                model.preferences.load_remote_images,
-            );
-            load_preview(
-                &self.rendered_preview,
-                &preview.source,
-                model.preferences.load_remote_images,
-            );
-            self.preview_source
-                .replace(Some((preview.session, preview.source.clone())));
+            self.render_preview(preview, model.preferences.load_remote_images, &theme);
         }
         if new_document || remote_images_changed || source_changed {
             if remote_images_changed {
@@ -145,7 +135,7 @@ impl EditorViewRefs {
             }
         }
         if theme_changed {
-            refresh_rich_theme(&self.rich);
+            self.rich.set_theme(&theme);
         }
         self.source_editor.render_preferences(
             &model.preferences.source_editor,
@@ -178,6 +168,28 @@ impl EditorViewRefs {
         if new_document {
             self.loaded_session.replace(Some(document.session));
         }
+    }
+
+    fn render_preview(
+        &self,
+        preview: &crate::mvu::EditorPreview,
+        allow_remote_images: bool,
+        theme: &web::EditorTheme,
+    ) {
+        preview::load_preview_with_theme(
+            &self.split_preview,
+            &preview.source,
+            allow_remote_images,
+            theme,
+        );
+        preview::load_preview_with_theme(
+            &self.rendered_preview,
+            &preview.source,
+            allow_remote_images,
+            theme,
+        );
+        self.preview_source
+            .replace(Some((preview.session, preview.source.clone())));
     }
 
     fn render_copy_request(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
@@ -1258,10 +1270,14 @@ fn connect_theme_changes(dispatcher: &AppDispatcher) {
     });
 }
 
-fn refresh_rich_theme(rich: &RichEditor) {
+fn editor_theme() -> web::EditorTheme {
     let style_manager = adw::StyleManager::default();
     let dark = style_manager.is_dark();
-    rich.set_theme(dark, &style_manager.accent_color().to_standalone_rgba(dark));
+    web::editor_theme(dark, &style_manager.accent_color().to_standalone_rgba(dark))
+}
+
+fn refresh_rich_theme(rich: &RichEditor) {
+    rich.set_theme(&editor_theme());
 }
 
 /// Installs source-mode equivalents of the common Rich Text keyboard shortcuts.

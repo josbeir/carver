@@ -297,6 +297,20 @@ impl<B: LibraryBackend> LibraryClient<B> {
         .await
     }
 
+    /// Updates a note's user-managed creation and modification timestamps without blocking.
+    pub async fn update_note_timestamps_async(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        created_at: OffsetDateTime,
+        updated_at: OffsetDateTime,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.update_note_timestamps(note_id, revision, created_at, updated_at)
+        })
+        .await
+    }
+
     /// Moves a note to an active category without blocking the caller.
     pub async fn move_note_async(
         &self,

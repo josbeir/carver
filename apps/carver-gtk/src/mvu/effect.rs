@@ -17,7 +17,7 @@ pub enum Effect {
         /// Complete configuration to write.
         config: Config,
     },
-    /// Create the initial default category when a new library is empty.
+    /// Create the default category when the library has no active categories.
     EnsureDefaultCategory,
     /// Create a new note in an active category.
     CreateNote {

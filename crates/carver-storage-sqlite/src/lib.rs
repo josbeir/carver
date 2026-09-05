@@ -63,9 +63,15 @@ pub enum StorageError {
     /// An optimistic save did not match the current note revision.
     #[error("note was changed by another session")]
     Conflict,
+    /// A note's requested modification time preceded its creation time.
+    #[error("note modification time cannot precede its creation time")]
+    InvalidNoteTimestamps,
     /// A note or destination category was missing or no longer active.
     #[error("note or destination category is unavailable")]
     MoveUnavailable,
+    /// A note cannot be created because its category was missing or no longer active.
+    #[error("category is unavailable for a new note")]
+    CategoryUnavailable,
     /// A requested trash or restore target was missing or not in the expected state.
     #[error("item is unavailable for this action")]
     MutationUnavailable,
@@ -328,7 +334,8 @@ impl SqliteLibrary {
     ///
     /// # Errors
     ///
-    /// Returns an error when the note or its search index entry cannot be persisted.
+    /// Returns an error when the category is unavailable or the note or its search index entry
+    /// cannot be persisted.
     pub fn create_note(
         &self,
         category_id: CategoryId,
@@ -336,11 +343,17 @@ impl SqliteLibrary {
     ) -> Result<Note, StorageError> {
         let id = NoteId::new();
         let derived = derive_content("");
-        self.connection.execute(
+        let affected = self.connection.execute(
             "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at)
-             VALUES (?1, ?2, '', ?3, ?4, 1, ?5, ?5)",
+             SELECT ?1, ?2, '', ?3, ?4, 1, ?5, ?5
+             WHERE EXISTS (
+                 SELECT 1 FROM categories WHERE id = ?2 AND trashed_at IS NULL
+             )",
             params![id.to_string(), category_id.to_string(), &derived.title, &derived.plain_text, timestamp(now)],
         )?;
+        if affected != 1 {
+            return Err(StorageError::CategoryUnavailable);
+        }
         self.replace_fts(id, &derived)?;
         self.note(id)?
             .ok_or_else(|| StorageError::Corrupt("new note was not persisted".to_owned()))
@@ -350,7 +363,8 @@ impl SqliteLibrary {
     ///
     /// # Errors
     ///
-    /// Returns an error when the note or its search index entry cannot be persisted.
+    /// Returns an error when the category is unavailable or the note or its search index entry
+    /// cannot be persisted.
     pub fn create_note_with_source(
         &self,
         category_id: CategoryId,
@@ -360,11 +374,17 @@ impl SqliteLibrary {
         let id = NoteId::new();
         let derived = derive_content(source);
         let transaction = self.connection.unchecked_transaction()?;
-        transaction.execute(
+        let affected = transaction.execute(
             "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
+             SELECT ?1, ?2, ?3, ?4, ?5, 1, ?6, ?6
+             WHERE EXISTS (
+                 SELECT 1 FROM categories WHERE id = ?2 AND trashed_at IS NULL
+             )",
             params![id.to_string(), category_id.to_string(), source, derived.title, derived.plain_text, timestamp(now)],
         )?;
+        if affected != 1 {
+            return Err(StorageError::CategoryUnavailable);
+        }
         transaction.execute("DELETE FROM note_fts WHERE note_id = ?1", [id.to_string()])?;
         transaction.execute(
             "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
@@ -421,6 +441,46 @@ impl SqliteLibrary {
         self.replace_fts(note_id, &derived)?;
         self.note(note_id)?
             .ok_or_else(|| StorageError::Corrupt("saved note was not found".to_owned()))
+    }
+
+    /// Updates an active note's user-managed creation and modification timestamps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the timestamps are not chronological, the revision conflicts, or the
+    /// note cannot be persisted.
+    pub fn update_note_timestamps(
+        &self,
+        note_id: NoteId,
+        expected_revision: Revision,
+        created_at: OffsetDateTime,
+        updated_at: OffsetDateTime,
+    ) -> Result<Note, StorageError> {
+        if updated_at < created_at {
+            return Err(StorageError::InvalidNoteTimestamps);
+        }
+        let existing = self.note(note_id)?.ok_or(StorageError::Conflict)?;
+        if existing.revision != expected_revision || existing.trashed_at.is_some() {
+            return Err(StorageError::Conflict);
+        }
+        if existing.created_at == created_at && existing.updated_at == updated_at {
+            return Ok(existing);
+        }
+        let affected = self.connection.execute(
+            "UPDATE notes SET created_at = ?3, updated_at = ?4, revision = revision + 1
+             WHERE id = ?1 AND revision = ?2 AND trashed_at IS NULL",
+            params![
+                note_id.to_string(),
+                expected_revision.0,
+                timestamp(created_at),
+                timestamp(updated_at),
+            ],
+        )?;
+        if affected != 1 {
+            return Err(StorageError::Conflict);
+        }
+        self.note(note_id)?
+            .ok_or_else(|| StorageError::Corrupt("timestamp-updated note was not found".to_owned()))
     }
 
     /// Moves an active note to an active category without changing its content timestamp.
@@ -908,6 +968,16 @@ impl LibraryBackend for SqliteLibrary {
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error> {
         Self::save_note(self, note_id, revision, source, now)
+    }
+
+    fn update_note_timestamps(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        created_at: OffsetDateTime,
+        updated_at: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::update_note_timestamps(self, note_id, revision, created_at, updated_at)
     }
 
     fn move_note(

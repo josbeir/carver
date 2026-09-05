@@ -3,7 +3,7 @@
 use std::{borrow::Cow, cell::Cell, rc::Rc};
 
 use carver_config::Config;
-use carver_sdk::{Category, CategorySummary, NoteSummary};
+use carver_sdk::{Category, CategoryColor, CategorySummary, NoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
@@ -101,8 +101,13 @@ impl NoteDateGroup {
 pub(crate) struct BrowserViewRefs {
     pub(crate) list: gtk::ListBox,
     pub(crate) pages: gtk::Stack,
+    pub(crate) search_bar: gtk::SearchBar,
+    pub(crate) search_entry: gtk::SearchEntry,
+    pub(crate) search_toggle: gtk::ToggleButton,
     pub(crate) search_empty_card: gtk::Box,
+    pub(crate) category_empty_card: gtk::Box,
     pub(crate) empty_new_note_button: gtk::Button,
+    pub(crate) category_empty_new_note_button: gtk::Button,
     pub(crate) category_hero: gtk::Box,
     pub(crate) status: adw::StatusPage,
 }
@@ -236,15 +241,15 @@ pub(crate) fn build_browser(
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
     header.pack_end(&new_note);
-    let import_note = gtk::Button::from_icon_name("document-open-symbolic");
-    import_note.set_widget_name("import-note-button");
-    import_note.set_tooltip_text(Some("Import note"));
-    header.pack_end(&import_note);
+    header.pack_end(&browser_menu_button());
     header.pack_start(&sidebar_toggle_button(
         split_view,
         "toggle-categories-button",
     ));
+    let (search_bar, search, search_toggle) = build_note_search_controls();
+    header.pack_start(&search_toggle);
     view.add_top_bar(&header);
+    view.add_top_bar(&search_bar);
 
     let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
     content.set_margin_start(18);
@@ -255,10 +260,6 @@ pub(crate) fn build_browser(
     category_hero.set_widget_name("browser-category-hero");
     category_hero.add_css_class("category-hero");
     content.append(&category_hero);
-    let search = gtk::SearchEntry::new();
-    search.set_widget_name("note-search-entry");
-    search.set_placeholder_text(Some("Search notes"));
-    content.append(&search);
     let search_empty_card = gtk::Box::new(gtk::Orientation::Vertical, 4);
     search_empty_card.set_widget_name("browser-search-empty-card");
     search_empty_card.add_css_class("card");
@@ -273,22 +274,25 @@ pub(crate) fn build_browser(
     search_empty_card.append(&search_empty_title);
     search_empty_card.append(&search_empty_description);
     content.append(&search_empty_card);
+    let (category_empty_card, category_empty_new_note) = build_category_empty_card();
+    content.append(&category_empty_card);
     let list = gtk::ListBox::new();
     list.set_widget_name("note-list");
     list.set_selection_mode(gtk::SelectionMode::Single);
     list.add_css_class("note-feed");
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_vexpand(true);
-    scroll.set_child(Some(&list));
-    content.append(&scroll);
     let clamp = adw::Clamp::new();
     clamp.set_widget_name("browser-content-clamp");
     clamp.set_maximum_size(720);
     clamp.set_tightening_threshold(520);
     clamp.set_child(Some(&content));
+    content.append(&list);
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("browser-content-scroll");
+    scroll.set_vexpand(true);
+    scroll.set_child(Some(&clamp));
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
-    pages.add_named(&clamp, Some("contents"));
+    pages.add_named(&scroll, Some("contents"));
     let status = adw::StatusPage::builder()
         .title("No notes yet")
         .description("Create a note to get started.")
@@ -305,40 +309,94 @@ pub(crate) fn build_browser(
     pages.add_named(&status, Some("empty"));
     view.set_content(Some(&pages));
 
-    connect_browser_actions(
-        dispatcher,
-        &search,
-        &new_note,
-        &import_note,
-        &empty_new_note,
-        &list,
-    );
-    install_browser_shortcuts(&view);
-    (
-        view.upcast(),
-        BrowserViewRefs {
-            list,
-            pages,
-            search_empty_card,
-            empty_new_note_button: empty_new_note,
-            category_hero,
-            status,
-        },
-    )
+    let references = BrowserViewRefs {
+        list,
+        pages,
+        search_bar,
+        search_entry: search,
+        search_toggle,
+        search_empty_card,
+        category_empty_card,
+        empty_new_note_button: empty_new_note,
+        category_empty_new_note_button: category_empty_new_note,
+        category_hero,
+        status,
+    };
+    connect_browser_actions(dispatcher, &references, &new_note);
+    install_browser_shortcuts(&view, dispatcher);
+    (view.upcast(), references)
 }
 
-/// Captures overview shortcuts before child widgets consume them.
-fn install_browser_shortcuts(view: &adw::ToolbarView) {
+fn browser_menu_button() -> gtk::MenuButton {
+    let menu = gtk::gio::Menu::new();
+    menu.append(Some("Import Note"), Some(IMPORT_NOTE_ACTION));
+
+    let button = gtk::MenuButton::new();
+    button.set_widget_name("browser-menu-button");
+    button.set_icon_name("view-more-symbolic");
+    button.set_tooltip_text(Some("More options"));
+    button.add_css_class("flat");
+    button.set_menu_model(Some(&menu));
+    button
+}
+
+fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    card.set_widget_name("browser-category-empty-card");
+    card.add_css_class("card");
+    card.add_css_class("category-empty-card");
+    card.set_visible(false);
+    let title = gtk::Label::new(Some("No notes in this category"));
+    title.set_xalign(0.0);
+    title.add_css_class("category-empty-card-title");
+    let description = gtk::Label::new(Some("Create a note to get started."));
+    description.set_xalign(0.0);
+    description.add_css_class("dim-label");
+    let new_note = gtk::Button::with_label("New Note");
+    new_note.set_widget_name("browser-category-empty-new-note-button");
+    new_note.add_css_class("suggested-action");
+    new_note.set_halign(gtk::Align::Start);
+    card.append(&title);
+    card.append(&description);
+    card.append(&new_note);
+    (card, new_note)
+}
+
+fn build_note_search_controls() -> (gtk::SearchBar, gtk::SearchEntry, gtk::ToggleButton) {
+    let search_toggle = gtk::ToggleButton::new();
+    search_toggle.set_widget_name("note-search-toggle");
+    search_toggle.set_icon_name("system-search-symbolic");
+    search_toggle.set_tooltip_text(Some("Search notes (Ctrl+F)"));
+    search_toggle.add_css_class("flat");
+    let search_bar = gtk::SearchBar::new();
+    search_bar.set_widget_name("note-search-bar");
+    search_bar.set_show_close_button(true);
+    let search = gtk::SearchEntry::new();
+    search.set_widget_name("note-search-entry");
+    search.set_placeholder_text(Some("Search notes"));
+    search.set_hexpand(true);
+    search_bar.set_child(Some(&search));
+    search_bar.connect_entry(&search);
+    (search_bar, search, search_toggle)
+}
+
+/// Captures browser shortcuts before child widgets consume them.
+fn install_browser_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDispatcher) {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("browser-shortcuts"));
     controller.set_propagation_phase(gtk::PropagationPhase::Capture);
     let action_host = view.clone().upcast::<gtk::Widget>();
     let action_host_for_callback = action_host.clone();
+    let dispatcher = dispatcher.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
         if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
             || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
         {
             return glib::Propagation::Proceed;
+        }
+        if key == gtk::gdk::Key::f {
+            let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::SearchShortcutRequested));
+            return glib::Propagation::Stop;
         }
         let action = match key {
             gtk::gdk::Key::n => NEW_NOTE_ACTION,
@@ -353,23 +411,42 @@ fn install_browser_shortcuts(view: &adw::ToolbarView) {
 
 fn connect_browser_actions(
     dispatcher: &AppDispatcher,
-    search: &gtk::SearchEntry,
+    references: &BrowserViewRefs,
     new_note: &gtk::Button,
-    import_note: &gtk::Button,
-    empty_new_note: &gtk::Button,
-    list: &gtk::ListBox,
 ) {
     let dispatcher_for_search = dispatcher.clone();
-    search.connect_search_changed(move |entry| {
+    references.search_entry.connect_changed(move |entry| {
         let _ = dispatcher_for_search.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
             entry.text().to_string(),
         )));
     });
+    let dispatcher_for_toggle = dispatcher.clone();
+    references.search_toggle.connect_toggled(move |toggle| {
+        let message = if toggle.is_active() {
+            BrowserMsg::SearchOpened
+        } else {
+            BrowserMsg::SearchVisibilityChanged(false)
+        };
+        let _ = dispatcher_for_toggle.dispatch(AppMsg::Browser(message));
+    });
+    let dispatcher_for_search_bar = dispatcher.clone();
+    references
+        .search_bar
+        .connect_search_mode_enabled_notify(move |bar| {
+            let _ = dispatcher_for_search_bar.dispatch(AppMsg::Browser(
+                BrowserMsg::SearchVisibilityChanged(bar.is_search_mode()),
+            ));
+        });
+    let dispatcher_for_search_stop = dispatcher.clone();
+    references.search_entry.connect_stop_search(move |_| {
+        let _ = dispatcher_for_search_stop
+            .dispatch(AppMsg::Browser(BrowserMsg::SearchVisibilityChanged(false)));
+    });
     connect_new_note_action(dispatcher, new_note);
-    connect_import_note_action(import_note);
-    connect_new_note_action(dispatcher, empty_new_note);
+    connect_new_note_action(dispatcher, &references.empty_new_note_button);
+    connect_new_note_action(dispatcher, &references.category_empty_new_note_button);
     let dispatcher_for_row = dispatcher.clone();
-    list.connect_row_activated(move |_list, row| {
+    references.list.connect_row_activated(move |_list, row| {
         let widget_name = row.widget_name();
         let Some(raw_id) = widget_name.strip_prefix("note:") else {
             return;
@@ -380,12 +457,6 @@ fn connect_browser_actions(
         let _ = dispatcher_for_row.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
             carver_sdk::NoteId::from_uuid(id),
         )));
-    });
-}
-
-fn connect_import_note_action(button: &gtk::Button) {
-    button.connect_clicked(|button| {
-        let _ = button.activate_action(IMPORT_NOTE_ACTION, None::<&glib::Variant>);
     });
 }
 
@@ -550,7 +621,11 @@ fn note_count_label(note_count: usize) -> String {
 }
 
 /// Builds the shared note-card details rendered from browser snapshots.
-pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk::Box {
+pub(crate) fn note_card_details(
+    note: &NoteSummary,
+    show_category: bool,
+    category_color: Option<CategoryColor>,
+) -> gtk::Box {
     let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
     details.set_hexpand(true);
     let title = gtk::Label::new(Some(&note.title));
@@ -577,6 +652,9 @@ pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk:
         let category = gtk::Label::new(Some(&note.category_name));
         category.set_widget_name(&format!("note-category:{}", note.id));
         category.add_css_class("note-category-pill");
+        if let Some(color) = category_color {
+            category.add_css_class(category_color_css_class(color));
+        }
         metadata.append(&category);
     }
     let updated = gtk::Label::new(Some(&format!(
