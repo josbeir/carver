@@ -1,6 +1,9 @@
 use time::macros::{date, datetime};
 
-use super::{NoteDateGroup, compact_note_excerpt, note_date_group_for_days, relative_update_time};
+use super::{
+    NoteDateGroup, TouchpadBackGesture, compact_note_excerpt, note_date_group_for_days,
+    relative_update_time,
+};
 
 #[test]
 fn compact_note_excerpt_should_collapse_whitespace_and_omit_a_repeated_title() {
@@ -77,5 +80,32 @@ fn note_date_group_should_use_a_year_for_previous_years() {
     assert_eq!(
         note_date_group_for_days(date!(2025 - 12 - 31), date!(2026 - 09 - 09)),
         NoteDateGroup::Year(2025)
+    );
+}
+
+#[test]
+fn touchpad_back_gesture_should_ignore_vertical_and_leftward_scrolls() {
+    assert_eq!(
+        TouchpadBackGesture::Idle.advance(8.0, 20.0),
+        TouchpadBackGesture::Idle
+    );
+    assert_eq!(
+        TouchpadBackGesture::Idle.advance(-20.0, 1.0),
+        TouchpadBackGesture::Idle
+    );
+}
+
+#[test]
+fn touchpad_back_gesture_should_request_back_after_a_rightward_scroll() {
+    let gesture = TouchpadBackGesture::Idle.advance(30.0, 1.0);
+
+    assert_eq!(gesture.advance(50.0, 2.0), TouchpadBackGesture::Triggered);
+}
+
+#[test]
+fn touchpad_back_gesture_should_trigger_only_once() {
+    assert_eq!(
+        TouchpadBackGesture::Triggered.advance(100.0, 0.0),
+        TouchpadBackGesture::Triggered
     );
 }

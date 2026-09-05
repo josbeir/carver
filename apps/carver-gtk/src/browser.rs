@@ -1,6 +1,6 @@
 //! Recent-note browser and responsive content composition.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::Cell, rc::Rc};
 
 use carver_config::Config;
 use carver_sdk::NoteSummary;
@@ -17,6 +17,37 @@ use crate::{
 };
 
 const MOUSE_BACK_BUTTON: u32 = 8;
+const TOUCHPAD_BACK_SCROLL_THRESHOLD: f64 = 80.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TouchpadBackGesture {
+    Idle,
+    Tracking(f64),
+    Triggered,
+}
+
+impl TouchpadBackGesture {
+    fn advance(self, delta_x: f64, delta_y: f64) -> Self {
+        if matches!(self, Self::Triggered) || delta_x.abs() <= delta_y.abs() {
+            return self;
+        }
+        let distance = match self {
+            Self::Idle if delta_x > 0.0 => delta_x,
+            Self::Idle => return Self::Idle,
+            Self::Tracking(distance) => (distance + delta_x).max(0.0),
+            Self::Triggered => return Self::Triggered,
+        };
+        if distance >= TOUCHPAD_BACK_SCROLL_THRESHOLD {
+            Self::Triggered
+        } else {
+            Self::Tracking(distance)
+        }
+    }
+
+    fn is_tracking(self) -> bool {
+        matches!(self, Self::Tracking(_) | Self::Triggered)
+    }
+}
 
 /// A relative calendar section used to group the recent-notes browser.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -109,7 +140,7 @@ pub(crate) fn build_content(
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    install_editor_mouse_back_navigation(dispatcher, &stack);
+    install_editor_back_navigation(dispatcher, &stack);
     Ok(ContentSurface {
         widget: stack.clone().upcast(),
         route_stack: stack,
@@ -119,7 +150,12 @@ pub(crate) fn build_content(
     })
 }
 
-/// Routes the conventional pointer Back button through the editor's MVU close transition.
+/// Routes all conventional Back inputs through the editor's MVU close transition.
+fn install_editor_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+    install_editor_mouse_back_navigation(dispatcher, route_stack);
+    install_editor_touchpad_back_navigation(dispatcher, route_stack);
+}
+
 fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
     let back = gtk::EventControllerLegacy::new();
     back.set_name(Some("editor-mouse-back-controller"));
@@ -134,14 +170,55 @@ fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack:
                 button.event_type() == gtk::gdk::EventType::ButtonPress
                     && button.button() == MOUSE_BACK_BUTTON
             });
-        if !is_mouse_back || route_stack_for_event.visible_child_name().as_deref() != Some("editor")
-        {
+        if !is_mouse_back || !is_editor_route(&route_stack_for_event) {
             return glib::Propagation::Proceed;
         }
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
         glib::Propagation::Stop
     });
     route_stack.add_controller(back);
+}
+
+fn install_editor_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+    let back = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+    back.set_name(Some("editor-touchpad-back-controller"));
+    // Capture the scroll before a nested WebKit editor can claim a horizontal swipe.
+    back.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let gesture = Rc::new(Cell::new(TouchpadBackGesture::Idle));
+    let gesture_for_begin = Rc::clone(&gesture);
+    back.connect_scroll_begin(move |_| gesture_for_begin.set(TouchpadBackGesture::Idle));
+    let gesture_for_scroll = Rc::clone(&gesture);
+    let dispatcher = dispatcher.clone();
+    let route_stack_for_scroll = route_stack.clone();
+    back.connect_scroll(move |controller, delta_x, delta_y| {
+        if !is_editor_route(&route_stack_for_scroll) || !is_touchpad_surface_scroll(controller) {
+            return glib::Propagation::Proceed;
+        }
+        let next = gesture_for_scroll.get().advance(delta_x, delta_y);
+        let was_triggered = matches!(gesture_for_scroll.get(), TouchpadBackGesture::Triggered);
+        gesture_for_scroll.set(next);
+        if matches!(next, TouchpadBackGesture::Triggered) && !was_triggered {
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+        }
+        if next.is_tracking() {
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    route_stack.add_controller(back);
+}
+
+fn is_editor_route(route_stack: &gtk::Stack) -> bool {
+    route_stack.visible_child_name().as_deref() == Some("editor")
+}
+
+fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
+    controller.unit() == gtk::gdk::ScrollUnit::Surface
+        && controller
+            .current_event()
+            .and_then(|event| event.device())
+            .is_some_and(|device| device.source() == gtk::gdk::InputSource::Touchpad)
 }
 
 /// Builds the default recent-note and search view.

@@ -375,6 +375,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         mouse_back.propagation_phase(),
         gtk::PropagationPhase::Capture
     );
+    let touchpad_back = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .find_map(|controller| controller.downcast::<gtk::EventControllerScroll>().ok())
+        .filter(|controller| {
+            controller.name().as_deref() == Some("editor-touchpad-back-controller")
+        })
+        .ok_or("editor touchpad back controller")?;
+    assert_eq!(
+        touchpad_back.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
+    assert_eq!(
+        touchpad_back.flags(),
+        gtk::EventControllerScrollFlags::BOTH_AXES
+    );
     let source = widget_as::<gtk::TextView>(&root, "source-editor").ok_or("source editor")?;
     let source_view =
         widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
