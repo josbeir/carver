@@ -13,5 +13,8 @@
   <description>
     <p>Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control.</p>
   </description>
+  <releases>
+    <release version="0.1.0" date="2026-09-05"/>
+  </releases>
   <content_rating type="oars-1.1"/>
 </component>

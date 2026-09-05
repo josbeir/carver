@@ -1,15 +1,16 @@
-name: Flatpak
+name: Flatpak Release
 
 on:
   push:
-  pull_request:
+    tags:
+      - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  bundle:
-    name: Build test bundle (x86_64)
+  release:
+    name: Build and release x86_64 Flatpak
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
@@ -29,3 +30,13 @@ jobs:
           cache-key: flatpak-builder-${{ github.sha }}
           upload-artifact: true
           artifact-name: carver-flatpak-x86_64
+      - name: Create bundle checksum
+        run: sha256sum carver-x86_64.flatpak > carver-x86_64.flatpak.sha256
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            carver-x86_64.flatpak
+            carver-x86_64.flatpak.sha256
