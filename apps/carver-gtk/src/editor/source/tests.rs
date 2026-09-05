@@ -48,6 +48,61 @@ fn syntax_assets_should_replace_stale_embedded_grammar() -> Result<(), Box<dyn s
 }
 
 #[test]
+fn syntax_grammar_should_define_each_heading_level() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let syntax_dir = install_syntax_assets(directory.path())?;
+    let grammar = fs::read_to_string(syntax_dir.join("carve.lang"))?;
+
+    for (level, scale) in [
+        (1, "def:heading1"),
+        (2, "def:heading2"),
+        (3, "def:heading3"),
+        (4, "def:heading4"),
+        (5, "def:heading5"),
+        (6, "def:heading6"),
+    ] {
+        assert!(grammar.contains(&format!(
+            "id=\"heading-{level}\" name=\"Heading {level}\" map-to=\"{scale}\""
+        )));
+        assert!(grammar.contains(&format!(
+            "style-ref=\"heading-{level}\" class=\"carve-heading carve-heading-{level}\""
+        )));
+    }
+    Ok(())
+}
+
+#[test]
+fn syntax_style_schemes_should_scale_each_heading_level() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let syntax_dir = install_syntax_assets(directory.path())?;
+
+    for style_name in [
+        "carve-light.xml",
+        "carve-dark.xml",
+        "carve-writing-focus-light.xml",
+        "carve-writing-focus-dark.xml",
+    ] {
+        let style_scheme = fs::read_to_string(syntax_dir.join(style_name))?;
+        for (level, scale) in [
+            (1, "1.45"),
+            (2, "1.30"),
+            (3, "1.18"),
+            (4, "1.10"),
+            (5, "1.04"),
+            (6, "1.00"),
+        ] {
+            assert!(style_scheme.lines().any(|line| {
+                line.contains(&format!("name=\"carve:heading-{level}\""))
+                    && line.contains("bold=\"true\"")
+                    && line.contains(&format!("scale=\"{scale}\""))
+            }));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn syntax_style_schemes_should_inherit_gnome_adwaita_variants()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -63,7 +118,7 @@ fn syntax_style_schemes_should_inherit_gnome_adwaita_variants()
     );
     let writing_focus_light = fs::read_to_string(syntax_dir.join("carve-writing-focus-light.xml"))?;
     assert!(writing_focus_light.contains("parent-scheme=\"Adwaita\""));
-    assert!(writing_focus_light.contains("name=\"carve:heading\" foreground=\"#2b6f9e\""));
+    assert!(writing_focus_light.contains("name=\"carve:heading-1\" foreground=\"#2b6f9e\""));
     let writing_focus_dark = fs::read_to_string(syntax_dir.join("carve-writing-focus-dark.xml"))?;
     assert!(writing_focus_dark.contains("parent-scheme=\"Adwaita-dark\""));
     assert!(writing_focus_dark.contains("name=\"carve:link-text\" foreground=\"#8ebddd\""));

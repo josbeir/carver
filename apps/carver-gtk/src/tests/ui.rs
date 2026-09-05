@@ -397,6 +397,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "carve-writing-focus-light"
     };
     assert_eq!(source_scheme.as_deref(), Some(expected_source_scheme));
+    let source_style_scheme = source_buffer.style_scheme().ok_or("source style scheme")?;
+    for (level, expected_scale) in [
+        (1, "1.45"),
+        (2, "1.30"),
+        (3, "1.18"),
+        (4, "1.10"),
+        (5, "1.04"),
+        (6, "1.00"),
+    ] {
+        let style = source_style_scheme
+            .style(&format!("carve:heading-{level}"))
+            .ok_or("source heading style")?;
+        assert_eq!(style.scale().as_deref(), Some(expected_scale));
+    }
     assert!(source_view.shows_line_numbers());
     assert!(source_view.is_highlight_current_line());
     assert!(source_buffer.is_highlight_syntax());
@@ -659,6 +673,22 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         &source.buffer().iter_at_offset(heading_offset),
         "carve-heading"
     ));
+    source
+        .buffer()
+        .set_text("# One\n## Two\n### Three\n#### Four\n##### Five\n###### Six");
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    for (offset, class) in [
+        (0, "carve-heading-1"),
+        (6, "carve-heading-2"),
+        (13, "carve-heading-3"),
+        (23, "carve-heading-4"),
+        (33, "carve-heading-5"),
+        (44, "carve-heading-6"),
+    ] {
+        let iter = source.buffer().iter_at_offset(offset);
+        assert!(source_buffer.iter_has_context_class(&iter, "carve-heading"));
+        assert!(source_buffer.iter_has_context_class(&iter, class));
+    }
     source
         .buffer()
         .set_text(":: Carve\n: A post-Markdown lightweight markup language.");

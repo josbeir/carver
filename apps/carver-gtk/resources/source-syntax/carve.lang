@@ -5,7 +5,12 @@
     <property name="globs">*.carve;*.crv</property>
   </metadata>
   <styles>
-    <style id="heading" name="Heading" map-to="def:heading"/>
+    <style id="heading-1" name="Heading 1" map-to="def:heading1"/>
+    <style id="heading-2" name="Heading 2" map-to="def:heading2"/>
+    <style id="heading-3" name="Heading 3" map-to="def:heading3"/>
+    <style id="heading-4" name="Heading 4" map-to="def:heading4"/>
+    <style id="heading-5" name="Heading 5" map-to="def:heading5"/>
+    <style id="heading-6" name="Heading 6" map-to="def:heading6"/>
     <style id="list-marker" name="List marker" map-to="def:list-marker"/>
     <style id="quote-marker" name="Quote marker" map-to="def:shebang"/>
     <style id="table-divider" name="Table divider" map-to="def:preprocessor"/>
@@ -28,8 +33,23 @@
     <style id="definition-marker" name="Definition description marker" map-to="def:list-marker"/>
   </styles>
   <definitions>
-    <context id="heading" style-ref="heading" class="carve-heading">
-      <match>^#{1,6}[ \t]+.+$</match>
+    <context id="heading-1" style-ref="heading-1" class="carve-heading carve-heading-1">
+      <match>^#[ \t]+.+$</match>
+    </context>
+    <context id="heading-2" style-ref="heading-2" class="carve-heading carve-heading-2">
+      <match>^##[ \t]+.+$</match>
+    </context>
+    <context id="heading-3" style-ref="heading-3" class="carve-heading carve-heading-3">
+      <match>^###[ \t]+.+$</match>
+    </context>
+    <context id="heading-4" style-ref="heading-4" class="carve-heading carve-heading-4">
+      <match>^####[ \t]+.+$</match>
+    </context>
+    <context id="heading-5" style-ref="heading-5" class="carve-heading carve-heading-5">
+      <match>^#####[ \t]+.+$</match>
+    </context>
+    <context id="heading-6" style-ref="heading-6" class="carve-heading carve-heading-6">
+      <match>^######[ \t]+.+$</match>
     </context>
     <context id="list-marker" style-ref="list-marker" class="carve-list">
       <match>^[ \t]*(?:[-+*]|[0-9]+\.)[ \t]+(?:\[[ xX]\][ \t]+)?</match>
@@ -132,7 +152,12 @@
     </context>
     <context id="carve">
       <include>
-        <context ref="heading"/>
+        <context ref="heading-1"/>
+        <context ref="heading-2"/>
+        <context ref="heading-3"/>
+        <context ref="heading-4"/>
+        <context ref="heading-5"/>
+        <context ref="heading-6"/>
         <context ref="list-marker"/>
         <context ref="quote-marker"/>
         <context ref="table-row"/>

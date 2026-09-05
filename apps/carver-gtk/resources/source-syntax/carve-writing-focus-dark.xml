@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <style-scheme id="carve-writing-focus-dark" name="Carve Writing Focus Dark" version="1.0" parent-scheme="Adwaita-dark">
-  <style name="carve:heading" foreground="#9fcae6" bold="true"/>
+  <style name="carve:heading-1" foreground="#9fcae6" bold="true" scale="1.45"/>
+  <style name="carve:heading-2" foreground="#9fcae6" bold="true" scale="1.30"/>
+  <style name="carve:heading-3" foreground="#9fcae6" bold="true" scale="1.18"/>
+  <style name="carve:heading-4" foreground="#9fcae6" bold="true" scale="1.10"/>
+  <style name="carve:heading-5" foreground="#9fcae6" bold="true" scale="1.04"/>
+  <style name="carve:heading-6" foreground="#9fcae6" bold="true" scale="1.00"/>
   <style name="carve:link-text" foreground="#8ebddd" underline="single"/>
   <style name="carve:link-target" foreground="#8ebddd"/>
   <style name="carve:list-marker" foreground="#8a8a8a"/>
