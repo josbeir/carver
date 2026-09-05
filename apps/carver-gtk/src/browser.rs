@@ -7,6 +7,7 @@ use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
+    dialogs::NEW_NOTE_ACTION,
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
     mvu::{AppDispatcher, AppMsg, BrowserMsg, EditorMsg, NavigationMsg},
     sidebar::sidebar_toggle_button,
@@ -102,6 +103,7 @@ pub(crate) fn build_browser(
     split_view: &adw::NavigationSplitView,
 ) -> (gtk::Widget, BrowserViewRefs) {
     let view = adw::ToolbarView::new();
+    view.set_widget_name("browser-surface");
     let header = adw::HeaderBar::new();
     let title = adw::WindowTitle::new("Home", "All recent notes");
     title.set_widget_name("browser-window-title");
@@ -171,6 +173,7 @@ pub(crate) fn build_browser(
     view.set_content(Some(&pages));
 
     connect_browser_actions(dispatcher, &search, &new_note, &empty_new_note, &list);
+    install_browser_shortcuts(&view);
     (
         view.upcast(),
         BrowserViewRefs {
@@ -182,6 +185,26 @@ pub(crate) fn build_browser(
             status,
         },
     )
+}
+
+/// Captures the overview-only new-note shortcut before child widgets consume it.
+fn install_browser_shortcuts(view: &adw::ToolbarView) {
+    let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("browser-shortcuts"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let action_host = view.clone().upcast::<gtk::Widget>();
+    let action_host_for_callback = action_host.clone();
+    controller.connect_key_pressed(move |_, key, _, modifiers| {
+        if key != gtk::gdk::Key::n
+            || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
+            || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+        let _ = action_host_for_callback.activate_action(NEW_NOTE_ACTION, None::<&glib::Variant>);
+        glib::Propagation::Stop
+    });
+    action_host.add_controller(controller);
 }
 
 fn connect_browser_actions(

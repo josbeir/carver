@@ -33,6 +33,7 @@ fn partial_config_keeps_defaults_for_unset_sections() -> Result<(), Box<dyn std:
     assert!(!config.editor.source_line_numbers);
     assert!(!config.editor.source_highlight_current_line);
     assert!(config.editor.source_syntax_highlighting);
+    assert!(config.editor.show_formatting_toolbar);
     assert_eq!(config.editor.source_font, None);
     assert!(config.images.load_remote_automatically);
     assert_eq!(config.window.width, 1120);
@@ -79,6 +80,7 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_highlighting = false;
+    config.editor.show_formatting_toolbar = false;
     config.editor.source_font = Some("Adwaita Mono 13".to_owned());
     save(&path, &config)?;
     assert_eq!(load(&path)?, config);

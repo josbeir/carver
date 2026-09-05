@@ -6,10 +6,147 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::mvu::{
-    ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, PreferencesMsg, TrashMsg,
+    ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, NavigationMsg, PreferencesMsg, Route,
+    TrashMsg,
 };
 use crate::{editor::normalize_source_font_description, editor::system_monospace_font_description};
 use carver_storage_sqlite::SqliteLibrary;
+
+pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
+pub(crate) const EXPORT_NOTE_ACTION: &str = "win.export-note";
+pub(crate) const PRINT_NOTE_ACTION: &str = "win.print-note";
+pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
+pub(crate) const KEYBOARD_SHORTCUTS_ACTION: &str = "win.keyboard-shortcuts";
+
+#[derive(Clone, Copy)]
+struct Shortcut {
+    title: &'static str,
+    accelerator: &'static str,
+}
+
+#[derive(Clone, Copy)]
+struct ShortcutSection {
+    title: &'static str,
+    shortcuts: &'static [Shortcut],
+}
+
+const GENERAL_SHORTCUTS: &[Shortcut] = &[Shortcut {
+    title: "Keyboard shortcuts",
+    accelerator: "<Control>question",
+}];
+
+const NOTES_SHORTCUTS: &[Shortcut] = &[Shortcut {
+    title: "New note",
+    accelerator: "<Control>n",
+}];
+
+const EDITOR_SHORTCUTS: &[Shortcut] = &[
+    Shortcut {
+        title: "Export note",
+        accelerator: "<Control>e",
+    },
+    Shortcut {
+        title: "Print note",
+        accelerator: "<Control>p",
+    },
+    Shortcut {
+        title: "Move note to Trash",
+        accelerator: "<Control>d",
+    },
+];
+
+const FIND_SHORTCUTS: &[Shortcut] = &[
+    Shortcut {
+        title: "Find in note",
+        accelerator: "<Control>f",
+    },
+    Shortcut {
+        title: "Next result",
+        accelerator: "<Control>g",
+    },
+    Shortcut {
+        title: "Next result",
+        accelerator: "F3",
+    },
+    Shortcut {
+        title: "Previous result",
+        accelerator: "<Control><Shift>g",
+    },
+    Shortcut {
+        title: "Previous result",
+        accelerator: "<Shift>F3",
+    },
+    Shortcut {
+        title: "Close search",
+        accelerator: "Escape",
+    },
+];
+
+const SOURCE_FORMATTING_SHORTCUTS: &[Shortcut] = &[
+    Shortcut {
+        title: "Bold",
+        accelerator: "<Control>b",
+    },
+    Shortcut {
+        title: "Italic",
+        accelerator: "<Control>i",
+    },
+    Shortcut {
+        title: "Strikethrough",
+        accelerator: "<Control><Shift>x",
+    },
+    Shortcut {
+        title: "Underline",
+        accelerator: "<Control>u",
+    },
+    Shortcut {
+        title: "Highlight",
+        accelerator: "<Control><Shift>h",
+    },
+    Shortcut {
+        title: "Superscript",
+        accelerator: "<Control><Shift>period",
+    },
+    Shortcut {
+        title: "Subscript",
+        accelerator: "<Control><Shift>comma",
+    },
+    Shortcut {
+        title: "Bulleted list",
+        accelerator: "<Control><Shift>8",
+    },
+    Shortcut {
+        title: "Numbered list",
+        accelerator: "<Control><Shift>7",
+    },
+    Shortcut {
+        title: "Insert line break",
+        accelerator: "<Shift>Return",
+    },
+];
+
+const SHORTCUT_SECTIONS: &[ShortcutSection] = &[
+    ShortcutSection {
+        title: "General",
+        shortcuts: GENERAL_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Notes",
+        shortcuts: NOTES_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Editor",
+        shortcuts: EDITOR_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Find in note",
+        shortcuts: FIND_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Source formatting",
+        shortcuts: SOURCE_FORMATTING_SHORTCUTS,
+    },
+];
 
 /// Installs actions exposed from the application menu.
 pub(crate) fn install_window_actions(
@@ -38,8 +175,99 @@ pub(crate) fn install_window_actions(
     });
     window.add_action(&about);
 
+    let keyboard_shortcuts = gtk::gio::SimpleAction::new("keyboard-shortcuts", None);
+    let window_for_shortcuts = window.clone();
+    keyboard_shortcuts.connect_activate(move |_, _| {
+        let _ = show_keyboard_shortcuts_dialog(&window_for_shortcuts);
+    });
+    window.add_action(&keyboard_shortcuts);
+
+    install_note_actions(window, dispatcher, runtime);
+    install_application_accelerators(window);
+    install_window_shortcuts(window);
     install_trash_actions(window, dispatcher);
     install_mvu_actions(window, dispatcher, runtime);
+}
+
+fn install_note_actions(
+    window: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
+) {
+    let new_note = gtk::gio::SimpleAction::new("new-note", None);
+    let dispatcher_for_new_note = dispatcher.clone();
+    let runtime_for_new_note = runtime.clone();
+    new_note.connect_activate(move |_, _| {
+        if runtime_for_new_note.model().route == Route::Browser {
+            let _ = dispatcher_for_new_note.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
+        }
+    });
+    window.add_action(&new_note);
+
+    let export_note = gtk::gio::SimpleAction::new("export-note", None);
+    let dispatcher_for_export = dispatcher.clone();
+    let runtime_for_export = runtime.clone();
+    export_note.connect_activate(move |_, _| {
+        if runtime_for_export.model().editor.is_some() {
+            let _ =
+                dispatcher_for_export.dispatch(AppMsg::Editor(EditorMsg::ExportDialogRequested));
+        }
+    });
+    window.add_action(&export_note);
+
+    let print_note = gtk::gio::SimpleAction::new("print-note", None);
+    let dispatcher_for_print = dispatcher.clone();
+    let runtime_for_print = runtime.clone();
+    print_note.connect_activate(move |_, _| {
+        if runtime_for_print.model().editor.is_some() {
+            let _ = dispatcher_for_print.dispatch(AppMsg::Editor(EditorMsg::PrintRequested));
+        }
+    });
+    window.add_action(&print_note);
+
+    let trash_note = gtk::gio::SimpleAction::new("trash-note", None);
+    let dispatcher_for_trash = dispatcher.clone();
+    let runtime_for_trash = runtime.clone();
+    trash_note.connect_activate(move |_, _| {
+        if runtime_for_trash.model().editor.is_some() {
+            let _ = dispatcher_for_trash.dispatch(AppMsg::Editor(EditorMsg::TrashRequested));
+        }
+    });
+    window.add_action(&trash_note);
+}
+
+fn install_application_accelerators(window: &adw::ApplicationWindow) {
+    let Some(application) = window.application() else {
+        return;
+    };
+    for (action, accelerator) in [
+        (NEW_NOTE_ACTION, "<Control>n"),
+        (EXPORT_NOTE_ACTION, "<Control>e"),
+        (PRINT_NOTE_ACTION, "<Control>p"),
+        (TRASH_NOTE_ACTION, "<Control>d"),
+        (KEYBOARD_SHORTCUTS_ACTION, "<Control>question"),
+    ] {
+        application.set_accels_for_action(action, &[accelerator]);
+    }
+}
+
+fn install_window_shortcuts(window: &adw::ApplicationWindow) {
+    let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("window-shortcuts"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let action_host = window.clone().upcast::<gtk::Widget>();
+    let action_host_for_callback = action_host.clone();
+    controller.connect_key_pressed(move |_, key, _, modifiers| {
+        if key != gtk::gdk::Key::question
+            || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+        let _ = action_host_for_callback
+            .activate_action(KEYBOARD_SHORTCUTS_ACTION, None::<&glib::Variant>);
+        glib::Propagation::Stop
+    });
+    action_host.add_controller(controller);
 }
 
 fn install_mvu_actions(
@@ -126,6 +354,13 @@ fn show_preferences_dialog(
     remote_images.set_subtitle("Download images referenced by notes when they are displayed.");
     remote_images.set_active(config.images.load_remote_automatically);
     group.add(&remote_images);
+    let formatting_toolbar = preference_switch_row(
+        "formatting-toolbar-setting",
+        "Show formatting toolbar",
+        "Show formatting controls at the bottom of the editor.",
+        config.editor.show_formatting_toolbar,
+    );
+    group.add(&formatting_toolbar);
 
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
     page.add(&group);
@@ -136,6 +371,12 @@ fn show_preferences_dialog(
     remote_images.connect_active_notify(move |remote_images| {
         let _ = dispatcher_for_images.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetRemoteImages(remote_images.is_active()),
+        ));
+    });
+    let dispatcher_for_toolbar = dispatcher.clone();
+    formatting_toolbar.connect_active_notify(move |formatting_toolbar| {
+        let _ = dispatcher_for_toolbar.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetFormattingToolbarVisible(formatting_toolbar.is_active()),
         ));
     });
     dialog.present(Some(parent));
@@ -152,21 +393,21 @@ fn source_editor_preferences_group(
     let (source_font, font_value, reset_font) = source_font_rows(config);
     group.add(&source_font);
     group.add(&reset_font);
-    let line_numbers = source_switch_row(
+    let line_numbers = preference_switch_row(
         "source-line-numbers-setting",
         "Show line numbers",
         "Show source line positions in the editor gutter.",
         config.editor.source_line_numbers,
     );
     group.add(&line_numbers);
-    let current_line = source_switch_row(
+    let current_line = preference_switch_row(
         "source-current-line-setting",
         "Highlight current line",
         "Shade the line containing the cursor in Source mode.",
         config.editor.source_highlight_current_line,
     );
     group.add(&current_line);
-    let syntax_highlighting = source_switch_row(
+    let syntax_highlighting = preference_switch_row(
         "source-syntax-highlighting-setting",
         "Syntax highlighting",
         "Colour Carve markup in Source mode.",
@@ -222,7 +463,7 @@ fn source_font_dialog() -> gtk::FontDialog {
     dialog
 }
 
-fn source_switch_row(
+fn preference_switch_row(
     widget_name: &str,
     title: &str,
     subtitle: &str,
@@ -335,6 +576,28 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
         .build();
     about.present(Some(parent));
     about
+}
+
+/// Presents the searchable reference for every explicit Carver keyboard shortcut.
+pub(crate) fn show_keyboard_shortcuts_dialog(
+    parent: &adw::ApplicationWindow,
+) -> adw::ShortcutsDialog {
+    let dialog = adw::ShortcutsDialog::builder()
+        .title("Keyboard Shortcuts")
+        .build();
+    dialog.set_widget_name("keyboard-shortcuts-dialog");
+    for section in SHORTCUT_SECTIONS {
+        let shortcuts = adw::ShortcutsSection::new(Some(section.title));
+        for shortcut in section.shortcuts {
+            shortcuts.add(adw::ShortcutsItem::new(
+                shortcut.title,
+                shortcut.accelerator,
+            ));
+        }
+        dialog.add(shortcuts);
+    }
+    dialog.present(Some(parent));
+    dialog
 }
 
 /// Presents a validated single-line category name dialog.

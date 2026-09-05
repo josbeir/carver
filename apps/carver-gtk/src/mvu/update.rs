@@ -95,6 +95,10 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.source_split_view = visible;
             model.config.editor.source_split_view = visible;
         }
+        PreferencesMsg::SetFormattingToolbarVisible(visible) => {
+            model.preferences.show_formatting_toolbar = visible;
+            model.config.editor.show_formatting_toolbar = visible;
+        }
         PreferencesMsg::SetSourceLineNumbers(visible) => {
             model.preferences.source_editor.show_line_numbers = visible;
             model.config.editor.source_line_numbers = visible;

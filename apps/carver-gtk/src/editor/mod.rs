@@ -17,6 +17,7 @@ use libadwaita::prelude::{
 use webkit6::prelude::*;
 
 use crate::{
+    dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TRASH_NOTE_ACTION},
     mvu::{
         AppDispatcher, AppModel, AppMsg, EditorExportFormat, EditorExportWarningRequest, EditorMsg,
         EditorSessionId, PreferencesMsg,
@@ -53,6 +54,7 @@ pub(crate) struct EditorViewRefs {
     rendered_mode: gtk::ToggleButton,
     find: FindController,
     toolbar: Toolbar,
+    toolbar_bar: gtk::Box,
     editor_stack: gtk::Stack,
     split_toggle: gtk::ToggleButton,
     rich: RichEditor,
@@ -76,6 +78,8 @@ pub(crate) struct EditorViewRefs {
 impl EditorViewRefs {
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     pub(crate) fn render(&self, model: &AppModel) {
+        self.toolbar_bar
+            .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
             self.preview_source.replace(None);
             return;
@@ -335,13 +339,13 @@ pub(crate) fn build_editor(
     mode_group.append(&rendered_mode);
     let trash = gtk::Button::from_icon_name("user-trash-symbolic");
     trash.set_widget_name("delete-note-button");
-    trash.set_tooltip_text(Some("Move Note to Trash"));
+    trash.set_tooltip_text(Some("Move Note to Trash (Ctrl+D)"));
     trash.add_css_class("flat");
     let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
-    let export_menu = export_menu_button(dispatcher);
+    let export_menu = export_menu_button();
     header.pack_end(&trash);
     header.pack_end(&copy_note);
     header.pack_end(&export_menu);
@@ -380,6 +384,7 @@ pub(crate) fn build_editor(
     let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
+    install_editor_window_shortcuts(&view);
     let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
     connect_source_context(&source_buffer, &source_context, &toolbar);
@@ -399,7 +404,10 @@ pub(crate) fn build_editor(
         &split_toggle,
         &source_mode,
     );
-    view.add_bottom_bar(toolbar.widget());
+    let toolbar_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    toolbar_bar.set_widget_name("formatting-toolbar-bar");
+    toolbar_bar.append(toolbar.widget());
+    view.add_bottom_bar(&toolbar_bar);
     view.set_content(Some(&editor_stack));
 
     connect_mode_buttons(
@@ -447,6 +455,7 @@ pub(crate) fn build_editor(
         rendered_mode,
         find,
         toolbar,
+        toolbar_bar,
         editor_stack,
         split_toggle,
         rich,
@@ -862,40 +871,42 @@ fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
     });
 }
 
-fn export_menu_button(dispatcher: &AppDispatcher) -> gtk::MenuButton {
+fn export_menu_button() -> gtk::MenuButton {
     let menu = gtk::MenuButton::new();
     menu.set_icon_name("document-save-as-symbolic");
     menu.set_tooltip_text(Some("Export or print note"));
     menu.add_css_class("flat");
     menu.set_widget_name("export-note-button");
-    let popover = gtk::Popover::new();
-    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    actions.add_css_class("menu");
-    let export = gtk::Button::with_label("Export note…");
-    export.set_widget_name("export-note-menu-item");
-    export.add_css_class("flat");
-    export.set_halign(gtk::Align::Fill);
-    let print = gtk::Button::with_label("Print…");
-    print.set_widget_name("print-note-menu-item");
-    print.add_css_class("flat");
-    print.set_halign(gtk::Align::Fill);
-    actions.append(&export);
-    actions.append(&print);
-    popover.set_child(Some(&actions));
-    menu.set_popover(Some(&popover));
-
-    let dispatcher_for_export = dispatcher.clone();
-    let popover_for_export = popover.clone();
-    export.connect_clicked(move |_| {
-        popover_for_export.popdown();
-        let _ = dispatcher_for_export.dispatch(AppMsg::Editor(EditorMsg::ExportDialogRequested));
-    });
-    let dispatcher_for_print = dispatcher.clone();
-    print.connect_clicked(move |_| {
-        popover.popdown();
-        let _ = dispatcher_for_print.dispatch(AppMsg::Editor(EditorMsg::PrintRequested));
-    });
+    let actions = gtk::gio::Menu::new();
+    actions.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
+    actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
+    menu.set_menu_model(Some(&actions));
     menu
+}
+
+/// Installs editor-wide actions before embedded rich-text widgets receive their key events.
+fn install_editor_window_shortcuts(view: &adw::ToolbarView) {
+    let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("editor-window-shortcuts"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let action_host = view.clone().upcast::<gtk::Widget>();
+    let action_host_for_callback = action_host.clone();
+    controller.connect_key_pressed(move |_, key, _, modifiers| {
+        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
+            || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+        let action = match key {
+            gtk::gdk::Key::e => EXPORT_NOTE_ACTION,
+            gtk::gdk::Key::p => PRINT_NOTE_ACTION,
+            gtk::gdk::Key::d => TRASH_NOTE_ACTION,
+            _ => return glib::Propagation::Proceed,
+        };
+        let _ = action_host_for_callback.activate_action(action, None::<&glib::Variant>);
+        glib::Propagation::Stop
+    });
+    action_host.add_controller(controller);
 }
 
 /// Presents the export-format chooser for the currently open note.
@@ -1075,24 +1086,13 @@ pub(crate) fn export_rendered_snapshot(
         let operation = webkit6::PrintOperation::new(preview);
         let reported = Rc::new(Cell::new(false));
         if print_dialog {
-            if operation.run_dialog(parent.as_ref()) == webkit6::PrintOperationResponse::Print {
-                if !reported.replace(true) {
-                    let _ = dispatcher
-                        .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
-                }
-            } else if !reported.replace(true) {
-                let _ = dispatcher
-                    .dispatch(AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }));
-            }
-            // CONTEXT: Escape makes WebKit unwind the native print dialog before returning.
-            // Closing its realized host in that stack can double-destroy a GTK window. Defer
-            // cleanup until the next main-loop turn, and only close a host that still exists.
-            let print_window_for_cleanup = print_window.downgrade();
-            glib::idle_add_local_once(move || {
-                if let Some(print_window) = print_window_for_cleanup.upgrade() {
-                    print_window.close();
-                }
-            });
+            run_native_print_dialog(
+                &operation,
+                &print_window,
+                &reported,
+                &dispatcher,
+                request_id,
+            );
             return;
         }
         let settings = gtk::PrintSettings::new();
@@ -1116,7 +1116,7 @@ pub(crate) fn export_rendered_snapshot(
             if reported_for_finished.replace(true) {
                 return;
             }
-            print_window_for_finished.close();
+            print_window_for_finished.destroy();
             let _ = dispatcher_for_finished
                 .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
         });
@@ -1129,13 +1129,94 @@ pub(crate) fn export_rendered_snapshot(
             if reported_for_failed.replace(true) {
                 return;
             }
-            print_window_for_failed.close();
+            print_window_for_failed.destroy();
             let _ = dispatcher_for_failed
                 .dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
         });
         operation.print();
     });
     load_preview(&preview, &source, allow_remote_images);
+}
+
+fn run_native_print_dialog(
+    operation: &webkit6::PrintOperation,
+    print_window: &gtk::Window,
+    reported: &Rc<Cell<bool>>,
+    dispatcher: &AppDispatcher,
+    request_id: u64,
+) {
+    // WebKitGTK's GTK4 `run_dialog` path destroys a non-window object when the dialog is
+    // cancelled. Use GTK's supported print dialog to collect the native settings, then let
+    // WebKit render the accepted document with those settings.
+    let native_dialog = gtk::PrintOperation::new();
+    native_dialog.set_embed_page_setup(true);
+    native_dialog.set_n_pages(1);
+    let accepted = Rc::new(Cell::new(false));
+    let accepted_for_begin_print = Rc::clone(&accepted);
+    native_dialog.connect_begin_print(move |native_dialog, _| {
+        accepted_for_begin_print.set(true);
+        // GTK has delivered the selected settings. It must not render a second, empty document;
+        // the WebKit operation below owns rendering Carve's HTML snapshot.
+        native_dialog.cancel();
+    });
+    let response = native_dialog.run(gtk::PrintOperationAction::PrintDialog, Some(print_window));
+    if response.is_err() {
+        complete_native_print_failure(print_window, dispatcher, request_id);
+        return;
+    }
+    if !accepted.get() {
+        if !reported.replace(true) {
+            let _ =
+                dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }));
+        }
+        print_window.destroy();
+        return;
+    }
+
+    if let Some(settings) = native_dialog.print_settings() {
+        operation.set_print_settings(&settings);
+    }
+    operation.set_page_setup(&native_dialog.default_page_setup());
+
+    // The native GTK operation was deliberately cancelled after its dialog supplied the
+    // settings. Retain the WebKit operation and realized host until its own render completes.
+    let retained_operation = Rc::new(RefCell::new(Some(operation.clone())));
+    let retained_for_finished = Rc::clone(&retained_operation);
+    let reported_for_finished = Rc::clone(reported);
+    let dispatcher_for_finished = dispatcher.clone();
+    let print_window_for_finished = print_window.clone();
+    operation.connect_finished(move |_| {
+        let _ = retained_for_finished.borrow_mut().take();
+        if reported_for_finished.replace(true) {
+            return;
+        }
+        print_window_for_finished.destroy();
+        let _ = dispatcher_for_finished
+            .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
+    });
+    let retained_for_failed = Rc::clone(&retained_operation);
+    let reported_for_failed = Rc::clone(reported);
+    let dispatcher_for_failed = dispatcher.clone();
+    let print_window_for_failed = print_window.clone();
+    operation.connect_failed(move |_, _| {
+        let _ = retained_for_failed.borrow_mut().take();
+        if reported_for_failed.replace(true) {
+            return;
+        }
+        print_window_for_failed.destroy();
+        let _ = dispatcher_for_failed
+            .dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
+    });
+    operation.print();
+}
+
+fn complete_native_print_failure(
+    print_window: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    request_id: u64,
+) {
+    print_window.destroy();
+    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
 }
 
 fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {

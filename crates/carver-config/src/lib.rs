@@ -144,6 +144,9 @@ pub struct EditorConfig {
     /// Whether the source editor applies Carve syntax highlighting.
     #[serde(default = "default_true")]
     pub source_syntax_highlighting: bool,
+    /// Whether the editor shows the shared formatting toolbar.
+    #[serde(default = "default_true")]
+    pub show_formatting_toolbar: bool,
     /// Custom Pango font description for the source editor.
     ///
     /// When absent, the GTK frontend follows the desktop monospace-font
@@ -230,6 +233,7 @@ impl Default for EditorConfig {
             source_line_numbers: false,
             source_highlight_current_line: false,
             source_syntax_highlighting: true,
+            show_formatting_toolbar: true,
             source_font: None,
         }
     }

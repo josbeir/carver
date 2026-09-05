@@ -757,6 +757,21 @@ fn source_line_number_preference_should_persist_a_complete_config_snapshot() {
 }
 
 #[test]
+fn formatting_toolbar_preference_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetFormattingToolbarVisible(false)),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if !config.editor.show_formatting_toolbar)
+    );
+    assert!(!model.preferences.show_formatting_toolbar);
+}
+
+#[test]
 fn current_line_preference_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 

@@ -1,10 +1,12 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
+use std::{cell::Cell, rc::Rc, time::Duration};
+
 use carver_config::Config;
 use gtk::gio::prelude::FileExt;
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::{ActionRowExt, PreferencesRowExt};
+use libadwaita::prelude::{ActionRowExt, AdwDialogExt, PreferencesRowExt};
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
@@ -17,6 +19,8 @@ use super::support::{TestResult, find_widget, run_main_context_until, test_state
     reason = "one display-backed scenario covers MVU surface transitions on GTK's single initialization thread"
 )]
 fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult {
+    gtk::disable_portals();
+    glib::set_application_name("Carver test");
     gtk::init()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
@@ -56,6 +60,30 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             "Download images referenced by notes when they are displayed.".into()
         ))
     );
+    let formatting_toolbar_setting = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "formatting-toolbar-setting",
+    )
+    .ok_or("formatting toolbar setting")?;
+    assert!(formatting_toolbar_setting.is_active());
+    assert_eq!(
+        formatting_toolbar_setting.subtitle(),
+        Some("Show formatting controls at the bottom of the editor.".into())
+    );
+    let mut purist_config = config.clone();
+    purist_config.editor.show_formatting_toolbar = false;
+    let purist_window = crate::app::build_window_for_test(
+        &application,
+        client.clone(),
+        &purist_config,
+        &temporary_directory.path().join("purist-config.toml"),
+    )?;
+    let purist_root = purist_window.child().ok_or("purist window content")?;
+    assert!(
+        widget_as::<gtk::Box>(&purist_root, "formatting-toolbar-bar")
+            .is_some_and(|toolbar_bar| !toolbar_bar.is_visible())
+    );
+    purist_window.close();
     assert_eq!(
         widget_as::<adw::SwitchRow>(
             preferences_dialog.upcast_ref(),
@@ -122,13 +150,55 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let root = window.child().ok_or("window content")?;
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
     assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
-    assert!(widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button").is_some());
+    let settings_menu = widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button")
+        .ok_or("sidebar settings menu")?;
+    assert_eq!(
+        settings_menu.menu_model().map(|model| model.n_items()),
+        Some(3)
+    );
     assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());
+    assert!(window.lookup_action("keyboard-shortcuts").is_some());
+    let window_controllers = window.observe_controllers();
+    let window_shortcuts = (0..window_controllers.n_items())
+        .filter_map(|index| window_controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("window-shortcuts"))
+        .ok_or("window shortcuts")?;
+    assert_eq!(
+        window_shortcuts.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
+    let keyboard_shortcuts = crate::dialogs::show_keyboard_shortcuts_dialog(&window);
+    assert_eq!(
+        keyboard_shortcuts.widget_name(),
+        "keyboard-shortcuts-dialog"
+    );
+    keyboard_shortcuts.close();
     assert!(run_main_context_until(|| {
         find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
     }));
-    let new_note = widget_as::<gtk::Button>(&root, "new-note-button").ok_or("new note button")?;
-    new_note.emit_clicked();
+    let browser_view =
+        widget_as::<adw::ToolbarView>(&root, "browser-surface").ok_or("browser view")?;
+    let browser_controllers = browser_view.observe_controllers();
+    let browser_shortcuts = (0..browser_controllers.n_items())
+        .filter_map(|index| browser_controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("browser-shortcuts"))
+        .ok_or("browser shortcuts")?;
+    assert_eq!(
+        browser_shortcuts.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
+    assert!(widget_as::<gtk::Button>(&root, "new-note-button").is_some());
+    let new_note_handled = browser_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::n,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(new_note_handled);
     assert!(run_main_context_until(|| client
         .recent_notes(None, 10, 0)
         .is_ok_and(|notes| notes.len() == 1)));
@@ -255,6 +325,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let rich_mode = widget_as::<gtk::ToggleButton>(&root, "editor-mode-rich").ok_or("rich mode")?;
     let toolbar =
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("shared formatting toolbar")?;
+    let toolbar_bar =
+        widget_as::<gtk::Box>(&root, "formatting-toolbar-bar").ok_or("formatting toolbar bar")?;
+    assert!(toolbar_bar.is_visible());
     assert_shared_toolbar_controls(&root)?;
     source_mode.set_active(true);
     assert_eq!(
@@ -291,12 +364,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let export_menu =
         widget_as::<gtk::MenuButton>(&root, "export-note-button").ok_or("export menu")?;
     let gtk_window = window.clone().upcast::<gtk::Window>();
-    let export_actions = export_menu
-        .popover()
-        .and_then(|popover| popover.child())
-        .ok_or("export actions")?;
-    assert!(widget_as::<gtk::Button>(&export_actions, "export-note-menu-item").is_some());
-    assert!(widget_as::<gtk::Button>(&export_actions, "print-note-menu-item").is_some());
+    assert_eq!(
+        export_menu.menu_model().map(|model| model.n_items()),
+        Some(2)
+    );
+    assert!(
+        export_menu
+            .popover()
+            .and_downcast::<gtk::PopoverMenu>()
+            .is_some()
+    );
     let export_request = crate::mvu::EditorExportDialogRequest {
         request_id: 91,
         session: crate::mvu::EditorSessionId(1),
@@ -346,6 +423,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         std::fs::read(&pdf_path).is_ok_and(|bytes| bytes.starts_with(b"%PDF"))
     }));
+    assert_native_print_dialog_cancels_without_invalid_window(&gtk_window)?;
     source.buffer().set_text("# Copied note");
     copy_note.emit_clicked();
     let clipboard = source.display().clipboard();
@@ -373,10 +451,19 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let editor_view =
         widget_as::<adw::ToolbarView>(&root, "editor-surface").ok_or("editor view")?;
     let controllers = editor_view.observe_controllers();
+    let editor_shortcuts = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("editor-window-shortcuts"))
+        .ok_or("editor shortcuts")?;
+    assert_eq!(
+        editor_shortcuts.propagation_phase(),
+        gtk::PropagationPhase::Capture
+    );
     let find_shortcut = (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("editor-find-shortcuts"))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("editor-find-shortcuts"))
         .ok_or("find shortcut controller")?;
     assert_eq!(
         find_shortcut.propagation_phase(),
@@ -656,9 +743,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
-    widget_as::<gtk::Button>(&root, "delete-note-button")
-        .ok_or("delete note")?
-        .emit_clicked();
+    let delete_note = widget_as::<gtk::Button>(&root, "delete-note-button").ok_or("delete note")?;
+    assert_eq!(
+        delete_note.tooltip_text().as_deref(),
+        Some("Move Note to Trash (Ctrl+D)")
+    );
+    let delete_handled = editor_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::d,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(delete_handled);
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
@@ -751,6 +849,52 @@ fn exercise_source_formatting_controls(
         .contains("|= |")
     {
         return Err("source table picker insert".into());
+    }
+    Ok(())
+}
+
+fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Window) -> TestResult {
+    let cancelled = Rc::new(Cell::new(false));
+    let cancelled_for_timeout = Rc::clone(&cancelled);
+    let parent_weak = parent.downgrade();
+    let attempts = Rc::new(Cell::new(0_u8));
+    let attempts_for_timeout = Rc::clone(&attempts);
+    glib::timeout_add_local(Duration::from_millis(20), move || {
+        let Some(parent) = parent_weak.upgrade() else {
+            return glib::ControlFlow::Break;
+        };
+        let dialog = gtk::Window::list_toplevels()
+            .into_iter()
+            .filter_map(|widget| widget.downcast::<gtk::Window>().ok())
+            .find(|candidate| {
+                candidate.transient_for().is_some_and(|host| {
+                    host.transient_for()
+                        .is_some_and(|ancestor| ancestor == parent)
+                })
+            });
+        if let Some(dialog) = dialog {
+            cancelled_for_timeout.set(true);
+            dialog.close();
+            return glib::ControlFlow::Break;
+        }
+        if attempts_for_timeout.get() == 50 {
+            return glib::ControlFlow::Break;
+        }
+        attempts_for_timeout.update(|attempt| attempt + 1);
+        glib::ControlFlow::Continue
+    });
+    crate::editor::export_rendered_snapshot(
+        "# Printable note\n\nBody",
+        false,
+        true,
+        "",
+        Some(parent),
+        None,
+        crate::mvu::AppDispatcher::default(),
+        94,
+    );
+    if !run_main_context_until(|| cancelled.get()) {
+        return Err("native print dialog did not appear".into());
     }
     Ok(())
 }

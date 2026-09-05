@@ -68,6 +68,10 @@ pub(crate) fn build_sidebar(
 fn settings_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
     menu.append(Some("Preferences"), Some("win.preferences"));
+    menu.append(
+        Some("Keyboard Shortcuts"),
+        Some(crate::dialogs::KEYBOARD_SHORTCUTS_ACTION),
+    );
     menu.append(Some("About Carver"), Some("win.about"));
     let settings = gtk::MenuButton::new();
     settings.set_widget_name("sidebar-settings-menu-button");

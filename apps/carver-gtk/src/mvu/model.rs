@@ -146,6 +146,8 @@ pub struct Preferences {
     pub autosave_delay_ms: u64,
     /// Whether source mode restores its preview split.
     pub source_split_view: bool,
+    /// Whether the editor shows the shared formatting toolbar.
+    pub show_formatting_toolbar: bool,
     /// Source-editor-only presentation preferences.
     pub source_editor: SourceEditorPreferences,
 }
@@ -172,6 +174,7 @@ impl From<&Config> for Preferences {
             editor_mode: config.editor.last_mode,
             autosave_delay_ms: config.editor.autosave_delay_ms,
             source_split_view: config.editor.source_split_view,
+            show_formatting_toolbar: config.editor.show_formatting_toolbar,
             source_editor: SourceEditorPreferences {
                 show_line_numbers: config.editor.source_line_numbers,
                 highlight_current_line: config.editor.source_highlight_current_line,

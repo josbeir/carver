@@ -230,6 +230,8 @@ pub enum PreferencesMsg {
     SetEditorMode(EditorMode),
     /// Set source split-preview visibility.
     SetSourceSplitView(bool),
+    /// Set shared formatting-toolbar visibility.
+    SetFormattingToolbarVisible(bool),
     /// Set source-editor line-number gutter visibility.
     SetSourceLineNumbers(bool),
     /// Set source-editor current-line highlighting.
