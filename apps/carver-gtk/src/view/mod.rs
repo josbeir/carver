@@ -407,6 +407,8 @@ fn browser_row(
 ) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("note:{}", note.id));
+    row.add_css_class("card");
+    row.add_css_class("activatable");
     row.add_css_class("note-card");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     content.set_margin_start(12);
@@ -485,6 +487,7 @@ fn append_section_heading(list: &gtk::ListBox, text: &str) {
 fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("trashed-category:{}", category.category.id));
+    row.add_css_class("card");
     row.add_css_class("note-card");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     content.set_margin_start(12);
@@ -497,16 +500,21 @@ fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::L
     title.set_xalign(0.0);
     title.add_css_class("note-card-title");
     details.append(&title);
-    details.append(&gtk::Label::new(Some(&format!(
+    let recovery_count = gtk::Label::new(Some(&format!(
         "{} recoverable notes",
         category.recoverable_note_count
-    ))));
+    )));
+    recovery_count.set_xalign(0.0);
+    recovery_count.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    recovery_count.set_single_line_mode(true);
+    recovery_count.add_css_class("note-card-updated");
+    details.append(&recovery_count);
     content.append(&details);
-    let restore = gtk::Button::with_label("Restore");
-    restore.set_widget_name(&format!("restore-category:{}", category.category.id));
-    restore.set_action_name(Some("trash.restore-category"));
-    restore.set_action_target_value(Some(&category.category.id.to_string().to_variant()));
-    content.append(&restore);
+    content.append(&restore_button(
+        &format!("restore-category:{}", category.category.id),
+        "trash.restore-category",
+        &category.category.id.to_string(),
+    ));
     row.set_child(Some(&content));
     row
 }
@@ -514,6 +522,7 @@ fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::L
 fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("trashed-note:{}", note.id));
+    row.add_css_class("card");
     row.add_css_class("note-card");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     content.set_margin_start(12);
@@ -525,17 +534,37 @@ fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> gtk::ListBoxRow {
     let title = gtk::Label::new(Some(&note.title));
     title.set_xalign(0.0);
     title.add_css_class("note-card-title");
+    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    title.set_single_line_mode(true);
     details.append(&title);
-    let excerpt = gtk::Label::new(Some(&note.excerpt));
-    excerpt.set_xalign(0.0);
-    excerpt.add_css_class("note-card-excerpt");
-    details.append(&excerpt);
+    let excerpt_text = crate::browser::compact_note_excerpt(&note.title, &note.excerpt);
+    if !excerpt_text.is_empty() {
+        let excerpt = gtk::Label::new(Some(&excerpt_text));
+        excerpt.set_widget_name(&format!("trashed-note-excerpt:{}", note.id));
+        excerpt.set_xalign(0.0);
+        excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        excerpt.set_single_line_mode(true);
+        excerpt.add_css_class("note-card-excerpt");
+        details.append(&excerpt);
+    }
     content.append(&details);
-    let restore = gtk::Button::with_label("Restore");
-    restore.set_widget_name(&format!("restore-note:{}", note.id));
-    restore.set_action_name(Some("trash.restore-note"));
-    restore.set_action_target_value(Some(&note.id.to_string().to_variant()));
-    content.append(&restore);
+    content.append(&restore_button(
+        &format!("restore-note:{}", note.id),
+        "trash.restore-note",
+        &note.id.to_string(),
+    ));
     row.set_child(Some(&content));
     row
+}
+
+fn restore_button(name: &str, action: &str, target: &str) -> gtk::Button {
+    let restore = gtk::Button::from_icon_name("edit-undo-symbolic");
+    restore.set_widget_name(name);
+    restore.add_css_class("flat");
+    restore.set_tooltip_text(Some("Restore"));
+    restore.update_property(&[gtk::accessible::Property::Label("Restore")]);
+    restore.set_valign(gtk::Align::Center);
+    restore.set_action_name(Some(action));
+    restore.set_action_target_value(Some(&target.to_variant()));
+    restore
 }

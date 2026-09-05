@@ -2,7 +2,7 @@
 
 use adw::prelude::*;
 use carver_config::SourceSyntaxStyle;
-use carver_sdk::{CategoryId, CategorySummary, NoteId};
+use carver_sdk::{CategoryId, CategorySummary, DocumentImportFormat, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -14,6 +14,7 @@ use crate::{editor::normalize_source_font_description, editor::system_monospace_
 use carver_storage_sqlite::SqliteLibrary;
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
+pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
 pub(crate) const EXPORT_NOTE_ACTION: &str = "win.export-note";
 pub(crate) const PRINT_NOTE_ACTION: &str = "win.print-note";
 pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
@@ -36,10 +37,16 @@ const GENERAL_SHORTCUTS: &[Shortcut] = &[Shortcut {
     accelerator: "<Control>question",
 }];
 
-const NOTES_SHORTCUTS: &[Shortcut] = &[Shortcut {
-    title: "New note",
-    accelerator: "<Control>n",
-}];
+const NOTES_SHORTCUTS: &[Shortcut] = &[
+    Shortcut {
+        title: "New note",
+        accelerator: "<Control>n",
+    },
+    Shortcut {
+        title: "Import note",
+        accelerator: "<Control>o",
+    },
+];
 
 const EDITOR_SHORTCUTS: &[Shortcut] = &[
     Shortcut {
@@ -205,6 +212,20 @@ fn install_note_actions(
     });
     window.add_action(&new_note);
 
+    let import_note = gtk::gio::SimpleAction::new("import-note", None);
+    let dispatcher_for_import = dispatcher.clone();
+    let runtime_for_import = runtime.clone();
+    let window_for_import = window.clone();
+    import_note.connect_activate(move |_, _| {
+        if runtime_for_import.model().route == Route::Browser {
+            show_import_file_dialog(
+                window_for_import.upcast_ref::<gtk::Window>(),
+                dispatcher_for_import.clone(),
+            );
+        }
+    });
+    window.add_action(&import_note);
+
     let export_note = gtk::gio::SimpleAction::new("export-note", None);
     let dispatcher_for_export = dispatcher.clone();
     let runtime_for_export = runtime.clone();
@@ -243,12 +264,82 @@ fn install_application_accelerators(window: &adw::ApplicationWindow) {
     };
     for (action, accelerator) in [
         (NEW_NOTE_ACTION, "<Control>n"),
+        (IMPORT_NOTE_ACTION, "<Control>o"),
         (EXPORT_NOTE_ACTION, "<Control>e"),
         (PRINT_NOTE_ACTION, "<Control>p"),
         (TRASH_NOTE_ACTION, "<Control>d"),
         (KEYBOARD_SHORTCUTS_ACTION, "<Control>question"),
     ] {
         application.set_accels_for_action(action, &[accelerator]);
+    }
+}
+
+pub(crate) fn show_import_file_dialog(parent: &gtk::Window, dispatcher: AppDispatcher) {
+    let filter = gtk::FileFilter::new();
+    filter.set_name(Some("Carve and Markdown documents"));
+    for suffix in ["crv", "md", "markdown"] {
+        filter.add_suffix(suffix);
+    }
+    let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
+    filters.append(&filter);
+    let dialog = gtk::FileDialog::builder()
+        .title("Import note")
+        .accept_label("Import")
+        .build();
+    dialog.set_filters(Some(&filters));
+    dialog.set_default_filter(Some(&filter));
+    dialog.open(
+        Some(parent),
+        None::<&gtk::gio::Cancellable>,
+        move |result| {
+            let Ok(file) = result else {
+                return;
+            };
+            read_import_file(&file, dispatcher.clone());
+        },
+    );
+}
+
+pub(crate) fn read_import_file(file: &gtk::gio::File, dispatcher: AppDispatcher) {
+    let Some(format) = import_format_for_file(file) else {
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ImportFailed(
+            String::from("Select a Carve (.crv) or Markdown (.md) file."),
+        )));
+        return;
+    };
+    file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
+        let message = match result {
+            Ok((bytes, _)) => import_message_from_bytes(format, bytes.as_ref()),
+            Err(_) => {
+                NavigationMsg::ImportFailed(String::from("Could not read the selected file."))
+            }
+        };
+        let _ = dispatcher.dispatch(AppMsg::Navigation(message));
+    });
+}
+
+pub(crate) fn import_message_from_bytes(
+    format: DocumentImportFormat,
+    bytes: &[u8],
+) -> NavigationMsg {
+    match String::from_utf8(bytes.to_vec()) {
+        Ok(source) => NavigationMsg::ImportNote { format, source },
+        Err(_) => {
+            NavigationMsg::ImportFailed(String::from("The selected file is not valid UTF-8 text."))
+        }
+    }
+}
+
+pub(crate) fn import_format_for_file(file: &gtk::gio::File) -> Option<DocumentImportFormat> {
+    let extension = file
+        .basename()?
+        .extension()?
+        .to_string_lossy()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "crv" => Some(DocumentImportFormat::Carve),
+        "md" | "markdown" => Some(DocumentImportFormat::Markdown),
+        _ => None,
     }
 }
 

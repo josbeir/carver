@@ -27,6 +27,13 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             }]
         }
         AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
+        AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
+            import_note_effect(model, format, source)
+        }
+        AppMsg::Navigation(NavigationMsg::ImportFailed(message)) => {
+            model.notice = Some(UiError::new(message));
+            Vec::new()
+        }
         AppMsg::Navigation(NavigationMsg::ShowTrash) => {
             model.route = super::Route::Trash;
             reload_trash(model).into_iter().collect()
@@ -284,6 +291,36 @@ fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
             Vec::new()
         },
         |category_id| vec![Effect::CreateNote { category_id }],
+    )
+}
+
+fn import_note_effect(
+    model: &mut AppModel,
+    format: carver_sdk::DocumentImportFormat,
+    source: String,
+) -> Vec<Effect> {
+    let category_id = model
+        .selected_category
+        .or_else(|| match &model.sidebar.state {
+            super::LoadState::Ready(categories) => {
+                categories.first().map(|category| category.category.id)
+            }
+            _ => None,
+        });
+    category_id.map_or_else(
+        || {
+            model.notice = Some(UiError::new(
+                "No category is available for the imported note.",
+            ));
+            Vec::new()
+        },
+        |category_id| {
+            vec![Effect::ImportNote {
+                category_id,
+                format,
+                source,
+            }]
+        },
     )
 }
 

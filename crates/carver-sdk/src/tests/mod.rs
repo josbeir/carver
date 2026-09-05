@@ -111,6 +111,15 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn create_note_with_source(
+        &self,
+        _category_id: CategoryId,
+        _source: &str,
+        _now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::unsupported()
+    }
+
     fn note(&self, _note_id: NoteId) -> Result<Option<Note>, Self::Error> {
         Self::unsupported()
     }
@@ -218,6 +227,11 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(client.trash_category_async(category_id)));
     assert_backend_error(&block_on(client.restore_category_async(category_id)));
     assert_backend_error(&block_on(client.create_note_async(category_id)));
+    assert_backend_error(&block_on(client.import_note_async(
+        category_id,
+        DocumentImportFormat::Carve,
+        String::from("# Imported"),
+    )));
     assert_backend_error(&block_on(client.note_async(note_id)));
     assert_backend_error(&block_on(client.save_note_async(
         note_id,

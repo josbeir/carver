@@ -987,7 +987,7 @@ fn show_export_file_dialog(
     let extension = format.extension(include_assets);
     let filter = gtk::FileFilter::new();
     filter.set_name(Some(match extension {
-        "carve" => "Carve documents",
+        "crv" => "Carve documents",
         "md" => "Markdown documents",
         "pdf" => "PDF documents",
         _ => "Portable ZIP archives",

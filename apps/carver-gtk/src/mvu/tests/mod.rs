@@ -1,5 +1,5 @@
 use carver_config::{AppPaths, Config};
-use carver_sdk::{CategoryId, NoteId, Revision};
+use carver_sdk::{CategoryId, DocumentImportFormat, NoteId, Revision};
 use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::SqliteLibrary;
 use gtk::gio::prelude::FileExt;
@@ -48,6 +48,76 @@ fn new_note_should_create_in_the_selected_category() {
         update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote)),
         vec![Effect::CreateNote { category_id }]
     );
+}
+
+#[test]
+fn import_should_create_in_the_selected_category() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Navigation(NavigationMsg::ImportNote {
+                format: DocumentImportFormat::Markdown,
+                source: String::from("# Imported"),
+            }),
+        ),
+        vec![Effect::ImportNote {
+            category_id,
+            format: DocumentImportFormat::Markdown,
+            source: String::from("# Imported"),
+        }]
+    );
+}
+
+#[test]
+fn import_should_use_the_first_category_when_all_notes_is_selected() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    model.sidebar.state = LoadState::Ready(vec![carver_sdk::CategorySummary {
+        category: carver_sdk::Category {
+            id: category_id,
+            name: String::from("Notes"),
+            position: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            trashed_at: None,
+        },
+        note_count: 0,
+    }]);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::ImportNote {
+            format: DocumentImportFormat::Carve,
+            source: String::from("# Imported"),
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::ImportNote {
+            category_id,
+            format: DocumentImportFormat::Carve,
+            source: String::from("# Imported"),
+        }]
+    );
+}
+
+#[test]
+fn import_failure_should_not_change_the_active_route() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::ImportFailed(String::from("Invalid UTF-8"))),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.notice, Some(UiError::new("Invalid UTF-8")));
 }
 
 #[test]
@@ -1377,6 +1447,17 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
     assert_eq!(client.categories()?.len(), 1);
+
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::ImportNote {
+        format: DocumentImportFormat::Markdown,
+        source: String::from("# Imported\n\n- [x] Converted"),
+    }));
+    assert!(crate::tests::support::run_main_context_until(|| {
+        runtime.model().editor.as_ref().is_some_and(|document| {
+            document.source.contains("# Imported") && document.source.contains("- [x] Converted")
+        })
+    }));
+    assert_eq!(client.recent_notes(None, 10, 0)?.len(), 1);
 
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
         "needle".to_owned(),

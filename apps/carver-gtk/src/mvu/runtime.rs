@@ -142,6 +142,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::CreateNote { category_id } => self.create_note(category_id),
+            Effect::ImportNote {
+                category_id,
+                format,
+                source,
+            } => self.import_note(category_id, format, source),
             Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
             Effect::ScheduleEditorSave {
                 session,
@@ -165,25 +170,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 category_id,
                 query,
-            } => {
-                let client = self.inner.client.clone();
-                let runtime = self.clone();
-                glib::spawn_future_local(async move {
-                    let result = if query.trim().is_empty() {
-                        client.recent_notes_async(category_id, 200, 0).await
-                    } else {
-                        client
-                            .search_async(query, category_id, 200)
-                            .await
-                            .map(|matches| matches.into_iter().map(|hit| hit.note).collect())
-                    }
-                    .map_err(display_error);
-                    runtime.dispatch(AppMsg::Library(LibraryReply::BrowserLoaded {
-                        request_id,
-                        result,
-                    }));
-                });
-            }
+            } => self.load_browser(request_id, category_id, query),
             Effect::LoadEditorNote {
                 request_id,
                 note_id,
@@ -304,6 +291,48 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::NoteCreated { result }));
+        });
+    }
+
+    fn import_note(
+        &self,
+        category_id: carver_sdk::CategoryId,
+        format: carver_sdk::DocumentImportFormat,
+        source: String,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .import_note_async(category_id, format, source)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::NoteCreated { result }));
+        });
+    }
+
+    fn load_browser(
+        &self,
+        request_id: super::RequestId,
+        category_id: Option<carver_sdk::CategoryId>,
+        query: String,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = if query.trim().is_empty() {
+                client.recent_notes_async(category_id, 200, 0).await
+            } else {
+                client
+                    .search_async(query, category_id, 200)
+                    .await
+                    .map(|matches| matches.into_iter().map(|hit| hit.note).collect())
+            }
+            .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BrowserLoaded {
+                request_id,
+                result,
+            }));
         });
     }
 

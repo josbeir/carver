@@ -43,17 +43,8 @@
 }
 
 .note-feed row.note-card {
-  background: alpha(currentColor, 0.06);
-  border-radius: 12px;
-  margin: 4px 0;
-}
-
-.note-feed row.note-card:hover {
-  background: alpha(currentColor, 0.06);
-}
-
-.note-feed row.note-card:selected {
-  background: alpha(@accent_bg_color, 0.24);
+  /* Libadwaita's card elevation extends beyond the row bounds. */
+  margin: 6px 4px;
 }
 
 .note-feed row.date-heading {
@@ -95,8 +86,7 @@
 }
 
 .search-empty-card {
-  border-radius: 12px;
-  background: alpha(currentColor, 0.06);
+  margin: 0 4px;
   padding: 14px;
 }
 

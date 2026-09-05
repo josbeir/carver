@@ -7,7 +7,7 @@ use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
 use crate::{
-    dialogs::NEW_NOTE_ACTION,
+    dialogs::{IMPORT_NOTE_ACTION, NEW_NOTE_ACTION},
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
     mvu::{AppDispatcher, AppMsg, BrowserMsg, EditorMsg, NavigationMsg},
     sidebar::sidebar_toggle_button,
@@ -112,6 +112,10 @@ pub(crate) fn build_browser(
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
     header.pack_end(&new_note);
+    let import_note = gtk::Button::from_icon_name("document-open-symbolic");
+    import_note.set_widget_name("import-note-button");
+    import_note.set_tooltip_text(Some("Import note"));
+    header.pack_end(&import_note);
     header.pack_start(&sidebar_toggle_button(
         split_view,
         "toggle-categories-button",
@@ -129,6 +133,7 @@ pub(crate) fn build_browser(
     content.append(&search);
     let search_empty_card = gtk::Box::new(gtk::Orientation::Vertical, 4);
     search_empty_card.set_widget_name("browser-search-empty-card");
+    search_empty_card.add_css_class("card");
     search_empty_card.add_css_class("search-empty-card");
     search_empty_card.set_visible(false);
     let search_empty_title = gtk::Label::new(Some("No matching notes"));
@@ -172,7 +177,14 @@ pub(crate) fn build_browser(
     pages.add_named(&status, Some("empty"));
     view.set_content(Some(&pages));
 
-    connect_browser_actions(dispatcher, &search, &new_note, &empty_new_note, &list);
+    connect_browser_actions(
+        dispatcher,
+        &search,
+        &new_note,
+        &import_note,
+        &empty_new_note,
+        &list,
+    );
     install_browser_shortcuts(&view);
     (
         view.upcast(),
@@ -187,7 +199,7 @@ pub(crate) fn build_browser(
     )
 }
 
-/// Captures the overview-only new-note shortcut before child widgets consume it.
+/// Captures overview shortcuts before child widgets consume them.
 fn install_browser_shortcuts(view: &adw::ToolbarView) {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("browser-shortcuts"));
@@ -195,13 +207,17 @@ fn install_browser_shortcuts(view: &adw::ToolbarView) {
     let action_host = view.clone().upcast::<gtk::Widget>();
     let action_host_for_callback = action_host.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
-        if key != gtk::gdk::Key::n
-            || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
+        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
             || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
         {
             return glib::Propagation::Proceed;
         }
-        let _ = action_host_for_callback.activate_action(NEW_NOTE_ACTION, None::<&glib::Variant>);
+        let action = match key {
+            gtk::gdk::Key::n => NEW_NOTE_ACTION,
+            gtk::gdk::Key::o => IMPORT_NOTE_ACTION,
+            _ => return glib::Propagation::Proceed,
+        };
+        let _ = action_host_for_callback.activate_action(action, None::<&glib::Variant>);
         glib::Propagation::Stop
     });
     action_host.add_controller(controller);
@@ -211,6 +227,7 @@ fn connect_browser_actions(
     dispatcher: &AppDispatcher,
     search: &gtk::SearchEntry,
     new_note: &gtk::Button,
+    import_note: &gtk::Button,
     empty_new_note: &gtk::Button,
     list: &gtk::ListBox,
 ) {
@@ -221,6 +238,7 @@ fn connect_browser_actions(
         )));
     });
     connect_new_note_action(dispatcher, new_note);
+    connect_import_note_action(import_note);
     connect_new_note_action(dispatcher, empty_new_note);
     let dispatcher_for_row = dispatcher.clone();
     list.connect_row_activated(move |_list, row| {
@@ -234,6 +252,12 @@ fn connect_browser_actions(
         let _ = dispatcher_for_row.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
             carver_sdk::NoteId::from_uuid(id),
         )));
+    });
+}
+
+fn connect_import_note_action(button: &gtk::Button) {
+    button.connect_clicked(|button| {
+        let _ = button.activate_action(IMPORT_NOTE_ACTION, None::<&glib::Variant>);
     });
 }
 
@@ -255,7 +279,7 @@ pub(crate) fn note_card_details(note: &NoteSummary, show_category: bool) -> gtk:
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
     title.set_single_line_mode(true);
     details.append(&title);
-    let excerpt_text = card_excerpt(&note.title, &note.excerpt);
+    let excerpt_text = compact_note_excerpt(&note.title, &note.excerpt);
     if !excerpt_text.is_empty() {
         let excerpt = gtk::Label::new(Some(&excerpt_text));
         excerpt.set_widget_name(&format!("note-excerpt:{}", note.id));
@@ -291,7 +315,8 @@ fn local_day(timestamp: OffsetDateTime) -> time::Date {
         .date()
 }
 
-fn card_excerpt(title: &str, excerpt: &str) -> String {
+/// Returns the one-line excerpt used by every note card.
+pub(crate) fn compact_note_excerpt(title: &str, excerpt: &str) -> String {
     let excerpt = excerpt.split_whitespace().collect::<Vec<_>>().join(" ");
     excerpt
         .strip_prefix(title)
@@ -352,12 +377,12 @@ const fn month_name(month: Month) -> &'static str {
 mod tests {
     use time::macros::datetime;
 
-    use super::{card_excerpt, relative_update_time};
+    use super::{compact_note_excerpt, relative_update_time};
 
     #[test]
-    fn card_excerpt_collapses_whitespace_and_omits_a_repeated_title() {
+    fn compact_note_excerpt_should_collapse_whitespace_and_omit_a_repeated_title() {
         assert_eq!(
-            card_excerpt("Heading 1", "Heading 1\n\n  Relevant   body text"),
+            compact_note_excerpt("Heading 1", "Heading 1\n\n  Relevant   body text"),
             "Relevant body text"
         );
     }

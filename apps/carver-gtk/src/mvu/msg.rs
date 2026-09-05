@@ -4,7 +4,8 @@ use std::ops::Range;
 
 use carver_config::{EditorMode, SourceSyntaxStyle};
 use carver_sdk::{
-    CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents, TrashPurgeResult,
+    CategoryId, CategorySummary, DocumentImportFormat, NoteId, NoteSummary, Revision,
+    TrashContents, TrashPurgeResult,
 };
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
@@ -28,7 +29,7 @@ impl EditorExportFormat {
             return "zip";
         }
         match self {
-            Self::Carve => "carve",
+            Self::Carve => "crv",
             Self::Markdown => "md",
             Self::Pdf => "pdf",
         }
@@ -69,6 +70,15 @@ pub enum NavigationMsg {
     OpenNote(NoteId),
     /// Create a note in the selected category, or the first active category.
     CreateNote,
+    /// Import one source document into the selected category, or the first active category.
+    ImportNote {
+        /// Format selected from the imported file's extension.
+        format: DocumentImportFormat,
+        /// UTF-8 source read by the GTK file adapter.
+        source: String,
+    },
+    /// Surface a selected-file failure without creating a note.
+    ImportFailed(String),
     /// Show the trash surface.
     ShowTrash,
     /// Return to the browser surface.

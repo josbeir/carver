@@ -6,8 +6,9 @@ use std::{error::Error, thread};
 
 use async_channel::{Receiver, Sender};
 pub use carver_domain::{
-    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
-    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+    Category, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
+    Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    TrashedNoteSummary,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -55,6 +56,13 @@ pub trait LibraryBackend: Send + 'static {
     fn create_note(
         &self,
         category_id: CategoryId,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error>;
+    /// Creates a note with canonical Carve source at the supplied time.
+    fn create_note_with_source(
+        &self,
+        category_id: CategoryId,
+        source: &str,
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error>;
     /// Reads one note, excluding trashed notes.
@@ -240,6 +248,24 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Converts one supported source format and creates the resulting note without blocking.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend worker is unavailable or cannot persist the note.
+    pub async fn import_note_async(
+        &self,
+        category_id: CategoryId,
+        format: DocumentImportFormat,
+        source: String,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            let source = carver_domain::import_document(&source, format);
+            backend.create_note_with_source(category_id, &source, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
     /// Loads a note without blocking the caller.
     pub async fn note_async(
         &self,
@@ -388,6 +414,24 @@ impl<B: LibraryBackend> LibraryClient<B> {
     /// Creates a blank note synchronously for bootstrap code and tests.
     pub fn create_note(&self, category_id: CategoryId) -> Result<Note, LibraryError<B::Error>> {
         self.blocking(move |backend| backend.create_note(category_id, OffsetDateTime::now_utc()))
+    }
+
+    /// Converts one supported source format and creates the resulting note synchronously.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend worker is unavailable or cannot persist the note.
+    pub fn import_note(
+        &self,
+        category_id: CategoryId,
+        format: DocumentImportFormat,
+        source: &str,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        let source = source.to_owned();
+        self.blocking(move |backend| {
+            let source = carver_domain::import_document(&source, format);
+            backend.create_note_with_source(category_id, &source, OffsetDateTime::now_utc())
+        })
     }
 
     /// Loads a note synchronously for bootstrap code and tests.

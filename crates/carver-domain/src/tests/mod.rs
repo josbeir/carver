@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn importing_carve_preserves_the_source() {
+    let source = "# Keep\n\nA /Carve/ document.\n";
+
+    assert_eq!(import_document(source, DocumentImportFormat::Carve), source);
+}
+
+#[test]
+fn importing_markdown_uses_the_native_carve_migration() {
+    let source = "---\ntitle: Imported\n---\n\n# Heading\n\n- [x] Done\n";
+
+    let converted = import_document(source, DocumentImportFormat::Markdown);
+
+    assert!(converted.contains("# Heading"));
+    assert!(converted.contains("- [x] Done"));
+}
+
+#[test]
 fn derives_title_from_first_heading() {
     let content = derive_content("# A /useful/ note\n\nBody text");
     assert_eq!(content.title, "A useful note");

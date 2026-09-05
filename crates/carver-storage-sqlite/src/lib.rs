@@ -243,6 +243,35 @@ impl SqliteLibrary {
             .ok_or_else(|| StorageError::Corrupt("new note was not persisted".to_owned()))
     }
 
+    /// Creates a note with canonical Carve source and its derived search data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the note or its search index entry cannot be persisted.
+    pub fn create_note_with_source(
+        &self,
+        category_id: CategoryId,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<Note, StorageError> {
+        let id = NoteId::new();
+        let derived = derive_content(source);
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
+            params![id.to_string(), category_id.to_string(), source, derived.title, derived.plain_text, timestamp(now)],
+        )?;
+        transaction.execute("DELETE FROM note_fts WHERE note_id = ?1", [id.to_string()])?;
+        transaction.execute(
+            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
+            params![id.to_string(), &derived.title, &derived.plain_text],
+        )?;
+        transaction.commit()?;
+        self.note(id)?
+            .ok_or_else(|| StorageError::Corrupt("imported note was not persisted".to_owned()))
+    }
+
     /// Loads a complete active or trashed note.
     ///
     /// # Errors
@@ -696,6 +725,15 @@ impl LibraryBackend for SqliteLibrary {
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error> {
         Self::create_note(self, category_id, now)
+    }
+
+    fn create_note_with_source(
+        &self,
+        category_id: CategoryId,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::create_note_with_source(self, category_id, source, now)
     }
 
     fn note(&self, note_id: NoteId) -> Result<Option<Note>, Self::Error> {

@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 use carver_config::Config;
-use carver_sdk::{CategoryId, NoteId};
+use carver_sdk::{CategoryId, DocumentImportFormat, NoteId};
 
 use super::{
     ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId, TimerId,
@@ -23,6 +23,15 @@ pub enum Effect {
     CreateNote {
         /// Category that owns the note.
         category_id: CategoryId,
+    },
+    /// Convert and import one source document into an active category.
+    ImportNote {
+        /// Category that owns the imported note.
+        category_id: CategoryId,
+        /// File format selected by the GTK adapter.
+        format: DocumentImportFormat,
+        /// Immutable UTF-8 source snapshot.
+        source: String,
     },
     /// Wait before dispatching the current search timer identity.
     ScheduleSearch {

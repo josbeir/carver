@@ -194,6 +194,38 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         gtk::PropagationPhase::Capture
     );
     assert!(widget_as::<gtk::Button>(&root, "new-note-button").is_some());
+    assert!(widget_as::<gtk::Button>(&root, "import-note-button").is_some());
+    assert!(window.lookup_action("import-note").is_some());
+    assert_eq!(
+        crate::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
+        Some(carver_sdk::DocumentImportFormat::Carve)
+    );
+    assert_eq!(
+        crate::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.md")),
+        Some(carver_sdk::DocumentImportFormat::Markdown)
+    );
+    crate::dialogs::read_import_file(
+        &gtk::gio::File::for_path("unsupported.txt"),
+        crate::mvu::AppDispatcher::default(),
+    );
+    assert_eq!(
+        crate::dialogs::import_message_from_bytes(
+            carver_sdk::DocumentImportFormat::Markdown,
+            b"# Imported",
+        ),
+        crate::mvu::NavigationMsg::ImportNote {
+            format: carver_sdk::DocumentImportFormat::Markdown,
+            source: String::from("# Imported"),
+        }
+    );
+    assert!(matches!(
+        crate::dialogs::import_message_from_bytes(carver_sdk::DocumentImportFormat::Carve, &[0xff],),
+        crate::mvu::NavigationMsg::ImportFailed(_)
+    ));
+    crate::dialogs::show_import_file_dialog(
+        window.upcast_ref(),
+        crate::mvu::AppDispatcher::default(),
+    );
     let new_note_handled = browser_shortcuts.emit_by_name::<bool>(
         "key-pressed",
         &[
@@ -282,6 +314,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let note_row = find_widget(&root, &format!("note:{}", note.id))
         .and_downcast::<gtk::ListBoxRow>()
         .ok_or("note row")?;
+    assert!(note_row.has_css_class("card"));
+    assert!(note_row.has_css_class("activatable"));
     note_row.activate();
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
@@ -769,9 +803,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Button>(&root, &format!("restore-note:{}", note.id)).is_some()
     }));
-    widget_as::<gtk::Button>(&root, &format!("restore-note:{}", note.id))
-        .ok_or("restore note")?
-        .emit_clicked();
+    let restore_note = widget_as::<gtk::Button>(&root, &format!("restore-note:{}", note.id))
+        .ok_or("restore note")?;
+    assert!(restore_note.is_visible());
+    assert!(restore_note.has_css_class("flat"));
+    assert_eq!(restore_note.tooltip_text().as_deref(), Some("Restore"));
+    restore_note.emit_clicked();
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()

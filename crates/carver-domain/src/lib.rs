@@ -12,6 +12,27 @@ use uuid::Uuid;
 
 pub mod source_analysis;
 
+/// A document representation accepted by Carver's import pipeline.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DocumentImportFormat {
+    /// Canonical Carve source.
+    Carve,
+    /// CommonMark-compatible Markdown converted through Carve's native migration codec.
+    Markdown,
+}
+
+/// Converts an imported document into canonical Carve source.
+///
+/// Carve input is preserved verbatim. Markdown input is converted with Carve's native
+/// migration API so its supported extensions follow the parser's own compatibility rules.
+#[must_use]
+pub fn import_document(source: &str, format: DocumentImportFormat) -> String {
+    match format {
+        DocumentImportFormat::Carve => source.to_owned(),
+        DocumentImportFormat::Markdown => carve::migrate_markdown(source).value,
+    }
+}
+
 /// A stable category identifier.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct CategoryId(Uuid);

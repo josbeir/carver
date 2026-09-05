@@ -16,15 +16,24 @@ space, keep them organized without ceremony, and reach for the
 
 ## Notes, without the clutter
 
-- **Rich-text editing** — Write naturally with formatting, lists, tasks, links, code, images,
-  and familiar keyboard shortcuts.
-- **Carve source and split preview** — Switch to the durable source whenever you want precision,
-  or work with source and its rendered result side by side.
-- **Categories that stay out of your way** — Keep notes organized, move them as your thinking
-  evolves, and recover deleted work from Trash.
-- **Full-text search** — Find the note you need quickly, across your entire library.
-- **Fast by design** — A native GNOME experience, built in Rust for a responsive and dependable
-  daily workspace.
+- **Rich-text writing** — Write naturally with headings, inline formatting, lists, tasks, links,
+  code blocks, tables, definition lists, and familiar keyboard shortcuts.
+- **Carve source, preview, and split view** — Move between rich editing, canonical `.crv` source,
+  read-only preview, or a synchronized source-and-preview workspace without losing your place.
+- **A source editor built for markup** — GtkSourceView-powered Carve highlighting, current-node
+  breadcrumbs, line numbers, current-line highlighting, in-note search, configurable monospace
+  font and size, and a quieter writing-focus syntax style when colour would distract.
+- **Images that travel with the note** — Paste or add images, resize them from the editor, and
+  keep managed assets referenced by canonical Carve markup. Remote-image loading is optional.
+- **Organized, recoverable notes** — Create and move categories, browse recent notes, and use
+  Trash to restore notes or categories (with Undo after moving a note to Trash).
+- **Search, copy, and share** — Use full-text library search or `Ctrl+F` within an editor; copy a
+  rendered note; import Carve (`.crv`) or Markdown; export Carve, Markdown, or PDF; bundle source
+  exports with managed assets; or print through the native print dialog.
+- **Preferences that respect your workflow** — Choose the editing surface, source-editor
+  presentation, remote-image behavior, and whether the formatting toolbar is visible.
+- **Native GNOME by design** — A responsive GTK4/Libadwaita application built in Rust, with
+  light/dark-theme support, accessible controls, contextual menus, and a keyboard-shortcuts guide.
 
 ## Architecture
 
