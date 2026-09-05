@@ -9,6 +9,18 @@ fn library() -> (tempfile::TempDir, SqliteLibrary) {
     .unwrap_or_else(|error| panic!("library open failed: {error}"));
     (directory, library)
 }
+
+#[test]
+fn change_notification_files_should_include_sqlite_wal_sidecars() {
+    assert_eq!(
+        change_notification_files(std::path::Path::new("/library/library.sqlite3")),
+        Some([
+            std::path::PathBuf::from("/library/library.sqlite3"),
+            std::path::PathBuf::from("/library/library.sqlite3-wal"),
+            std::path::PathBuf::from("/library/library.sqlite3-shm"),
+        ])
+    );
+}
 #[test]
 fn fts_search_finds_saved_notes() {
     let (_directory, library) = library();

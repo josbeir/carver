@@ -26,6 +26,20 @@ pub struct SqliteLibrary {
     assets_dir: PathBuf,
 }
 
+/// Returns the SQLite files whose changes can indicate a committed library mutation.
+///
+/// SQLite WAL mode writes commits to the `-wal` sidecar and maintains a `-shm` sidecar alongside
+/// the main database. Consumers that monitor a library must watch all three files.
+#[must_use]
+pub fn change_notification_files(database_path: &Path) -> Option<[PathBuf; 3]> {
+    let database_name = database_path.file_name()?.to_string_lossy();
+    Some([
+        database_path.to_owned(),
+        database_path.with_file_name(format!("{database_name}-wal")),
+        database_path.with_file_name(format!("{database_name}-shm")),
+    ])
+}
+
 /// Storage-layer failures.
 #[derive(Debug, Error)]
 pub enum StorageError {

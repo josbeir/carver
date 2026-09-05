@@ -9,6 +9,7 @@ use std::{
 };
 
 use carver_sdk::{LibraryBackend, LibraryClient};
+use carver_storage_sqlite::change_notification_files;
 use gtk::gio::{
     self, FileMonitor, FileMonitorEvent,
     prelude::{FileExt, FileMonitorExt},
@@ -125,14 +126,32 @@ impl<B: LibraryBackend> AppRuntime<B> {
         database_path: &Path,
         dispatcher: AppDispatcher,
     ) -> Result<(), glib::Error> {
-        let file = gio::File::for_path(database_path);
-        let monitor = file.monitor_file(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)?;
+        let Some(directory) = database_path.parent() else {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::InvalidArgument,
+                "database path must have a parent directory",
+            ));
+        };
+        let Some(watched_files) = change_notification_files(database_path) else {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::InvalidArgument,
+                "database path must have a file name",
+            ));
+        };
+        let directory = gio::File::for_path(directory);
+        let monitor =
+            directory.monitor_directory(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)?;
         monitor.set_rate_limit(250);
-        monitor.connect_changed(move |_, _, _, event| {
-            if matches!(
-                event,
-                FileMonitorEvent::Changed | FileMonitorEvent::ChangesDoneHint
-            ) {
+        monitor.connect_changed(move |_, file, _, event| {
+            let is_library_database = file
+                .path()
+                .is_some_and(|path| watched_files.contains(&path));
+            if is_library_database
+                && matches!(
+                    event,
+                    FileMonitorEvent::Changed | FileMonitorEvent::ChangesDoneHint
+                )
+            {
                 let _ = dispatcher.dispatch(AppMsg::LibraryChangedExternally);
             }
         });
