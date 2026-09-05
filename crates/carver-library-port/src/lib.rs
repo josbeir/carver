@@ -1,11 +1,24 @@
+//! UI-neutral persistence contract for Carver libraries.
+//!
+//! This crate owns the boundary between the domain model and persistence adapters. It intentionally
+//! has no dependency on SQLite, configuration, or a frontend so each layer depends inward.
+
+#![forbid(unsafe_code)]
+
 use std::error::Error;
 
-use time::OffsetDateTime;
-
-use crate::{
+use carver_domain::{
     Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
     TrashContents, TrashPurgeResult,
 };
+use time::OffsetDateTime;
+
+/// Monotonically increases whenever a library mutation commits.
+///
+/// Consumers use this value to determine whether a wake-up signal represents a visible library
+/// change. It is deliberately opaque: callers must only compare values for equality.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LibraryRevision(pub u64);
 
 /// Persistence port implemented by local and future remote Carver backends.
 ///
@@ -19,6 +32,8 @@ pub trait LibraryBackend: Send + 'static {
     /// Backend-specific error returned by an operation.
     type Error: Error + Send + Sync + 'static;
 
+    /// Reads the current semantic library revision.
+    fn change_revision(&self) -> Result<LibraryRevision, Self::Error>;
     /// Creates a category at the supplied time.
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error>;
     /// Lists active categories in their display order.

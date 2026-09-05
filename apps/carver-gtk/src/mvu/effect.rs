@@ -108,6 +108,11 @@ pub enum Effect {
         /// Identity for stale-completion protection.
         request_id: RequestId,
     },
+    /// Read the semantic revision after a local change wake-up.
+    LoadLibraryRevision {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+    },
     /// Load browser note summaries for the selected category and query.
     LoadBrowser {
         /// Identity for stale-completion protection.

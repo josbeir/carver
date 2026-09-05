@@ -7,10 +7,11 @@ use std::{error::Error, path::Path, thread};
 use async_channel::{Receiver, Sender};
 use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
-    Category, CategoryId, CategorySummary, DocumentImportFormat, LibraryBackend, Note, NoteId,
-    NoteSummary, Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    Category, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
+    Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
     TrashedNoteSummary,
 };
+pub use carver_library_port::{LibraryBackend, LibraryRevision};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -114,6 +115,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .spawn(move || run_worker(backend, receiver))
             .map_err(LibraryError::WorkerStart)?;
         Ok(Self { requests: sender })
+    }
+
+    /// Reads the current semantic library revision without blocking the caller.
+    ///
+    /// Frontends use this after a local change wake-up to decide whether their immutable read
+    /// models require reloading.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend worker is unavailable or cannot read the revision.
+    pub async fn change_revision_async(&self) -> Result<LibraryRevision, LibraryError<B::Error>> {
+        self.request(LibraryBackend::change_revision).await
     }
 
     /// Creates a category without blocking the caller.
@@ -340,6 +353,15 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub fn create_category(&self, name: &str) -> Result<Category, LibraryError<B::Error>> {
         let name = name.to_owned();
         self.blocking(move |backend| backend.create_category(&name, OffsetDateTime::now_utc()))
+    }
+
+    /// Reads the current semantic library revision synchronously for bootstrap code and tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the backend worker is unavailable or cannot read the revision.
+    pub fn change_revision(&self) -> Result<LibraryRevision, LibraryError<B::Error>> {
+        self.blocking(LibraryBackend::change_revision)
     }
 
     /// Lists categories synchronously for bootstrap code and tests.

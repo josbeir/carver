@@ -187,6 +187,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "carver-library-port"
+version = "0.1.0"
+dependencies = [
+ "carver-domain",
+ "time",
+]
+
+[[package]]
 name = "carver-mcp"
 version = "0.1.0"
 dependencies = [
@@ -208,6 +216,7 @@ dependencies = [
  "async-channel",
  "carver-config",
  "carver-domain",
+ "carver-library-port",
  "carver-storage-sqlite",
  "tempfile",
  "thiserror",
@@ -219,6 +228,7 @@ name = "carver-storage-sqlite"
 version = "0.1.0"
 dependencies = [
  "carver-domain",
+ "carver-library-port",
  "rusqlite",
  "sha2",
  "tempfile",

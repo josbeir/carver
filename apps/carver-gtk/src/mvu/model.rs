@@ -3,7 +3,9 @@
 use std::collections::BTreeSet;
 
 use carver_config::{Config, EditorMode, SourceSyntaxStyle};
-use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents};
+use carver_sdk::{
+    CategoryId, CategorySummary, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
+};
 
 /// Identifies one asynchronous resource request.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -411,6 +413,8 @@ pub struct AppModel {
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
     /// The request currently loading a note into the editor.
     pub editor_load_request: Option<RequestId>,
+    pub(crate) library_revision: Option<LibraryRevision>,
+    pub(crate) library_revision_request: Option<LibraryRevisionRequest>,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
@@ -445,6 +449,8 @@ impl AppModel {
             editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,
+            library_revision: None,
+            library_revision_request: None,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,
@@ -497,4 +503,17 @@ impl AppModel {
         self.next_editor_export_request_id = self.next_editor_export_request_id.wrapping_add(1);
         request_id
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct LibraryRevisionRequest {
+    pub(crate) request_id: RequestId,
+    pub(crate) reason: LibraryRevisionCheckReason,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LibraryRevisionCheckReason {
+    InitialLoad,
+    LocalMutation,
+    ExternalWakeup,
 }

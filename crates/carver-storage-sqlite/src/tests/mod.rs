@@ -21,6 +21,24 @@ fn change_notification_files_should_include_sqlite_wal_sidecars() {
         ])
     );
 }
+
+#[test]
+fn category_creation_should_increment_the_semantic_library_revision() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+
+    let initial_revision = library
+        .change_revision()
+        .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
+    let _category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let changed_revision = library
+        .change_revision()
+        .unwrap_or_else(|error| panic!("changed revision failed: {error}"));
+
+    assert_eq!(changed_revision, LibraryRevision(initial_revision.0 + 1));
+}
 #[test]
 fn fts_search_finds_saved_notes() {
     let (_directory, library) = library();

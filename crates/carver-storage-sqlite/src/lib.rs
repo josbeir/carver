@@ -10,10 +10,10 @@ use std::{
 use std::time::Duration;
 
 use carver_domain::{
-    Category, CategoryId, CategorySummary, LibraryBackend, Note, NoteId, NoteSummary, Revision,
-    SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
-    derive_content,
+    Category, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision, SearchHit,
+    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
+use carver_library_port::{LibraryBackend, LibraryRevision};
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -26,10 +26,11 @@ pub struct SqliteLibrary {
     assets_dir: PathBuf,
 }
 
-/// Returns the SQLite files whose changes can indicate a committed library mutation.
+/// Returns SQLite files whose changes can wake a consumer to query the library revision.
 ///
 /// SQLite WAL mode writes commits to the `-wal` sidecar and maintains a `-shm` sidecar alongside
-/// the main database. Consumers that monitor a library must watch all three files.
+/// the main database. A file event is not itself authoritative: consumers compare
+/// [`SqliteLibrary::change_revision`] after receiving one.
 #[must_use]
 pub fn change_notification_files(database_path: &Path) -> Option<[PathBuf; 3]> {
     let database_name = database_path.file_name()?.to_string_lossy();
@@ -95,6 +96,22 @@ impl SqliteLibrary {
         };
         library.migrate()?;
         Ok(library)
+    }
+
+    /// Returns the semantic revision for the current committed library state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the revision cannot be read or is malformed.
+    pub fn change_revision(&self) -> Result<LibraryRevision, StorageError> {
+        let revision: i64 = self.connection.query_row(
+            "SELECT change_revision FROM library_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        u64::try_from(revision)
+            .map(LibraryRevision)
+            .map_err(|_| StorageError::Corrupt("library change revision is negative".to_owned()))
     }
 
     /// Creates a category at the end of the sidebar.
@@ -629,7 +646,44 @@ impl SqliteLibrary {
                 asset_hash TEXT NOT NULL REFERENCES assets(hash) ON DELETE CASCADE,
                 PRIMARY KEY(note_id, asset_hash)
             );
+            CREATE TABLE IF NOT EXISTS library_metadata (
+                singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+                change_revision INTEGER NOT NULL CHECK(change_revision >= 0)
+            );
+            INSERT OR IGNORE INTO library_metadata (singleton, change_revision) VALUES (1, 0);
             CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(note_id UNINDEXED, title, plain_text);",
+        )?;
+        self.connection.execute_batch(
+            "CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_insert
+                AFTER INSERT ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_update
+                AFTER UPDATE ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_delete
+                AFTER DELETE ON categories
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_insert
+                AFTER INSERT ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_update
+                AFTER UPDATE ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;
+            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_delete
+                AFTER DELETE ON notes
+                BEGIN
+                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+                END;",
         )?;
         Ok(())
     }
@@ -675,6 +729,10 @@ impl SqliteLibrary {
 
 impl LibraryBackend for SqliteLibrary {
     type Error = StorageError;
+
+    fn change_revision(&self) -> Result<LibraryRevision, Self::Error> {
+        Self::change_revision(self)
+    }
 
     fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error> {
         Self::create_category(self, name, now)

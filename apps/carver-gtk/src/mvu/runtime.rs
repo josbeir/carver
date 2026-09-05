@@ -115,8 +115,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         dispatcher.bind(self);
     }
 
-    /// Watches the shared library database and reloads read models after another local process
-    /// commits a change.
+    /// Watches the shared library database and asks the reducer to verify semantic change state.
     ///
     /// # Errors
     ///
@@ -216,6 +215,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 source_selection,
             } => self.store_editor_asset(session, note_id, extension, bytes, alt, source_selection),
             Effect::LoadSidebar { request_id } => self.load_sidebar(request_id),
+            Effect::LoadLibraryRevision { request_id } => self.load_library_revision(request_id),
             Effect::LoadBrowser {
                 request_id,
                 category_id,
@@ -445,6 +445,18 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error)
                 .and_then(|note| note.ok_or_else(|| UiError::new("The note no longer exists")));
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_library_revision(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.change_revision_async().await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
                 request_id,
                 result,
             }));

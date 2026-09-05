@@ -7,6 +7,7 @@ members = [
   "crates/carver-export",
   "crates/carver-config",
   "crates/carver-domain",
+  "crates/carver-library-port",
   "crates/carver-sdk",
   "crates/carver-storage-sqlite",
 ]

@@ -29,6 +29,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "registered agent icons should be discoverable by GTK's icon theme"
     );
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
+    crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
     crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
     let (temporary_directory, client) = test_state()?;

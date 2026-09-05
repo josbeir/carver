@@ -10,10 +10,7 @@ use thiserror::Error;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-mod backend;
 pub mod source_analysis;
-
-pub use backend::LibraryBackend;
 
 /// A document representation accepted by Carver's import pipeline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

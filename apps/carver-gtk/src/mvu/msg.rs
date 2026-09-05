@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use carver_config::{EditorMode, SourceSyntaxStyle};
 use carver_sdk::{
-    CategoryId, CategorySummary, DocumentImportFormat, NoteId, NoteSummary, Revision,
-    TrashContents, TrashPurgeResult,
+    CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId, NoteSummary,
+    Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
@@ -336,6 +336,13 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A semantic library revision completed loading.
+    LibraryRevisionLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Successful revision or a displayable failure.
+        result: Result<LibraryRevision, UiError>,
+    },
     /// A newly created note is ready to open in the editor.
     NoteCreated {
         /// Created note or a displayable failure.
