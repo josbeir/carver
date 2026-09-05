@@ -40,26 +40,11 @@ Carver—turning them into a useful, organized project context instead of an iso
   Full-text and in-note search; Carve/Markdown import; Carve, Markdown, and PDF export.
 - **Preferences that respect your workflow**<br>
   Configure editing mode, source presentation, remote images, and the formatting toolbar.
-- **Local agent access**<br>
+- **[Local agent access](#agent-access)**<br>
   Let an agent use your notes as project context to find ideas, build plans, and organize work,
   with explicitly opt-in, reversible changes.
 - **Native GNOME by design**<br>
   Responsive GTK4/Libadwaita design with light/dark themes and accessible controls.
-
-## Architecture
-
-Carver is a Cargo workspace with clear dependency boundaries:
-
-- `carver-domain` contains domain types and pure transformations.
-- `carver-config` handles XDG paths and TOML configuration.
-- `carver-storage-sqlite` owns migrations, FTS5 search, notes, and managed assets.
-- `carver-sdk` exposes a UI-neutral asynchronous facade.
-- `carver-editor-protocol` defines the small, format-neutral host/editor bridge.
-- `carver-gtk` is the GTK4/Libadwaita desktop application.
-  Its sandboxed Tiptap surface uses [Carve Grammars](https://github.com/markup-carve/carve-grammars)
-  for faithful Carve editing, while native WebKit preview uses the canonical Carve renderer.
-  Its window-local Model-View-Update runtime keeps application state UI-neutral: GTK/WebKit
-  callbacks dispatch messages, a pure reducer requests typed effects, and views render snapshots.
 
 ## Getting started
 
@@ -78,6 +63,27 @@ the local desktop assets once before launching it:
 ```bash
 ./scripts/install-dev-assets.sh
 ```
+
+## Architecture
+
+Carver is a Cargo workspace with clear dependency boundaries:
+
+| Layer | Package | Responsibility |
+| --- | --- | --- |
+| Domain | `carver-domain` | UI-independent note, category, revision, and search types; canonical Carve import and content-derived transformations. |
+| Configuration | `carver-config` | XDG paths and durable TOML preferences. |
+| Persistence contract | `carver-library-port` | UI-neutral library interface shared by storage implementations and clients. |
+| Storage | `carver-storage-sqlite` | SQLite migrations, FTS5 search, notes, soft deletion, and managed assets. |
+| Application SDK | `carver-sdk` | Asynchronous, UI-neutral facade over the installed library. |
+| Editor bridge | `carver-editor-protocol` | Format-neutral message contract between the host and rich-text editor surfaces. |
+| Export | `carver-export` | Carve and Markdown exports plus portable archives for managed images. |
+| Agent integration | `carver-agent-integration` | Package-aware local MCP setup instructions and client metadata. |
+| Desktop app | `carver-gtk` | GTK4/Libadwaita application with a window-local MVU runtime, source editor, sandboxed Tiptap rich editor, and native WebKit preview. The rich editor uses [Carve Grammars](https://github.com/markup-carve/carve-grammars) for faithful editing. |
+| Local agent server | `carver-mcp` | Local stdio MCP server that opens Carver through the SDK and exposes controlled note and category access to agents. |
+
+The UI calls the SDK; the SDK uses the library contract and storage; configuration and storage use
+domain types. GTK/WebKit callbacks dispatch MVU messages, the reducer requests typed effects, and
+views render immutable snapshots.
 
 ## Development and quality
 
@@ -123,21 +129,6 @@ notes, research, and project plans in Carver, then let an agent search and read 
 helping you plan a project. With write access enabled, it can also draft or update plans, create
 notes for new work, and organize notes and categories—so the useful result stays in your library
 rather than disappearing into a chat transcript.
-
-### Carve for writing, Markdown for interchange
-
-Carver stores notes as [Carve](https://github.com/markup-carve), not Markdown. Markdown is a
-great lowest-common-denominator interchange format, but its extensions and renderer-specific
-dialects make complex documents ambiguous and difficult to round-trip reliably. Carve provides a
-single canonical representation for the structured notes Carver edits—rich inline formatting,
-tables, tasks, managed images, and target-specific content—so source mode, rich editing, and
-preview can preserve the same document instead of guessing which Markdown dialect was intended.
-
-That does not lock your notes in. Carver cleanly imports CommonMark and exports Markdown whenever
-you need to share a note. MCP agents can pass Markdown to `create_note` or `save_note` with
-`markdown: true`, and can pass `markdown: true` to `get_note` to receive a Markdown rendering in
-the returned `source` field. Carver always keeps the canonical Carve source as the lossless
-original, even when a Markdown export cannot represent every Carve construct exactly.
 
 Open the **Connect an agent** entry in Carver's menu to choose Codex, Claude Code, GitHub Copilot
 CLI, VS Code Copilot, or a generic stdio-MCP client and copy a user-level setup command. The setup
