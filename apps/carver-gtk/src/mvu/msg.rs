@@ -55,6 +55,8 @@ pub enum AppMsg {
     Window(WindowMsg),
     /// Note and category mutation intent.
     Action(ActionMsg),
+    /// The locally shared library changed in another process, such as the MCP companion.
+    LibraryChangedExternally,
     /// Completion from an effect that accessed the library.
     Library(LibraryReply),
 }

@@ -2,122 +2,18 @@
 
 #![forbid(unsafe_code)]
 
-use std::{error::Error, thread};
+use std::{error::Error, path::Path, thread};
 
 use async_channel::{Receiver, Sender};
+use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
-    Category, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
-    Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    Category, CategoryId, CategorySummary, DocumentImportFormat, LibraryBackend, Note, NoteId,
+    NoteSummary, Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
     TrashedNoteSummary,
 };
+use carver_storage_sqlite::{SqliteLibrary, StorageError};
 use thiserror::Error;
 use time::OffsetDateTime;
-
-/// Persistence port implemented by local and future remote Carver backends.
-///
-/// Implementations are owned by one [`LibraryClient`] worker thread. They must not retain GTK
-/// objects or call UI code.
-#[expect(
-    clippy::missing_errors_doc,
-    reason = "the backend trait documents its single associated error contract once"
-)]
-pub trait LibraryBackend: Send + 'static {
-    /// Backend-specific error returned by an operation.
-    type Error: Error + Send + Sync + 'static;
-
-    /// Creates a category at the supplied time.
-    fn create_category(&self, name: &str, now: OffsetDateTime) -> Result<Category, Self::Error>;
-    /// Lists active categories in their display order.
-    fn categories(&self) -> Result<Vec<Category>, Self::Error>;
-    /// Lists active categories with their active-note counts in display order.
-    fn categories_with_note_counts(&self) -> Result<Vec<CategorySummary>, Self::Error>;
-    /// Counts active notes in a category.
-    fn note_count(&self, category_id: CategoryId) -> Result<usize, Self::Error>;
-    /// Renames a category at the supplied time.
-    fn rename_category(
-        &self,
-        category_id: CategoryId,
-        name: &str,
-        now: OffsetDateTime,
-    ) -> Result<Category, Self::Error>;
-    /// Moves a category to trash at the supplied time.
-    fn trash_category(
-        &self,
-        category_id: CategoryId,
-        now: OffsetDateTime,
-    ) -> Result<(), Self::Error>;
-    /// Restores a category from trash at the supplied time.
-    fn restore_category(
-        &self,
-        category_id: CategoryId,
-        now: OffsetDateTime,
-    ) -> Result<(), Self::Error>;
-    /// Creates a blank note at the supplied time.
-    fn create_note(
-        &self,
-        category_id: CategoryId,
-        now: OffsetDateTime,
-    ) -> Result<Note, Self::Error>;
-    /// Creates a note with canonical Carve source at the supplied time.
-    fn create_note_with_source(
-        &self,
-        category_id: CategoryId,
-        source: &str,
-        now: OffsetDateTime,
-    ) -> Result<Note, Self::Error>;
-    /// Reads one note, excluding trashed notes.
-    fn note(&self, note_id: NoteId) -> Result<Option<Note>, Self::Error>;
-    /// Saves source guarded by its revision at the supplied time.
-    fn save_note(
-        &self,
-        note_id: NoteId,
-        revision: Revision,
-        source: &str,
-        now: OffsetDateTime,
-    ) -> Result<Note, Self::Error>;
-    /// Moves an active note to an active category without changing its content timestamp.
-    fn move_note(
-        &self,
-        note_id: NoteId,
-        category_id: CategoryId,
-        now: OffsetDateTime,
-    ) -> Result<Note, Self::Error>;
-    /// Moves a note to trash at the supplied time.
-    fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error>;
-    /// Restores a note from trash.
-    fn restore_note(&self, note_id: NoteId) -> Result<(), Self::Error>;
-    /// Lists recoverable trash contents.
-    fn trash_contents(&self) -> Result<TrashContents, Self::Error>;
-    /// Permanently removes trashed content and unreferenced managed assets.
-    fn empty_trash(&self) -> Result<TrashPurgeResult, Self::Error>;
-    /// Returns recent active notes, optionally filtered by category.
-    fn recent_notes(
-        &self,
-        category_id: Option<CategoryId>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<NoteSummary>, Self::Error>;
-    /// Searches active notes by title and body.
-    fn search(
-        &self,
-        query: &str,
-        category_id: Option<CategoryId>,
-        limit: usize,
-    ) -> Result<Vec<SearchHit>, Self::Error>;
-    /// Stores managed image bytes and returns their relative Carve path.
-    fn store_asset(
-        &self,
-        note_id: NoteId,
-        extension: &str,
-        bytes: &[u8],
-    ) -> Result<String, Self::Error>;
-    /// Reads managed image bytes for one note.
-    fn note_asset_bytes(
-        &self,
-        note_id: NoteId,
-        relative_path: &str,
-    ) -> Result<Option<Vec<u8>>, Self::Error>;
-}
 
 type Job<B> = Box<dyn FnOnce(&B) + Send + 'static>;
 
@@ -126,6 +22,50 @@ type Job<B> = Box<dyn FnOnce(&B) + Send + 'static>;
 /// A bounded queue applies asynchronous backpressure to frontends rather than allowing an
 /// unlimited number of UI-triggered operations to accumulate in memory.
 const REQUEST_QUEUE_CAPACITY: usize = 32;
+
+/// Worker-backed client for the installed local SQLite library.
+pub type InstalledLibraryClient = LibraryClient<SqliteLibrary>;
+
+/// Errors opening the installed local library through the SDK.
+#[derive(Debug, Error)]
+pub enum OpenLibraryError {
+    /// The XDG application locations could not be created.
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+    /// The SQLite library could not be opened.
+    #[error(transparent)]
+    Storage(#[from] StorageError),
+    /// The SDK worker for the library could not be started.
+    #[error(transparent)]
+    Worker(#[from] LibraryError<StorageError>),
+}
+
+/// Opens the installed XDG-scoped Carver library behind the SDK worker boundary.
+///
+/// # Errors
+///
+/// Returns an error when XDG directories, SQLite storage, or the SDK worker cannot be prepared.
+pub fn open_installed_library() -> Result<InstalledLibraryClient, OpenLibraryError> {
+    let paths = AppPaths::discover();
+    paths.ensure_exists()?;
+    open_local_library(&paths.database_file(), &paths.assets_dir())
+}
+
+/// Opens a local SQLite library at explicit storage paths behind the SDK worker boundary.
+///
+/// This is intended for package integrations that supply their own XDG-compatible paths and for
+/// deterministic tests. Most frontends should use [`open_installed_library`].
+///
+/// # Errors
+///
+/// Returns an error when the SQLite library or the SDK worker cannot be prepared.
+pub fn open_local_library(
+    database_path: &Path,
+    assets_dir: &Path,
+) -> Result<InstalledLibraryClient, OpenLibraryError> {
+    let library = SqliteLibrary::open(database_path, assets_dir)?;
+    Ok(LibraryClient::spawn(library)?)
+}
 
 /// Cloneable client that serializes storage work on a dedicated backend thread.
 ///

@@ -81,6 +81,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             persist_config_effect(model)
         }
         AppMsg::Action(action) => update_action(model, action),
+        AppMsg::LibraryChangedExternally => reload_all_resources(model),
         AppMsg::Library(reply) => update_library(model, reply),
     }
 }

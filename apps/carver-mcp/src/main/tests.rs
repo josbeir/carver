@@ -4,12 +4,11 @@ type TestResult = Result<(), String>;
 
 fn server(allow_write: bool) -> Result<(tempfile::TempDir, CarverServer), String> {
     let directory = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let library = SqliteLibrary::open(
+    let client = carver_sdk::open_local_library(
         &directory.path().join("library.sqlite3"),
         &directory.path().join("assets"),
     )
     .map_err(|error| error.to_string())?;
-    let client = LibraryClient::spawn(library).map_err(|error| error.to_string())?;
     Ok((directory, CarverServer::new(client, allow_write)))
 }
 

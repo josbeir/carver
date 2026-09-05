@@ -111,6 +111,47 @@ fn category_summaries_count_only_active_notes_in_active_categories() {
 }
 
 #[test]
+fn trash_and_restore_should_reject_stale_or_repeated_requests() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note(category.id, now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .trash_note(note.id, now)
+        .unwrap_or_else(|error| panic!("note trash failed: {error}"));
+    assert!(matches!(
+        library.trash_note(note.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .restore_note(note.id)
+        .unwrap_or_else(|error| panic!("note restore failed: {error}"));
+    assert!(matches!(
+        library.restore_note(note.id),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .trash_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+    assert!(matches!(
+        library.trash_category(category.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
+    library
+        .restore_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category restore failed: {error}"));
+    assert!(matches!(
+        library.restore_category(category.id, now),
+        Err(StorageError::MutationUnavailable)
+    ));
+}
+
+#[test]
 fn saving_unchanged_source_preserves_the_note_timestamp_and_revision() {
     let (_directory, library) = library();
     let created_at = OffsetDateTime::UNIX_EPOCH;

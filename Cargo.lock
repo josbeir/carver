@@ -191,9 +191,7 @@ name = "carver-mcp"
 version = "0.1.0"
 dependencies = [
  "carver-agent-integration",
- "carver-config",
  "carver-sdk",
- "carver-storage-sqlite",
  "rmcp",
  "schemars",
  "serde",
@@ -210,6 +208,7 @@ dependencies = [
  "async-channel",
  "carver-config",
  "carver-domain",
+ "carver-storage-sqlite",
  "tempfile",
  "thiserror",
  "time",
@@ -220,7 +219,6 @@ name = "carver-storage-sqlite"
 version = "0.1.0"
 dependencies = [
  "carver-domain",
- "carver-sdk",
  "rusqlite",
  "sha2",
  "tempfile",

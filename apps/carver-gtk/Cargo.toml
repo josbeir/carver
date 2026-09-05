@@ -11,9 +11,9 @@ carver-config = { path = "../../crates/carver-config", version = "0.1.0" }
 carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.1.0" }
 carver-domain = { path = "../../crates/carver-domain", version = "0.1.0" }
 carver-sdk = { path = "../../crates/carver-sdk", version = "0.1.0" }
+carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite", version = "0.1.0" }
 carver-editor-protocol = { path = "../../crates/carver-editor-protocol", version = "0.1.0" }
 carver-export = { path = "../../crates/carver-export", version = "0.1.0" }
-carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite", version = "0.1.0" }
 base64.workspace = true
 carve-lang.workspace = true
 glib.workspace = true

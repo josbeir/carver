@@ -39,6 +39,30 @@ fn startup_should_initialize_then_request_sidebar_and_browser_data() {
 }
 
 #[test]
+fn external_library_change_should_reload_visible_resources() {
+    let mut model = AppModel::new(&Config::default());
+
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+
+    assert_eq!(
+        effects,
+        vec![
+            Effect::LoadSidebar {
+                request_id: RequestId(1),
+            },
+            Effect::LoadBrowser {
+                request_id: RequestId(2),
+                category_id: None,
+                query: String::new(),
+            },
+            Effect::LoadTrash {
+                request_id: RequestId(3),
+            },
+        ]
+    );
+}
+
+#[test]
 fn new_note_should_create_in_the_selected_category() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();

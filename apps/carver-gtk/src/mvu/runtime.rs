@@ -4,12 +4,15 @@ use std::{
     cell::RefCell,
     collections::BTreeMap,
     future::Future,
-    path::PathBuf,
+    path::{Path, PathBuf},
     rc::{Rc, Weak},
 };
 
 use carver_sdk::{LibraryBackend, LibraryClient};
-use gtk::gio::prelude::FileExt;
+use gtk::gio::{
+    self, FileMonitor, FileMonitorEvent,
+    prelude::{FileExt, FileMonitorExt},
+};
 
 use crate::view::ViewRefs;
 
@@ -63,6 +66,7 @@ struct RuntimeInner<B: LibraryBackend> {
     model: RefCell<AppModel>,
     view: ViewRefs,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
+    library_monitor: RefCell<Option<FileMonitor>>,
 }
 
 struct PreparedExport {
@@ -100,6 +104,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 model: RefCell::new(model),
                 view,
                 prepared_exports: RefCell::new(BTreeMap::new()),
+                library_monitor: RefCell::new(None),
             }),
         }
     }
@@ -107,6 +112,32 @@ impl<B: LibraryBackend> AppRuntime<B> {
     /// Binds a weak dispatcher for callbacks that are created before the runtime exists.
     pub fn bind_dispatcher(&self, dispatcher: &AppDispatcher) {
         dispatcher.bind(self);
+    }
+
+    /// Watches the shared library database and reloads read models after another local process
+    /// commits a change.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the desktop cannot monitor `database_path`.
+    pub fn monitor_library(
+        &self,
+        database_path: &Path,
+        dispatcher: AppDispatcher,
+    ) -> Result<(), glib::Error> {
+        let file = gio::File::for_path(database_path);
+        let monitor = file.monitor_file(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)?;
+        monitor.set_rate_limit(250);
+        monitor.connect_changed(move |_, _, _, event| {
+            if matches!(
+                event,
+                FileMonitorEvent::Changed | FileMonitorEvent::ChangesDoneHint
+            ) {
+                let _ = dispatcher.dispatch(AppMsg::LibraryChangedExternally);
+            }
+        });
+        self.inner.library_monitor.replace(Some(monitor));
+        Ok(())
     }
 
     /// Reduces a message, renders the resulting snapshot, and starts any requested effects.
