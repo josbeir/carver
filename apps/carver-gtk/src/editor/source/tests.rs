@@ -61,5 +61,11 @@ fn syntax_style_schemes_should_inherit_gnome_adwaita_variants()
         fs::read_to_string(syntax_dir.join("carve-dark.xml"))?
             .contains("parent-scheme=\"Adwaita-dark\"")
     );
+    let writing_focus_light = fs::read_to_string(syntax_dir.join("carve-writing-focus-light.xml"))?;
+    assert!(writing_focus_light.contains("parent-scheme=\"Adwaita\""));
+    assert!(writing_focus_light.contains("name=\"carve:heading\" foreground=\"#2b6f9e\""));
+    let writing_focus_dark = fs::read_to_string(syntax_dir.join("carve-writing-focus-dark.xml"))?;
+    assert!(writing_focus_dark.contains("parent-scheme=\"Adwaita-dark\""));
+    assert!(writing_focus_dark.contains("name=\"carve:link-text\" foreground=\"#8ebddd\""));
     Ok(())
 }

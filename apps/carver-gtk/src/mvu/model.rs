@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use carver_config::{Config, EditorMode};
+use carver_config::{Config, EditorMode, SourceSyntaxStyle};
 use carver_sdk::{CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents};
 
 /// Identifies one asynchronous resource request.
@@ -159,8 +159,8 @@ pub struct SourceEditorPreferences {
     pub show_line_numbers: bool,
     /// Whether source mode highlights the line containing the cursor.
     pub highlight_current_line: bool,
-    /// Whether source mode applies Carve syntax highlighting.
-    pub syntax_highlighting: bool,
+    /// Visual density of Carve syntax highlighting in source mode.
+    pub syntax_style: SourceSyntaxStyle,
     /// Optional Pango font description selected for source mode.
     ///
     /// `None` delegates font selection to the desktop monospace preference.
@@ -178,7 +178,7 @@ impl From<&Config> for Preferences {
             source_editor: SourceEditorPreferences {
                 show_line_numbers: config.editor.source_line_numbers,
                 highlight_current_line: config.editor.source_highlight_current_line,
-                syntax_highlighting: config.editor.source_syntax_highlighting,
+                syntax_style: config.editor.source_syntax_style,
                 font: config.editor.source_font.clone(),
             },
         }

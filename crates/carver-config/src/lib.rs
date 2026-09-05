@@ -141,9 +141,16 @@ pub struct EditorConfig {
     /// Whether the source editor highlights the line containing the cursor.
     #[serde(default)]
     pub source_highlight_current_line: bool,
-    /// Whether the source editor applies Carve syntax highlighting.
-    #[serde(default = "default_true")]
-    pub source_syntax_highlighting: bool,
+    /// Visual density of Carve syntax highlighting in the source editor.
+    ///
+    /// The legacy `source_syntax_highlighting` boolean remains accepted on
+    /// read and is migrated to this style when the configuration is saved.
+    #[serde(
+        default,
+        alias = "source_syntax_highlighting",
+        deserialize_with = "deserialize_source_syntax_style"
+    )]
+    pub source_syntax_style: SourceSyntaxStyle,
     /// Whether the editor shows the shared formatting toolbar.
     #[serde(default = "default_true")]
     pub show_formatting_toolbar: bool,
@@ -166,6 +173,19 @@ pub enum EditorMode {
     Source,
     /// Present the rendered, read-only result.
     Rendered,
+}
+
+/// Visual density of Carve syntax highlighting in the source editor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceSyntaxStyle {
+    /// Apply the complete Carve syntax palette.
+    #[default]
+    Detailed,
+    /// Keep document hierarchy and links visible while muting markup structure.
+    WritingFocus,
+    /// Disable source syntax highlighting.
+    None,
 }
 
 /// Remote-image preferences.
@@ -232,7 +252,7 @@ impl Default for EditorConfig {
             source_split_view: false,
             source_line_numbers: false,
             source_highlight_current_line: false,
-            source_syntax_highlighting: true,
+            source_syntax_style: SourceSyntaxStyle::default(),
             show_formatting_toolbar: true,
             source_font: None,
         }
@@ -307,6 +327,24 @@ const fn default_autosave_delay() -> u64 {
 }
 const fn default_true() -> bool {
     true
+}
+
+fn deserialize_source_syntax_style<'de, D>(deserializer: D) -> Result<SourceSyntaxStyle, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum SyntaxStyleValue {
+        Style(SourceSyntaxStyle),
+        LegacyBoolean(bool),
+    }
+
+    match SyntaxStyleValue::deserialize(deserializer)? {
+        SyntaxStyleValue::Style(style) => Ok(style),
+        SyntaxStyleValue::LegacyBoolean(true) => Ok(SourceSyntaxStyle::Detailed),
+        SyntaxStyleValue::LegacyBoolean(false) => Ok(SourceSyntaxStyle::None),
+    }
 }
 const fn default_width() -> i32 {
     1120

@@ -2,11 +2,11 @@
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 
-use carver_config::Config;
+use carver_config::{Config, SourceSyntaxStyle};
 use gtk::gio::prelude::FileExt;
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::{ActionRowExt, AdwDialogExt, PreferencesRowExt};
+use libadwaita::prelude::{ActionRowExt, AdwDialogExt, ComboRowExt, PreferencesRowExt};
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
@@ -38,6 +38,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.autosave_delay_ms = 1;
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
+    config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
     let (preferences_dialog, about_dialog) = crate::dialogs::present_dialogs_for_test(
@@ -104,14 +105,17 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             "Shade the line containing the cursor in Source mode.".into()
         ))
     );
+    let syntax_style = widget_as::<adw::ComboRow>(
+        preferences_dialog.upcast_ref(),
+        "source-syntax-style-setting",
+    )
+    .ok_or("source syntax style setting")?;
+    assert_eq!(syntax_style.title(), "Syntax style");
     assert_eq!(
-        widget_as::<adw::SwitchRow>(
-            preferences_dialog.upcast_ref(),
-            "source-syntax-highlighting-setting"
-        )
-        .map(|row| row.subtitle()),
-        Some(Some("Colour Carve markup in Source mode.".into()))
+        syntax_style.subtitle(),
+        Some("Choose how much markup colour appears in Source mode.".into())
     );
+    assert_eq!(syntax_style.selected(), 1);
     assert_eq!(
         widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "source-font-setting")
             .map(|row| row.title()),
@@ -310,9 +314,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .style_scheme()
         .map(|scheme| scheme.id().to_string());
     let expected_source_scheme = if adw::StyleManager::default().is_dark() {
-        "carve-dark"
+        "carve-writing-focus-dark"
     } else {
-        "carve-light"
+        "carve-writing-focus-light"
     };
     assert_eq!(source_scheme.as_deref(), Some(expected_source_scheme));
     assert!(source_view.shows_line_numbers());

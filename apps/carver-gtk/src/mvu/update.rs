@@ -107,9 +107,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.source_editor.highlight_current_line = enabled;
             model.config.editor.source_highlight_current_line = enabled;
         }
-        PreferencesMsg::SetSourceSyntaxHighlighting(enabled) => {
-            model.preferences.source_editor.syntax_highlighting = enabled;
-            model.config.editor.source_syntax_highlighting = enabled;
+        PreferencesMsg::SetSourceSyntaxStyle(style) => {
+            model.preferences.source_editor.syntax_style = style;
+            model.config.editor.source_syntax_style = style;
         }
         PreferencesMsg::SetSourceFont(font) => {
             model.preferences.source_editor.font = font.clone();

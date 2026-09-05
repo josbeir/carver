@@ -1,6 +1,7 @@
 //! GNOME dialogs and window-scoped actions.
 
 use adw::prelude::*;
+use carver_config::SourceSyntaxStyle;
 use carver_sdk::{CategoryId, CategorySummary, NoteId};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -407,20 +408,10 @@ fn source_editor_preferences_group(
         config.editor.source_highlight_current_line,
     );
     group.add(&current_line);
-    let syntax_highlighting = preference_switch_row(
-        "source-syntax-highlighting-setting",
-        "Syntax highlighting",
-        "Colour Carve markup in Source mode.",
-        config.editor.source_syntax_highlighting,
-    );
-    group.add(&syntax_highlighting);
+    let syntax_style = source_syntax_style_row(config.editor.source_syntax_style);
+    group.add(&syntax_style);
     connect_source_font_controls(parent, dispatcher, &source_font, &font_value, &reset_font);
-    connect_source_switches(
-        dispatcher,
-        &line_numbers,
-        &current_line,
-        &syntax_highlighting,
-    );
+    connect_source_switches(dispatcher, &line_numbers, &current_line, &syntax_style);
     group
 }
 
@@ -477,6 +468,39 @@ fn preference_switch_row(
     row
 }
 
+fn source_syntax_style_row(style: SourceSyntaxStyle) -> adw::ComboRow {
+    let options = gtk::StringList::new(&["Detailed", "Writing focus", "Off"]);
+    let expression = gtk::PropertyExpression::new(
+        gtk::StringObject::static_type(),
+        None::<gtk::Expression>,
+        "string",
+    );
+    let row = adw::ComboRow::new();
+    row.set_widget_name("source-syntax-style-setting");
+    row.set_title("Syntax style");
+    row.set_subtitle("Choose how much markup colour appears in Source mode.");
+    row.set_model(Some(&options));
+    row.set_expression(Some(&expression));
+    row.set_selected(source_syntax_style_index(style));
+    row
+}
+
+const fn source_syntax_style_index(style: SourceSyntaxStyle) -> u32 {
+    match style {
+        SourceSyntaxStyle::Detailed => 0,
+        SourceSyntaxStyle::WritingFocus => 1,
+        SourceSyntaxStyle::None => 2,
+    }
+}
+
+const fn source_syntax_style_from_index(index: u32) -> SourceSyntaxStyle {
+    match index {
+        1 => SourceSyntaxStyle::WritingFocus,
+        2 => SourceSyntaxStyle::None,
+        _ => SourceSyntaxStyle::Detailed,
+    }
+}
+
 fn connect_source_font_controls(
     parent: &adw::ApplicationWindow,
     dispatcher: &AppDispatcher,
@@ -529,7 +553,7 @@ fn connect_source_switches(
     dispatcher: &AppDispatcher,
     line_numbers: &adw::SwitchRow,
     current_line: &adw::SwitchRow,
-    syntax_highlighting: &adw::SwitchRow,
+    syntax_style: &adw::ComboRow,
 ) {
     let dispatcher_for_line_numbers = dispatcher.clone();
     line_numbers.connect_active_notify(move |line_numbers| {
@@ -543,10 +567,12 @@ fn connect_source_switches(
             PreferencesMsg::SetSourceHighlightCurrentLine(current_line.is_active()),
         ));
     });
-    let dispatcher_for_syntax_highlighting = dispatcher.clone();
-    syntax_highlighting.connect_active_notify(move |syntax_highlighting| {
-        let _ = dispatcher_for_syntax_highlighting.dispatch(AppMsg::Preferences(
-            PreferencesMsg::SetSourceSyntaxHighlighting(syntax_highlighting.is_active()),
+    let dispatcher_for_syntax_style = dispatcher.clone();
+    syntax_style.connect_selected_notify(move |syntax_style| {
+        let _ = dispatcher_for_syntax_style.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetSourceSyntaxStyle(source_syntax_style_from_index(
+                syntax_style.selected(),
+            )),
         ));
     });
 }

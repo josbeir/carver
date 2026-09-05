@@ -32,7 +32,10 @@ fn partial_config_keeps_defaults_for_unset_sections() -> Result<(), Box<dyn std:
     assert!(!config.editor.source_split_view);
     assert!(!config.editor.source_line_numbers);
     assert!(!config.editor.source_highlight_current_line);
-    assert!(config.editor.source_syntax_highlighting);
+    assert_eq!(
+        config.editor.source_syntax_style,
+        SourceSyntaxStyle::Detailed
+    );
     assert!(config.editor.show_formatting_toolbar);
     assert_eq!(config.editor.source_font, None);
     assert!(config.images.load_remote_automatically);
@@ -79,11 +82,44 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
     config.editor.source_split_view = true;
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
-    config.editor.source_syntax_highlighting = false;
+    config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     config.editor.show_formatting_toolbar = false;
     config.editor.source_font = Some("Adwaita Mono 13".to_owned());
     save(&path, &config)?;
     assert_eq!(load(&path)?, config);
+    Ok(())
+}
+
+#[test]
+fn legacy_syntax_highlighting_boolean_migrates_to_a_syntax_style()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[editor]\nsource_syntax_highlighting = false\n")?;
+
+    assert_eq!(
+        load(&path)?.editor.source_syntax_style,
+        SourceSyntaxStyle::None
+    );
+
+    save(&path, &load(&path)?)?;
+    let source = fs::read_to_string(path)?;
+    assert!(source.contains("source_syntax_style = \"none\""));
+    assert!(!source.contains("source_syntax_highlighting"));
+    Ok(())
+}
+
+#[test]
+fn enabled_legacy_syntax_highlighting_migrates_to_detailed()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[editor]\nsource_syntax_highlighting = true\n")?;
+
+    assert_eq!(
+        load(&path)?.editor.source_syntax_style,
+        SourceSyntaxStyle::Detailed
+    );
     Ok(())
 }
 

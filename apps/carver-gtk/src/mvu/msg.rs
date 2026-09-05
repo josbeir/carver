@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use carver_config::EditorMode;
+use carver_config::{EditorMode, SourceSyntaxStyle};
 use carver_sdk::{
     CategoryId, CategorySummary, NoteId, NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
@@ -236,8 +236,8 @@ pub enum PreferencesMsg {
     SetSourceLineNumbers(bool),
     /// Set source-editor current-line highlighting.
     SetSourceHighlightCurrentLine(bool),
-    /// Set source-editor syntax highlighting.
-    SetSourceSyntaxHighlighting(bool),
+    /// Set source-editor syntax style.
+    SetSourceSyntaxStyle(SourceSyntaxStyle),
     /// Set the optional custom Pango font description for source mode.
     ///
     /// `None` restores the desktop monospace font.

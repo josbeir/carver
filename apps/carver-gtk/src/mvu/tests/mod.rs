@@ -787,18 +787,23 @@ fn current_line_preference_should_persist_a_complete_config_snapshot() {
 }
 
 #[test]
-fn syntax_highlighting_preference_should_persist_a_complete_config_snapshot() {
+fn writing_focus_syntax_style_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 
     let effects = update(
         &mut model,
-        AppMsg::Preferences(super::PreferencesMsg::SetSourceSyntaxHighlighting(false)),
+        AppMsg::Preferences(super::PreferencesMsg::SetSourceSyntaxStyle(
+            carver_config::SourceSyntaxStyle::WritingFocus,
+        )),
     );
 
     assert!(
-        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if !config.editor.source_syntax_highlighting)
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.source_syntax_style == carver_config::SourceSyntaxStyle::WritingFocus)
     );
-    assert!(!model.preferences.source_editor.syntax_highlighting);
+    assert_eq!(
+        model.preferences.source_editor.syntax_style,
+        carver_config::SourceSyntaxStyle::WritingFocus
+    );
 }
 
 #[test]

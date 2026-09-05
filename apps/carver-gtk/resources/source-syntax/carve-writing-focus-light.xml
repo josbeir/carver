@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style-scheme id="carve-writing-focus-light" name="Carve Writing Focus Light" version="1.0" parent-scheme="Adwaita">
+  <style name="carve:heading" foreground="#2b6f9e" bold="true"/>
+  <style name="carve:link-text" foreground="#1c6b9e" underline="single"/>
+  <style name="carve:link-target" foreground="#1c6b9e"/>
+  <style name="carve:list-marker" foreground="#777777"/>
+  <style name="carve:quote-marker" foreground="#777777"/>
+  <style name="carve:table-divider" foreground="#777777"/>
+  <style name="carve:table-header" foreground="#2e3436" bold="true"/>
+  <style name="carve:table-alignment" foreground="#777777"/>
+  <style name="carve:code" foreground="#2e3436"/>
+  <style name="carve:code-block" foreground="#2e3436"/>
+  <style name="carve:image-marker" foreground="#777777"/>
+  <style name="carve:attribute" foreground="#777777"/>
+  <style name="carve:emphasis" foreground="#2e3436" italic="true"/>
+  <style name="carve:strong-emphasis" foreground="#2e3436" bold="true"/>
+  <style name="carve:comment" foreground="#777777" italic="true"/>
+  <style name="carve:raw" foreground="#777777"/>
+  <style name="carve:frontmatter-fence" foreground="#777777"/>
+  <style name="carve:frontmatter-key" foreground="#777777"/>
+  <style name="carve:frontmatter-value" foreground="#2e3436"/>
+  <style name="carve:definition-term" foreground="#2e3436" bold="true"/>
+  <style name="carve:definition-marker" foreground="#777777"/>
+</style-scheme>

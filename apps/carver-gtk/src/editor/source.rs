@@ -7,6 +7,7 @@ use std::{
     rc::Rc,
 };
 
+use carver_config::SourceSyntaxStyle;
 use gtk::gio::prelude::*;
 use gtk::prelude::*;
 use sourceview5::prelude::*;
@@ -15,6 +16,10 @@ use thiserror::Error;
 const CARVE_LANGUAGE: &str = include_str!("../../resources/source-syntax/carve.lang");
 const CARVE_LIGHT_STYLE: &str = include_str!("../../resources/source-syntax/carve-light.xml");
 const CARVE_DARK_STYLE: &str = include_str!("../../resources/source-syntax/carve-dark.xml");
+const CARVE_WRITING_FOCUS_LIGHT_STYLE: &str =
+    include_str!("../../resources/source-syntax/carve-writing-focus-light.xml");
+const CARVE_WRITING_FOCUS_DARK_STYLE: &str =
+    include_str!("../../resources/source-syntax/carve-writing-focus-dark.xml");
 const SYSTEM_INTERFACE_SCHEMA: &str = "org.gnome.desktop.interface";
 const SYSTEM_MONOSPACE_FONT_KEY: &str = "monospace-font-name";
 const FALLBACK_MONOSPACE_FONT: &str = "Monospace 11";
@@ -47,6 +52,14 @@ pub(crate) fn install_syntax_assets(data_dir: &Path) -> Result<PathBuf, SourceSy
         ("carve.lang", CARVE_LANGUAGE),
         ("carve-light.xml", CARVE_LIGHT_STYLE),
         ("carve-dark.xml", CARVE_DARK_STYLE),
+        (
+            "carve-writing-focus-light.xml",
+            CARVE_WRITING_FOCUS_LIGHT_STYLE,
+        ),
+        (
+            "carve-writing-focus-dark.xml",
+            CARVE_WRITING_FOCUS_DARK_STYLE,
+        ),
     ] {
         write_asset(&directory, name, contents)?;
     }
@@ -71,6 +84,8 @@ pub(crate) struct SourceEditor {
     view: sourceview5::View,
     light_style: sourceview5::StyleScheme,
     dark_style: sourceview5::StyleScheme,
+    writing_focus_light_style: sourceview5::StyleScheme,
+    writing_focus_dark_style: sourceview5::StyleScheme,
     font_provider: gtk::CssProvider,
     custom_font: Rc<RefCell<Option<String>>>,
     system_font: Rc<RefCell<String>>,
@@ -99,17 +114,19 @@ impl SourceEditor {
         let style_manager = sourceview5::StyleSchemeManager::new();
         style_manager.prepend_search_path(syntax_dir);
         let light_style =
-            style_manager
-                .scheme("carve-light")
-                .ok_or(SourceSyntaxError::MissingAsset {
-                    asset: "light Carve style scheme",
-                })?;
+            load_style_scheme(&style_manager, "carve-light", "light Carve style scheme")?;
         let dark_style =
-            style_manager
-                .scheme("carve-dark")
-                .ok_or(SourceSyntaxError::MissingAsset {
-                    asset: "dark Carve style scheme",
-                })?;
+            load_style_scheme(&style_manager, "carve-dark", "dark Carve style scheme")?;
+        let writing_focus_light_style = load_style_scheme(
+            &style_manager,
+            "carve-writing-focus-light",
+            "light writing-focus Carve style scheme",
+        )?;
+        let writing_focus_dark_style = load_style_scheme(
+            &style_manager,
+            "carve-writing-focus-dark",
+            "dark writing-focus Carve style scheme",
+        )?;
         let buffer = sourceview5::Buffer::builder()
             .language(&language)
             .style_scheme(&light_style)
@@ -150,6 +167,8 @@ impl SourceEditor {
             view,
             light_style,
             dark_style,
+            writing_focus_light_style,
+            writing_focus_dark_style,
             font_provider,
             custom_font,
             system_font,
@@ -182,13 +201,34 @@ impl SourceEditor {
             .set_show_line_numbers(preferences.show_line_numbers);
         self.view
             .set_highlight_current_line(preferences.highlight_current_line);
-        self.buffer
-            .set_highlight_syntax(preferences.syntax_highlighting);
-        self.buffer.set_style_scheme(Some(if dark {
-            &self.dark_style
-        } else {
-            &self.light_style
-        }));
+        let (highlight_syntax, style_scheme) = match preferences.syntax_style {
+            SourceSyntaxStyle::Detailed => (
+                true,
+                if dark {
+                    &self.dark_style
+                } else {
+                    &self.light_style
+                },
+            ),
+            SourceSyntaxStyle::WritingFocus => (
+                true,
+                if dark {
+                    &self.writing_focus_dark_style
+                } else {
+                    &self.writing_focus_light_style
+                },
+            ),
+            SourceSyntaxStyle::None => (
+                false,
+                if dark {
+                    &self.dark_style
+                } else {
+                    &self.light_style
+                },
+            ),
+        };
+        self.buffer.set_highlight_syntax(highlight_syntax);
+        self.buffer.set_style_scheme(Some(style_scheme));
         let custom_font = preferences.font.clone();
         if self.custom_font.borrow().as_ref() != custom_font.as_ref() {
             self.custom_font.replace(custom_font);
@@ -200,6 +240,16 @@ impl SourceEditor {
             self.font_provider.load_from_string(&source_font_css(&font));
         }
     }
+}
+
+fn load_style_scheme(
+    manager: &sourceview5::StyleSchemeManager,
+    id: &str,
+    asset: &'static str,
+) -> Result<sourceview5::StyleScheme, SourceSyntaxError> {
+    manager
+        .scheme(id)
+        .ok_or(SourceSyntaxError::MissingAsset { asset })
 }
 
 /// Returns the desktop source-font preference, with a stable cross-desktop fallback.
