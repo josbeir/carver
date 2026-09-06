@@ -12,7 +12,8 @@ use time::OffsetDateTime;
 use crate::{
     dialogs::show_move_note_dialog,
     mvu::{
-        ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, LoadState, MoveUndo, Route,
+        ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, Effect, LoadState, MoveUndo,
+        Route,
     },
 };
 
@@ -58,7 +59,6 @@ pub struct ViewRefs {
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
     last_browser_search_open: Cell<bool>,
-    has_browser_snapshot: Cell<bool>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
@@ -97,7 +97,6 @@ impl ViewRefs {
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
             last_browser_search_open: Cell::new(false),
-            has_browser_snapshot: Cell::new(false),
             sidebar_renderer: None,
             editor: None,
             last_sidebar_snapshot: RefCell::new(None),
@@ -182,6 +181,27 @@ impl ViewRefs {
         self.rendering.set(false);
     }
 
+    /// Executes a native GTK adapter effect after the runtime has rendered its model snapshot.
+    ///
+    /// These effects deliberately live outside `render`: rendering remains a projection of the
+    /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
+    pub(crate) fn run_editor_effect(&self, effect: Effect) {
+        let Some(editor) = &self.editor else {
+            return;
+        };
+        match effect {
+            Effect::ApplyRichEditorCommand { command } => editor.apply_rich_command(&command),
+            Effect::SelectEditorSource { session, selection } => {
+                editor.select_source_range(session, selection);
+            }
+            Effect::CopyEditorDocument { request } => editor.copy_document(&request),
+            Effect::ShowEditorExportDialog { request } => editor.show_export_dialog(request),
+            Effect::ShowEditorExportWarning { request } => editor.show_export_warning(&request),
+            Effect::ExportEditorPdf { request } => editor.export_pdf(&request),
+            _ => {}
+        }
+    }
+
     /// Reports whether a widget signal was caused by a programmatic render.
     #[must_use]
     pub fn is_rendering(&self) -> bool {
@@ -226,9 +246,6 @@ impl ViewRefs {
                 self.dispatcher.as_ref(),
             );
         }
-        if matches!(model.browser.notes.state, LoadState::Ready(_)) {
-            self.has_browser_snapshot.set(true);
-        }
         match &model.browser.notes.state {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
@@ -261,37 +278,35 @@ impl ViewRefs {
                     .set_description(Some("Create a note to get started."));
                 pages.set_visible_child_name("empty");
             }
-            LoadState::Ready(notes) => {
-                clear_list(list);
-                search_empty.set_visible(false);
-                category_empty.set_visible(false);
-                empty_new_note.set_visible(true);
-                category_empty_new_note.set_visible(false);
-                pages.set_visible_child_name("contents");
-                let show_category = model.selected_category.is_none();
-                let show_date_groups = model.browser.search_query.trim().is_empty();
-                let now = OffsetDateTime::now_utc();
-                let mut previous_group = None;
-                for note in notes {
-                    if show_date_groups {
-                        let group = crate::browser::note_date_group(note.updated_at, now);
-                        if previous_group != Some(group) {
-                            append_note_date_group_heading(list, group);
-                            previous_group = Some(group);
-                        }
-                    }
-                    list.append(&browser_row(
-                        note,
-                        show_category,
-                        &model.sidebar.state,
-                        self.dispatcher.as_ref(),
-                    ));
-                }
-            }
+            LoadState::Ready(notes) => render_browser_notes(
+                list,
+                pages,
+                search_empty,
+                category_empty,
+                empty_new_note,
+                category_empty_new_note,
+                notes,
+                model,
+                self.dispatcher.as_ref(),
+            ),
             // CONTEXT: Fast reloads retain the last rendered snapshot rather than flashing a
             // loading status between category selections.
             LoadState::Loading(_)
-                if self.has_browser_snapshot.get() && !model.browser.loading_indicator_visible => {}
+                if !model.browser.loading_indicator_visible
+                    && let Some(notes) = &model.browser.last_ready_notes =>
+            {
+                render_browser_notes(
+                    list,
+                    pages,
+                    search_empty,
+                    category_empty,
+                    empty_new_note,
+                    category_empty_new_note,
+                    notes,
+                    model,
+                    self.dispatcher.as_ref(),
+                );
+            }
             state => {
                 clear_list(list);
                 search_empty.set_visible(false);
@@ -488,6 +503,48 @@ fn render_empty_category(
     empty_new_note.set_visible(false);
     category_empty_new_note.set_visible(true);
     pages.set_visible_child_name("contents");
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the browser's complete note-list projection shares one immutable model snapshot"
+)]
+fn render_browser_notes(
+    list: &gtk::ListBox,
+    pages: &gtk::Stack,
+    search_empty: &gtk::Box,
+    category_empty: &gtk::Box,
+    empty_new_note: &gtk::Button,
+    category_empty_new_note: &gtk::Button,
+    notes: &[carver_sdk::NoteSummary],
+    model: &AppModel,
+    dispatcher: Option<&AppDispatcher>,
+) {
+    clear_list(list);
+    search_empty.set_visible(false);
+    category_empty.set_visible(false);
+    empty_new_note.set_visible(true);
+    category_empty_new_note.set_visible(false);
+    pages.set_visible_child_name("contents");
+    let show_category = model.selected_category.is_none();
+    let show_date_groups = model.browser.search_query.trim().is_empty();
+    let now = OffsetDateTime::now_utc();
+    let mut previous_group = None;
+    for note in notes {
+        if show_date_groups {
+            let group = crate::browser::note_date_group(note.updated_at, now);
+            if previous_group != Some(group) {
+                append_note_date_group_heading(list, group);
+                previous_group = Some(group);
+            }
+        }
+        list.append(&browser_row(
+            note,
+            show_category,
+            &model.sidebar.state,
+            dispatcher,
+        ));
+    }
 }
 
 fn render_resource<T>(status: &adw::StatusPage, resource: &LoadState<T>, empty_title: &str) {

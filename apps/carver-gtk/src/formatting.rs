@@ -8,7 +8,7 @@ use libadwaita as adw;
 
 use crate::{
     editor::{focus::EditorFocusRestorer, source_commands},
-    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceImageTarget},
+    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand, SourceImageTarget},
 };
 
 /// Opens the native image chooser and stores the selected file as a note asset.
@@ -260,6 +260,7 @@ pub(crate) fn append_table_picker(
 pub(crate) fn show_source_link_dialog(
     anchor: &impl IsA<gtk::Widget>,
     buffer: &gtk::TextBuffer,
+    dispatcher: &AppDispatcher,
     focus: &EditorFocusRestorer,
 ) {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -285,14 +286,32 @@ pub(crate) fn show_source_link_dialog(
     let source = buffer.clone();
     let selection = Rc::new(RefCell::new(capture_selection(&source)));
     let selection_for_response = Rc::clone(&selection);
+    let dispatcher = dispatcher.clone();
     let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
-        restore_selection(&source, selection_for_response.borrow_mut().take());
+        let selection = selection_for_response.borrow_mut().take();
         if response == "insert" {
             let destination = url.text();
             let link_text = text.text();
             if !destination.trim().is_empty() && !link_text.trim().is_empty() {
-                source_commands::insert_link(&source, &link_text, &destination);
+                let selection = selection.map_or_else(
+                    || source_commands::selection_from_buffer(&source),
+                    |selection| {
+                        let start = source.iter_at_mark(&selection.start).offset();
+                        let end = source.iter_at_mark(&selection.end).offset();
+                        source.delete_mark(&selection.start);
+                        source.delete_mark(&selection.end);
+                        usize::try_from(start).unwrap_or_default()
+                            ..usize::try_from(end).unwrap_or_default()
+                    },
+                );
+                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplySourceCommand {
+                    command: SourceCommand::InsertLink {
+                        text: link_text.to_string(),
+                        destination: destination.to_string(),
+                    },
+                    selection,
+                }));
             }
         }
         focus.restore_later();
@@ -311,15 +330,4 @@ fn capture_selection(buffer: &gtk::TextBuffer) -> Option<SelectionMarks> {
         start: buffer.create_mark(None, &start, true),
         end: buffer.create_mark(None, &end, false),
     })
-}
-
-fn restore_selection(buffer: &gtk::TextBuffer, selection: Option<SelectionMarks>) {
-    let Some(selection) = selection else {
-        return;
-    };
-    let start = buffer.iter_at_mark(&selection.start);
-    let end = buffer.iter_at_mark(&selection.end);
-    buffer.select_range(&start, &end);
-    buffer.delete_mark(&selection.start);
-    buffer.delete_mark(&selection.end);
 }

@@ -1,10 +1,10 @@
 //! Pure state transitions for the application model.
 
-use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest};
+use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection};
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
-    LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, TrashMsg, UiError,
-    WindowMsg,
+    LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, SourceEdit, TrashMsg,
+    UiError, WindowMsg,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -15,9 +15,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             vec![Effect::EnsureDefaultCategory]
         }
         AppMsg::Navigation(NavigationMsg::SelectCategory(category_id)) => {
-            model.route = super::Route::Browser;
-            model.selected_category = category_id;
-            reload_browser(model).into_iter().collect()
+            select_category(model, category_id)
         }
         AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
             request_editor_load(model, note_id, false)
@@ -88,6 +86,40 @@ fn request_editor_load(
         request_id,
         note_id,
     }]
+}
+
+fn select_category(
+    model: &mut AppModel,
+    category_id: Option<carver_sdk::CategoryId>,
+) -> Vec<Effect> {
+    if model.route == super::Route::Editor {
+        model.pending_category_selection = Some(category_id.map_or(
+            PendingCategorySelection::AllNotes,
+            PendingCategorySelection::Category,
+        ));
+        let effects = request_editor_close(model);
+        return if model.editor.is_none() {
+            complete_pending_category_selection(model)
+        } else {
+            effects
+        };
+    }
+    model.selected_category = category_id;
+    model.route = super::Route::Browser;
+    reload_browser(model).into_iter().collect()
+}
+
+fn complete_pending_category_selection(model: &mut AppModel) -> Vec<Effect> {
+    let Some(selection) = model.pending_category_selection.take() else {
+        return Vec::new();
+    };
+    let category_id = match selection {
+        PendingCategorySelection::AllNotes => None,
+        PendingCategorySelection::Category(category_id) => Some(category_id),
+    };
+    model.selected_category = category_id;
+    model.route = super::Route::Browser;
+    reload_browser(model).into_iter().collect()
 }
 
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
@@ -194,18 +226,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             note_id,
             revision,
             source,
-        } => {
-            model.route = super::Route::Editor;
-            if model
-                .editor
-                .as_ref()
-                .is_some_and(|document| document.note_id == note_id)
-            {
-                return Vec::new();
-            }
-            open_editor(model, note_id, revision, source);
-            Vec::new()
-        }
+        } => update_editor_load(model, note_id, revision, source),
         EditorMsg::SourceChanged(source) => {
             let changed = model
                 .editor
@@ -217,6 +238,10 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
+        EditorMsg::ApplySourceCommand { command, selection } => {
+            update_source_command(model, command, selection)
+        }
+        EditorMsg::ApplyRichCommand(command) => update_rich_command(model, command),
         EditorMsg::PreviewElapsed { session, timer_id }
             if model.preview_timer == Some((session, timer_id)) =>
         {
@@ -245,7 +270,10 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .as_mut()
             .and_then(super::EditorDocument::begin_save)
             .map_or_else(Vec::new, save_note_effect),
-        EditorMsg::BackRequested => request_editor_close(model),
+        EditorMsg::BackRequested => {
+            model.pending_category_selection = None;
+            request_editor_close(model)
+        }
         EditorMsg::TrashRequested => model
             .editor
             .as_ref()
@@ -283,6 +311,61 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
     }
+}
+
+fn update_editor_load(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    revision: carver_sdk::Revision,
+    source: String,
+) -> Vec<Effect> {
+    model.route = super::Route::Editor;
+    if model
+        .editor
+        .as_ref()
+        .is_some_and(|document| document.note_id == note_id)
+    {
+        return Vec::new();
+    }
+    open_editor(model, note_id, revision, source);
+    Vec::new()
+}
+
+fn update_source_command(
+    model: &mut AppModel,
+    command: super::SourceCommand,
+    selection: std::ops::Range<usize>,
+) -> Vec<Effect> {
+    let Some(document) = model.editor.as_mut() else {
+        return Vec::new();
+    };
+    let session = document.session;
+    let edit = SourceEdit::apply(document.source.clone(), selection, command);
+    if !document.source_changed(edit.source().to_owned()) {
+        return Vec::new();
+    }
+    model.notice = None;
+    let mut effects = [schedule_preview(model), schedule_editor_save(model)]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    effects.push(Effect::SelectEditorSource {
+        session,
+        selection: edit.selection(),
+    });
+    effects
+}
+
+fn update_rich_command(
+    model: &AppModel,
+    command: carver_editor_protocol::EditorCommand,
+) -> Vec<Effect> {
+    model
+        .editor
+        .is_some()
+        .then_some(Effect::ApplyRichEditorCommand { command })
+        .into_iter()
+        .collect()
 }
 
 fn update_editor_export(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
@@ -439,12 +522,13 @@ fn request_editor_copy(model: &mut AppModel) -> Vec<Effect> {
     else {
         return Vec::new();
     };
-    model.editor_copy_request = Some(super::EditorCopyRequest {
+    let request = super::EditorCopyRequest {
         request_id: model.next_editor_copy_request_id(),
         session,
         source,
-    });
-    Vec::new()
+    };
+    model.editor_copy_request = Some(request.clone());
+    vec![Effect::CopyEditorDocument { request }]
 }
 
 fn fail_copy_request(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
@@ -476,8 +560,8 @@ fn request_editor_export_dialog(model: &mut AppModel) -> Vec<Effect> {
             &carver_domain::derive_content(&source).title,
         ),
     };
-    model.editor_export_dialog_request = Some(request);
-    Vec::new()
+    model.editor_export_dialog_request = Some(request.clone());
+    vec![Effect::ShowEditorExportDialog { request }]
 }
 
 fn request_editor_export(
@@ -495,14 +579,17 @@ fn request_editor_export(
         return Vec::new();
     };
     if matches!(format, super::EditorExportFormat::Pdf) {
-        model.editor_pdf_export_request = Some(super::EditorPdfExportRequest {
+        let pdf_request = super::EditorPdfExportRequest {
             request_id,
             session: request.session,
             source: request.source,
             target_uri,
             print_dialog: false,
-        });
-        return Vec::new();
+        };
+        model.editor_pdf_export_request = Some(pdf_request.clone());
+        return vec![Effect::ExportEditorPdf {
+            request: pdf_request,
+        }];
     }
     model.editor_export_progress = Some(super::EditorExportProgress {
         request_id,
@@ -589,14 +676,17 @@ fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
     else {
         return Vec::new();
     };
-    model.editor_pdf_export_request = Some(super::EditorPdfExportRequest {
+    let pdf_request = super::EditorPdfExportRequest {
         request_id: model.next_editor_export_request_id(),
         session,
         source,
         target_uri: String::new(),
         print_dialog: true,
-    });
-    Vec::new()
+    };
+    model.editor_pdf_export_request = Some(pdf_request.clone());
+    vec![Effect::ExportEditorPdf {
+        request: pdf_request,
+    }]
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
@@ -811,6 +901,9 @@ fn update_browser_loaded(
         model.browser.notes.state,
         super::LoadState::Loading(current) if current == request_id
     );
+    if is_current && let Ok(notes) = &result {
+        model.browser.last_ready_notes = Some(notes.clone());
+    }
     let reload = model.browser.notes.finish(request_id, result);
     if is_current {
         model.browser.loading_indicator_request = None;
@@ -871,12 +964,15 @@ fn update_editor_export_prepared(
     match result {
         Ok(warnings) if warnings.is_empty() => vec![Effect::WriteEditorExport { request_id }],
         Ok(warnings) => {
-            model.editor_export_warning_request = Some(super::EditorExportWarningRequest {
+            let warning_request = super::EditorExportWarningRequest {
                 request_id,
                 session,
                 warnings,
-            });
-            Vec::new()
+            };
+            model.editor_export_warning_request = Some(warning_request.clone());
+            vec![Effect::ShowEditorExportWarning {
+                request: warning_request,
+            }]
         }
         Err(error) => {
             model.editor_export_progress = None;
@@ -1073,7 +1169,16 @@ fn update_editor_save(
         model.editor_preview = None;
         model.preview_timer = None;
     }
-    let mut effects = reload_browser(model).into_iter().collect::<Vec<_>>();
+    let mut effects = if close_after_save {
+        let pending_effects = complete_pending_category_selection(model);
+        if pending_effects.is_empty() {
+            reload_browser(model).into_iter().collect()
+        } else {
+            pending_effects
+        }
+    } else {
+        reload_browser(model).into_iter().collect()
+    };
     effects.extend(request_library_revision(
         model,
         LibraryRevisionCheckReason::LocalMutation,

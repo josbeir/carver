@@ -128,6 +128,15 @@ pub enum Route {
     Editor,
 }
 
+/// A browser selection waiting for an active editor to finish closing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PendingCategorySelection {
+    /// Show notes from every active category.
+    AllNotes,
+    /// Show notes from one category.
+    Category(CategoryId),
+}
+
 /// Browser-specific UI-neutral state.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BrowserModel {
@@ -137,6 +146,11 @@ pub struct BrowserModel {
     pub search_query: String,
     /// Loaded note summaries for the active category and query.
     pub notes: Resource<Vec<NoteSummary>>,
+    /// Most recent successful note list, retained while a replacement request loads.
+    ///
+    /// This keeps fast-reload rendering a deterministic projection of the model rather than
+    /// relying on a widget's previous contents.
+    pub last_ready_notes: Option<Vec<NoteSummary>>,
     /// The debounce timer authorized to reload after the latest search change.
     pub search_timer: Option<TimerId>,
     /// Browser load allowed to reveal the loading state after a short delay.
@@ -386,6 +400,8 @@ pub struct AppModel {
     pub route: Route,
     /// Category selected by the user, or all categories when absent.
     pub selected_category: Option<CategoryId>,
+    /// Category to select once a pending editor close has safely completed.
+    pub(crate) pending_category_selection: Option<PendingCategorySelection>,
     /// Categories rendered by the sidebar.
     pub sidebar: Resource<Vec<CategorySummary>>,
     /// Browser state and its loaded note summaries.
@@ -441,6 +457,7 @@ impl AppModel {
             config: config.clone(),
             route: Route::Browser,
             selected_category: None,
+            pending_category_selection: None,
             sidebar: Resource::default(),
             browser: BrowserModel::default(),
             trash: Resource::default(),

@@ -12,7 +12,10 @@ use carver_editor_protocol::{EditorCommand, SelectionState};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{formatting, mvu::AppDispatcher};
+use crate::{
+    formatting,
+    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand},
+};
 
 use super::{RichEditor, focus::EditorFocusRestorer, source_commands};
 
@@ -239,40 +242,54 @@ impl CommandRouter {
 
     fn execute_source(&self, command: ToolbarCommand, anchor: &gtk::Widget) {
         match command {
-            ToolbarCommand::Bold => source_commands::toggle_inline(&self.source, "*", "*"),
-            ToolbarCommand::Italic => source_commands::toggle_inline(&self.source, "/", "/"),
-            ToolbarCommand::Strike => source_commands::toggle_inline(&self.source, "~", "~"),
-            ToolbarCommand::Underline => source_commands::toggle_inline(&self.source, "_", "_"),
-            ToolbarCommand::Highlight => source_commands::toggle_inline(&self.source, "=", "="),
-            ToolbarCommand::Superscript => source_commands::toggle_inline(&self.source, "{^", "^}"),
-            ToolbarCommand::Subscript => source_commands::toggle_inline(&self.source, "{,", ",}"),
-            ToolbarCommand::InlineCode => source_commands::toggle_inline(&self.source, "`", "`"),
-            ToolbarCommand::CodeBlock => source_commands::toggle_code_block(&self.source),
-            ToolbarCommand::BulletList => source_commands::toggle_list(&self.source, "- "),
-            ToolbarCommand::OrderedList => source_commands::toggle_ordered_list(&self.source),
-            ToolbarCommand::TaskList => source_commands::toggle_list(&self.source, "- [ ] "),
             ToolbarCommand::Link => {
-                formatting::show_source_link_dialog(anchor, &self.source, &self.focus);
+                formatting::show_source_link_dialog(
+                    anchor,
+                    &self.source,
+                    &self.dispatcher,
+                    &self.focus,
+                );
                 return;
             }
+            _ => self.dispatch_source_command(source_command(command)),
         }
         self.focus.restore_later();
     }
 
+    fn dispatch_source_command(&self, command: SourceCommand) {
+        let selection = source_commands::selection_from_buffer(&self.source);
+        let _ = self
+            .dispatcher
+            .dispatch(AppMsg::Editor(EditorMsg::ApplySourceCommand {
+                command,
+                selection,
+            }));
+    }
+
     fn execute_rich(&self, command: ToolbarCommand, anchor: &gtk::Widget) {
         if command == ToolbarCommand::Link {
-            self.rich.show_link_dialog(anchor, &self.focus);
-        } else {
             self.rich
-                .command(&EditorCommand::Named(command.rich_name().to_owned()));
+                .show_link_dialog(anchor, &self.dispatcher, &self.focus);
+        } else {
+            let _ = self
+                .dispatcher
+                .dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
+                    EditorCommand::Named(command.rich_name().to_owned()),
+                )));
             self.focus.restore_later();
         }
     }
 
     fn set_heading(&self, level: u8) {
         match self.mode.get() {
-            EditorMode::Source => source_commands::set_heading(&self.source, level),
-            EditorMode::Rich => self.rich.command(&EditorCommand::Heading(level)),
+            EditorMode::Source => self.dispatch_source_command(SourceCommand::SetHeading(level)),
+            EditorMode::Rich => {
+                let _ = self
+                    .dispatcher
+                    .dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
+                        EditorCommand::Heading(level),
+                    )));
+            }
             EditorMode::Rendered => {}
         }
         self.focus.restore_later();
@@ -280,14 +297,22 @@ impl CommandRouter {
 
     fn insert_table(&self, rows: u8, columns: u8, header: bool) {
         match self.mode.get() {
-            EditorMode::Source => {
-                source_commands::insert_table(&self.source, rows, columns, header);
-            }
-            EditorMode::Rich => self.rich.command(&EditorCommand::InsertTable {
+            EditorMode::Source => self.dispatch_source_command(SourceCommand::InsertTable {
                 rows,
                 columns,
                 header,
             }),
+            EditorMode::Rich => {
+                let _ = self
+                    .dispatcher
+                    .dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
+                        EditorCommand::InsertTable {
+                            rows,
+                            columns,
+                            header,
+                        },
+                    )));
+            }
             EditorMode::Rendered => {}
         }
         self.focus.restore_later();
@@ -295,10 +320,14 @@ impl CommandRouter {
 
     fn image_width(&self, width: Option<u8>) {
         match self.mode.get() {
-            EditorMode::Source => {
-                let _ = source_commands::set_image_width(&self.source, width);
+            EditorMode::Source => self.dispatch_source_command(SourceCommand::SetImageWidth(width)),
+            EditorMode::Rich => {
+                let _ = self
+                    .dispatcher
+                    .dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
+                        EditorCommand::ImageWidth(width),
+                    )));
             }
-            EditorMode::Rich => self.rich.command(&EditorCommand::ImageWidth(width)),
             EditorMode::Rendered => {}
         }
         self.focus.restore_later();
@@ -314,6 +343,48 @@ impl CommandRouter {
             source_target,
             &self.focus,
         );
+    }
+}
+
+fn source_command(command: ToolbarCommand) -> SourceCommand {
+    match command {
+        ToolbarCommand::Bold => SourceCommand::ToggleInline {
+            opening: String::from("*"),
+            closing: String::from("*"),
+        },
+        ToolbarCommand::Italic => SourceCommand::ToggleInline {
+            opening: String::from("/"),
+            closing: String::from("/"),
+        },
+        ToolbarCommand::Strike => SourceCommand::ToggleInline {
+            opening: String::from("~"),
+            closing: String::from("~"),
+        },
+        ToolbarCommand::Underline => SourceCommand::ToggleInline {
+            opening: String::from("_"),
+            closing: String::from("_"),
+        },
+        ToolbarCommand::Highlight => SourceCommand::ToggleInline {
+            opening: String::from("="),
+            closing: String::from("="),
+        },
+        ToolbarCommand::Superscript => SourceCommand::ToggleInline {
+            opening: String::from("{^"),
+            closing: String::from("^}"),
+        },
+        ToolbarCommand::Subscript => SourceCommand::ToggleInline {
+            opening: String::from("{,"),
+            closing: String::from(",}"),
+        },
+        ToolbarCommand::InlineCode => SourceCommand::ToggleInline {
+            opening: String::from("`"),
+            closing: String::from("`"),
+        },
+        ToolbarCommand::CodeBlock => SourceCommand::ToggleCodeBlock,
+        ToolbarCommand::BulletList => SourceCommand::ToggleList(String::from("- ")),
+        ToolbarCommand::OrderedList => SourceCommand::ToggleOrderedList,
+        ToolbarCommand::TaskList => SourceCommand::ToggleList(String::from("- [ ] ")),
+        ToolbarCommand::Link => unreachable!("link input is collected by its native dialog"),
     }
 }
 
@@ -417,6 +488,13 @@ impl Toolbar {
     pub(crate) fn execute_source_shortcut(&self, command: ToolbarCommand, anchor: &gtk::Widget) {
         if self.router.mode.get() == EditorMode::Source {
             self.router.execute(command, anchor);
+        }
+    }
+
+    /// Routes a source-only editing command through the MVU reducer.
+    pub(crate) fn execute_source_command(&self, command: SourceCommand) {
+        if self.router.mode.get() == EditorMode::Source {
+            self.router.dispatch_source_command(command);
         }
     }
 

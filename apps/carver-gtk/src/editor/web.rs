@@ -149,8 +149,13 @@ impl RichEditor {
     }
 
     /// Opens the Rich editor's contextual link dialog from the shared toolbar.
-    pub(crate) fn show_link_dialog(&self, anchor: &gtk::Widget, focus: &EditorFocusRestorer) {
-        show_rich_link_dialog(anchor, self, focus);
+    pub(crate) fn show_link_dialog(
+        &self,
+        anchor: &gtk::Widget,
+        dispatcher: &AppDispatcher,
+        focus: &EditorFocusRestorer,
+    ) {
+        show_rich_link_dialog(anchor, self, dispatcher, focus);
     }
 
     /// Applies GNOME's resolved editor colors without reloading the document.
@@ -185,12 +190,11 @@ impl RichEditor {
         &self,
         manager: &webkit6::UserContentManager,
         dispatcher: &AppDispatcher,
-        source_buffer: &gtk::TextBuffer,
+        _source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
     ) {
         let editor = self.clone();
         let dispatcher = dispatcher.clone();
-        let source_buffer = source_buffer.clone();
         let toast_overlay = toast_overlay.clone();
         let unsupported_handler = Rc::clone(&self.unsupported_handler);
         let selection_handler = Rc::clone(&self.selection_handler);
@@ -210,14 +214,7 @@ impl RichEditor {
                 EditorEvent::Changed {
                     session, source, ..
                 } if session == editor.session.get() => {
-                    if source_buffer.text(
-                        &source_buffer.start_iter(),
-                        &source_buffer.end_iter(),
-                        false,
-                    ) != source
-                    {
-                        source_buffer.set_text(&source);
-                    }
+                    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(source)));
                 }
                 EditorEvent::Unsupported {
                     session,
@@ -305,10 +302,11 @@ impl RichEditor {
 fn show_rich_link_dialog(
     button: &impl IsA<gtk::Widget>,
     editor: &RichEditor,
+    dispatcher: &AppDispatcher,
     focus: &EditorFocusRestorer,
 ) {
     let parent = button.root().and_downcast::<gtk::Window>();
-    let editor_for_dialog = editor.clone();
+    let dispatcher = dispatcher.clone();
     let focus_for_dialog = focus.clone();
     editor.view().evaluate_javascript(
         "JSON.stringify(window.carverEditor.linkContext());",
@@ -320,19 +318,14 @@ fn show_rich_link_dialog(
                 .ok()
                 .map(|value| parse_link_context(&value.to_str()))
                 .unwrap_or_default();
-            present_rich_link_dialog(
-                parent.as_ref(),
-                &editor_for_dialog,
-                &context,
-                &focus_for_dialog,
-            );
+            present_rich_link_dialog(parent.as_ref(), &dispatcher, &context, &focus_for_dialog);
         },
     );
 }
 
 fn present_rich_link_dialog(
     parent: Option<&gtk::Window>,
-    editor: &RichEditor,
+    dispatcher: &AppDispatcher,
     context: &LinkContext,
     focus: &EditorFocusRestorer,
 ) {
@@ -355,17 +348,19 @@ fn present_rich_link_dialog(
         .close_response("cancel")
         .build();
     dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
-    let editor = editor.clone();
+    let dispatcher = dispatcher.clone();
     let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
         if response == "insert" {
             let text = text.text();
             let destination = url.text();
             if !text.trim().is_empty() && !destination.trim().is_empty() {
-                editor.command(&EditorCommand::InsertLink {
-                    text: text.to_string(),
-                    destination: destination.to_string(),
-                });
+                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
+                    EditorCommand::InsertLink {
+                        text: text.to_string(),
+                        destination: destination.to_string(),
+                    },
+                )));
             }
         }
         focus.restore_later();

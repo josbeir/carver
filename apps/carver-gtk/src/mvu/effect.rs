@@ -1,16 +1,50 @@
 //! Side effects requested by the pure reducer.
 
 use carver_config::Config;
+use carver_editor_protocol::EditorCommand;
 use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId};
 
 use super::{
-    ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId,
-    SourceImageTarget, TimerId,
+    ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
+    EditorExportWarningRequest, EditorPdfExportRequest, EditorSaveRequest, EditorSessionId,
+    RequestId, SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Apply an editor command through the selected rich-text projection.
+    ApplyRichEditorCommand {
+        /// Immutable protocol command accepted by the reducer.
+        command: EditorCommand,
+    },
+    /// Restore the source-editor selection after a reducer-owned source edit renders.
+    SelectEditorSource {
+        /// Active editor lifetime that owns the selection.
+        session: EditorSessionId,
+        /// Character-based selection in the canonical source.
+        selection: std::ops::Range<usize>,
+    },
+    /// Publish a canonical editor snapshot through the native clipboard adapter.
+    CopyEditorDocument {
+        /// Immutable copy request owned by the current editor session.
+        request: EditorCopyRequest,
+    },
+    /// Present the native export-options dialog for an immutable editor snapshot.
+    ShowEditorExportDialog {
+        /// Immutable dialog request owned by the current editor session.
+        request: EditorExportDialogRequest,
+    },
+    /// Present warnings emitted while preparing an export.
+    ShowEditorExportWarning {
+        /// Immutable warning request awaiting a user decision.
+        request: EditorExportWarningRequest,
+    },
+    /// Render and write or print a PDF through the native GTK adapter.
+    ExportEditorPdf {
+        /// Immutable PDF request owned by the current editor session.
+        request: EditorPdfExportRequest,
+    },
     /// Atomically persist an immutable configuration snapshot.
     PersistConfig {
         /// Complete configuration to write.

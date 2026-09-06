@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg,
     EditorExportFormat, EditorMsg, Effect, LibraryReply, LoadState, NavigationMsg, RequestId,
-    Route, SidebarMsg, SourceImageTarget, TrashMsg, TrashMutation, UiError, update,
+    Route, SidebarMsg, SourceCommand, SourceImageTarget, TrashMsg, TrashMutation, UiError, update,
 };
 
 #[test]
@@ -497,7 +497,10 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowEditorExportDialog { .. }]
+    ));
     assert_eq!(model.route, Route::Editor);
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
@@ -836,6 +839,46 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
 }
 
 #[test]
+fn source_format_command_should_update_only_the_reducer_model() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Carver"),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplySourceCommand {
+            command: SourceCommand::ToggleInline {
+                opening: String::from("*"),
+                closing: String::from("*"),
+            },
+            selection: 0..6,
+        }),
+    );
+
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("*Carver*")
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [
+            Effect::SchedulePreview { .. },
+            Effect::ScheduleEditorSave { .. },
+            Effect::SelectEditorSource { .. }
+        ]
+    ));
+}
+
+#[test]
 fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(
@@ -851,7 +894,11 @@ fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() 
         AppMsg::Editor(EditorMsg::SourceChanged("Unsaved source".to_owned())),
     );
 
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested)).is_empty());
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::CopyEditorDocument { request }] if request.source == "Unsaved source"
+    ));
     assert_eq!(
         model
             .editor_copy_request
@@ -1008,7 +1055,10 @@ fn export_warning_should_require_confirmation_before_writing() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowEditorExportWarning { request }] if request.request_id == dialog.request_id
+    ));
     assert_eq!(
         model
             .editor_export_warning_request

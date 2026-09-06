@@ -7,6 +7,7 @@ mod effect;
 mod model;
 mod msg;
 mod runtime;
+mod source_edit;
 mod update;
 
 pub use effect::Effect;
@@ -22,6 +23,7 @@ pub use msg::{
     PreferencesMsg, SidebarMsg, SourceImageTarget, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
+pub use source_edit::{SourceCommand, SourceEdit};
 pub use update::update;
 
 #[cfg(test)]
