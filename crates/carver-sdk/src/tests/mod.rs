@@ -174,6 +174,16 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn set_note_favorite(
+        &self,
+        _note_id: NoteId,
+        _revision: Revision,
+        _is_favorite: bool,
+        _now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::unsupported()
+    }
+
     fn update_note_timestamps(
         &self,
         _note_id: NoteId,
@@ -212,6 +222,14 @@ impl LibraryBackend for TestBackend {
     fn recent_notes(
         &self,
         _category_id: Option<CategoryId>,
+        _limit: usize,
+        _offset: usize,
+    ) -> Result<Vec<NoteSummary>, Self::Error> {
+        Self::unsupported()
+    }
+
+    fn favorite_notes(
+        &self,
         _limit: usize,
         _offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error> {

@@ -281,6 +281,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .map_or_else(Vec::new, |note_id| {
                 update_action(model, ActionMsg::TrashNote(note_id))
             }),
+        EditorMsg::ToggleFavorite => toggle_editor_favorite(model),
         EditorMsg::CopyRequested => request_editor_copy(model),
         message @ (EditorMsg::ExportDialogRequested
         | EditorMsg::ExportRequested { .. }
@@ -327,7 +328,7 @@ fn update_editor_load(
     {
         return Vec::new();
     }
-    open_editor(model, note_id, revision, source);
+    open_editor(model, note_id, revision, false, source);
     Vec::new()
 }
 
@@ -474,6 +475,7 @@ fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
     revision: carver_sdk::Revision,
+    is_favorite: bool,
     source: String,
 ) {
     let session = model.next_editor_session_id();
@@ -481,6 +483,7 @@ fn open_editor(
         session,
         note_id,
         revision,
+        is_favorite,
         source.clone(),
         model.preferences.editor_mode,
     ));
@@ -756,6 +759,16 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
             category_id,
         }),
         ActionMsg::TrashNote(note_id) => Some(Effect::TrashNote { note_id }),
+        ActionMsg::SetNoteFavorite {
+            note_id,
+            revision,
+            is_favorite,
+        } => Some(Effect::SetNoteFavorite {
+            action: key,
+            note_id,
+            revision,
+            is_favorite,
+        }),
         ActionMsg::UndoMove => None,
     };
     if let Some(effect) = effect {
@@ -829,7 +842,17 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             reload_sidebar_after(model.sidebar.finish(request_id, result), model)
         }
         LibraryReply::BrowserLoaded { request_id, result } => {
-            update_browser_loaded(model, request_id, result)
+            let mut effects = update_browser_loaded(model, request_id, result);
+            if let Some(effect) = reload_favorites(model) {
+                effects.push(effect);
+            }
+            effects
+        }
+        LibraryReply::FavoritesLoaded { request_id, result } => {
+            reload_favorites_after(model.browser.favorites.finish(request_id, result), model)
+        }
+        LibraryReply::FavoriteChanged { action, result } => {
+            update_favorite_changed(model, action, result)
         }
         LibraryReply::EditorLoaded { request_id, result } => {
             update_editor_loaded(model, request_id, result)
@@ -863,6 +886,32 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         },
         LibraryReply::EditorSaved { request, result } => {
             update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn update_favorite_changed(
+    model: &mut AppModel,
+    action: ActionKey,
+    result: Result<carver_sdk::Note, UiError>,
+) -> Vec<Effect> {
+    model.finish_action(action);
+    match result {
+        Ok(note) => {
+            model.notice = None;
+            if let Some(document) = model
+                .editor
+                .as_mut()
+                .filter(|document| document.note_id == note.id)
+            {
+                document.revision = note.revision;
+                document.is_favorite = note.is_favorite;
+            }
+            reload_after_local_mutation(model)
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
         }
     }
 }
@@ -939,8 +988,7 @@ fn update_editor_loaded(
     }
     match result {
         Ok(note) => {
-            model.selected_category = Some(note.category_id);
-            open_editor(model, note.id, note.revision, note.source);
+            open_editor(model, note.id, note.revision, note.is_favorite, note.source);
             model.route = super::Route::Editor;
             if export_after_load {
                 request_editor_export_dialog(model)
@@ -1021,7 +1069,7 @@ fn update_created_note(
 ) -> Vec<Effect> {
     match result {
         Ok(note) => {
-            open_editor(model, note.id, note.revision, note.source);
+            open_editor(model, note.id, note.revision, note.is_favorite, note.source);
             model.route = super::Route::Editor;
             reload_after_local_mutation(model)
         }
@@ -1139,7 +1187,7 @@ fn update_editor_save(
     request: &EditorSaveRequest,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let close_after_save = {
+    let (close_after_save, pending_favorite) = {
         let Some(document) = model.editor.as_mut() else {
             return Vec::new();
         };
@@ -1155,7 +1203,10 @@ fn update_editor_save(
                 document.revision = revision;
                 if document.source == request.source {
                     document.save_state = super::EditorSaveState::Clean;
-                    document.closes_after_save()
+                    (
+                        document.closes_after_save(),
+                        document.pending_favorite.take(),
+                    )
                 } else {
                     document.save_state = super::EditorSaveState::Dirty;
                     return document
@@ -1191,6 +1242,9 @@ fn update_editor_save(
     } else {
         Vec::new()
     };
+    if let Some(is_favorite) = pending_favorite.filter(|_| !close_after_save) {
+        effects.extend(set_editor_favorite(model, is_favorite));
+    }
     effects.extend(request_library_revision(
         model,
         LibraryRevisionCheckReason::LocalMutation,
@@ -1237,7 +1291,8 @@ fn update_undo_state(model: &mut AppModel, action: ActionKey) {
         | ActionKey::RenameCategory(_)
         | ActionKey::UpdateCategory(_)
         | ActionKey::TrashCategory(_)
-        | ActionKey::TrashNote(_) => {}
+        | ActionKey::TrashNote(_)
+        | ActionKey::SetNoteFavorite(_) => {}
     }
 }
 
@@ -1348,6 +1403,55 @@ fn reload_browser(model: &mut AppModel) -> Option<Effect> {
         category_id: model.selected_category,
         query: model.browser.search_query.clone(),
     })
+}
+
+fn reload_favorites(model: &mut AppModel) -> Option<Effect> {
+    if model.selected_category.is_some() || !model.browser.search_query.trim().is_empty() {
+        model.browser.favorites = super::Resource::default();
+        return None;
+    }
+    let request_id = model.next_request_id();
+    model
+        .browser
+        .favorites
+        .begin_reload(request_id)
+        .then_some(Effect::LoadFavorites { request_id })
+}
+
+fn reload_favorites_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
+    reload
+        .then(|| reload_favorites(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+fn toggle_editor_favorite(model: &mut AppModel) -> Vec<Effect> {
+    let Some(document) = model.editor.as_mut() else {
+        return Vec::new();
+    };
+    let is_favorite = !document.is_favorite;
+    if matches!(document.save_state, super::EditorSaveState::Clean) {
+        return set_editor_favorite(model, is_favorite);
+    }
+    document.pending_favorite = Some(is_favorite);
+    document
+        .begin_save()
+        .map_or_else(Vec::new, save_note_effect)
+}
+
+fn set_editor_favorite(model: &mut AppModel, is_favorite: bool) -> Vec<Effect> {
+    let Some(document) = model.editor.as_ref() else {
+        return Vec::new();
+    };
+    update_action(
+        model,
+        ActionMsg::SetNoteFavorite {
+            note_id: document.note_id,
+            revision: document.revision,
+            is_favorite,
+        },
+    )
 }
 
 fn reload_trash(model: &mut AppModel) -> Option<Effect> {

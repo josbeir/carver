@@ -18,8 +18,8 @@ use gtk::gio::{
 use crate::view::ViewRefs;
 
 use super::{
-    ActionKey, AppModel, AppMsg, EditorExportFormat, Effect, LibraryReply, TrashMutation, UiError,
-    update,
+    ActionKey, AppModel, AppMsg, EditorExportFormat, Effect, LibraryReply, RequestId,
+    TrashMutation, UiError, update,
 };
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
@@ -230,21 +230,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 category_id,
                 query,
             } => self.load_browser(request_id, category_id, query),
+            Effect::LoadFavorites { request_id } => self.load_favorites(request_id),
             Effect::LoadEditorNote {
                 request_id,
                 note_id,
             } => self.load_editor_note(request_id, note_id),
-            Effect::LoadTrash { request_id } => {
-                let client = self.inner.client.clone();
-                let runtime = self.clone();
-                glib::spawn_future_local(async move {
-                    let result = client.trash_contents_async().await.map_err(display_error);
-                    runtime.dispatch(AppMsg::Library(LibraryReply::TrashLoaded {
-                        request_id,
-                        result,
-                    }));
-                });
-            }
+            Effect::LoadTrash { request_id } => self.load_trash(request_id),
             Effect::RestoreCategory { category_id } => self.restore_category(category_id),
             Effect::RestoreNote { note_id } => self.restore_note(note_id),
             Effect::EmptyTrash => self.empty_trash(),
@@ -280,11 +271,29 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::TrashNote { note_id } => {
                 self.trash_note(note_id);
             }
+            Effect::SetNoteFavorite {
+                action,
+                note_id,
+                revision,
+                is_favorite,
+            } => self.set_note_favorite(action, note_id, revision, is_favorite),
         }
     }
 
     fn run_editor_effect(&self, effect: Effect) {
         self.inner.view.run_editor_effect(effect);
+    }
+
+    fn load_trash(&self, request_id: RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.trash_contents_async().await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::TrashLoaded {
+                request_id,
+                result,
+            }));
+        });
     }
 
     fn run_editor_export_effect(&self, effect: Effect) {
@@ -394,6 +403,21 @@ impl<B: LibraryBackend> AppRuntime<B> {
             }
             .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BrowserLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_favorites(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .favorite_notes_async(200, 0)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::FavoritesLoaded {
                 request_id,
                 result,
             }));
@@ -720,6 +744,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         self.complete_action(ActionKey::TrashNote(note_id), async move {
             client.trash_note_async(note_id).await
+        });
+    }
+
+    fn set_note_favorite(
+        &self,
+        action: ActionKey,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        is_favorite: bool,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .set_note_favorite_async(note_id, revision, is_favorite)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::FavoriteChanged {
+                action,
+                result,
+            }));
         });
     }
 

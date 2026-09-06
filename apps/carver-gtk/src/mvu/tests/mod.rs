@@ -389,7 +389,7 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
 }
 
 #[test]
-fn opening_a_note_from_all_notes_should_select_its_category() {
+fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
     let note_id = NoteId::new();
@@ -414,6 +414,7 @@ fn opening_a_note_from_all_notes_should_select_its_category() {
                 title: String::from("Categorized note"),
                 plain_text: String::from("Categorized note"),
                 revision: Revision(1),
+                is_favorite: false,
                 created_at: OffsetDateTime::UNIX_EPOCH,
                 updated_at: OffsetDateTime::UNIX_EPOCH,
                 trashed_at: None,
@@ -421,7 +422,7 @@ fn opening_a_note_from_all_notes_should_select_its_category() {
         }),
     );
 
-    assert_eq!(model.selected_category, Some(category_id));
+    assert_eq!(model.selected_category, None);
 }
 
 #[test]
@@ -490,6 +491,7 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
                 title: String::from("Browser note"),
                 plain_text: String::from("Browser note"),
                 revision: Revision(1),
+                is_favorite: false,
                 created_at: OffsetDateTime::UNIX_EPOCH,
                 updated_at: OffsetDateTime::UNIX_EPOCH,
                 trashed_at: None,
@@ -844,6 +846,73 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
     assert_eq!(document.source, unsupported_source);
     assert_eq!(document.mode, carver_config::EditorMode::Rich);
     assert_eq!(document.save_state, super::EditorSaveState::Dirty);
+}
+
+#[test]
+fn favorite_requested_with_dirty_source_should_save_before_updating_metadata() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Before"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("After"))),
+    );
+
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
+    let request = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("favorite changes should save dirty source first"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+        }),
+    );
+
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::SetNoteFavorite {
+            note_id: effect_note_id,
+            revision: Revision(2),
+            is_favorite: true,
+            ..
+        } if *effect_note_id == note_id
+    )));
+}
+
+#[test]
+fn favorite_action_should_use_the_summary_revision() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Action(ActionMsg::SetNoteFavorite {
+            note_id,
+            revision: Revision(3),
+            is_favorite: true,
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::SetNoteFavorite {
+            action: ActionKey::SetNoteFavorite(note_id),
+            note_id,
+            revision: Revision(3),
+            is_favorite: true,
+        }]
+    );
 }
 
 #[test]
@@ -2044,6 +2113,8 @@ fn browser_view_refs(
     status: libadwaita::StatusPage,
 ) -> crate::browser::BrowserViewRefs {
     crate::browser::BrowserViewRefs {
+        favorites_section: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        favorites: gtk::ListBox::new(),
         list,
         pages,
         search_bar: gtk::SearchBar::new(),

@@ -55,6 +55,8 @@ struct BrowserContentRefs<'a> {
 pub struct ViewRefs {
     route_stack: gtk::Stack,
     browser_list: Option<gtk::ListBox>,
+    browser_favorites_section: Option<gtk::Box>,
+    browser_favorites: Option<gtk::ListBox>,
     browser_pages: Option<gtk::Stack>,
     browser_search_bar: Option<gtk::SearchBar>,
     browser_search_entry: Option<gtk::SearchEntry>,
@@ -95,6 +97,8 @@ impl ViewRefs {
         Self {
             route_stack,
             browser_list: None,
+            browser_favorites_section: None,
+            browser_favorites: None,
             browser_pages: None,
             browser_search_bar: None,
             browser_search_entry: None,
@@ -157,6 +161,8 @@ impl ViewRefs {
     #[must_use]
     pub(crate) fn with_browser(mut self, browser: crate::browser::BrowserViewRefs) -> Self {
         self.browser_list = Some(browser.list);
+        self.browser_favorites_section = Some(browser.favorites_section);
+        self.browser_favorites = Some(browser.favorites);
         self.browser_pages = Some(browser.pages);
         self.browser_search_bar = Some(browser.search_bar);
         self.browser_search_entry = Some(browser.search_entry);
@@ -254,6 +260,7 @@ impl ViewRefs {
         if !self.browser_projection_changed(model) {
             return;
         }
+        self.render_browser_favorites(model);
         let Some(BrowserContentRefs {
             list,
             pages,
@@ -376,6 +383,16 @@ impl ViewRefs {
             empty_new_note: self.browser_empty_new_note_button.as_ref()?,
             category_empty_new_note: self.browser_category_empty_new_note_button.as_ref()?,
         })
+    }
+
+    fn render_browser_favorites(&self, model: &AppModel) {
+        let (Some(section), Some(carousel)) = (
+            self.browser_favorites_section.as_ref(),
+            self.browser_favorites.as_ref(),
+        ) else {
+            return;
+        };
+        render_favorites(section, carousel, model, self.dispatcher.as_ref());
     }
 
     fn render_browser_search(&self, model: &AppModel) {
@@ -606,6 +623,73 @@ fn render_browser_notes(
     }
 }
 
+fn render_favorites(
+    section: &gtk::Box,
+    list: &gtk::ListBox,
+    model: &AppModel,
+    dispatcher: Option<&AppDispatcher>,
+) {
+    clear_list(list);
+    if !model.browser.search_query.trim().is_empty() {
+        section.set_visible(false);
+        return;
+    }
+
+    if model.selected_category.is_some() {
+        let LoadState::Ready(notes) = &model.browser.notes.state else {
+            section.set_visible(false);
+            return;
+        };
+        let favorites = notes
+            .iter()
+            .filter(|note| note.is_favorite)
+            .collect::<Vec<_>>();
+        render_favorite_rows(
+            section,
+            list,
+            &favorites,
+            false,
+            &model.sidebar.state,
+            dispatcher,
+        );
+        return;
+    }
+
+    let LoadState::Ready(notes) = &model.browser.favorites.state else {
+        section.set_visible(false);
+        return;
+    };
+    let favorites = notes.iter().collect::<Vec<_>>();
+    render_favorite_rows(
+        section,
+        list,
+        &favorites,
+        true,
+        &model.sidebar.state,
+        dispatcher,
+    );
+}
+
+fn render_favorite_rows(
+    section: &gtk::Box,
+    list: &gtk::ListBox,
+    notes: &[&carver_sdk::NoteSummary],
+    show_category: bool,
+    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
+    dispatcher: Option<&AppDispatcher>,
+) {
+    section.set_visible(!notes.is_empty());
+    if notes.is_empty() {
+        return;
+    }
+    append_favorites_heading(list);
+    for note in notes {
+        let row = browser_row(note, show_category, sidebar, dispatcher);
+        row.set_widget_name(&format!("favorite-note:{}", note.id));
+        list.append(&row);
+    }
+}
+
 fn render_resource<T>(status: &adw::StatusPage, resource: &LoadState<T>, empty_title: &str) {
     match resource {
         LoadState::Idle | LoadState::Ready(_) => status.set_title(empty_title),
@@ -693,6 +777,27 @@ fn note_actions(
     menu.add_css_class("flat");
     let popover = gtk::Popover::new();
     let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let favorite_button = gtk::Button::with_label(if note.is_favorite {
+        "Remove from Favorites"
+    } else {
+        "Mark as Favorite"
+    });
+    favorite_button.set_widget_name(&format!("favorite-note-menu-button:{}", note.id));
+    favorite_button.add_css_class("flat");
+    let dispatcher_for_favorite = dispatcher.clone();
+    let popover_for_favorite = popover.clone();
+    let note_id = note.id;
+    let revision = note.revision;
+    let is_favorite = note.is_favorite;
+    favorite_button.connect_clicked(move |_| {
+        popover_for_favorite.popdown();
+        let _ = dispatcher_for_favorite.dispatch(AppMsg::Action(ActionMsg::SetNoteFavorite {
+            note_id,
+            revision,
+            is_favorite: !is_favorite,
+        }));
+    });
+    actions.append(&favorite_button);
     let move_button = gtk::Button::with_label("Move…");
     move_button.set_widget_name(&format!("move-note-button:{}", note.id));
     move_button.add_css_class("flat");
@@ -745,13 +850,32 @@ fn note_actions(
 }
 
 fn append_section_heading(list: &gtk::ListBox, text: &str) {
-    let row = gtk::ListBoxRow::new();
-    row.set_selectable(false);
-    row.add_css_class("date-heading");
     let label = gtk::Label::new(Some(text));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
-    row.set_child(Some(&label));
+    append_section_heading_widget(list, &label);
+}
+
+fn append_favorites_heading(list: &gtk::ListBox) {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.set_halign(gtk::Align::Start);
+    let label = gtk::Label::new(Some("Favorites"));
+    label.set_xalign(0.0);
+    label.add_css_class("date-heading-label");
+    content.append(&label);
+    let icon = gtk::Image::from_icon_name("starred-symbolic");
+    icon.set_widget_name("favorites-heading-icon");
+    icon.set_pixel_size(14);
+    icon.set_valign(gtk::Align::Center);
+    content.append(&icon);
+    append_section_heading_widget(list, &content);
+}
+
+fn append_section_heading_widget(list: &gtk::ListBox, child: &impl IsA<gtk::Widget>) {
+    let row = gtk::ListBoxRow::new();
+    row.set_selectable(false);
+    row.add_css_class("date-heading");
+    row.set_child(Some(child));
     list.append(&row);
 }
 

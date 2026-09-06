@@ -54,6 +54,7 @@ type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
 
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
+    favorite: gtk::ToggleButton,
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
@@ -90,6 +91,13 @@ impl EditorViewRefs {
             self.rendered_preview_source.replace(None);
             return;
         };
+        self.favorite.set_active(document.is_favorite);
+        self.favorite
+            .set_tooltip_text(Some(if document.is_favorite {
+                "Remove from Favorites"
+            } else {
+                "Add to Favorites"
+            }));
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
         let remote_images_changed = self
             .remote_images
@@ -418,18 +426,19 @@ pub(crate) fn build_editor(
     mode_group.append(&rich_mode);
     mode_group.append(&source_mode);
     mode_group.append(&rendered_mode);
-    let trash = gtk::Button::from_icon_name("user-trash-symbolic");
-    trash.set_widget_name("delete-note-button");
-    trash.set_tooltip_text(Some("Move Note to Trash (Ctrl+D)"));
-    trash.add_css_class("flat");
+    let favorite = gtk::ToggleButton::new();
+    favorite.set_icon_name("starred-symbolic");
+    favorite.set_widget_name("favorite-note-button");
+    favorite.set_tooltip_text(Some("Add to Favorites"));
+    favorite.add_css_class("flat");
     let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
-    let export_menu = export_menu_button();
-    header.pack_end(&trash);
+    let options_menu = editor_options_menu();
+    header.pack_end(&options_menu);
     header.pack_end(&copy_note);
-    header.pack_end(&export_menu);
+    header.pack_end(&favorite);
     view.add_top_bar(&header);
 
     let split_toggle = gtk::ToggleButton::new();
@@ -527,7 +536,7 @@ pub(crate) fn build_editor(
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     connect_theme_changes(dispatcher);
-    connect_trash_action(dispatcher, &trash);
+    connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
@@ -535,6 +544,7 @@ pub(crate) fn build_editor(
     let _source_image_drop = render::install_image_drop(&source, dispatcher, toast_overlay);
     let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, toast_overlay);
     let refs = EditorViewRefs {
+        favorite,
         rich_mode,
         source_mode,
         rendered_mode,
@@ -971,10 +981,10 @@ fn preview_scroll_script(fraction: f64) -> String {
     )
 }
 
-fn connect_trash_action(dispatcher: &AppDispatcher, trash: &gtk::Button) {
+fn connect_favorite_action(dispatcher: &AppDispatcher, favorite: &gtk::ToggleButton) {
     let dispatcher = dispatcher.clone();
-    trash.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::TrashRequested));
+    favorite.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleFavorite));
     });
 }
 
@@ -985,15 +995,16 @@ fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
     });
 }
 
-fn export_menu_button() -> gtk::MenuButton {
+fn editor_options_menu() -> gtk::MenuButton {
     let menu = gtk::MenuButton::new();
-    menu.set_icon_name("document-save-as-symbolic");
-    menu.set_tooltip_text(Some("Export or print note"));
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some("Note options"));
     menu.add_css_class("flat");
-    menu.set_widget_name("export-note-button");
+    menu.set_widget_name("editor-options-menu");
     let actions = gtk::gio::Menu::new();
     actions.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
     actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
+    actions.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
     menu.set_menu_model(Some(&actions));
     menu
 }

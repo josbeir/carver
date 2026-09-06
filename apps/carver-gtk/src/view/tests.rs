@@ -1,7 +1,7 @@
 use carver_config::Config;
 use carver_sdk::{
     Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, NoteId,
-    NoteSummary,
+    NoteSummary, Revision,
 };
 use time::{Duration, OffsetDateTime};
 
@@ -16,6 +16,8 @@ fn note_category_color_should_use_the_category_appearance() {
         category_name: String::from("Ideas"),
         title: String::from("A note"),
         excerpt: String::new(),
+        revision: Revision(1),
+        is_favorite: false,
         updated_at: OffsetDateTime::UNIX_EPOCH,
         has_images: false,
     };

@@ -323,6 +323,19 @@ impl<B: LibraryBackend> LibraryClient<B> {
         .await
     }
 
+    /// Sets a note's favorite state without blocking the caller.
+    pub async fn set_note_favorite_async(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        is_favorite: bool,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.set_note_favorite(note_id, revision, is_favorite, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
     /// Moves a note to trash without blocking the caller.
     pub async fn trash_note_async(&self, note_id: NoteId) -> Result<(), LibraryError<B::Error>> {
         self.request(move |backend| backend.trash_note(note_id, OffsetDateTime::now_utc()))
@@ -353,6 +366,16 @@ impl<B: LibraryBackend> LibraryClient<B> {
         offset: usize,
     ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
         self.request(move |backend| backend.recent_notes(category_id, limit, offset))
+            .await
+    }
+
+    /// Lists favorite active notes without blocking the caller.
+    pub async fn favorite_notes_async(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.favorite_notes(limit, offset))
             .await
     }
 
@@ -533,6 +556,18 @@ impl<B: LibraryBackend> LibraryClient<B> {
         })
     }
 
+    /// Sets a note's favorite state synchronously for bootstrap code and tests.
+    pub fn set_note_favorite(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        is_favorite: bool,
+    ) -> Result<Note, LibraryError<B::Error>> {
+        self.blocking(move |backend| {
+            backend.set_note_favorite(note_id, revision, is_favorite, OffsetDateTime::now_utc())
+        })
+    }
+
     /// Moves a note to trash synchronously for bootstrap code and tests.
     pub fn trash_note(&self, note_id: NoteId) -> Result<(), LibraryError<B::Error>> {
         self.blocking(move |backend| backend.trash_note(note_id, OffsetDateTime::now_utc()))
@@ -561,6 +596,15 @@ impl<B: LibraryBackend> LibraryClient<B> {
         offset: usize,
     ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
         self.blocking(move |backend| backend.recent_notes(category_id, limit, offset))
+    }
+
+    /// Lists favorite active notes synchronously for bootstrap code and tests.
+    pub fn favorite_notes(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
+        self.blocking(move |backend| backend.favorite_notes(limit, offset))
     }
 
     /// Searches notes synchronously for bootstrap code and tests.

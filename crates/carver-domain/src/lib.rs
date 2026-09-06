@@ -235,6 +235,9 @@ pub struct Note {
     pub plain_text: String,
     /// Optimistic concurrency token.
     pub revision: Revision,
+    /// Whether the note is shown in the user's Favorites carousel.
+    #[serde(default)]
+    pub is_favorite: bool,
     /// Creation time.
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -259,6 +262,11 @@ pub struct NoteSummary {
     pub title: String,
     /// Short plaintext excerpt.
     pub excerpt: String,
+    /// Optimistic concurrency token for metadata actions initiated from a list.
+    pub revision: Revision,
+    /// Whether the note is shown in the user's Favorites carousel.
+    #[serde(default)]
+    pub is_favorite: bool,
     /// Last edit time.
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,

@@ -99,6 +99,8 @@ impl NoteDateGroup {
 
 /// Widget references needed to render the browser portion of a window snapshot.
 pub(crate) struct BrowserViewRefs {
+    pub(crate) favorites_section: gtk::Box,
+    pub(crate) favorites: gtk::ListBox,
     pub(crate) list: gtk::ListBox,
     pub(crate) pages: gtk::Stack,
     pub(crate) search_bar: gtk::SearchBar,
@@ -240,8 +242,8 @@ pub(crate) fn build_browser(
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
     new_note.set_tooltip_text(Some("New Note"));
-    header.pack_end(&new_note);
     header.pack_end(&browser_menu_button());
+    header.pack_end(&new_note);
     header.pack_start(&sidebar_toggle_button(
         split_view,
         "toggle-categories-button",
@@ -260,6 +262,8 @@ pub(crate) fn build_browser(
     category_hero.set_widget_name("browser-category-hero");
     category_hero.add_css_class("category-hero");
     content.append(&category_hero);
+    let (favorites_section, favorites) = build_favorites_section();
+    content.append(&favorites_section);
     let search_empty_card = gtk::Box::new(gtk::Orientation::Vertical, 4);
     search_empty_card.set_widget_name("browser-search-empty-card");
     search_empty_card.add_css_class("card");
@@ -310,6 +314,8 @@ pub(crate) fn build_browser(
     view.set_content(Some(&pages));
 
     let references = BrowserViewRefs {
+        favorites_section,
+        favorites,
         list,
         pages,
         search_bar,
@@ -325,6 +331,18 @@ pub(crate) fn build_browser(
     connect_browser_actions(dispatcher, &references, &new_note);
     install_browser_shortcuts(&view, dispatcher);
     (view.upcast(), references)
+}
+
+fn build_favorites_section() -> (gtk::Box, gtk::ListBox) {
+    let section = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    section.set_widget_name("favorites-section");
+    section.set_visible(false);
+    let list = gtk::ListBox::new();
+    list.set_widget_name("favorites-list");
+    list.set_selection_mode(gtk::SelectionMode::Single);
+    list.add_css_class("note-feed");
+    section.append(&list);
+    (section, list)
 }
 
 fn browser_menu_button() -> gtk::MenuButton {
@@ -445,16 +463,24 @@ fn connect_browser_actions(
     connect_new_note_action(dispatcher, new_note);
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
     connect_new_note_action(dispatcher, &references.category_empty_new_note_button);
-    let dispatcher_for_row = dispatcher.clone();
-    references.list.connect_row_activated(move |_list, row| {
+    connect_note_row_activation(dispatcher, &references.list);
+    connect_note_row_activation(dispatcher, &references.favorites);
+}
+
+fn connect_note_row_activation(dispatcher: &AppDispatcher, list: &gtk::ListBox) {
+    let dispatcher = dispatcher.clone();
+    list.connect_row_activated(move |_list, row| {
         let widget_name = row.widget_name();
-        let Some(raw_id) = widget_name.strip_prefix("note:") else {
+        let raw_id = widget_name
+            .strip_prefix("note:")
+            .or_else(|| widget_name.strip_prefix("favorite-note:"));
+        let Some(raw_id) = raw_id else {
             return;
         };
         let Ok(id) = uuid::Uuid::parse_str(raw_id) else {
             return;
         };
-        let _ = dispatcher_for_row.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
             carver_sdk::NoteId::from_uuid(id),
         )));
     });
@@ -710,7 +736,7 @@ pub(crate) fn compact_note_excerpt(title: &str, excerpt: &str) -> String {
         .to_owned()
 }
 
-fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTime) -> String {
+pub(crate) fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTime) -> String {
     let elapsed_seconds = (now - updated_at).whole_seconds().max(0);
     if elapsed_seconds < 60 {
         return elapsed_label(elapsed_seconds, "second");

@@ -85,6 +85,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "https://github.com/josbeir/carver/issues"
     );
     assert!(window.lookup_action("connect-agent").is_some());
+    assert!(window.lookup_action("toggle-favorite").is_some());
     let agent_setup = crate::dialogs::show_agent_setup_dialog_for_test(&window);
     let agent = widget_as::<adw::ComboRow>(agent_setup.upcast_ref(), "agent-setup-agent")
         .ok_or("agent setup selection")?;
@@ -358,7 +359,74 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_some(),
         "note actions should expose export"
     );
-    let move_button = note_menu
+    let favorite_button = note_menu
+        .popover()
+        .and_then(|popover| popover.child())
+        .and_then(|actions| {
+            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
+        })
+        .and_downcast::<gtk::Button>()
+        .ok_or("favorite note action")?;
+    favorite_button.emit_clicked();
+    assert!(run_main_context_until(|| client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(|saved| saved.is_favorite)));
+    let favorite_row = run_main_context_until(|| {
+        find_widget(&root, &format!("favorite-note:{}", note.id)).is_some()
+    });
+    assert!(favorite_row);
+    let favorite_row = find_widget(&root, &format!("favorite-note:{}", note.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("favorite note row")?;
+    assert!(widget_as::<gtk::Image>(&root, "favorites-heading-icon").is_some());
+    assert!(favorite_row.has_css_class("card"));
+    assert!(favorite_row.has_css_class("note-card"));
+    let favorite_menu =
+        widget_as::<gtk::MenuButton>(favorite_row.upcast_ref(), &format!("note-menu:{}", note.id))
+            .ok_or("favorite note actions")?;
+    let favorite_remove = favorite_menu
+        .popover()
+        .and_then(|popover| popover.child())
+        .and_then(|actions| {
+            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
+        })
+        .and_downcast::<gtk::Button>()
+        .ok_or("favorite card removal")?;
+    favorite_remove.emit_clicked();
+    assert!(run_main_context_until(|| client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(|saved| !saved.is_favorite)));
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("favorite-note:{}", note.id)).is_none()
+    }));
+    let refreshed_note_menu =
+        widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
+            .ok_or("refreshed note actions")?;
+    let refavorite_button = refreshed_note_menu
+        .popover()
+        .and_then(|popover| popover.child())
+        .and_then(|actions| {
+            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
+        })
+        .and_downcast::<gtk::Button>()
+        .ok_or("re-favorite note action")?;
+    refavorite_button.emit_clicked();
+    assert!(run_main_context_until(|| client
+        .note(note.id)
+        .ok()
+        .flatten()
+        .is_some_and(|saved| saved.is_favorite)));
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("favorite-note:{}", note.id)).is_some()
+    }));
+    let refreshed_note_menu =
+        widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
+            .ok_or("second refreshed note actions")?;
+    let move_button = refreshed_note_menu
         .popover()
         .and_then(|popover| popover.child())
         .and_then(|actions| find_widget(&actions, &format!("move-note-button:{}", note.id)))
@@ -453,6 +521,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Label>(&root, "browser-hero-title")
             .is_some_and(|title| title.text() == "Projects")
             && find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, &format!("favorite-note:{}", note.id)).is_some()
+            && widget_as::<gtk::Box>(&root, "favorites-section")
+                .is_some_and(|section| section.is_visible())
             && find_widget(&root, "note-group:today").is_some()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
@@ -473,12 +544,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(note_row.has_css_class("activatable"));
     note_row.activate();
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
-    let destination_category_name = format!("category:{}", destination.id);
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
-            && sidebar
-                .selected_row()
-                .is_some_and(|row| row.widget_name() == destination_category_name)
+            && all_notes_row(&sidebar).is_some_and(|all_notes| {
+                sidebar
+                    .selected_row()
+                    .is_some_and(|selected| selected == all_notes)
+            })
     }));
     let controllers = route_stack.observe_controllers();
     let mouse_back = (0..controllers.n_items())
@@ -587,15 +659,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "First line\\\n"
     );
     let copy_note = widget_as::<gtk::Button>(&root, "copy-note-button").ok_or("copy note")?;
-    let export_menu =
-        widget_as::<gtk::MenuButton>(&root, "export-note-button").ok_or("export menu")?;
+    let options_menu =
+        widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
     let gtk_window = window.clone().upcast::<gtk::Window>();
     assert_eq!(
-        export_menu.menu_model().map(|model| model.n_items()),
-        Some(2)
+        options_menu.menu_model().map(|model| model.n_items()),
+        Some(3)
     );
     assert!(
-        export_menu
+        options_menu
             .popover()
             .and_downcast::<gtk::PopoverMenu>()
             .is_some()
@@ -1033,11 +1105,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
-    let delete_note = widget_as::<gtk::Button>(&root, "delete-note-button").ok_or("delete note")?;
-    assert_eq!(
-        delete_note.tooltip_text().as_deref(),
-        Some("Move Note to Trash (Ctrl+D)")
-    );
+    assert!(widget_as::<gtk::Button>(&root, "delete-note-button").is_none());
     let delete_handled = editor_shortcuts.emit_by_name::<bool>(
         "key-pressed",
         &[

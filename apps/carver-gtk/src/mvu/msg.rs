@@ -190,6 +190,8 @@ pub enum EditorMsg {
     BackRequested,
     /// Move the active editor note to trash.
     TrashRequested,
+    /// Toggle the active editor note's favorite state.
+    ToggleFavorite,
     /// Copy the complete active note as rendered clipboard content.
     CopyRequested,
     /// Open the native export format and packaging options for the current note snapshot.
@@ -356,6 +358,15 @@ pub enum ActionMsg {
     UndoMove,
     /// Move a note to trash.
     TrashNote(NoteId),
+    /// Set a note's favorite state using the revision displayed with its summary.
+    SetNoteFavorite {
+        /// Note to update.
+        note_id: NoteId,
+        /// Revision expected by the metadata update.
+        revision: Revision,
+        /// Desired favorite state.
+        is_favorite: bool,
+    },
 }
 
 impl ActionMsg {
@@ -382,6 +393,7 @@ impl ActionMsg {
             Self::TrashCategory(category_id) => ActionKey::TrashCategory(*category_id),
             Self::UndoMove => return None,
             Self::TrashNote(note_id) => ActionKey::TrashNote(*note_id),
+            Self::SetNoteFavorite { note_id, .. } => ActionKey::SetNoteFavorite(*note_id),
         })
     }
 }
@@ -431,6 +443,20 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Successful result or a displayable failure.
         result: Result<Vec<NoteSummary>, UiError>,
+    },
+    /// Favorite summaries completed loading for the All Notes Favorites section.
+    FavoritesLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Successful result or a displayable failure.
+        result: Result<Vec<NoteSummary>, UiError>,
+    },
+    /// A favorite-state mutation completed with its updated note revision.
+    FavoriteChanged {
+        /// Identity of the mutation admitted by the reducer.
+        action: ActionKey,
+        /// Updated note or a displayable failure.
+        result: Result<carver_sdk::Note, UiError>,
     },
     /// A complete note finished loading for the editor.
     EditorLoaded {

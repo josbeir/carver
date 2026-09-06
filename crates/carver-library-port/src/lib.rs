@@ -114,6 +114,14 @@ pub trait LibraryBackend: Send + 'static {
         category_id: CategoryId,
         now: OffsetDateTime,
     ) -> Result<Note, Self::Error>;
+    /// Sets whether an active note is a favorite, guarded by its current revision.
+    fn set_note_favorite(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        is_favorite: bool,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error>;
     /// Moves a note to trash at the supplied time.
     fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error>;
     /// Restores a note from trash.
@@ -129,6 +137,8 @@ pub trait LibraryBackend: Send + 'static {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error>;
+    /// Lists active favorite notes, newest favorite first.
+    fn favorite_notes(&self, limit: usize, offset: usize) -> Result<Vec<NoteSummary>, Self::Error>;
     /// Searches active notes by title and body.
     fn search(
         &self,

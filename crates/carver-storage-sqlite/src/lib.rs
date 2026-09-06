@@ -147,10 +147,10 @@ const INITIAL_SCHEMA: &str = "
 ";
 
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up_with_hook(
-        INITIAL_SCHEMA,
-        migrate_category_appearance_columns,
-    )])
+    Migrations::new(vec![
+        M::up_with_hook(INITIAL_SCHEMA, migrate_category_appearance_columns),
+        M::up_with_hook("", migrate_note_favorite_columns),
+    ])
 }
 
 fn apply_migrations(connection: &mut Connection) -> Result<(), StorageError> {
@@ -175,6 +175,25 @@ fn migrate_category_appearance_columns(
             "ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT 'auto';",
         )?;
     }
+    Ok(())
+}
+
+fn migrate_note_favorite_columns(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("PRAGMA table_info(notes)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !columns.iter().any(|column| column == "is_favorite") {
+        transaction.execute_batch(
+            "ALTER TABLE notes ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0, 1));",
+        )?;
+    }
+    if !columns.iter().any(|column| column == "favorited_at") {
+        transaction.execute_batch("ALTER TABLE notes ADD COLUMN favorited_at INTEGER;")?;
+    }
+    transaction.execute_batch(
+        "CREATE INDEX IF NOT EXISTS notes_favorite_order_idx ON notes(is_favorite, favorited_at DESC);",
+    )?;
     Ok(())
 }
 
@@ -502,7 +521,7 @@ impl SqliteLibrary {
     /// Returns an error when the note cannot be read or stored values are corrupt.
     pub fn note(&self, note_id: NoteId) -> Result<Option<Note>, StorageError> {
         self.connection.query_row(
-            "SELECT id, category_id, source, title, plain_text, revision, created_at, updated_at, trashed_at
+            "SELECT id, category_id, source, title, plain_text, revision, is_favorite, created_at, updated_at, trashed_at
              FROM notes WHERE id = ?1",
             [note_id.to_string()],
             note_from_row,
@@ -610,6 +629,45 @@ impl SqliteLibrary {
             .ok_or_else(|| StorageError::Corrupt("moved note was not found".to_owned()))
     }
 
+    /// Sets an active note's favorite state without changing its content timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the revision conflicts or the note is unavailable.
+    pub fn set_note_favorite(
+        &self,
+        note_id: NoteId,
+        expected_revision: Revision,
+        is_favorite: bool,
+        now: OffsetDateTime,
+    ) -> Result<Note, StorageError> {
+        let existing = self.note(note_id)?.ok_or(StorageError::Conflict)?;
+        if existing.revision != expected_revision || existing.trashed_at.is_some() {
+            return Err(StorageError::Conflict);
+        }
+        if existing.is_favorite == is_favorite {
+            return Ok(existing);
+        }
+        let affected = self.connection.execute(
+            "UPDATE notes
+             SET is_favorite = ?3,
+                 favorited_at = CASE WHEN ?3 THEN ?4 ELSE NULL END,
+                 revision = revision + 1
+             WHERE id = ?1 AND revision = ?2 AND trashed_at IS NULL",
+            params![
+                note_id.to_string(),
+                expected_revision.0,
+                is_favorite,
+                timestamp(now),
+            ],
+        )?;
+        if affected != 1 {
+            return Err(StorageError::Conflict);
+        }
+        self.note(note_id)?
+            .ok_or_else(|| StorageError::Corrupt("favorite-updated note was not found".to_owned()))
+    }
+
     /// Lists recent notes, optionally restricted to one category.
     ///
     /// # Errors
@@ -623,7 +681,7 @@ impl SqliteLibrary {
     ) -> Result<Vec<NoteSummary>, StorageError> {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
-            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.updated_at,
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
                     EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL
@@ -634,6 +692,31 @@ impl SqliteLibrary {
         let offset = i64::try_from(offset).unwrap_or(i64::MAX);
         statement
             .query_map(params![category, limit, offset], summary_from_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Lists active favorite notes, newest favorite first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when notes cannot be read or stored values are corrupt.
+    pub fn favorite_notes(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
+                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
+             FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.is_favorite = 1
+             ORDER BY n.favorited_at DESC, n.id DESC LIMIT ?1 OFFSET ?2",
+        )?;
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let offset = i64::try_from(offset).unwrap_or(i64::MAX);
+        statement
+            .query_map(params![limit, offset], summary_from_row)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(Into::into)
     }
@@ -654,7 +737,7 @@ impl SqliteLibrary {
         }
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
-            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.updated_at,
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
                     EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id),
                     snippet(note_fts, 2, '', '', '…', 14)
              FROM note_fts JOIN notes n ON n.id = note_fts.note_id
@@ -668,7 +751,7 @@ impl SqliteLibrary {
             .query_map(params![fts_query(query), category, limit], |row| {
                 Ok(SearchHit {
                     note: summary_from_row(row)?,
-                    snippet: row.get(7)?,
+                    snippet: row.get(9)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()
@@ -1008,6 +1091,16 @@ impl LibraryBackend for SqliteLibrary {
         Self::move_note(self, note_id, category_id, now)
     }
 
+    fn set_note_favorite(
+        &self,
+        note_id: NoteId,
+        revision: Revision,
+        is_favorite: bool,
+        now: OffsetDateTime,
+    ) -> Result<Note, Self::Error> {
+        Self::set_note_favorite(self, note_id, revision, is_favorite, now)
+    }
+
     fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error> {
         Self::trash_note(self, note_id, now)
     }
@@ -1031,6 +1124,10 @@ impl LibraryBackend for SqliteLibrary {
         offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error> {
         Self::recent_notes(self, category_id, limit, offset)
+    }
+
+    fn favorite_notes(&self, limit: usize, offset: usize) -> Result<Vec<NoteSummary>, Self::Error> {
+        Self::favorite_notes(self, limit, offset)
     }
 
     fn search(
@@ -1100,10 +1197,11 @@ fn note_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         title: row.get(3)?,
         plain_text: row.get(4)?,
         revision: Revision(row.get(5)?),
-        created_at: parse_timestamp(row.get(6)?).map_err(to_sql_error)?,
-        updated_at: parse_timestamp(row.get(7)?).map_err(to_sql_error)?,
+        is_favorite: row.get(6)?,
+        created_at: parse_timestamp(row.get(7)?).map_err(to_sql_error)?,
+        updated_at: parse_timestamp(row.get(8)?).map_err(to_sql_error)?,
         trashed_at: row
-            .get::<_, Option<i64>>(8)?
+            .get::<_, Option<i64>>(9)?
             .map(parse_timestamp)
             .transpose()
             .map_err(to_sql_error)?,
@@ -1118,8 +1216,10 @@ fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
         category_name: row.get(2)?,
         title: row.get(3)?,
         excerpt: plain_text.chars().take(180).collect(),
-        updated_at: parse_timestamp(row.get(5)?).map_err(to_sql_error)?,
-        has_images: row.get(6)?,
+        revision: Revision(row.get(5)?),
+        is_favorite: row.get(6)?,
+        updated_at: parse_timestamp(row.get(7)?).map_err(to_sql_error)?,
+        has_images: row.get(8)?,
     })
 }
 

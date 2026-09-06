@@ -24,6 +24,7 @@ pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
 pub(crate) const EXPORT_NOTE_ACTION: &str = "win.export-note";
 pub(crate) const PRINT_NOTE_ACTION: &str = "win.print-note";
 pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
+pub(crate) const TOGGLE_FAVORITE_ACTION: &str = "win.toggle-favorite";
 pub(crate) const KEYBOARD_SHORTCUTS_ACTION: &str = "win.keyboard-shortcuts";
 
 #[derive(Clone, Copy)]
@@ -60,6 +61,10 @@ const BROWSER_SHORTCUTS: &[Shortcut] = &[Shortcut {
 }];
 
 const EDITOR_SHORTCUTS: &[Shortcut] = &[
+    Shortcut {
+        title: "Toggle favorite",
+        accelerator: "<Control><Shift>f",
+    },
     Shortcut {
         title: "Export note",
         accelerator: "<Control>e",
@@ -278,6 +283,16 @@ fn install_note_actions(
         }
     });
     window.add_action(&trash_note);
+
+    let toggle_favorite = gtk::gio::SimpleAction::new("toggle-favorite", None);
+    let dispatcher_for_favorite = dispatcher.clone();
+    let runtime_for_favorite = runtime.clone();
+    toggle_favorite.connect_activate(move |_, _| {
+        if runtime_for_favorite.model().editor.is_some() {
+            let _ = dispatcher_for_favorite.dispatch(AppMsg::Editor(EditorMsg::ToggleFavorite));
+        }
+    });
+    window.add_action(&toggle_favorite);
 }
 
 fn install_application_accelerators(window: &adw::ApplicationWindow) {
@@ -290,6 +305,7 @@ fn install_application_accelerators(window: &adw::ApplicationWindow) {
         (EXPORT_NOTE_ACTION, "<Control>e"),
         (PRINT_NOTE_ACTION, "<Control>p"),
         (TRASH_NOTE_ACTION, "<Control>d"),
+        (TOGGLE_FAVORITE_ACTION, "<Control><Shift>f"),
         (KEYBOARD_SHORTCUTS_ACTION, "<Control>question"),
     ] {
         application.set_accels_for_action(action, &[accelerator]);
