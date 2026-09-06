@@ -899,15 +899,30 @@ fn update_favorite_changed(
     match result {
         Ok(note) => {
             model.notice = None;
-            if let Some(document) = model
+            let rebased_save = if let Some(document) = model
                 .editor
                 .as_mut()
                 .filter(|document| document.note_id == note.id)
             {
+                let save_needs_rebase = matches!(
+                    &document.save_state,
+                    super::EditorSaveState::Saving(request)
+                        if request.expected_revision != note.revision
+                );
                 document.revision = note.revision;
                 document.is_favorite = note.is_favorite;
-            }
-            reload_after_local_mutation(model)
+                if save_needs_rebase {
+                    document.save_state = super::EditorSaveState::Dirty;
+                    document.begin_save()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let mut effects = rebased_save.map_or_else(Vec::new, save_note_effect);
+            effects.extend(reload_after_local_mutation(model));
+            effects
         }
         Err(error) => {
             model.notice = Some(error);
@@ -1226,24 +1241,22 @@ fn update_editor_save(
             }
         }
     };
+    let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
+        set_editor_favorite(model, is_favorite)
+    });
     if close_after_save {
         model.route = super::Route::Browser;
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
     }
-    let mut effects = if close_after_save {
+    if close_after_save {
         let pending_effects = complete_pending_category_selection(model);
         if pending_effects.is_empty() {
-            reload_browser(model).into_iter().collect()
+            effects.extend(reload_browser(model));
         } else {
-            pending_effects
+            effects.extend(pending_effects);
         }
-    } else {
-        Vec::new()
-    };
-    if let Some(is_favorite) = pending_favorite.filter(|_| !close_after_save) {
-        effects.extend(set_editor_favorite(model, is_favorite));
     }
     effects.extend(request_library_revision(
         model,

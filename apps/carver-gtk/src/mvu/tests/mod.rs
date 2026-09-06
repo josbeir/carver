@@ -891,6 +891,121 @@ fn favorite_requested_with_dirty_source_should_save_before_updating_metadata() {
 }
 
 #[test]
+fn favorite_requested_before_closing_a_dirty_editor_should_run_after_saving() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Before"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("After"))),
+    );
+    let request = match update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("favorite changes should save dirty source first"),
+    };
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+        }),
+    );
+
+    assert!(model.editor.is_none());
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::SetNoteFavorite {
+            note_id: effect_note_id,
+            revision: Revision(2),
+            is_favorite: true,
+            ..
+        } if *effect_note_id == note_id
+    )));
+}
+
+#[test]
+fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let category_id = CategoryId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Before"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("After"))),
+    );
+    let stale_request = match update(&mut model, AppMsg::Editor(EditorMsg::RetrySave)).as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("editing after favoriting should start an autosave"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::FavoriteChanged {
+            action: ActionKey::SetNoteFavorite(note_id),
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("Before"),
+                title: String::from("Before"),
+                plain_text: String::from("Before"),
+                revision: Revision(2),
+                is_favorite: true,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+    let rebased_request = match effects.as_slice() {
+        [Effect::SaveNote { request }, ..] => request.clone(),
+        _ => panic!("favorite completion should restart the stale save"),
+    };
+    assert_eq!(rebased_request.expected_revision, Revision(2));
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::EditorSaved {
+                request: stale_request,
+                result: Err(UiError::new("revision conflict")),
+            }),
+        )
+        .is_empty()
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request: rebased_request,
+            result: Ok(Revision(3)),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    let Some(document) = model.editor else {
+        panic!("editor should remain open");
+    };
+    assert_eq!(document.revision, Revision(3));
+    assert_eq!(document.save_state, super::EditorSaveState::Clean);
+}
+
+#[test]
 fn favorite_action_should_use_the_summary_revision() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

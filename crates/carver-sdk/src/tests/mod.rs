@@ -345,6 +345,11 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
         Revision(0),
         "Updated source".to_owned(),
     )));
+    assert_backend_error(&block_on(client.set_note_favorite_async(
+        note_id,
+        Revision(0),
+        true,
+    )));
     assert_backend_error(&block_on(client.update_note_timestamps_async(
         note_id,
         Revision(0),
@@ -357,6 +362,7 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(client.trash_contents_async()));
     assert_backend_error(&block_on(client.empty_trash_async()));
     assert_backend_error(&block_on(client.recent_notes_async(None, 10, 0)));
+    assert_backend_error(&block_on(client.favorite_notes_async(10, 0)));
     assert_backend_error(&block_on(client.search_async(
         "needle".to_owned(),
         None,
@@ -370,6 +376,17 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(
         client.note_asset_bytes_async(note_id, "assets/example.png".to_owned()),
     ));
+    Ok(())
+}
+
+#[test]
+fn synchronous_favorite_requests_should_propagate_backend_errors()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let note_id = NoteId::new();
+
+    assert_backend_error(&client.set_note_favorite(note_id, Revision(0), true));
+    assert_backend_error(&client.favorite_notes(10, 0));
     Ok(())
 }
 
