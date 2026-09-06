@@ -285,7 +285,8 @@ fn character_offset_at_byte(source: &str, offset: usize) -> Option<usize> {
 fn strip_list_marker(line: &str) -> &str {
     ordered_list_item(line)
         .or_else(|| line.strip_prefix("- [ ] "))
-        .or_else(|| line.strip_prefix("- "))
+        .or_else(|| line.strip_prefix("- [x] "))
+        .or_else(|| line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")))
         .unwrap_or(line)
 }
 fn ordered_list_item(line: &str) -> Option<&str> {
@@ -324,16 +325,10 @@ fn image_with_width(image: &str, width: Option<u8>) -> String {
             (base, attributes.strip_suffix('}'))
         });
     let mut attributes = attributes
-        .map(|attributes| {
-            attributes
-                .split_whitespace()
-                .filter(|attribute| !attribute.starts_with("width="))
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        })
+        .map(image_attributes_without_width)
         .unwrap_or_default();
     if let Some(width) = width {
-        attributes.push(format!("width={width}%"));
+        attributes.push(format!("width=\"{width}%\""));
     }
     if attributes.is_empty() {
         base.to_owned()
@@ -341,3 +336,57 @@ fn image_with_width(image: &str, width: Option<u8>) -> String {
         format!("{base}{{{}}}", attributes.join(" "))
     }
 }
+
+fn image_attributes_without_width(attributes: &str) -> Vec<String> {
+    let mut entries = Vec::new();
+    let mut cursor = 0;
+    while cursor < attributes.len() {
+        cursor += attributes[cursor..]
+            .char_indices()
+            .take_while(|(_, character)| character.is_whitespace())
+            .map(|(offset, character)| offset + character.len_utf8())
+            .last()
+            .unwrap_or_default();
+        if cursor >= attributes.len() {
+            break;
+        }
+        let start = cursor;
+        let key_end = attributes[cursor..]
+            .char_indices()
+            .find_map(|(offset, character)| {
+                (character == '=' || character.is_whitespace()).then_some(cursor + offset)
+            })
+            .unwrap_or(attributes.len());
+        let key = &attributes[start..key_end];
+        cursor = key_end;
+        if attributes[cursor..].starts_with('=') {
+            cursor += 1;
+            if let Some(quote) = attributes[cursor..]
+                .chars()
+                .next()
+                .filter(|quote| *quote == '\'' || *quote == '"')
+            {
+                cursor += quote.len_utf8();
+                cursor = attributes[cursor..]
+                    .find(quote)
+                    .map_or(attributes.len(), |offset| {
+                        cursor + offset + quote.len_utf8()
+                    });
+            } else {
+                cursor = attributes[cursor..]
+                    .char_indices()
+                    .find_map(|(offset, character)| {
+                        character.is_whitespace().then_some(cursor + offset)
+                    })
+                    .unwrap_or(attributes.len());
+            }
+        }
+        if key != "width" {
+            entries.push(attributes[start..cursor].to_owned());
+        }
+    }
+    entries
+}
+
+#[cfg(test)]
+mod tests;

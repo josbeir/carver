@@ -214,7 +214,9 @@ impl RichEditor {
                 EditorEvent::Changed {
                     session, source, ..
                 } if session == editor.session.get() => {
-                    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(source)));
+                    for message in rich_source_change_messages(source) {
+                        let _ = dispatcher.dispatch(message);
+                    }
                 }
                 EditorEvent::Unsupported {
                     session,
@@ -492,12 +494,21 @@ fn editor_document(allow_remote_images: bool) -> String {
     )
 }
 
+/// Translates one rich-editor mutation into the same model notifications as a source edit.
+fn rich_source_change_messages(source: String) -> [AppMsg; 2] {
+    [
+        AppMsg::Editor(EditorMsg::SourceChanged(source)),
+        AppMsg::Editor(EditorMsg::AutosaveRequested),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        LinkContext, editor_document, editor_theme, parse_link_context, selection_theme,
-        theme_javascript,
+        LinkContext, editor_document, editor_theme, parse_link_context,
+        rich_source_change_messages, selection_theme, theme_javascript,
     };
+    use crate::mvu::{AppMsg, EditorMsg};
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
@@ -507,6 +518,20 @@ mod tests {
     #[test]
     fn editor_document_keeps_remote_images_blocked_when_disabled() {
         assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn rich_source_change_should_schedule_an_autosave_notification() {
+        let [source_changed, autosave] = rich_source_change_messages(String::from("Changed"));
+
+        assert!(matches!(
+            source_changed,
+            AppMsg::Editor(EditorMsg::SourceChanged(source)) if source == "Changed"
+        ));
+        assert!(matches!(
+            autosave,
+            AppMsg::Editor(EditorMsg::AutosaveRequested)
+        ));
     }
 
     #[test]
