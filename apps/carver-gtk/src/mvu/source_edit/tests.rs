@@ -26,3 +26,14 @@ fn image_width_should_use_quoted_canonical_attribute_and_preserve_other_attribut
         "![First](assets/first.png){title=\"A first image\" width=\"50%\"}"
     );
 }
+
+#[test]
+fn heading_changes_should_preserve_literal_hashes_and_leading_whitespace() {
+    let edit = SourceEdit::apply(
+        String::from("#tag\n  ordinary\n## Heading"),
+        0..26,
+        SourceCommand::SetHeading(0),
+    );
+
+    assert_eq!(edit.source(), "#tag\n  ordinary\nHeading");
+}

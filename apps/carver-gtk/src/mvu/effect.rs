@@ -18,6 +18,13 @@ pub enum Effect {
         /// Immutable protocol command accepted by the reducer.
         command: EditorCommand,
     },
+    /// Reload the rich-text projection after an asynchronous source mutation.
+    ReloadRichEditor {
+        /// Active editor lifetime that owns the rich-text projection.
+        session: EditorSessionId,
+        /// Canonical source to load into the projection.
+        source: String,
+    },
     /// Restore the source-editor selection after a reducer-owned source edit renders.
     SelectEditorSource {
         /// Active editor lifetime that owns the selection.

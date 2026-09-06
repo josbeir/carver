@@ -839,32 +839,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             alt,
             source_target,
             result,
-        } => {
-            let Some(document) = model
-                .editor
-                .as_mut()
-                .filter(|document| document.session == session)
-            else {
-                return Vec::new();
-            };
-            match result {
-                Ok(path) => {
-                    let source = image_source(&document.source, &alt, &path, source_target);
-                    if document.source_changed(source) {
-                        [schedule_preview(model), schedule_editor_save(model)]
-                            .into_iter()
-                            .flatten()
-                            .collect()
-                    } else {
-                        Vec::new()
-                    }
-                }
-                Err(error) => {
-                    model.notice = Some(error);
-                    Vec::new()
-                }
-            }
-        }
+        } => update_editor_asset_stored(model, session, &alt, source_target, result),
         LibraryReply::EditorExportPrepared {
             request_id,
             session,
@@ -888,6 +863,43 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         },
         LibraryReply::EditorSaved { request, result } => {
             update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn update_editor_asset_stored(
+    model: &mut AppModel,
+    session: super::EditorSessionId,
+    alt: &str,
+    source_target: Option<super::SourceImageTarget>,
+    result: Result<String, UiError>,
+) -> Vec<Effect> {
+    let Some(document) = model
+        .editor
+        .as_mut()
+        .filter(|document| document.session == session)
+    else {
+        return Vec::new();
+    };
+    match result {
+        Ok(path) => {
+            let source = image_source(&document.source, alt, &path, source_target);
+            if !document.source_changed(source) {
+                return Vec::new();
+            }
+            let source = document.source.clone();
+            [
+                schedule_preview(model),
+                schedule_editor_save(model),
+                Some(Effect::ReloadRichEditor { session, source }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
         }
     }
 }
@@ -1177,7 +1189,7 @@ fn update_editor_save(
             pending_effects
         }
     } else {
-        reload_browser(model).into_iter().collect()
+        Vec::new()
     };
     effects.extend(request_library_revision(
         model,
@@ -1196,7 +1208,13 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
-        return Vec::new();
+        return model
+            .pending_category_selection
+            .is_none()
+            .then(|| reload_browser(model))
+            .flatten()
+            .into_iter()
+            .collect();
     }
     document
         .begin_save()

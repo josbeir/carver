@@ -194,6 +194,13 @@ impl EditorViewRefs {
         self.rich.command(command);
     }
 
+    /// Reloads the rich projection after an asynchronous reducer-owned source mutation.
+    pub(crate) fn reload_rich_source(&self, session: EditorSessionId, source: &str) {
+        if self.loaded_session.borrow().as_ref() == Some(&session) {
+            self.rich.load_source(source);
+        }
+    }
+
     /// Restores the selection calculated by a pure source edit after its snapshot renders.
     pub(crate) fn select_source_range(
         &self,

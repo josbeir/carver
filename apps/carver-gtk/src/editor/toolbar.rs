@@ -251,7 +251,11 @@ impl CommandRouter {
                 );
                 return;
             }
-            _ => self.dispatch_source_command(source_command(command)),
+            _ => {
+                if let Some(command) = source_command(command) {
+                    self.dispatch_source_command(command);
+                }
+            }
         }
         self.focus.restore_later();
     }
@@ -346,8 +350,8 @@ impl CommandRouter {
     }
 }
 
-fn source_command(command: ToolbarCommand) -> SourceCommand {
-    match command {
+fn source_command(command: ToolbarCommand) -> Option<SourceCommand> {
+    Some(match command {
         ToolbarCommand::Bold => SourceCommand::ToggleInline {
             opening: String::from("*"),
             closing: String::from("*"),
@@ -384,8 +388,8 @@ fn source_command(command: ToolbarCommand) -> SourceCommand {
         ToolbarCommand::BulletList => SourceCommand::ToggleList(String::from("- ")),
         ToolbarCommand::OrderedList => SourceCommand::ToggleOrderedList,
         ToolbarCommand::TaskList => SourceCommand::ToggleList(String::from("- [ ] ")),
-        ToolbarCommand::Link => unreachable!("link input is collected by its native dialog"),
-    }
+        ToolbarCommand::Link => return None,
+    })
 }
 
 /// The one mounted formatting toolbar and its mode router.
@@ -651,5 +655,15 @@ fn set_context_active(menu: &gtk::MenuButton, active: bool) {
         menu.add_css_class("context-active");
     } else {
         menu.remove_css_class("context-active");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ToolbarCommand, source_command};
+
+    #[test]
+    fn source_command_should_reject_commands_that_require_native_input() {
+        assert!(source_command(ToolbarCommand::Link).is_none());
     }
 }

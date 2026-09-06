@@ -289,22 +289,16 @@ pub(crate) fn show_source_link_dialog(
     let dispatcher = dispatcher.clone();
     let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
-        let selection = selection_for_response.borrow_mut().take();
+        let selection = selection_for_response
+            .borrow_mut()
+            .take()
+            .map(|selection| selection.into_range(&source));
         if response == "insert" {
             let destination = url.text();
             let link_text = text.text();
             if !destination.trim().is_empty() && !link_text.trim().is_empty() {
-                let selection = selection.map_or_else(
-                    || source_commands::selection_from_buffer(&source),
-                    |selection| {
-                        let start = source.iter_at_mark(&selection.start).offset();
-                        let end = source.iter_at_mark(&selection.end).offset();
-                        source.delete_mark(&selection.start);
-                        source.delete_mark(&selection.end);
-                        usize::try_from(start).unwrap_or_default()
-                            ..usize::try_from(end).unwrap_or_default()
-                    },
-                );
+                let selection =
+                    selection.unwrap_or_else(|| source_commands::selection_from_buffer(&source));
                 let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplySourceCommand {
                     command: SourceCommand::InsertLink {
                         text: link_text.to_string(),
@@ -324,10 +318,44 @@ struct SelectionMarks {
     end: gtk::TextMark,
 }
 
+impl SelectionMarks {
+    fn into_range(self, buffer: &gtk::TextBuffer) -> std::ops::Range<usize> {
+        let start = buffer.iter_at_mark(&self.start).offset();
+        let end = buffer.iter_at_mark(&self.end).offset();
+        buffer.delete_mark(&self.start);
+        buffer.delete_mark(&self.end);
+        usize::try_from(start).unwrap_or_default()..usize::try_from(end).unwrap_or_default()
+    }
+}
+
 fn capture_selection(buffer: &gtk::TextBuffer) -> Option<SelectionMarks> {
     let (start, end) = buffer.selection_bounds()?;
     Some(SelectionMarks {
         start: buffer.create_mark(None, &start, true),
         end: buffer.create_mark(None, &end, false),
     })
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use gtk::prelude::*;
+
+    use super::capture_selection;
+
+    pub(crate) fn captured_source_selection_should_delete_marks_after_reading_offsets() {
+        let buffer = gtk::TextBuffer::new(None);
+        buffer.set_text("Carver");
+        let start = buffer.iter_at_offset(1);
+        let end = buffer.iter_at_offset(4);
+        buffer.select_range(&start, &end);
+        let Some(marks) = capture_selection(&buffer) else {
+            panic!("the selected source range should create marks");
+        };
+        let start_mark = marks.start.clone();
+        let end_mark = marks.end.clone();
+
+        assert_eq!(marks.into_range(&buffer), 1..4);
+        assert!(start_mark.is_deleted());
+        assert!(end_mark.is_deleted());
+    }
 }

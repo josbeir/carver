@@ -301,7 +301,11 @@ fn inline_replacement(selected: &str, opening: &str, closing: &str) -> String {
         .map_or_else(|| format!("{opening}{selected}{closing}"), str::to_owned)
 }
 fn heading_replacement(line: &str, prefix: &str) -> String {
-    format!("{prefix}{}", line.trim_start_matches('#').trim_start())
+    let without_heading = line
+        .strip_prefix('#')
+        .and_then(|_| line.trim_start_matches('#').strip_prefix(' '))
+        .unwrap_or(line);
+    format!("{prefix}{without_heading}")
 }
 fn list_replacement(line: &str, prefix: &str, remove: bool) -> String {
     if remove {

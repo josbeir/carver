@@ -188,6 +188,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
     fn run_effect(&self, effect: Effect) {
         match effect {
             effect @ (Effect::ApplyRichEditorCommand { .. }
+            | Effect::ReloadRichEditor { .. }
             | Effect::SelectEditorSource { .. }
             | Effect::CopyEditorDocument { .. }
             | Effect::ShowEditorExportDialog { .. }

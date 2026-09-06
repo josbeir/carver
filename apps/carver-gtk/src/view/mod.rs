@@ -191,6 +191,9 @@ impl ViewRefs {
         };
         match effect {
             Effect::ApplyRichEditorCommand { command } => editor.apply_rich_command(&command),
+            Effect::ReloadRichEditor { session, source } => {
+                editor.reload_rich_source(session, &source);
+            }
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);
             }
@@ -295,20 +298,19 @@ impl ViewRefs {
                 if !model.browser.loading_indicator_visible
                     && model.browser.last_ready_notes.is_some() =>
             {
-                let Some(notes) = &model.browser.last_ready_notes else {
-                    unreachable!("the match guard requires a retained browser snapshot");
-                };
-                render_browser_notes(
-                    list,
-                    pages,
-                    search_empty,
-                    category_empty,
-                    empty_new_note,
-                    category_empty_new_note,
-                    notes,
-                    model,
-                    self.dispatcher.as_ref(),
-                );
+                if let Some(notes) = &model.browser.last_ready_notes {
+                    render_browser_notes(
+                        list,
+                        pages,
+                        search_empty,
+                        category_empty,
+                        empty_new_note,
+                        category_empty_new_note,
+                        notes,
+                        model,
+                        self.dispatcher.as_ref(),
+                    );
+                }
             }
             state => {
                 clear_list(list);
