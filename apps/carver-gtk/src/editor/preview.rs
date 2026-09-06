@@ -34,6 +34,10 @@ pub(super) fn build_preview(
     settings.set_enable_media(false);
     settings.set_enable_html5_database(false);
     settings.set_enable_html5_local_storage(false);
+    // Preview content is replaced as the user edits. Retaining replaced pages
+    // in WebKit's back/forward cache makes long editing sessions grow without
+    // bound even though only the current snapshot is relevant.
+    settings.set_enable_page_cache(false);
     settings.set_auto_load_images(true);
     settings.set_print_backgrounds(false);
     let view = webkit6::WebView::builder()

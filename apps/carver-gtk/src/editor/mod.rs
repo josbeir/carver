@@ -66,7 +66,8 @@ pub(crate) struct EditorViewRefs {
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
-    preview_source: Rc<RefCell<Option<(EditorSessionId, String)>>>,
+    split_preview_source: RefCell<Option<(EditorSessionId, String)>>,
+    rendered_preview_source: RefCell<Option<(EditorSessionId, String)>>,
     rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
     dispatcher: AppDispatcher,
@@ -79,7 +80,8 @@ impl EditorViewRefs {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
-            self.preview_source.replace(None);
+            self.split_preview_source.replace(None);
+            self.rendered_preview_source.replace(None);
             return;
         };
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
@@ -97,14 +99,6 @@ impl EditorViewRefs {
             .as_ref()
             .filter(|preview| preview.session == document.session)
             .cloned();
-        let preview_changed = preview.as_ref().is_some_and(|preview| {
-            self.preview_source
-                .borrow()
-                .as_ref()
-                .is_none_or(|(session, source)| {
-                    *session != preview.session || source != &preview.source
-                })
-        });
         self.rendering.set(true);
         if new_document {
             self.find.reset();
@@ -117,10 +111,15 @@ impl EditorViewRefs {
             }
         }
         let theme = editor_theme();
-        if (preview_changed || remote_images_changed || theme_changed)
-            && let Some(preview) = preview.as_ref()
-        {
-            self.render_preview(preview, model.preferences.load_remote_images, &theme);
+        if let Some(preview) = preview.as_ref() {
+            self.render_visible_preview(
+                document.mode,
+                model.preferences.source_split_view,
+                preview,
+                model.preferences.load_remote_images,
+                &theme,
+                remote_images_changed || theme_changed,
+            );
         }
         if new_document || remote_images_changed {
             if remote_images_changed {
@@ -167,26 +166,35 @@ impl EditorViewRefs {
         }
     }
 
-    fn render_preview(
+    fn render_visible_preview(
         &self,
+        mode: EditorMode,
+        source_split_view: bool,
         preview: &crate::mvu::EditorPreview,
         allow_remote_images: bool,
         theme: &web::EditorTheme,
+        presentation_changed: bool,
     ) {
-        preview::load_preview_with_theme(
-            &self.split_preview,
-            &preview.source,
-            allow_remote_images,
-            theme,
-        );
-        preview::load_preview_with_theme(
-            &self.rendered_preview,
-            &preview.source,
-            allow_remote_images,
-            theme,
-        );
-        self.preview_source
-            .replace(Some((preview.session, preview.source.clone())));
+        let (view, rendered) = match mode {
+            EditorMode::Source if source_split_view => (&self.split_preview, false),
+            EditorMode::Rendered => (&self.rendered_preview, true),
+            EditorMode::Source | EditorMode::Rich => return,
+        };
+        let rendered_source = if rendered {
+            &self.rendered_preview_source
+        } else {
+            &self.split_preview_source
+        };
+        let source_changed = rendered_source
+            .borrow()
+            .as_ref()
+            .is_none_or(|(session, source)| {
+                *session != preview.session || source != &preview.source
+            });
+        if source_changed || presentation_changed {
+            preview::load_preview_with_theme(view, &preview.source, allow_remote_images, theme);
+            rendered_source.replace(Some((preview.session, preview.source.clone())));
+        }
     }
 
     /// Applies a reducer-approved command to the isolated rich-text projection.
@@ -385,7 +393,6 @@ pub(crate) fn build_editor(
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
-    let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
     let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     split_preview.set_widget_name("source-split-preview");
@@ -473,7 +480,8 @@ pub(crate) fn build_editor(
         rendered_preview,
         rendering,
         remote_images,
-        preview_source,
+        split_preview_source: RefCell::new(None),
+        rendered_preview_source: RefCell::new(None),
         rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
         dispatcher: dispatcher.clone(),
