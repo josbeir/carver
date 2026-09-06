@@ -726,7 +726,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok()
         .flatten()
         .is_some_and(|saved| saved.source == "# Source\n\nA paragraph")));
-    exercise_source_formatting_controls(&root, &source.buffer())?;
+    exercise_source_formatting_controls(&root, &source, &source.buffer())?;
     source.buffer().set_text("*fully bold*");
     source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
     assert!(
@@ -887,22 +887,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     find_close.emit_clicked();
     assert!(!find_bar.is_search_mode());
     let bold = widget_as::<gtk::ToggleButton>(&root, "format-bold-button").ok_or("bold")?;
-    rich.evaluate_javascript(
-        "window.carverEditor.command('bold')",
-        None,
-        None,
-        None::<&gtk::gio::Cancellable>,
-        |_| {},
-    );
-    assert!(run_main_context_until(|| bold.is_active()));
-    rich.evaluate_javascript(
-        "window.carverEditor.command('bold')",
-        None,
-        None,
-        None::<&gtk::gio::Cancellable>,
-        |_| {},
-    );
-    assert!(run_main_context_until(|| !bold.is_active()));
+    bold.grab_focus();
+    bold.emit_clicked();
+    assert!(run_main_context_until(|| {
+        bold.is_active() && widget_is_window_focus(rich.upcast_ref())
+    }));
+    bold.grab_focus();
+    bold.emit_clicked();
+    assert!(run_main_context_until(|| {
+        !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
+    }));
     source_mode.set_active(true);
     source
         .buffer()
@@ -1063,6 +1057,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
 
 fn exercise_source_formatting_controls(
     editor: &gtk::Widget,
+    source: &gtk::TextView,
     buffer: &gtk::TextBuffer,
 ) -> TestResult {
     for name in [
@@ -1081,9 +1076,17 @@ fn exercise_source_formatting_controls(
     ] {
         buffer.set_text("format me");
         select_all(buffer);
-        widget_as::<gtk::ToggleButton>(editor, name)
-            .ok_or(name)?
-            .emit_clicked();
+        let button = widget_as::<gtk::ToggleButton>(editor, name).ok_or(name)?;
+        button.grab_focus();
+        button.emit_clicked();
+        assert_source_focus_restored(source, name)?;
+        if name == "format-bold-button"
+            && buffer
+                .selection_bounds()
+                .is_none_or(|(start, end)| buffer.text(&start, &end, false) != "*format me*")
+        {
+            return Err("bold should preserve the transformed source selection".into());
+        }
     }
     buffer.set_text("Level 1\nLevel 2\nLevel 3\nLevel 4");
     select_all(buffer);
@@ -1106,10 +1109,12 @@ fn exercise_source_formatting_controls(
         child = widget.next_sibling();
         buffer.set_text("format me");
         select_all(buffer);
-        widget
+        let choice = widget
             .downcast::<gtk::ToggleButton>()
-            .map_err(|_| "formatting choice")?
-            .emit_clicked();
+            .map_err(|_| "formatting choice")?;
+        choice.grab_focus();
+        choice.emit_clicked();
+        assert_source_focus_restored(source, "heading choice")?;
     }
     let table =
         widget_as::<gtk::MenuButton>(editor, "format-table-button").ok_or("source table picker")?;
@@ -1124,17 +1129,45 @@ fn exercise_source_formatting_controls(
         .and_downcast::<gtk::Grid>()
         .ok_or("source table size grid")?;
     buffer.set_text("");
-    grid.first_child()
+    let cell = grid
+        .first_child()
         .and_downcast::<gtk::Button>()
-        .ok_or("source table first cell")?
-        .emit_clicked();
+        .ok_or("source table first cell")?;
+    cell.grab_focus();
+    cell.emit_clicked();
+    assert_source_focus_restored(source, "table picker")?;
     if !buffer
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
         .contains("|= |")
     {
         return Err("source table picker insert".into());
     }
+    let image =
+        widget_as::<gtk::MenuButton>(editor, "format-image-button").ok_or("source image picker")?;
+    let image_choices = image
+        .popover()
+        .and_then(|popover| popover.child())
+        .ok_or("source image choices")?;
+    let width = image_choices
+        .first_child()
+        .and_then(|insert| insert.next_sibling())
+        .and_then(|separator| separator.next_sibling())
+        .and_downcast::<gtk::ToggleButton>()
+        .ok_or("source image width")?;
+    buffer.set_text("![First](assets/first.png)");
+    buffer.place_cursor(&buffer.iter_at_offset(4));
+    width.grab_focus();
+    width.emit_clicked();
+    assert_source_focus_restored(source, "image width")?;
     Ok(())
+}
+
+fn assert_source_focus_restored(source: &gtk::TextView, action: &str) -> TestResult {
+    if run_main_context_until(|| widget_is_window_focus(source.upcast_ref())) {
+        Ok(())
+    } else {
+        Err(format!("{action} should restore source focus").into())
+    }
 }
 
 fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Window) -> TestResult {
@@ -1209,6 +1242,14 @@ fn assert_shared_toolbar_controls(root: &gtk::Widget) -> TestResult {
         widget_as::<gtk::MenuButton>(root, name).ok_or(name)?;
     }
     Ok(())
+}
+
+fn widget_is_window_focus(widget: &gtk::Widget) -> bool {
+    widget
+        .root()
+        .and_downcast::<gtk::Window>()
+        .and_then(|window| gtk::prelude::RootExt::focus(&window))
+        .is_some_and(|focus| focus == *widget)
 }
 
 fn select_all(buffer: &gtk::TextBuffer) {

@@ -14,7 +14,7 @@ use libadwaita as adw;
 
 use crate::{formatting, mvu::AppDispatcher};
 
-use super::{RichEditor, source_commands};
+use super::{RichEditor, focus::EditorFocusRestorer, source_commands};
 
 /// A formatting operation understood by both editor projections.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -225,6 +225,7 @@ struct CommandRouter {
     rich: RichEditor,
     dispatcher: AppDispatcher,
     toast_overlay: adw::ToastOverlay,
+    focus: EditorFocusRestorer,
 }
 
 impl CommandRouter {
@@ -250,16 +251,21 @@ impl CommandRouter {
             ToolbarCommand::BulletList => source_commands::toggle_list(&self.source, "- "),
             ToolbarCommand::OrderedList => source_commands::toggle_ordered_list(&self.source),
             ToolbarCommand::TaskList => source_commands::toggle_list(&self.source, "- [ ] "),
-            ToolbarCommand::Link => formatting::show_source_link_dialog(anchor, &self.source),
+            ToolbarCommand::Link => {
+                formatting::show_source_link_dialog(anchor, &self.source, &self.focus);
+                return;
+            }
         }
+        self.focus.restore_later();
     }
 
     fn execute_rich(&self, command: ToolbarCommand, anchor: &gtk::Widget) {
         if command == ToolbarCommand::Link {
-            self.rich.show_link_dialog(anchor);
+            self.rich.show_link_dialog(anchor, &self.focus);
         } else {
             self.rich
                 .command(&EditorCommand::Named(command.rich_name().to_owned()));
+            self.focus.restore_later();
         }
     }
 
@@ -269,6 +275,7 @@ impl CommandRouter {
             EditorMode::Rich => self.rich.command(&EditorCommand::Heading(level)),
             EditorMode::Rendered => {}
         }
+        self.focus.restore_later();
     }
 
     fn insert_table(&self, rows: u8, columns: u8, header: bool) {
@@ -283,6 +290,7 @@ impl CommandRouter {
             }),
             EditorMode::Rendered => {}
         }
+        self.focus.restore_later();
     }
 
     fn image_width(&self, width: Option<u8>) {
@@ -293,10 +301,19 @@ impl CommandRouter {
             EditorMode::Rich => self.rich.command(&EditorCommand::ImageWidth(width)),
             EditorMode::Rendered => {}
         }
+        self.focus.restore_later();
     }
 
     fn choose_image(&self, button: &gtk::Button) {
-        formatting::choose_managed_image(button, &self.dispatcher, &self.toast_overlay);
+        let source_selection = (self.mode.get() == EditorMode::Source)
+            .then(|| source_commands::selection_from_buffer(&self.source));
+        formatting::choose_managed_image(
+            button,
+            &self.dispatcher,
+            &self.toast_overlay,
+            source_selection,
+            &self.focus,
+        );
     }
 }
 
@@ -317,7 +334,7 @@ pub(crate) struct Toolbar {
 
 impl Toolbar {
     pub(crate) fn new(
-        source: &gtk::TextBuffer,
+        source: &gtk::TextView,
         rich: &RichEditor,
         dispatcher: &AppDispatcher,
         toast_overlay: &adw::ToastOverlay,
@@ -329,12 +346,14 @@ impl Toolbar {
         widget.set_margin_end(12);
         widget.set_margin_top(6);
         widget.set_margin_bottom(6);
+        let mode = Rc::new(Cell::new(EditorMode::Rich));
         let router = CommandRouter {
-            mode: Rc::new(Cell::new(EditorMode::Rich)),
-            source: source.clone(),
+            mode: Rc::clone(&mode),
+            source: source.buffer(),
             rich: rich.clone(),
             dispatcher: dispatcher.clone(),
             toast_overlay: toast_overlay.clone(),
+            focus: EditorFocusRestorer::new(mode, source, rich.view()),
         };
         let mut command_buttons = Vec::new();
         for spec in COMMANDS {

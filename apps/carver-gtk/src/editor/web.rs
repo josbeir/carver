@@ -13,6 +13,8 @@ use webkit6::prelude::*;
 
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 
+use super::focus::EditorFocusRestorer;
+
 const EDITOR_JAVASCRIPT: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/editor.js"));
 const EDITOR_STYLESHEET: &str =
@@ -147,8 +149,8 @@ impl RichEditor {
     }
 
     /// Opens the Rich editor's contextual link dialog from the shared toolbar.
-    pub(crate) fn show_link_dialog(&self, anchor: &gtk::Widget) {
-        show_rich_link_dialog(anchor, self);
+    pub(crate) fn show_link_dialog(&self, anchor: &gtk::Widget, focus: &EditorFocusRestorer) {
+        show_rich_link_dialog(anchor, self, focus);
     }
 
     /// Applies GNOME's resolved editor colors without reloading the document.
@@ -300,9 +302,14 @@ impl RichEditor {
     }
 }
 
-fn show_rich_link_dialog(button: &impl IsA<gtk::Widget>, editor: &RichEditor) {
+fn show_rich_link_dialog(
+    button: &impl IsA<gtk::Widget>,
+    editor: &RichEditor,
+    focus: &EditorFocusRestorer,
+) {
     let parent = button.root().and_downcast::<gtk::Window>();
     let editor_for_dialog = editor.clone();
+    let focus_for_dialog = focus.clone();
     editor.view().evaluate_javascript(
         "JSON.stringify(window.carverEditor.linkContext());",
         None,
@@ -313,7 +320,12 @@ fn show_rich_link_dialog(button: &impl IsA<gtk::Widget>, editor: &RichEditor) {
                 .ok()
                 .map(|value| parse_link_context(&value.to_str()))
                 .unwrap_or_default();
-            present_rich_link_dialog(parent.as_ref(), &editor_for_dialog, &context);
+            present_rich_link_dialog(
+                parent.as_ref(),
+                &editor_for_dialog,
+                &context,
+                &focus_for_dialog,
+            );
         },
     );
 }
@@ -322,6 +334,7 @@ fn present_rich_link_dialog(
     parent: Option<&gtk::Window>,
     editor: &RichEditor,
     context: &LinkContext,
+    focus: &EditorFocusRestorer,
 ) {
     let fields = gtk::Box::new(gtk::Orientation::Vertical, 8);
     let text = gtk::Entry::new();
@@ -343,6 +356,7 @@ fn present_rich_link_dialog(
         .build();
     dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
     let editor = editor.clone();
+    let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
         if response == "insert" {
             let text = text.text();
@@ -354,6 +368,7 @@ fn present_rich_link_dialog(
                 });
             }
         }
+        focus.restore_later();
     });
     dialog.present(parent);
 }

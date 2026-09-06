@@ -83,6 +83,7 @@ pub(crate) fn install_image_drop(
                 &dispatcher,
                 &toast_overlay,
                 extension,
+                None,
             );
         }
         true
