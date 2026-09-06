@@ -22,12 +22,23 @@ type SidebarSnapshot = (
     LoadState<Vec<carver_sdk::CategorySummary>>,
     Option<carver_sdk::CategoryId>,
 );
-type BrowserProjectionSnapshot = (
-    BrowserModel,
-    Option<carver_sdk::CategoryId>,
-    LoadState<Vec<carver_sdk::CategorySummary>>,
-    Date,
-);
+struct BrowserProjectionSnapshot {
+    browser: BrowserModel,
+    selected_category: Option<carver_sdk::CategoryId>,
+    sidebar: LoadState<Vec<carver_sdk::CategorySummary>>,
+    route: Route,
+    today: Date,
+}
+
+impl BrowserProjectionSnapshot {
+    fn matches(&self, model: &AppModel, today: Date) -> bool {
+        self.browser == model.browser
+            && self.selected_category == model.selected_category
+            && self.sidebar == model.sidebar.state
+            && self.route == model.route
+            && self.today == today
+    }
+}
 
 struct BrowserContentRefs<'a> {
     list: &'a gtk::ListBox,
@@ -342,11 +353,17 @@ impl ViewRefs {
     }
 
     fn browser_projection_changed(&self, model: &AppModel) -> bool {
-        let snapshot = browser_projection_snapshot(model, OffsetDateTime::now_utc().date());
-        if self.last_browser_snapshot.borrow().as_ref() == Some(&snapshot) {
+        let today = crate::browser::local_day(OffsetDateTime::now_utc());
+        if self
+            .last_browser_snapshot
+            .borrow()
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.matches(model, today))
+        {
             return false;
         }
-        self.last_browser_snapshot.replace(Some(snapshot));
+        self.last_browser_snapshot
+            .replace(Some(browser_projection_snapshot(model, today)));
         true
     }
 
@@ -522,12 +539,13 @@ impl ViewRefs {
 }
 
 fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjectionSnapshot {
-    (
-        model.browser.clone(),
-        model.selected_category,
-        model.sidebar.state.clone(),
+    BrowserProjectionSnapshot {
+        browser: model.browser.clone(),
+        selected_category: model.selected_category,
+        sidebar: model.sidebar.state.clone(),
+        route: model.route.clone(),
         today,
-    )
+    }
 }
 
 fn render_empty_category(

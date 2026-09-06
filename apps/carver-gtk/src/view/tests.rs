@@ -41,13 +41,30 @@ fn note_category_color_should_use_the_category_appearance() {
 }
 
 #[test]
-fn browser_projection_snapshot_should_change_when_the_day_changes() {
+fn browser_projection_snapshot_should_not_match_when_the_day_changes() {
     let model = crate::mvu::AppModel::new(&Config::default());
     let today = OffsetDateTime::UNIX_EPOCH.date();
     let tomorrow = today + Duration::DAY;
+    let snapshot = browser_projection_snapshot(&model, today);
 
-    let first_snapshot = browser_projection_snapshot(&model, today);
-    let next_day_snapshot = browser_projection_snapshot(&model, tomorrow);
+    assert!(!snapshot.matches(&model, tomorrow));
+}
 
-    assert_ne!(first_snapshot, next_day_snapshot);
+#[test]
+fn browser_projection_snapshot_should_not_match_when_the_route_changes() {
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    let today = OffsetDateTime::UNIX_EPOCH.date();
+    let snapshot = browser_projection_snapshot(&model, today);
+    model.route = crate::mvu::Route::Trash;
+
+    assert!(!snapshot.matches(&model, today));
+}
+
+#[test]
+fn browser_projection_snapshot_should_match_an_unchanged_model() {
+    let model = crate::mvu::AppModel::new(&Config::default());
+    let today = OffsetDateTime::UNIX_EPOCH.date();
+    let snapshot = browser_projection_snapshot(&model, today);
+
+    assert!(snapshot.matches(&model, today));
 }

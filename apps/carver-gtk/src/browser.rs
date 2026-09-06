@@ -668,7 +668,7 @@ pub(crate) fn note_card_details(
     details
 }
 
-fn local_day(timestamp: OffsetDateTime) -> time::Date {
+pub(crate) fn local_day(timestamp: OffsetDateTime) -> time::Date {
     timestamp
         .to_offset(UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC))
         .date()
