@@ -274,8 +274,8 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             extension,
             bytes,
             alt,
-            source_selection,
-        } => store_editor_asset_effect(model, extension, bytes, alt, source_selection),
+            source_target,
+        } => store_editor_asset_effect(model, extension, bytes, alt, source_target),
         EditorMsg::Close(session_id) => close_editor(model, session_id),
         EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
@@ -747,7 +747,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::EditorAssetStored {
             session,
             alt,
-            source_selection,
+            source_target,
             result,
         } => {
             let Some(document) = model
@@ -759,7 +759,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             };
             match result {
                 Ok(path) => {
-                    let source = image_source(&document.source, &alt, &path, source_selection);
+                    let source = image_source(&document.source, &alt, &path, source_target);
                     if document.source_changed(source) {
                         [schedule_preview(model), schedule_editor_save(model)]
                             .into_iter()
@@ -956,7 +956,7 @@ fn store_editor_asset_effect(
     extension: String,
     bytes: Vec<u8>,
     alt: String,
-    source_selection: Option<std::ops::Range<usize>>,
+    source_target: Option<super::SourceImageTarget>,
 ) -> Vec<Effect> {
     model
         .editor
@@ -967,7 +967,7 @@ fn store_editor_asset_effect(
             extension,
             bytes,
             alt,
-            source_selection,
+            source_target,
         })
         .into_iter()
         .collect()
@@ -977,23 +977,27 @@ fn image_source(
     source: &str,
     alt: &str,
     path: &str,
-    source_selection: Option<std::ops::Range<usize>>,
+    source_target: Option<super::SourceImageTarget>,
 ) -> String {
     let markup = format!("![{alt}]({path})");
-    let Some(selection) = source_selection else {
-        let mut source = source.to_owned();
-        if !source.is_empty() && !source.ends_with('\n') {
-            source.push('\n');
-        }
-        source.push_str(&markup);
-        source.push('\n');
-        return source;
+    let Some(target) = source_target.filter(|target| target.source == source) else {
+        return append_image_source(source, &markup);
     };
-    let start = character_byte_offset(source, selection.start);
-    let end = character_byte_offset(source, selection.end.max(selection.start));
+    let start = character_byte_offset(source, target.selection.start);
+    let end = character_byte_offset(source, target.selection.end.max(target.selection.start));
     let mut inserted = source.to_owned();
     inserted.replace_range(start..end, &markup);
     inserted
+}
+
+fn append_image_source(source: &str, markup: &str) -> String {
+    let mut source = source.to_owned();
+    if !source.is_empty() && !source.ends_with('\n') {
+        source.push('\n');
+    }
+    source.push_str(markup);
+    source.push('\n');
+    source
 }
 
 fn character_byte_offset(source: &str, offset: usize) -> usize {

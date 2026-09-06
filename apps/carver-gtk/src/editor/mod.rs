@@ -27,6 +27,7 @@ use crate::{
 
 mod clipboard;
 mod find;
+pub(crate) mod focus;
 mod preview;
 mod render;
 mod source;
@@ -397,7 +398,7 @@ pub(crate) fn build_editor(
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
     install_editor_window_shortcuts(&view);
-    let toolbar = Toolbar::new(&source_buffer, &rich, dispatcher, toast_overlay);
+    let toolbar = Toolbar::new(source.upcast_ref(), &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
     connect_source_context(&source_buffer, &source_context, &toolbar);
     let find_for_source_change = find.clone();

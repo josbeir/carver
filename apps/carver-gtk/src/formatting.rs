@@ -7,8 +7,8 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    editor::source_commands,
-    mvu::{AppDispatcher, AppMsg, EditorMsg},
+    editor::{focus::EditorFocusRestorer, source_commands},
+    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceImageTarget},
 };
 
 /// Opens the native image chooser and stores the selected file as a note asset.
@@ -19,6 +19,8 @@ pub(crate) fn choose_managed_image(
     button: &gtk::Button,
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
+    source_target: Option<SourceImageTarget>,
+    focus: &EditorFocusRestorer,
 ) {
     let filter = gtk::FileFilter::new();
     filter.set_name(Some("Images"));
@@ -39,12 +41,14 @@ pub(crate) fn choose_managed_image(
     let parent = button.root().and_downcast::<gtk::Window>();
     let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
+    let focus = focus.clone();
     let dialog_parent = parent.clone();
     dialog.open(
         parent.as_ref(),
         None::<&gtk::gio::Cancellable>,
         move |result| {
             let Ok(file) = result else {
+                focus.restore_later();
                 return;
             };
             let name = file
@@ -60,6 +64,8 @@ pub(crate) fn choose_managed_image(
                 &dispatcher,
                 &toast_overlay,
                 dialog_parent.as_ref(),
+                source_target,
+                &focus,
             );
         },
     );
@@ -71,6 +77,8 @@ fn show_image_alt_dialog(
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     parent: Option<&gtk::Window>,
+    source_target: Option<SourceImageTarget>,
+    focus: &EditorFocusRestorer,
 ) {
     let alt = gtk::Entry::new();
     alt.set_text(suggested_alt);
@@ -86,12 +94,15 @@ fn show_image_alt_dialog(
     let file = file.clone();
     let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
+    let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
         if response != "insert" {
+            focus.restore_later();
             return;
         }
         let Some(extension) = image_extension_for_file(&file) else {
             toast_overlay.add_toast(adw::Toast::new("Unsupported image format"));
+            focus.restore_later();
             return;
         };
         import_managed_image_file(
@@ -100,18 +111,21 @@ fn show_image_alt_dialog(
             &dispatcher,
             &toast_overlay,
             extension,
+            source_target.clone(),
         );
+        focus.restore_later();
     });
     dialog.present(parent);
 }
 
-/// Stores a local image and invokes `on_insert` with its portable asset path.
+/// Stores a local image and dispatches its portable asset path for editor insertion.
 pub(crate) fn import_managed_image_file(
     file: &gtk::gio::File,
     alt: &str,
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     extension: &'static str,
+    source_target: Option<SourceImageTarget>,
 ) {
     let alt = alt.to_owned();
     let dispatcher = dispatcher.clone();
@@ -125,7 +139,7 @@ pub(crate) fn import_managed_image_file(
             extension: extension.to_owned(),
             bytes: bytes.as_ref().to_vec(),
             alt,
-            source_selection: None,
+            source_target,
         }));
     });
 }
@@ -243,7 +257,11 @@ pub(crate) fn append_table_picker(
     menu
 }
 
-pub(crate) fn show_source_link_dialog(anchor: &impl IsA<gtk::Widget>, buffer: &gtk::TextBuffer) {
+pub(crate) fn show_source_link_dialog(
+    anchor: &impl IsA<gtk::Widget>,
+    buffer: &gtk::TextBuffer,
+    focus: &EditorFocusRestorer,
+) {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
     let text = gtk::Entry::new();
     text.set_placeholder_text(Some("Link text"));
@@ -267,6 +285,7 @@ pub(crate) fn show_source_link_dialog(anchor: &impl IsA<gtk::Widget>, buffer: &g
     let source = buffer.clone();
     let selection = Rc::new(RefCell::new(capture_selection(&source)));
     let selection_for_response = Rc::clone(&selection);
+    let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {
         restore_selection(&source, selection_for_response.borrow_mut().take());
         if response == "insert" {
@@ -276,6 +295,7 @@ pub(crate) fn show_source_link_dialog(anchor: &impl IsA<gtk::Widget>, buffer: &g
                 source_commands::insert_link(&source, &link_text, &destination);
             }
         }
+        focus.restore_later();
     });
     dialog.present(anchor.root().as_ref());
 }

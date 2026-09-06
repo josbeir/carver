@@ -27,7 +27,7 @@ pub(crate) fn install_image_paste(
             return glib::Propagation::Proceed;
         }
         let dispatcher = dispatcher.clone();
-        let source_selection = source_commands::selection_from_buffer(&source_buffer);
+        let source_target = source_commands::image_target_from_buffer(&source_buffer);
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
             let Ok(Some(texture)) = result else {
                 return;
@@ -37,7 +37,7 @@ pub(crate) fn install_image_paste(
                 extension: String::from("png"),
                 bytes,
                 alt: String::from("Pasted image"),
-                source_selection: Some(source_selection),
+                source_target: Some(source_target),
             }));
         });
         glib::Propagation::Proceed
@@ -83,6 +83,7 @@ pub(crate) fn install_image_drop(
                 &dispatcher,
                 &toast_overlay,
                 extension,
+                None,
             );
         }
         true

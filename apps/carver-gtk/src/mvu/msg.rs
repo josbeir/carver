@@ -128,6 +128,18 @@ pub enum TrashMsg {
     Empty,
 }
 
+/// A source range plus the exact document snapshot it was selected from.
+///
+/// Native image import is asynchronous. The snapshot prevents a selection that
+/// predates later typing from being applied to different source text.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceImageTarget {
+    /// Canonical source visible when the image import began.
+    pub source: String,
+    /// Unicode code-point range to replace when the snapshot still matches.
+    pub selection: Range<usize>,
+}
+
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
@@ -235,9 +247,9 @@ pub enum EditorMsg {
         bytes: Vec<u8>,
         /// User-visible alternative text.
         alt: String,
-        /// Source selection to replace after storage completes, when the image originated in
-        /// the native source editor.
-        source_selection: Option<Range<usize>>,
+        /// Source target to replace after storage completes, when the image originated in the
+        /// native source editor.
+        source_target: Option<SourceImageTarget>,
     },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
@@ -440,8 +452,8 @@ pub enum LibraryReply {
         session: EditorSessionId,
         /// Alternative text selected when the import began.
         alt: String,
-        /// Source selection to replace after storage completes, when applicable.
-        source_selection: Option<Range<usize>>,
+        /// Source target to replace after storage completes, when applicable.
+        source_target: Option<SourceImageTarget>,
         /// Portable managed asset path or a user-displayable failure.
         result: Result<String, UiError>,
     },

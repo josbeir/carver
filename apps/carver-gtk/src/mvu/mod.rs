@@ -19,7 +19,7 @@ pub use model::{
 };
 pub use msg::{
     ActionMsg, AppMsg, BrowserMsg, EditorExportFormat, EditorMsg, LibraryReply, NavigationMsg,
-    PreferencesMsg, SidebarMsg, TrashMsg, TrashMutation, WindowMsg,
+    PreferencesMsg, SidebarMsg, SourceImageTarget, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use update::update;

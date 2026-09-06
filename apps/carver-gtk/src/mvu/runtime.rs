@@ -214,8 +214,8 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 extension,
                 bytes,
                 alt,
-                source_selection,
-            } => self.store_editor_asset(session, note_id, extension, bytes, alt, source_selection),
+                source_target,
+            } => self.store_editor_asset(session, note_id, extension, bytes, alt, source_target),
             Effect::LoadSidebar { request_id } => self.load_sidebar(request_id),
             Effect::LoadLibraryRevision { request_id } => self.load_library_revision(request_id),
             Effect::LoadBrowser {
@@ -534,7 +534,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         extension: String,
         bytes: Vec<u8>,
         alt: String,
-        source_selection: Option<std::ops::Range<usize>>,
+        source_target: Option<super::SourceImageTarget>,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
@@ -546,7 +546,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorAssetStored {
                 session,
                 alt,
-                source_selection,
+                source_target,
                 result,
             }));
         });
