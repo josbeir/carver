@@ -12,8 +12,8 @@ use time::OffsetDateTime;
 use crate::{
     dialogs::show_move_note_dialog,
     mvu::{
-        ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, Effect, LoadState, MoveUndo,
-        Route,
+        ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserModel, EditorSaveState, Effect,
+        LoadState, MoveUndo, Route,
     },
 };
 
@@ -59,6 +59,10 @@ pub struct ViewRefs {
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
     last_browser_search_open: Cell<bool>,
+    last_browser_model: RefCell<Option<BrowserModel>>,
+    last_browser_selection: Cell<Option<carver_sdk::CategoryId>>,
+    last_browser_sidebar: RefCell<Option<LoadState<Vec<carver_sdk::CategorySummary>>>>,
+    last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
@@ -97,6 +101,10 @@ impl ViewRefs {
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
             last_browser_search_open: Cell::new(false),
+            last_browser_model: RefCell::new(None),
+            last_browser_selection: Cell::new(None),
+            last_browser_sidebar: RefCell::new(None),
+            last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
             editor: None,
             last_sidebar_snapshot: RefCell::new(None),
@@ -230,6 +238,9 @@ impl ViewRefs {
 
     fn render_browser(&self, model: &AppModel) {
         self.render_browser_search(model);
+        if !self.browser_projection_changed(model) {
+            return;
+        }
         let Some(BrowserContentRefs {
             list,
             pages,
@@ -328,6 +339,24 @@ impl ViewRefs {
         }
     }
 
+    fn browser_projection_changed(&self, model: &AppModel) -> bool {
+        let browser_changed = self.last_browser_model.borrow().as_ref() != Some(&model.browser);
+        let selection_changed = self.last_browser_selection.get() != model.selected_category;
+        let sidebar_changed =
+            self.last_browser_sidebar.borrow().as_ref() != Some(&model.sidebar.state);
+        if browser_changed {
+            self.last_browser_model.replace(Some(model.browser.clone()));
+        }
+        if selection_changed {
+            self.last_browser_selection.set(model.selected_category);
+        }
+        if sidebar_changed {
+            self.last_browser_sidebar
+                .replace(Some(model.sidebar.state.clone()));
+        }
+        browser_changed || selection_changed || sidebar_changed
+    }
+
     fn browser_content_refs(&self) -> Option<BrowserContentRefs<'_>> {
         Some(BrowserContentRefs {
             list: self.browser_list.as_ref()?,
@@ -377,6 +406,11 @@ impl ViewRefs {
     }
 
     fn render_trash(&self, model: &AppModel) {
+        if self.last_trash_snapshot.borrow().as_ref() == Some(&model.trash.state) {
+            return;
+        }
+        self.last_trash_snapshot
+            .replace(Some(model.trash.state.clone()));
         let (Some(list), Some(pages), Some(empty_button)) = (
             self.trash_list.as_ref(),
             self.trash_pages.as_ref(),
