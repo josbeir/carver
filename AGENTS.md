@@ -124,6 +124,11 @@ CI enforces formatting, Clippy, display-backed tests, LLVM coverage, rustdoc, an
 signal or state transition, a display-backed interaction test. Add a regression test for every
 fixed persistence or source/rich round-trip bug.
 
+## Releases
+
+- Release from a clean `main` branch with `cargo release patch --execute --no-confirm` for a patch release. The configured release flow updates the shared workspace version and AppStream metadata, commits the release, creates the annotated tag, and pushes both.
+- After the tag is pushed, create the corresponding GitHub release. Keep its notes concise and user-facing: describe each notable change in a bullet and put its pull-request link inline at the end of that bullet. Do not use a separate pull-request list or include a verification section.
+
 ## Testing style
 
 - Keep tests in module-owned files: `foo.rs` uses `foo/tests.rs` (or
