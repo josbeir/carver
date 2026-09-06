@@ -262,7 +262,7 @@ pub struct EditorDocument {
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
     save_timer: Option<TimerId>,
-    close_after_save: bool,
+    close_requested: bool,
 }
 
 /// The canonical source snapshot currently authorized for preview rendering.
@@ -355,7 +355,7 @@ impl EditorDocument {
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
             save_timer: None,
-            close_after_save: false,
+            close_requested: false,
         }
     }
 
@@ -397,11 +397,11 @@ impl EditorDocument {
     }
 
     pub(super) fn request_close(&mut self) {
-        self.close_after_save = true;
+        self.close_requested = true;
     }
 
-    pub(super) fn closes_after_save(&self) -> bool {
-        self.close_after_save
+    pub(super) fn close_is_requested(&self) -> bool {
+        self.close_requested
     }
 }
 

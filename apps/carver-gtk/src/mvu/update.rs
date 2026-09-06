@@ -899,7 +899,7 @@ fn update_favorite_changed(
     match result {
         Ok(note) => {
             model.notice = None;
-            let (rebased_save, pending_favorite) = if let Some(document) = model
+            let (rebased_save, pending_favorite, close_requested) = if let Some(document) = model
                 .editor
                 .as_mut()
                 .filter(|document| document.note_id == note.id)
@@ -924,14 +924,27 @@ fn update_favorite_changed(
                 } else {
                     None
                 };
-                (rebased_save, pending_favorite)
+                (
+                    rebased_save,
+                    pending_favorite,
+                    document.close_is_requested(),
+                )
             } else {
-                (None, None)
+                (None, None, false)
             };
+            let save_was_rebased = rebased_save.is_some();
             let mut effects = rebased_save.map_or_else(Vec::new, save_note_effect);
-            effects.extend(pending_favorite.map_or_else(Vec::new, |is_favorite| {
-                set_editor_favorite(model, is_favorite)
-            }));
+            if !save_was_rebased {
+                effects.extend(pending_favorite.map_or_else(Vec::new, |is_favorite| {
+                    set_editor_favorite(model, is_favorite)
+                }));
+                if pending_favorite.is_none() && close_requested {
+                    let session = model.editor.as_ref().map(|document| document.session);
+                    effects.extend(
+                        session.map_or_else(Vec::new, |session| close_editor(model, session)),
+                    );
+                }
+            }
             effects.extend(reload_after_local_mutation(model));
             effects
         }
@@ -1222,7 +1235,7 @@ fn update_editor_save(
     request: &EditorSaveRequest,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let (close_after_save, pending_favorite) = {
+    let (close_requested, pending_favorite) = {
         let Some(document) = model.editor.as_mut() else {
             return Vec::new();
         };
@@ -1239,7 +1252,7 @@ fn update_editor_save(
                 if document.source == request.source {
                     document.save_state = super::EditorSaveState::Clean;
                     (
-                        document.closes_after_save(),
+                        document.close_is_requested(),
                         (!document.favorite_mutation_in_flight)
                             .then_some(document.pending_favorite)
                             .flatten(),
@@ -1266,13 +1279,13 @@ fn update_editor_save(
     let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
         set_editor_favorite(model, is_favorite)
     });
-    if close_after_save {
+    if close_requested {
         model.route = super::Route::Browser;
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
     }
-    if close_after_save {
+    if close_requested {
         let pending_effects = complete_pending_category_selection(model);
         if pending_effects.is_empty() {
             effects.extend(reload_browser(model));
@@ -1292,7 +1305,9 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
         return Vec::new();
     };
     document.request_close();
-    if matches!(&document.save_state, super::EditorSaveState::Clean) {
+    if matches!(&document.save_state, super::EditorSaveState::Clean)
+        && !document.favorite_mutation_in_flight
+    {
         model.route = super::Route::Browser;
         model.editor = None;
         model.editor_preview = None;

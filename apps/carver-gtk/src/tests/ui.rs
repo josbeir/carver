@@ -1157,6 +1157,33 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok()
         .flatten()
         .is_some_and(|restored| restored.trashed_at.is_none())));
+    trash_back.emit_clicked();
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+            && find_widget(&root, &format!("note:{}", note.id)).is_some()
+    }));
+    let restored_note_row = find_widget(&root, &format!("note:{}", note.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("restored note row")?;
+    restored_note_row.activate();
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("editor")
+    }));
+    let favorite =
+        widget_as::<gtk::ToggleButton>(&root, "favorite-note-button").ok_or("favorite button")?;
+    let back = widget_as::<gtk::Button>(&root, "back-to-notes-button").ok_or("back button")?;
+    favorite.emit_clicked();
+    favorite.emit_clicked();
+    back.emit_clicked();
+    assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+            && client
+                .note(note.id)
+                .ok()
+                .flatten()
+                .is_some_and(|saved| saved.is_favorite)
+    }));
     window.close();
     Ok(())
 }
