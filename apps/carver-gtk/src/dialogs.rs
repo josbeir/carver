@@ -693,14 +693,35 @@ fn source_font_rows(
 }
 
 fn source_font_dialog() -> gtk::FontDialog {
-    let font_filter = gtk::CustomFilter::new(|item| {
-        item.downcast_ref::<gtk::pango::FontFamily>()
-            .is_some_and(gtk::pango::prelude::FontFamilyExt::is_monospace)
-    });
+    let font_filter = source_font_filter();
     let dialog = gtk::FontDialog::new();
     dialog.set_title("Choose Source Font");
     dialog.set_filter(Some(&font_filter));
     dialog
+}
+
+/// Filters `GtkFontDialog`'s family and face models to monospace fonts.
+///
+/// `GtkFontDialog` evaluates this filter against both `PangoFontFamily` and
+/// `PangoFontFace` objects. Accepting only families rejects every selectable
+/// face, leaving the chooser empty.
+fn source_font_filter() -> gtk::CustomFilter {
+    gtk::CustomFilter::new(|item| {
+        item.downcast_ref::<gtk::pango::FontFamily>()
+            .is_some_and(gtk::pango::prelude::FontFamilyExt::is_monospace)
+            || item
+                .downcast_ref::<gtk::pango::FontFace>()
+                .is_some_and(|face| {
+                    gtk::pango::prelude::FontFamilyExt::is_monospace(
+                        &gtk::pango::prelude::FontFaceExt::family(face),
+                    )
+                })
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn source_font_filter_for_test() -> gtk::CustomFilter {
+    source_font_filter()
 }
 
 fn preference_switch_row(

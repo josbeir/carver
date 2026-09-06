@@ -207,6 +207,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some(crate::app::APPLICATION_ICON)
     );
     let root = window.child().ok_or("window content")?;
+    let source_font_filter = crate::dialogs::source_font_filter_for_test();
+    let monospace_family = root
+        .pango_context()
+        .list_families()
+        .into_iter()
+        .find(gtk::pango::prelude::FontFamilyExt::is_monospace)
+        .ok_or("installed monospace font family")?;
+    let monospace_face = monospace_family
+        .list_faces()
+        .into_iter()
+        .next()
+        .ok_or("monospace font face")?;
+    assert!(source_font_filter.match_(&monospace_family));
+    assert!(source_font_filter.match_(&monospace_face));
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
     assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
     let settings_menu = widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button")
