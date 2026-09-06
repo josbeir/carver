@@ -305,13 +305,13 @@ impl CommandRouter {
     }
 
     fn choose_image(&self, button: &gtk::Button) {
-        let source_selection = (self.mode.get() == EditorMode::Source)
-            .then(|| source_commands::selection_from_buffer(&self.source));
+        let source_target = (self.mode.get() == EditorMode::Source)
+            .then(|| source_commands::image_target_from_buffer(&self.source));
         formatting::choose_managed_image(
             button,
             &self.dispatcher,
             &self.toast_overlay,
-            source_selection,
+            source_target,
             &self.focus,
         );
     }

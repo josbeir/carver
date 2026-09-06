@@ -1,6 +1,6 @@
 //! Shared native formatting dialogs, managed-image import, and table controls.
 
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
 use gtk::prelude::*;
@@ -8,7 +8,7 @@ use libadwaita as adw;
 
 use crate::{
     editor::{focus::EditorFocusRestorer, source_commands},
-    mvu::{AppDispatcher, AppMsg, EditorMsg},
+    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceImageTarget},
 };
 
 /// Opens the native image chooser and stores the selected file as a note asset.
@@ -19,7 +19,7 @@ pub(crate) fn choose_managed_image(
     button: &gtk::Button,
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
-    source_selection: Option<Range<usize>>,
+    source_target: Option<SourceImageTarget>,
     focus: &EditorFocusRestorer,
 ) {
     let filter = gtk::FileFilter::new();
@@ -64,7 +64,7 @@ pub(crate) fn choose_managed_image(
                 &dispatcher,
                 &toast_overlay,
                 dialog_parent.as_ref(),
-                source_selection,
+                source_target,
                 &focus,
             );
         },
@@ -77,7 +77,7 @@ fn show_image_alt_dialog(
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     parent: Option<&gtk::Window>,
-    source_selection: Option<Range<usize>>,
+    source_target: Option<SourceImageTarget>,
     focus: &EditorFocusRestorer,
 ) {
     let alt = gtk::Entry::new();
@@ -111,7 +111,7 @@ fn show_image_alt_dialog(
             &dispatcher,
             &toast_overlay,
             extension,
-            source_selection.clone(),
+            source_target.clone(),
         );
         focus.restore_later();
     });
@@ -125,7 +125,7 @@ pub(crate) fn import_managed_image_file(
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     extension: &'static str,
-    source_selection: Option<Range<usize>>,
+    source_target: Option<SourceImageTarget>,
 ) {
     let alt = alt.to_owned();
     let dispatcher = dispatcher.clone();
@@ -139,7 +139,7 @@ pub(crate) fn import_managed_image_file(
             extension: extension.to_owned(),
             bytes: bytes.as_ref().to_vec(),
             alt,
-            source_selection,
+            source_target,
         }));
     });
 }

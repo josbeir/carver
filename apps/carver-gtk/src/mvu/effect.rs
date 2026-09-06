@@ -1,12 +1,11 @@
 //! Side effects requested by the pure reducer.
 
-use std::ops::Range;
-
 use carver_config::Config;
 use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId};
 
 use super::{
-    ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId, TimerId,
+    ActionKey, EditorExportFormat, EditorSaveRequest, EditorSessionId, RequestId,
+    SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
@@ -100,8 +99,8 @@ pub enum Effect {
         bytes: Vec<u8>,
         /// Alternative text to retain on completion.
         alt: String,
-        /// Source selection to replace after storage completes, when applicable.
-        source_selection: Option<Range<usize>>,
+        /// Source target to replace after storage completes, when applicable.
+        source_target: Option<SourceImageTarget>,
     },
     /// Load sidebar categories and active-note counts.
     LoadSidebar {

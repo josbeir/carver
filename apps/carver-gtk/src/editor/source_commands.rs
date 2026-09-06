@@ -5,6 +5,8 @@ use std::ops::Range;
 use carver_domain::source_analysis::{SourceContext, SourceNodeKind};
 use gtk::prelude::*;
 
+use crate::mvu::SourceImageTarget;
+
 use super::{
     buffer_text,
     toolbar::{ToolbarCommand, ToolbarState},
@@ -361,6 +363,14 @@ fn source_edit_from_buffer(buffer: &gtk::TextBuffer) -> SourceEdit {
 /// Returns the current source selection in Unicode code-point offsets.
 pub(crate) fn selection_from_buffer(buffer: &gtk::TextBuffer) -> Range<usize> {
     source_edit_from_buffer(buffer).selection()
+}
+
+/// Captures the source snapshot and selection that a native image import may replace.
+pub(crate) fn image_target_from_buffer(buffer: &gtk::TextBuffer) -> SourceImageTarget {
+    SourceImageTarget {
+        source: buffer_text(buffer).to_string(),
+        selection: selection_from_buffer(buffer),
+    }
 }
 
 fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
