@@ -767,11 +767,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         ],
     );
     assert!(favorite_handled);
+    let favorite_restored = editor_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::f,
+            &0_u32,
+            &(gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK),
+        ],
+    );
+    assert!(favorite_restored);
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
         .flatten()
-        .is_some_and(|saved| !saved.is_favorite)));
+        .is_some_and(|saved| saved.is_favorite)));
     let find_shortcut = (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
         .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())

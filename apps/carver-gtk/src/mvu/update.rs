@@ -899,7 +899,7 @@ fn update_favorite_changed(
     match result {
         Ok(note) => {
             model.notice = None;
-            let rebased_save = if let Some(document) = model
+            let (rebased_save, pending_favorite) = if let Some(document) = model
                 .editor
                 .as_mut()
                 .filter(|document| document.note_id == note.id)
@@ -911,20 +911,40 @@ fn update_favorite_changed(
                 );
                 document.revision = note.revision;
                 document.is_favorite = note.is_favorite;
-                if save_needs_rebase {
+                document.favorite_mutation_in_flight = false;
+                let pending_favorite = document
+                    .pending_favorite
+                    .filter(|is_favorite| *is_favorite != note.is_favorite);
+                if pending_favorite.is_none() {
+                    document.pending_favorite = None;
+                }
+                let rebased_save = if save_needs_rebase {
                     document.save_state = super::EditorSaveState::Dirty;
                     document.begin_save()
                 } else {
                     None
-                }
+                };
+                (rebased_save, pending_favorite)
             } else {
-                None
+                (None, None)
             };
             let mut effects = rebased_save.map_or_else(Vec::new, save_note_effect);
+            effects.extend(pending_favorite.map_or_else(Vec::new, |is_favorite| {
+                set_editor_favorite(model, is_favorite)
+            }));
             effects.extend(reload_after_local_mutation(model));
             effects
         }
         Err(error) => {
+            if let ActionKey::SetNoteFavorite(note_id) = action
+                && let Some(document) = model
+                    .editor
+                    .as_mut()
+                    .filter(|document| document.note_id == note_id)
+            {
+                document.favorite_mutation_in_flight = false;
+                document.pending_favorite = None;
+            }
             model.notice = Some(error);
             Vec::new()
         }
@@ -1220,7 +1240,9 @@ fn update_editor_save(
                     document.save_state = super::EditorSaveState::Clean;
                     (
                         document.closes_after_save(),
-                        document.pending_favorite.take(),
+                        (!document.favorite_mutation_in_flight)
+                            .then_some(document.pending_favorite)
+                            .flatten(),
                     )
                 } else {
                     document.save_state = super::EditorSaveState::Dirty;
@@ -1447,27 +1469,44 @@ fn toggle_editor_favorite(model: &mut AppModel) -> Vec<Effect> {
         return Vec::new();
     };
     let is_favorite = !document.pending_favorite.unwrap_or(document.is_favorite);
+    document.pending_favorite = Some(is_favorite);
     if matches!(document.save_state, super::EditorSaveState::Clean) {
         return set_editor_favorite(model, is_favorite);
     }
-    document.pending_favorite = (is_favorite != document.is_favorite).then_some(is_favorite);
     document
         .begin_save()
         .map_or_else(Vec::new, save_note_effect)
 }
 
 fn set_editor_favorite(model: &mut AppModel, is_favorite: bool) -> Vec<Effect> {
-    let Some(document) = model.editor.as_ref() else {
+    let Some((note_id, revision)) = model.editor.as_ref().and_then(|document| {
+        (!document.favorite_mutation_in_flight && document.is_favorite != is_favorite)
+            .then_some((document.note_id, document.revision))
+    }) else {
+        if let Some(document) = model.editor.as_mut()
+            && !document.favorite_mutation_in_flight
+        {
+            document.pending_favorite = None;
+        }
         return Vec::new();
     };
-    update_action(
+    let effects = update_action(
         model,
         ActionMsg::SetNoteFavorite {
-            note_id: document.note_id,
-            revision: document.revision,
+            note_id,
+            revision,
             is_favorite,
         },
-    )
+    );
+    if !effects.is_empty()
+        && let Some(document) = model
+            .editor
+            .as_mut()
+            .filter(|document| document.note_id == note_id)
+    {
+        document.favorite_mutation_in_flight = true;
+    }
+    effects
 }
 
 fn reload_trash(model: &mut AppModel) -> Option<Effect> {

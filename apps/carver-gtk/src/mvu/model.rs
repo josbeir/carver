@@ -255,8 +255,10 @@ pub struct EditorDocument {
     pub source: String,
     /// Currently selected editor surface.
     pub mode: EditorMode,
-    /// Favorite state requested while unsaved source is being persisted.
+    /// Latest favorite state requested before the current mutation completes.
     pub(crate) pending_favorite: Option<bool>,
+    /// Whether a favorite mutation is in flight for this editor document.
+    pub(crate) favorite_mutation_in_flight: bool,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
     save_timer: Option<TimerId>,
@@ -350,6 +352,7 @@ impl EditorDocument {
             source,
             mode,
             pending_favorite: None,
+            favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
             save_timer: None,
             close_after_save: false,

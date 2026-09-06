@@ -948,7 +948,7 @@ fn repeated_favorite_toggles_while_saving_should_restore_the_original_state() {
             .editor
             .as_ref()
             .and_then(|document| document.pending_favorite),
-        None
+        Some(false)
     );
 
     let effects = update(
@@ -962,6 +962,98 @@ fn repeated_favorite_toggles_while_saving_should_restore_the_original_state() {
         !effects
             .iter()
             .any(|effect| matches!(effect, Effect::SetNoteFavorite { .. }))
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .and_then(|document| document.pending_favorite),
+        None
+    );
+}
+
+#[test]
+fn repeated_favorite_toggles_while_clean_should_apply_the_latest_requested_state() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let category_id = CategoryId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Source"),
+        }),
+    );
+
+    assert!(matches!(
+        update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).as_slice(),
+        [Effect::SetNoteFavorite {
+            note_id: effect_note_id,
+            revision: Revision(1),
+            is_favorite: true,
+            ..
+        }] if *effect_note_id == note_id
+    ));
+    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).is_empty());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::FavoriteChanged {
+            action: ActionKey::SetNoteFavorite(note_id),
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("Source"),
+                title: String::from("Source"),
+                plain_text: String::from("Source"),
+                revision: Revision(2),
+                is_favorite: true,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::SetNoteFavorite {
+            note_id: effect_note_id,
+            revision: Revision(2),
+            is_favorite: false,
+            ..
+        } if *effect_note_id == note_id
+    )));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::FavoriteChanged {
+            action: ActionKey::SetNoteFavorite(note_id),
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("Source"),
+                title: String::from("Source"),
+                plain_text: String::from("Source"),
+                revision: Revision(3),
+                is_favorite: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SetNoteFavorite { .. }))
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .and_then(|document| document.pending_favorite),
+        None
     );
 }
 
