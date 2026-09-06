@@ -15,7 +15,8 @@ use carver_domain::{
     TrashedCategorySummary, TrashedNoteSummary, derive_content,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite_migration::{M, Migrations};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -54,6 +55,9 @@ pub enum StorageError {
     /// `SQLite` reported a problem.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
+    /// The database schema could not be brought to the latest supported version.
+    #[error("database migration failed: {0}")]
+    Migration(#[from] rusqlite_migration::Error),
     /// Asset filesystem work failed.
     #[error("asset I/O failed: {0}")]
     Io(#[from] std::io::Error),
@@ -77,6 +81,103 @@ pub enum StorageError {
     MutationUnavailable,
 }
 
+/// The complete schema for libraries created before schema versioning was introduced.
+///
+/// Existing libraries have SQLite's `user_version` set to zero, so this migration deliberately
+/// uses idempotent DDL. Its hook fills the two category appearance columns that were added while
+/// the schema was still created at application startup. Once committed, `user_version` is one and
+/// this SQL is never run again.
+const INITIAL_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+        icon TEXT NOT NULL DEFAULT 'folder', color TEXT NOT NULL DEFAULT 'auto', position INTEGER NOT NULL,
+        created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id), source TEXT NOT NULL,
+        title TEXT NOT NULL, plain_text TEXT NOT NULL, revision INTEGER NOT NULL, created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL, trashed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS notes_updated_at_idx ON notes(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS notes_category_updated_at_idx ON notes(category_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS assets (
+        hash TEXT PRIMARY KEY NOT NULL, filename TEXT NOT NULL UNIQUE, byte_size INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS note_assets (
+        note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        asset_hash TEXT NOT NULL REFERENCES assets(hash) ON DELETE CASCADE,
+        PRIMARY KEY(note_id, asset_hash)
+    );
+    CREATE TABLE IF NOT EXISTS library_metadata (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        change_revision INTEGER NOT NULL CHECK(change_revision >= 0)
+    );
+    INSERT OR IGNORE INTO library_metadata (singleton, change_revision) VALUES (1, 0);
+    CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(note_id UNINDEXED, title, plain_text);
+    CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_insert
+        AFTER INSERT ON categories
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+    CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_update
+        AFTER UPDATE ON categories
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+    CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_delete
+        AFTER DELETE ON categories
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+    CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_insert
+        AFTER INSERT ON notes
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+    CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_update
+        AFTER UPDATE ON notes
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+    CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_delete
+        AFTER DELETE ON notes
+        BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+";
+
+fn migrations() -> Migrations<'static> {
+    Migrations::new(vec![M::up_with_hook(
+        INITIAL_SCHEMA,
+        migrate_category_appearance_columns,
+    )])
+}
+
+fn apply_migrations(connection: &mut Connection) -> Result<(), StorageError> {
+    migrations().to_latest(connection)?;
+    Ok(())
+}
+
+fn migrate_category_appearance_columns(
+    transaction: &Transaction<'_>,
+) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("PRAGMA table_info(categories)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !columns.iter().any(|column| column == "icon") {
+        transaction.execute_batch(
+            "ALTER TABLE categories ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder';",
+        )?;
+    }
+    if !columns.iter().any(|column| column == "color") {
+        transaction.execute_batch(
+            "ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT 'auto';",
+        )?;
+    }
+    Ok(())
+}
+
 impl SqliteLibrary {
     /// Opens a library and applies all known migrations.
     ///
@@ -90,19 +191,18 @@ impl SqliteLibrary {
             fs::create_dir_all(parent)?;
         }
         fs::create_dir_all(assets_dir)?;
-        let connection = Connection::open(database_path)?;
+        let mut connection = Connection::open(database_path)?;
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;",
         )?;
-        let library = Self {
+        apply_migrations(&mut connection)?;
+        Ok(Self {
             connection,
             assets_dir: assets_dir.to_owned(),
-        };
-        library.migrate()?;
-        Ok(library)
+        })
     }
 
     /// Returns the semantic revision for the current committed library state.
@@ -750,87 +850,6 @@ impl SqliteLibrary {
             return Ok(None);
         };
         Ok(Some(fs::read(self.managed_asset_path(&filename)?)?))
-    }
-
-    fn migrate(&self) -> Result<(), StorageError> {
-        self.connection.execute_batch(
-            "CREATE TABLE IF NOT EXISTS categories (
-                id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL CHECK(length(trim(name)) > 0),
-                icon TEXT NOT NULL DEFAULT 'folder', color TEXT NOT NULL DEFAULT 'auto', position INTEGER NOT NULL,
-                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS notes (
-                id TEXT PRIMARY KEY NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id), source TEXT NOT NULL,
-                title TEXT NOT NULL, plain_text TEXT NOT NULL, revision INTEGER NOT NULL, created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL, trashed_at INTEGER
-            );
-            CREATE INDEX IF NOT EXISTS notes_updated_at_idx ON notes(updated_at DESC);
-            CREATE INDEX IF NOT EXISTS notes_category_updated_at_idx ON notes(category_id, updated_at DESC);
-            CREATE TABLE IF NOT EXISTS assets (hash TEXT PRIMARY KEY NOT NULL, filename TEXT NOT NULL UNIQUE, byte_size INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS note_assets (
-                note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-                asset_hash TEXT NOT NULL REFERENCES assets(hash) ON DELETE CASCADE,
-                PRIMARY KEY(note_id, asset_hash)
-            );
-            CREATE TABLE IF NOT EXISTS library_metadata (
-                singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
-                change_revision INTEGER NOT NULL CHECK(change_revision >= 0)
-            );
-            INSERT OR IGNORE INTO library_metadata (singleton, change_revision) VALUES (1, 0);
-            CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(note_id UNINDEXED, title, plain_text);",
-        )?;
-        self.migrate_category_appearance_columns()?;
-        self.connection.execute_batch(
-            "CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_insert
-                AFTER INSERT ON categories
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;
-            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_update
-                AFTER UPDATE ON categories
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;
-            CREATE TRIGGER IF NOT EXISTS categories_change_revision_after_delete
-                AFTER DELETE ON categories
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;
-            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_insert
-                AFTER INSERT ON notes
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;
-            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_update
-                AFTER UPDATE ON notes
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;
-            CREATE TRIGGER IF NOT EXISTS notes_change_revision_after_delete
-                AFTER DELETE ON notes
-                BEGIN
-                    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
-                END;",
-        )?;
-        Ok(())
-    }
-
-    fn migrate_category_appearance_columns(&self) -> Result<(), StorageError> {
-        let mut statement = self.connection.prepare("PRAGMA table_info(categories)")?;
-        let columns = statement
-            .query_map([], |row| row.get::<_, String>(1))?
-            .collect::<Result<Vec<_>, _>>()?;
-        if !columns.iter().any(|column| column == "icon") {
-            self.connection.execute_batch(
-                "ALTER TABLE categories ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder';",
-            )?;
-        }
-        if !columns.iter().any(|column| column == "color") {
-            self.connection.execute_batch(
-                "ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT 'auto';",
-            )?;
-        }
-        Ok(())
     }
 
     fn replace_fts(
