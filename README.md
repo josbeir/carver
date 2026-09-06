@@ -3,7 +3,7 @@
 [![Quality](https://github.com/josbeir/carver/actions/workflows/quality.yml/badge.svg)](https://github.com/josbeir/carver/actions/workflows/quality.yml)
 [![codecov](https://codecov.io/gh/josbeir/carver/graph/badge.svg)](https://codecov.io/gh/josbeir/carver)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![MSRV: 1.98.1](https://img.shields.io/badge/MSRV-1.98.1-93450a.svg)](https://www.rust-lang.org/)
+[![MSRV: 1.98](https://img.shields.io/badge/MSRV-1.98-93450a.svg)](https://www.rust-lang.org/)
 
 Carver is a beautiful native GNOME note-taking app written in Rust. Its optional local MCP
 connection lets an AI agent work with the plans, ideas, and project notes you already keep in
@@ -71,7 +71,7 @@ the bundle from a newer release and run the same install command.
 
 ## Develop from source
 
-For development, Carver requires Rust 1.98.1 or newer, GTK 4.22+, Libadwaita 1.9+,
+For development, Carver requires Rust 1.98 or newer, GTK 4.22+, Libadwaita 1.9+,
 GtkSourceView 5, and WebKitGTK 6 development libraries.
 
 ```sh
