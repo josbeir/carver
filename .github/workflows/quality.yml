@@ -72,7 +72,7 @@ jobs:
         run: cargo install cargo-deny --version 0.20.2 --locked && cargo deny check
 
   msrv:
-    name: MSRV (Rust 1.92)
+    name: MSRV (Rust 1.98.1)
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
@@ -83,11 +83,11 @@ jobs:
           cache-dependency-path: apps/carver-gtk/web/package-lock.json
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.92"
+          toolchain: "1.98.1"
       - uses: Swatinem/rust-cache@v2
         with:
           # Keep MSRV artifacts isolated from stable while reusing them on subsequent runs.
-          shared-key: carver-msrv-1.92
+          shared-key: carver-msrv-1.98.1
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
