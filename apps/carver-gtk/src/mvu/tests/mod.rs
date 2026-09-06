@@ -922,6 +922,50 @@ fn favorite_requested_with_dirty_source_should_save_before_updating_metadata() {
 }
 
 #[test]
+fn repeated_favorite_toggles_while_saving_should_restore_the_original_state() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Before"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("After"))),
+    );
+    let request = match update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("favorite changes should save dirty source first"),
+    };
+
+    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).is_empty());
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .and_then(|document| document.pending_favorite),
+        None
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SetNoteFavorite { .. }))
+    );
+}
+
+#[test]
 fn favorite_requested_before_closing_a_dirty_editor_should_run_after_saving() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

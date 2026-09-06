@@ -17,7 +17,7 @@ use libadwaita::prelude::{
 use webkit6::prelude::*;
 
 use crate::{
-    dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TRASH_NOTE_ACTION},
+    dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
     mvu::{
         AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
         EditorExportFormat, EditorExportWarningRequest, EditorMsg, EditorPdfExportRequest,
@@ -1017,15 +1017,15 @@ fn install_editor_window_shortcuts(view: &adw::ToolbarView) {
     let action_host = view.clone().upcast::<gtk::Widget>();
     let action_host_for_callback = action_host.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
-        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
-            || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
-        {
+        if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
-        let action = match key {
-            gtk::gdk::Key::e => EXPORT_NOTE_ACTION,
-            gtk::gdk::Key::p => PRINT_NOTE_ACTION,
-            gtk::gdk::Key::d => TRASH_NOTE_ACTION,
+        let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+        let action = match (key, shift) {
+            (gtk::gdk::Key::e, false) => EXPORT_NOTE_ACTION,
+            (gtk::gdk::Key::p, false) => PRINT_NOTE_ACTION,
+            (gtk::gdk::Key::d, false) => TRASH_NOTE_ACTION,
+            (gtk::gdk::Key::f, true) => TOGGLE_FAVORITE_ACTION,
             _ => return glib::Propagation::Proceed,
         };
         let _ = action_host_for_callback.activate_action(action, None::<&glib::Variant>);

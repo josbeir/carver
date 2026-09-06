@@ -1446,11 +1446,11 @@ fn toggle_editor_favorite(model: &mut AppModel) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
-    let is_favorite = !document.is_favorite;
+    let is_favorite = !document.pending_favorite.unwrap_or(document.is_favorite);
     if matches!(document.save_state, super::EditorSaveState::Clean) {
         return set_editor_favorite(model, is_favorite);
     }
-    document.pending_favorite = Some(is_favorite);
+    document.pending_favorite = (is_favorite != document.is_favorite).then_some(is_favorite);
     document
         .begin_save()
         .map_or_else(Vec::new, save_note_effect)
