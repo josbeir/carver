@@ -1,10 +1,11 @@
+use carver_config::Config;
 use carver_sdk::{
     Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, NoteId,
     NoteSummary,
 };
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
-use super::{LoadState, note_category_color};
+use super::{LoadState, browser_projection_snapshot, note_category_color};
 
 #[test]
 fn note_category_color_should_use_the_category_appearance() {
@@ -37,4 +38,16 @@ fn note_category_color_should_use_the_category_appearance() {
     let color = note_category_color(&note, &sidebar);
 
     assert_eq!(color, Some(CategoryColor::Purple));
+}
+
+#[test]
+fn browser_projection_snapshot_should_change_when_the_day_changes() {
+    let model = crate::mvu::AppModel::new(&Config::default());
+    let today = OffsetDateTime::UNIX_EPOCH.date();
+    let tomorrow = today + Duration::DAY;
+
+    let first_snapshot = browser_projection_snapshot(&model, today);
+    let next_day_snapshot = browser_projection_snapshot(&model, tomorrow);
+
+    assert_ne!(first_snapshot, next_day_snapshot);
 }

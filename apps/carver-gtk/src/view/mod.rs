@@ -7,7 +7,7 @@ use std::cell::{Cell, RefCell};
 
 use gtk::prelude::*;
 use libadwaita as adw;
-use time::OffsetDateTime;
+use time::{Date, OffsetDateTime};
 
 use crate::{
     dialogs::show_move_note_dialog,
@@ -21,6 +21,12 @@ type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 type SidebarSnapshot = (
     LoadState<Vec<carver_sdk::CategorySummary>>,
     Option<carver_sdk::CategoryId>,
+);
+type BrowserProjectionSnapshot = (
+    BrowserModel,
+    Option<carver_sdk::CategoryId>,
+    LoadState<Vec<carver_sdk::CategorySummary>>,
+    Date,
 );
 
 struct BrowserContentRefs<'a> {
@@ -59,9 +65,7 @@ pub struct ViewRefs {
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
     last_browser_search_open: Cell<bool>,
-    last_browser_model: RefCell<Option<BrowserModel>>,
-    last_browser_selection: Cell<Option<carver_sdk::CategoryId>>,
-    last_browser_sidebar: RefCell<Option<LoadState<Vec<carver_sdk::CategorySummary>>>>,
+    last_browser_snapshot: RefCell<Option<BrowserProjectionSnapshot>>,
     last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::editor::EditorViewRefs>,
@@ -101,9 +105,7 @@ impl ViewRefs {
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
             last_browser_search_open: Cell::new(false),
-            last_browser_model: RefCell::new(None),
-            last_browser_selection: Cell::new(None),
-            last_browser_sidebar: RefCell::new(None),
+            last_browser_snapshot: RefCell::new(None),
             last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
             editor: None,
@@ -340,21 +342,12 @@ impl ViewRefs {
     }
 
     fn browser_projection_changed(&self, model: &AppModel) -> bool {
-        let browser_changed = self.last_browser_model.borrow().as_ref() != Some(&model.browser);
-        let selection_changed = self.last_browser_selection.get() != model.selected_category;
-        let sidebar_changed =
-            self.last_browser_sidebar.borrow().as_ref() != Some(&model.sidebar.state);
-        if browser_changed {
-            self.last_browser_model.replace(Some(model.browser.clone()));
+        let snapshot = browser_projection_snapshot(model, OffsetDateTime::now_utc().date());
+        if self.last_browser_snapshot.borrow().as_ref() == Some(&snapshot) {
+            return false;
         }
-        if selection_changed {
-            self.last_browser_selection.set(model.selected_category);
-        }
-        if sidebar_changed {
-            self.last_browser_sidebar
-                .replace(Some(model.sidebar.state.clone()));
-        }
-        browser_changed || selection_changed || sidebar_changed
+        self.last_browser_snapshot.replace(Some(snapshot));
+        true
     }
 
     fn browser_content_refs(&self) -> Option<BrowserContentRefs<'_>> {
@@ -526,6 +519,15 @@ impl ViewRefs {
             toast_overlay.add_toast(toast);
         }
     }
+}
+
+fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjectionSnapshot {
+    (
+        model.browser.clone(),
+        model.selected_category,
+        model.sidebar.state.clone(),
+        today,
+    )
 }
 
 fn render_empty_category(

@@ -49,6 +49,8 @@ use source_context::SourceContextCache;
 use toolbar::Toolbar;
 use web::RichEditor;
 
+type PreviewSource = (EditorSessionId, String);
+
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     rich_mode: gtk::ToggleButton,
@@ -66,8 +68,8 @@ pub(crate) struct EditorViewRefs {
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
-    split_preview_source: RefCell<Option<(EditorSessionId, String)>>,
-    rendered_preview_source: RefCell<Option<(EditorSessionId, String)>>,
+    split_preview_source: RefCell<Option<PreviewSource>>,
+    rendered_preview_source: RefCell<Option<PreviewSource>>,
     rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
     dispatcher: AppDispatcher,
@@ -93,6 +95,10 @@ impl EditorViewRefs {
             .rendered_theme_revision
             .replace(Some(model.editor_theme_revision))
             != Some(model.editor_theme_revision);
+        let presentation_changed = remote_images_changed || theme_changed;
+        if presentation_changed {
+            invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
+        }
         let source_changed = buffer_text(&self.source_buffer) != document.source;
         let preview = model
             .editor_preview
@@ -118,7 +124,7 @@ impl EditorViewRefs {
                 preview,
                 model.preferences.load_remote_images,
                 &theme,
-                remote_images_changed || theme_changed,
+                presentation_changed,
             );
         }
         if new_document || remote_images_changed {
@@ -288,6 +294,14 @@ impl EditorViewRefs {
             request.request_id,
         );
     }
+}
+
+fn invalidate_preview_sources(
+    split_preview_source: &RefCell<Option<PreviewSource>>,
+    rendered_preview_source: &RefCell<Option<PreviewSource>>,
+) {
+    split_preview_source.replace(None);
+    rendered_preview_source.replace(None);
 }
 
 /// The complete editor surface and its immutable-model renderer.
