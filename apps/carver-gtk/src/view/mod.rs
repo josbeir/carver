@@ -293,8 +293,11 @@ impl ViewRefs {
             // loading status between category selections.
             LoadState::Loading(_)
                 if !model.browser.loading_indicator_visible
-                    && let Some(notes) = &model.browser.last_ready_notes =>
+                    && model.browser.last_ready_notes.is_some() =>
             {
+                let Some(notes) = &model.browser.last_ready_notes else {
+                    unreachable!("the match guard requires a retained browser snapshot");
+                };
                 render_browser_notes(
                     list,
                     pages,
