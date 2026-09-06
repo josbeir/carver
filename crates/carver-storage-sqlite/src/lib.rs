@@ -696,27 +696,30 @@ impl SqliteLibrary {
             .map_err(Into::into)
     }
 
-    /// Lists active favorite notes, newest favorite first.
+    /// Lists active favorite notes, optionally restricted to a category, newest favorite first.
     ///
     /// # Errors
     ///
     /// Returns an error when notes cannot be read or stored values are corrupt.
     pub fn favorite_notes(
         &self,
+        category_id: Option<CategoryId>,
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, StorageError> {
+        let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
                     EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.is_favorite = 1
-             ORDER BY n.favorited_at DESC, n.id DESC LIMIT ?1 OFFSET ?2",
+               AND (?1 IS NULL OR n.category_id = ?1)
+             ORDER BY n.favorited_at DESC, n.id DESC LIMIT ?2 OFFSET ?3",
         )?;
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let offset = i64::try_from(offset).unwrap_or(i64::MAX);
         statement
-            .query_map(params![limit, offset], summary_from_row)?
+            .query_map(params![category, limit, offset], summary_from_row)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(Into::into)
     }
@@ -1126,8 +1129,13 @@ impl LibraryBackend for SqliteLibrary {
         Self::recent_notes(self, category_id, limit, offset)
     }
 
-    fn favorite_notes(&self, limit: usize, offset: usize) -> Result<Vec<NoteSummary>, Self::Error> {
-        Self::favorite_notes(self, limit, offset)
+    fn favorite_notes(
+        &self,
+        category_id: Option<CategoryId>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, Self::Error> {
+        Self::favorite_notes(self, category_id, limit, offset)
     }
 
     fn search(

@@ -389,6 +389,37 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
 }
 
 #[test]
+fn loaded_category_notes_should_request_category_favorites() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let request_id = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::SelectCategory(Some(category_id))),
+    )
+    .as_slice()
+    {
+        [Effect::LoadBrowser { request_id, .. }] => *request_id,
+        _ => panic!("selecting a category should load its notes"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id,
+            result: Ok(Vec::new()),
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::LoadFavorites {
+            request_id: RequestId(2),
+            category_id: Some(category_id),
+        }]
+    );
+}
+
+#[test]
 fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();

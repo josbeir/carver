@@ -369,13 +369,14 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
-    /// Lists favorite active notes without blocking the caller.
+    /// Lists favorite active notes, optionally restricted to a category, without blocking the caller.
     pub async fn favorite_notes_async(
         &self,
+        category_id: Option<CategoryId>,
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
-        self.request(move |backend| backend.favorite_notes(limit, offset))
+        self.request(move |backend| backend.favorite_notes(category_id, limit, offset))
             .await
     }
 
@@ -598,13 +599,14 @@ impl<B: LibraryBackend> LibraryClient<B> {
         self.blocking(move |backend| backend.recent_notes(category_id, limit, offset))
     }
 
-    /// Lists favorite active notes synchronously for bootstrap code and tests.
+    /// Lists favorite active notes, optionally restricted to a category, synchronously for bootstrap code and tests.
     pub fn favorite_notes(
         &self,
+        category_id: Option<CategoryId>,
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
-        self.blocking(move |backend| backend.favorite_notes(limit, offset))
+        self.blocking(move |backend| backend.favorite_notes(category_id, limit, offset))
     }
 
     /// Searches notes synchronously for bootstrap code and tests.

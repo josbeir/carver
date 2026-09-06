@@ -1419,7 +1419,7 @@ fn reload_browser(model: &mut AppModel) -> Option<Effect> {
 }
 
 fn reload_favorites(model: &mut AppModel) -> Option<Effect> {
-    if model.selected_category.is_some() || !model.browser.search_query.trim().is_empty() {
+    if !model.browser.search_query.trim().is_empty() {
         model.browser.favorites = super::Resource::default();
         return None;
     }
@@ -1428,7 +1428,10 @@ fn reload_favorites(model: &mut AppModel) -> Option<Effect> {
         .browser
         .favorites
         .begin_reload(request_id)
-        .then_some(Effect::LoadFavorites { request_id })
+        .then_some(Effect::LoadFavorites {
+            request_id,
+            category_id: model.selected_category,
+        })
 }
 
 fn reload_favorites_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {

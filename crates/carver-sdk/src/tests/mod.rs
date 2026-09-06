@@ -230,6 +230,7 @@ impl LibraryBackend for TestBackend {
 
     fn favorite_notes(
         &self,
+        _category_id: Option<CategoryId>,
         _limit: usize,
         _offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error> {
@@ -362,7 +363,7 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(client.trash_contents_async()));
     assert_backend_error(&block_on(client.empty_trash_async()));
     assert_backend_error(&block_on(client.recent_notes_async(None, 10, 0)));
-    assert_backend_error(&block_on(client.favorite_notes_async(10, 0)));
+    assert_backend_error(&block_on(client.favorite_notes_async(None, 10, 0)));
     assert_backend_error(&block_on(client.search_async(
         "needle".to_owned(),
         None,
@@ -386,7 +387,7 @@ fn synchronous_favorite_requests_should_propagate_backend_errors()
     let note_id = NoteId::new();
 
     assert_backend_error(&client.set_note_favorite(note_id, Revision(0), true));
-    assert_backend_error(&client.favorite_notes(10, 0));
+    assert_backend_error(&client.favorite_notes(None, 10, 0));
     Ok(())
 }
 

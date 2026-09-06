@@ -226,13 +226,37 @@ fn favorite_notes_should_return_active_notes_by_most_recent_favorite() {
             now + time::Duration::seconds(1),
         )
         .unwrap_or_else(|error| panic!("second favorite failed: {error}"));
+    let other_category = library
+        .create_category("Other Favorites", now)
+        .unwrap_or_else(|error| panic!("other category failed: {error}"));
+    let other = library
+        .create_note_with_source(other_category.id, "# Other", now)
+        .unwrap_or_else(|error| panic!("other note failed: {error}"));
+    let _other = library
+        .set_note_favorite(
+            other.id,
+            other.revision,
+            true,
+            now + time::Duration::seconds(2),
+        )
+        .unwrap_or_else(|error| panic!("other favorite failed: {error}"));
 
     let favorites = library
-        .favorite_notes(20, 0)
+        .favorite_notes(None, 20, 0)
         .unwrap_or_else(|error| panic!("favorite list failed: {error}"));
 
     assert_eq!(
         favorites.iter().map(|note| note.id).collect::<Vec<_>>(),
+        vec![other.id, second.id, first.id]
+    );
+    let category_favorites = library
+        .favorite_notes(Some(category.id), 20, 0)
+        .unwrap_or_else(|error| panic!("category favorite list failed: {error}"));
+    assert_eq!(
+        category_favorites
+            .iter()
+            .map(|note| note.id)
+            .collect::<Vec<_>>(),
         vec![second.id, first.id]
     );
 }

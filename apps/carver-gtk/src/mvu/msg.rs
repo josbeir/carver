@@ -444,7 +444,7 @@ pub enum LibraryReply {
         /// Successful result or a displayable failure.
         result: Result<Vec<NoteSummary>, UiError>,
     },
-    /// Favorite summaries completed loading for the All Notes Favorites section.
+    /// Favorite summaries completed loading for the visible Favorites section.
     FavoritesLoaded {
         /// Identity of the initiating request.
         request_id: RequestId,

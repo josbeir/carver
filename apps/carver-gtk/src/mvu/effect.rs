@@ -162,10 +162,12 @@ pub enum Effect {
         /// Search input to apply.
         query: String,
     },
-    /// Load favorite note summaries for the All Notes Favorites section.
+    /// Load favorite note summaries for the visible Favorites section.
     LoadFavorites {
         /// Identity for stale-completion protection.
         request_id: RequestId,
+        /// Category to restrict the listing to, if any.
+        category_id: Option<CategoryId>,
     },
     /// Load a complete note before showing it in the editor.
     LoadEditorNote {

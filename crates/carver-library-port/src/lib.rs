@@ -137,8 +137,13 @@ pub trait LibraryBackend: Send + 'static {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error>;
-    /// Lists active favorite notes, newest favorite first.
-    fn favorite_notes(&self, limit: usize, offset: usize) -> Result<Vec<NoteSummary>, Self::Error>;
+    /// Lists active favorite notes, optionally restricted to a category, newest favorite first.
+    fn favorite_notes(
+        &self,
+        category_id: Option<CategoryId>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<NoteSummary>, Self::Error>;
     /// Searches active notes by title and body.
     fn search(
         &self,

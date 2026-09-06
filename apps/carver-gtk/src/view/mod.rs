@@ -635,26 +635,6 @@ fn render_favorites(
         return;
     }
 
-    if model.selected_category.is_some() {
-        let LoadState::Ready(notes) = &model.browser.notes.state else {
-            section.set_visible(false);
-            return;
-        };
-        let favorites = notes
-            .iter()
-            .filter(|note| note.is_favorite)
-            .collect::<Vec<_>>();
-        render_favorite_rows(
-            section,
-            list,
-            &favorites,
-            false,
-            &model.sidebar.state,
-            dispatcher,
-        );
-        return;
-    }
-
     let LoadState::Ready(notes) = &model.browser.favorites.state else {
         section.set_visible(false);
         return;
@@ -664,7 +644,7 @@ fn render_favorites(
         section,
         list,
         &favorites,
-        true,
+        model.selected_category.is_none(),
         &model.sidebar.state,
         dispatcher,
     );

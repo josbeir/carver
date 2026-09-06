@@ -87,6 +87,7 @@ struct ListNotesRequest {
 
 #[derive(Deserialize, JsonSchema)]
 struct ListFavoriteNotesRequest {
+    category_id: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -268,7 +269,11 @@ impl CarverServer {
         Parameters(request): Parameters<ListFavoriteNotesRequest>,
     ) -> Result<String, ErrorData> {
         self.client
-            .favorite_notes_async(limit(request.limit)?, request.offset.unwrap_or(0))
+            .favorite_notes_async(
+                parse_optional_category(request.category_id.as_deref())?,
+                limit(request.limit)?,
+                request.offset.unwrap_or(0),
+            )
             .await
             .map_err(storage_error)
             .and_then(json)
