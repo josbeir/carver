@@ -5,4 +5,4 @@ publish = false
 shared-version = true
 tag-message = "Carver {{version}}"
 tag-name = "v{{version}}"
-pre-release-hook = ["sh", "-c", "sh \"$WORKSPACE_ROOT/scripts/update-metainfo-release.sh\""]
+pre-release-hook = ["sh", "-c", "sh \"$WORKSPACE_ROOT/scripts/prepare-release.sh\""]

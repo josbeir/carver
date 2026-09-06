@@ -126,7 +126,7 @@ fixed persistence or source/rich round-trip bug.
 
 ## Releases
 
-- Release from a clean `main` branch with `cargo release patch --execute --no-confirm` for a patch release. The configured release flow updates the shared workspace version and AppStream metadata, commits the release, creates the annotated tag, and pushes both.
+- Release from a clean `main` branch with `cargo release patch --execute --no-confirm` for a patch release. The configured release flow updates the shared workspace version, AppStream metadata, and generated Flatpak source manifests, then commits the release, creates the annotated tag, and pushes both. It requires the `flatpak-builder-tools` Cargo and Node generators; without them the release stops before creating a tag.
 - After the tag is pushed, create the corresponding GitHub release. Keep its notes concise and user-facing: describe each notable change in a bullet and put its pull-request link inline at the end of that bullet. Do not use a separate pull-request list or include a verification section.
 
 ## Testing style
