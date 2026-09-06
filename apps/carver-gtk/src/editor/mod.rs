@@ -49,6 +49,9 @@ use source_context::SourceContextCache;
 use toolbar::Toolbar;
 use web::RichEditor;
 
+type PreviewSource = (EditorSessionId, String);
+type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
+
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     rich_mode: gtk::ToggleButton,
@@ -66,7 +69,10 @@ pub(crate) struct EditorViewRefs {
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
-    preview_source: Rc<RefCell<Option<(EditorSessionId, String)>>>,
+    split_supported: Rc<Cell<bool>>,
+    split_preview_source: PreviewSourceCache,
+    latest_split_preview_source: PreviewSourceCache,
+    rendered_preview_source: RefCell<Option<PreviewSource>>,
     rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
     dispatcher: AppDispatcher,
@@ -79,7 +85,9 @@ impl EditorViewRefs {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
-            self.preview_source.replace(None);
+            self.split_preview_source.replace(None);
+            self.latest_split_preview_source.replace(None);
+            self.rendered_preview_source.replace(None);
             return;
         };
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
@@ -91,20 +99,16 @@ impl EditorViewRefs {
             .rendered_theme_revision
             .replace(Some(model.editor_theme_revision))
             != Some(model.editor_theme_revision);
+        let presentation_changed = remote_images_changed || theme_changed;
+        if presentation_changed {
+            invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
+        }
         let source_changed = buffer_text(&self.source_buffer) != document.source;
         let preview = model
             .editor_preview
             .as_ref()
             .filter(|preview| preview.session == document.session)
             .cloned();
-        let preview_changed = preview.as_ref().is_some_and(|preview| {
-            self.preview_source
-                .borrow()
-                .as_ref()
-                .is_none_or(|(session, source)| {
-                    *session != preview.session || source != &preview.source
-                })
-        });
         self.rendering.set(true);
         if new_document {
             self.find.reset();
@@ -117,10 +121,15 @@ impl EditorViewRefs {
             }
         }
         let theme = editor_theme();
-        if (preview_changed || remote_images_changed || theme_changed)
-            && let Some(preview) = preview.as_ref()
-        {
-            self.render_preview(preview, model.preferences.load_remote_images, &theme);
+        if let Some(preview) = preview.as_ref() {
+            self.render_visible_preview(
+                document.mode,
+                model.preferences.source_split_view,
+                preview,
+                model.preferences.load_remote_images,
+                &theme,
+                presentation_changed,
+            );
         }
         if new_document || remote_images_changed {
             if remote_images_changed {
@@ -167,26 +176,40 @@ impl EditorViewRefs {
         }
     }
 
-    fn render_preview(
+    fn render_visible_preview(
         &self,
+        mode: EditorMode,
+        source_split_view: bool,
         preview: &crate::mvu::EditorPreview,
         allow_remote_images: bool,
         theme: &web::EditorTheme,
+        presentation_changed: bool,
     ) {
-        preview::load_preview_with_theme(
-            &self.split_preview,
+        let (view, rendered) = match mode {
+            EditorMode::Source if source_split_view => {
+                remember_preview_source(&self.latest_split_preview_source, preview);
+                if !split_preview_is_visible(mode, source_split_view, self.split_supported.get()) {
+                    return;
+                }
+                (&self.split_preview, false)
+            }
+            EditorMode::Rendered => (&self.rendered_preview, true),
+            EditorMode::Source | EditorMode::Rich => return,
+        };
+        let rendered_source = if rendered {
+            &self.rendered_preview_source
+        } else {
+            &self.split_preview_source
+        };
+        let source_changed = preview_source_needs_load(
+            rendered_source.borrow().as_ref(),
+            preview.session,
             &preview.source,
-            allow_remote_images,
-            theme,
         );
-        preview::load_preview_with_theme(
-            &self.rendered_preview,
-            &preview.source,
-            allow_remote_images,
-            theme,
-        );
-        self.preview_source
-            .replace(Some((preview.session, preview.source.clone())));
+        if source_changed || presentation_changed {
+            preview::load_preview_with_theme(view, &preview.source, allow_remote_images, theme);
+            rendered_source.replace(Some((preview.session, preview.source.clone())));
+        }
     }
 
     /// Applies a reducer-approved command to the isolated rich-text projection.
@@ -280,6 +303,56 @@ impl EditorViewRefs {
             request.request_id,
         );
     }
+}
+
+fn invalidate_preview_sources(
+    split_preview_source: &RefCell<Option<PreviewSource>>,
+    rendered_preview_source: &RefCell<Option<PreviewSource>>,
+) {
+    split_preview_source.replace(None);
+    rendered_preview_source.replace(None);
+}
+
+fn remember_preview_source(cache: &PreviewSourceCache, preview: &crate::mvu::EditorPreview) {
+    if preview_source_needs_load(cache.borrow().as_ref(), preview.session, &preview.source) {
+        cache.replace(Some((preview.session, preview.source.clone())));
+    }
+}
+
+fn preview_source_needs_load(
+    cached: Option<&PreviewSource>,
+    session: EditorSessionId,
+    source: &str,
+) -> bool {
+    cached
+        .as_ref()
+        .is_none_or(|(cached_session, cached_source)| {
+            *cached_session != session || cached_source != source
+        })
+}
+
+fn split_preview_is_visible(
+    mode: EditorMode,
+    source_split_view: bool,
+    split_supported: bool,
+) -> bool {
+    mode == EditorMode::Source && source_split_view && split_supported
+}
+
+fn refresh_split_preview(
+    view: &webkit6::WebView,
+    latest: &PreviewSourceCache,
+    loaded: &PreviewSourceCache,
+    allow_remote_images: bool,
+) {
+    let Some((session, source)) = latest.borrow().clone() else {
+        return;
+    };
+    if !preview_source_needs_load(loaded.borrow().as_ref(), session, &source) {
+        return;
+    }
+    preview::load_preview_with_theme(view, &source, allow_remote_images, &editor_theme());
+    loaded.replace(Some((session, source)));
 }
 
 /// The complete editor surface and its immutable-model renderer.
@@ -385,7 +458,6 @@ pub(crate) fn build_editor(
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
-    let preview_source = Rc::new(RefCell::new(None));
     refresh_rich_theme(&rich);
     let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     split_preview.set_widget_name("source-split-preview");
@@ -403,14 +475,19 @@ pub(crate) fn build_editor(
         toolbar_for_selection.set_rich_selection(&selection);
     });
     install_source_shortcuts(source.upcast_ref(), &toolbar);
+    let split_preview_state = SplitPreviewState::new();
     let pages = add_editor_pages(
         &editor_stack,
-        rich.view(),
-        source.upcast_ref(),
-        &split_preview,
-        &rendered_preview,
+        &EditorPageViews {
+            rich: rich.view(),
+            source: source.upcast_ref(),
+            split_preview: &split_preview,
+            rendered_preview: &rendered_preview,
+        },
         &split_toggle,
         &source_mode,
+        &split_preview_state,
+        &remote_images,
     );
     let toolbar_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
@@ -428,7 +505,7 @@ pub(crate) fn build_editor(
         &rich,
         &source_buffer,
         &split_toggle,
-        &pages.split_supported,
+        &split_preview_state.supported,
         &rendering,
         &find,
     );
@@ -446,7 +523,7 @@ pub(crate) fn build_editor(
         &source_mode,
         &rendered_mode,
         &split_toggle,
-        &pages.split_supported,
+        &split_preview_state.supported,
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     connect_theme_changes(dispatcher);
@@ -473,7 +550,10 @@ pub(crate) fn build_editor(
         rendered_preview,
         rendering,
         remote_images,
-        preview_source,
+        split_supported: split_preview_state.supported,
+        split_preview_source: split_preview_state.loaded_source,
+        latest_split_preview_source: split_preview_state.latest_source,
+        rendered_preview_source: RefCell::new(None),
         rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
         dispatcher: dispatcher.clone(),
@@ -533,24 +613,45 @@ fn connect_source_context(
 
 struct EditorPages {
     source_scroll: gtk::ScrolledWindow,
-    split_supported: Rc<Cell<bool>>,
+}
+
+struct EditorPageViews<'a> {
+    rich: &'a webkit6::WebView,
+    source: &'a gtk::TextView,
+    split_preview: &'a webkit6::WebView,
+    rendered_preview: &'a webkit6::WebView,
+}
+
+struct SplitPreviewState {
+    supported: Rc<Cell<bool>>,
+    loaded_source: PreviewSourceCache,
+    latest_source: PreviewSourceCache,
+}
+
+impl SplitPreviewState {
+    fn new() -> Self {
+        Self {
+            supported: Rc::new(Cell::new(true)),
+            loaded_source: Rc::new(RefCell::new(None)),
+            latest_source: Rc::new(RefCell::new(None)),
+        }
+    }
 }
 
 fn add_editor_pages(
     editor_stack: &gtk::Stack,
-    rich: &webkit6::WebView,
-    source: &gtk::TextView,
-    split_preview: &webkit6::WebView,
-    rendered_preview: &webkit6::WebView,
+    views: &EditorPageViews<'_>,
     split_toggle: &gtk::ToggleButton,
     source_mode: &gtk::ToggleButton,
+    split_preview_state: &SplitPreviewState,
+    remote_images: &Rc<Cell<bool>>,
 ) -> EditorPages {
     let rich_scroll = gtk::ScrolledWindow::new();
-    rich_scroll.set_child(Some(rich));
+    rich_scroll.set_child(Some(views.rich));
     let source_scroll = gtk::ScrolledWindow::new();
-    source_scroll.set_child(Some(source));
+    source_scroll.set_child(Some(views.source));
     let split_scroll = gtk::ScrolledWindow::new();
-    split_scroll.set_child(Some(split_preview));
+    split_scroll.set_child(Some(views.split_preview));
     let source_split = gtk::Paned::new(gtk::Orientation::Horizontal);
     source_split.set_widget_name("source-split-view");
     source_split.set_start_child(Some(&source_scroll));
@@ -571,8 +672,7 @@ fn add_editor_pages(
         adw::LengthUnit::Px,
     );
     let breakpoint = adw::Breakpoint::new(condition);
-    let split_supported = Rc::new(Cell::new(true));
-    let split_supported_for_apply = Rc::clone(&split_supported);
+    let split_supported_for_apply = Rc::clone(&split_preview_state.supported);
     let split_scroll_for_apply = split_scroll.clone();
     let split_toggle_for_apply = split_toggle.clone();
     breakpoint.connect_apply(move |_| {
@@ -580,27 +680,37 @@ fn add_editor_pages(
         split_scroll_for_apply.set_visible(false);
         split_toggle_for_apply.set_sensitive(false);
     });
-    let split_supported_for_unapply = Rc::clone(&split_supported);
+    let split_supported_for_unapply = Rc::clone(&split_preview_state.supported);
     let split_scroll_for_unapply = split_scroll.clone();
     let split_toggle_for_unapply = split_toggle.clone();
     let source_mode_for_unapply = source_mode.clone();
+    let split_preview_for_unapply = views.split_preview.clone();
+    let split_preview_source_for_unapply = Rc::clone(&split_preview_state.loaded_source);
+    let latest_split_preview_source_for_unapply = Rc::clone(&split_preview_state.latest_source);
+    let remote_images_for_unapply = Rc::clone(remote_images);
     breakpoint.connect_unapply(move |_| {
         split_supported_for_unapply.set(true);
         let source_active = source_mode_for_unapply.is_active();
         split_toggle_for_unapply.set_sensitive(source_active);
-        split_scroll_for_unapply.set_visible(source_active && split_toggle_for_unapply.is_active());
+        let split_visible = source_active && split_toggle_for_unapply.is_active();
+        split_scroll_for_unapply.set_visible(split_visible);
+        if split_visible {
+            refresh_split_preview(
+                &split_preview_for_unapply,
+                &latest_split_preview_source_for_unapply,
+                &split_preview_source_for_unapply,
+                remote_images_for_unapply.get(),
+            );
+        }
     });
     source_container.add_breakpoint(breakpoint);
     let rendered_scroll = gtk::ScrolledWindow::new();
-    rendered_scroll.set_child(Some(rendered_preview));
+    rendered_scroll.set_child(Some(views.rendered_preview));
     editor_stack.add_named(&rich_scroll, Some("rich"));
     editor_stack.add_named(&source_container, Some("source"));
     editor_stack.add_named(&rendered_scroll, Some("rendered"));
     editor_stack.set_visible_child_name("rich");
-    EditorPages {
-        source_scroll,
-        split_supported,
-    }
+    EditorPages { source_scroll }
 }
 
 #[expect(

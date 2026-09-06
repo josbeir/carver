@@ -7,13 +7,13 @@ use std::cell::{Cell, RefCell};
 
 use gtk::prelude::*;
 use libadwaita as adw;
-use time::OffsetDateTime;
+use time::{Date, OffsetDateTime};
 
 use crate::{
     dialogs::show_move_note_dialog,
     mvu::{
-        ActionMsg, AppDispatcher, AppModel, AppMsg, EditorSaveState, Effect, LoadState, MoveUndo,
-        Route,
+        ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserModel, EditorSaveState, Effect,
+        LoadState, MoveUndo, Route,
     },
 };
 
@@ -22,6 +22,23 @@ type SidebarSnapshot = (
     LoadState<Vec<carver_sdk::CategorySummary>>,
     Option<carver_sdk::CategoryId>,
 );
+struct BrowserProjectionSnapshot {
+    browser: BrowserModel,
+    selected_category: Option<carver_sdk::CategoryId>,
+    sidebar: LoadState<Vec<carver_sdk::CategorySummary>>,
+    route: Route,
+    today: Date,
+}
+
+impl BrowserProjectionSnapshot {
+    fn matches(&self, model: &AppModel, today: Date) -> bool {
+        self.browser == model.browser
+            && self.selected_category == model.selected_category
+            && self.sidebar == model.sidebar.state
+            && self.route == model.route
+            && self.today == today
+    }
+}
 
 struct BrowserContentRefs<'a> {
     list: &'a gtk::ListBox,
@@ -59,6 +76,8 @@ pub struct ViewRefs {
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
     last_browser_search_open: Cell<bool>,
+    last_browser_snapshot: RefCell<Option<BrowserProjectionSnapshot>>,
+    last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
@@ -97,6 +116,8 @@ impl ViewRefs {
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
             last_browser_search_open: Cell::new(false),
+            last_browser_snapshot: RefCell::new(None),
+            last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
             editor: None,
             last_sidebar_snapshot: RefCell::new(None),
@@ -230,6 +251,9 @@ impl ViewRefs {
 
     fn render_browser(&self, model: &AppModel) {
         self.render_browser_search(model);
+        if !self.browser_projection_changed(model) {
+            return;
+        }
         let Some(BrowserContentRefs {
             list,
             pages,
@@ -328,6 +352,21 @@ impl ViewRefs {
         }
     }
 
+    fn browser_projection_changed(&self, model: &AppModel) -> bool {
+        let today = crate::browser::local_day(OffsetDateTime::now_utc());
+        if self
+            .last_browser_snapshot
+            .borrow()
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.matches(model, today))
+        {
+            return false;
+        }
+        self.last_browser_snapshot
+            .replace(Some(browser_projection_snapshot(model, today)));
+        true
+    }
+
     fn browser_content_refs(&self) -> Option<BrowserContentRefs<'_>> {
         Some(BrowserContentRefs {
             list: self.browser_list.as_ref()?,
@@ -377,6 +416,11 @@ impl ViewRefs {
     }
 
     fn render_trash(&self, model: &AppModel) {
+        if self.last_trash_snapshot.borrow().as_ref() == Some(&model.trash.state) {
+            return;
+        }
+        self.last_trash_snapshot
+            .replace(Some(model.trash.state.clone()));
         let (Some(list), Some(pages), Some(empty_button)) = (
             self.trash_list.as_ref(),
             self.trash_pages.as_ref(),
@@ -491,6 +535,16 @@ impl ViewRefs {
             toast.set_action_name(Some("mvu.undo-trash-note"));
             toast_overlay.add_toast(toast);
         }
+    }
+}
+
+fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjectionSnapshot {
+    BrowserProjectionSnapshot {
+        browser: model.browser.clone(),
+        selected_category: model.selected_category,
+        sidebar: model.sidebar.state.clone(),
+        route: model.route.clone(),
+        today,
     }
 }
 
