@@ -1,9 +1,6 @@
 //! Category sidebar construction and snapshot rendering.
 
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{cell::Cell, rc::Rc};
 
 use carver_sdk::{Category, CategoryAppearance, CategoryId, CategorySummary};
 use gtk::prelude::*;
@@ -11,10 +8,7 @@ use libadwaita as adw;
 
 use crate::{
     dialogs::{category_color_css_class, category_icon_name, show_category_dialog},
-    mvu::{
-        ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, EditorMsg, LoadState,
-        NavigationMsg, Route,
-    },
+    mvu::{ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, LoadState, NavigationMsg},
 };
 
 /// Responsive category sidebar and its snapshot renderer.
@@ -25,7 +19,6 @@ pub(crate) struct SidebarSurface {
     dispatcher: AppDispatcher,
     split_view: adw::NavigationSplitView,
     rendering: Rc<Cell<bool>>,
-    route: Rc<RefCell<Route>>,
 }
 
 /// Builds the responsive category sidebar.
@@ -49,7 +42,6 @@ pub(crate) fn build_sidebar(
     list.set_selection_mode(gtk::SelectionMode::Single);
     list.add_css_class("navigation-sidebar");
     let rendering = Rc::new(Cell::new(false));
-    let route = Rc::new(RefCell::new(Route::Browser));
     connect_selection(dispatcher, split_view, &list, &rendering);
     connect_new_category(dispatcher, &new_category);
     install_sidebar_search_shortcut(&container, dispatcher);
@@ -65,7 +57,6 @@ pub(crate) fn build_sidebar(
         dispatcher: dispatcher.clone(),
         split_view: split_view.clone(),
         rendering,
-        route,
     }
 }
 
@@ -109,7 +100,6 @@ fn settings_menu_button() -> gtk::MenuButton {
 impl SidebarSurface {
     /// Renders category rows from the current application snapshot.
     pub(crate) fn render(&self, model: &AppModel) {
-        *self.route.borrow_mut() = model.route.clone();
         self.rendering.set(true);
         let LoadState::Ready(categories) = &model.sidebar.state else {
             clear_list(&self.list);
@@ -120,7 +110,6 @@ impl SidebarSurface {
             &self.list,
             &self.dispatcher,
             &self.split_view,
-            &self.route,
             categories,
             model.selected_category,
         );
@@ -238,7 +227,6 @@ fn populate_sidebar(
     list: &gtk::ListBox,
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
-    route: &Rc<RefCell<Route>>,
     categories: &[CategorySummary],
     selected_category: Option<CategoryId>,
 ) {
@@ -253,7 +241,7 @@ fn populate_sidebar(
         all_notes_count,
         Some("all-notes-count"),
     );
-    install_active_row_navigation(&home_content, dispatcher, split_view, route, None);
+    install_active_row_navigation(&home_content, dispatcher, split_view, None);
     home.set_child(Some(&home_content));
     list.append(&home);
     let mut selected_row = None;
@@ -261,7 +249,6 @@ fn populate_sidebar(
         let row = category_sidebar_row(
             dispatcher,
             split_view,
-            route,
             &summary.category,
             summary.note_count,
         );
@@ -317,7 +304,6 @@ fn sidebar_row(
 fn category_sidebar_row(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
-    route: &Rc<RefCell<Route>>,
     category: &Category,
     note_count: usize,
 ) -> gtk::ListBoxRow {
@@ -332,13 +318,7 @@ fn category_sidebar_row(
     content.set_margin_top(6);
     content.set_margin_bottom(6);
     let primary_content = category_primary_content(category, note_count);
-    install_active_row_navigation(
-        &primary_content,
-        dispatcher,
-        split_view,
-        route,
-        Some(category.id),
-    );
+    install_active_row_navigation(&primary_content, dispatcher, split_view, Some(category.id));
     content.append(&primary_content);
     row.set_child(Some(&content));
     row
@@ -390,21 +370,16 @@ fn install_active_row_navigation(
     widget: &impl IsA<gtk::Widget>,
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
-    route: &Rc<RefCell<Route>>,
     category_id: Option<CategoryId>,
 ) {
     let click = gtk::GestureClick::new();
     click.set_button(gtk::gdk::BUTTON_PRIMARY);
     let dispatcher = dispatcher.clone();
     let split_view = split_view.clone();
-    let route = Rc::clone(route);
     click.connect_released(move |_, _, _, _| {
-        let message = if *route.borrow() == Route::Editor {
-            AppMsg::Editor(EditorMsg::BackRequested)
-        } else {
-            AppMsg::Navigation(NavigationMsg::SelectCategory(category_id))
-        };
-        let _ = dispatcher.dispatch(message);
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::SelectCategory(
+            category_id,
+        )));
         if split_view.is_collapsed() {
             split_view.set_show_content(true);
         }

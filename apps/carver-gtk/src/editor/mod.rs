@@ -19,7 +19,8 @@ use webkit6::prelude::*;
 use crate::{
     dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TRASH_NOTE_ACTION},
     mvu::{
-        AppDispatcher, AppModel, AppMsg, EditorExportFormat, EditorExportWarningRequest, EditorMsg,
+        AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
+        EditorExportFormat, EditorExportWarningRequest, EditorMsg, EditorPdfExportRequest,
         EditorSessionId, PreferencesMsg,
     },
     sidebar::sidebar_toggle_button,
@@ -70,10 +71,6 @@ pub(crate) struct EditorViewRefs {
     loaded_session: RefCell<Option<EditorSessionId>>,
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
-    copied_request: Cell<Option<u64>>,
-    shown_export_dialog: Cell<Option<u64>>,
-    shown_export_warning: Cell<Option<u64>>,
-    printed_request: Cell<Option<u64>>,
 }
 
 impl EditorViewRefs {
@@ -125,7 +122,7 @@ impl EditorViewRefs {
         {
             self.render_preview(preview, model.preferences.load_remote_images, &theme);
         }
-        if new_document || remote_images_changed || source_changed {
+        if new_document || remote_images_changed {
             if remote_images_changed {
                 self.rich.reload_with_remote_images(
                     &document.source,
@@ -164,7 +161,6 @@ impl EditorViewRefs {
             }
         }
         self.find.set_mode(document.mode);
-        self.render_auxiliary_requests(model, document);
         self.rendering.set(false);
         if new_document {
             self.loaded_session.replace(Some(document.session));
@@ -193,17 +189,42 @@ impl EditorViewRefs {
             .replace(Some((preview.session, preview.source.clone())));
     }
 
-    fn render_copy_request(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
-        let Some(request) = model
-            .editor_copy_request
-            .as_ref()
-            .filter(|request| request.session == document.session)
-        else {
-            return;
-        };
-        if self.copied_request.replace(Some(request.request_id)) == Some(request.request_id) {
+    /// Applies a reducer-approved command to the isolated rich-text projection.
+    pub(crate) fn apply_rich_command(&self, command: &carver_editor_protocol::EditorCommand) {
+        self.rich.command(command);
+    }
+
+    /// Reloads the rich projection after an asynchronous reducer-owned source mutation.
+    pub(crate) fn reload_rich_source(&self, session: EditorSessionId, source: &str) {
+        if self.loaded_session.borrow().as_ref() == Some(&session) {
+            self.rich.load_source(source);
+        }
+    }
+
+    /// Restores the selection calculated by a pure source edit after its snapshot renders.
+    pub(crate) fn select_source_range(
+        &self,
+        session: EditorSessionId,
+        selection: std::ops::Range<usize>,
+    ) {
+        if self.loaded_session.borrow().as_ref() != Some(&session) {
             return;
         }
+        let start = self
+            .source_buffer
+            .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
+        let end = self
+            .source_buffer
+            .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
+        if selection.is_empty() {
+            self.source_buffer.place_cursor(&start);
+        } else {
+            self.source_buffer.select_range(&start, &end);
+        }
+    }
+
+    /// Executes a clipboard effect after the reducer has admitted its immutable request.
+    pub(crate) fn copy_document(&self, request: &EditorCopyRequest) {
         let dispatcher = self.dispatcher.clone();
         let source = request.source.clone();
         let assets_dir = self.assets_dir.clone();
@@ -221,35 +242,18 @@ impl EditorViewRefs {
         });
     }
 
-    fn render_auxiliary_requests(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
-        self.render_copy_request(model, document);
-        self.render_export_dialog_request(model);
-        self.render_export_warning_request(model);
-        self.render_pdf_export_request(model, document);
-    }
-
-    fn render_export_dialog_request(&self, model: &AppModel) {
-        let Some(request) = model.editor_export_dialog_request.as_ref() else {
-            return;
-        };
-        if self.shown_export_dialog.replace(Some(request.request_id)) == Some(request.request_id) {
-            return;
-        }
+    /// Executes a native export-options effect after the reducer captures its snapshot.
+    pub(crate) fn show_export_dialog(&self, request: EditorExportDialogRequest) {
         let parent = self
             .source_editor
             .view()
             .root()
             .and_downcast::<gtk::Window>();
-        show_export_options_dialog(request.clone(), parent.as_ref(), self.dispatcher.clone());
+        show_export_options_dialog(request, parent.as_ref(), self.dispatcher.clone());
     }
 
-    fn render_export_warning_request(&self, model: &AppModel) {
-        let Some(request) = model.editor_export_warning_request.as_ref() else {
-            return;
-        };
-        if self.shown_export_warning.replace(Some(request.request_id)) == Some(request.request_id) {
-            return;
-        }
+    /// Executes a native export-warning effect after preparation reports warnings.
+    pub(crate) fn show_export_warning(&self, request: &EditorExportWarningRequest) {
         let parent = self
             .source_editor
             .view()
@@ -258,17 +262,8 @@ impl EditorViewRefs {
         show_export_warning_dialog(request, parent.as_ref(), self.dispatcher.clone());
     }
 
-    fn render_pdf_export_request(&self, model: &AppModel, document: &crate::mvu::EditorDocument) {
-        let Some(request) = model
-            .editor_pdf_export_request
-            .as_ref()
-            .filter(|request| request.session == document.session)
-        else {
-            return;
-        };
-        if self.printed_request.replace(Some(request.request_id)) == Some(request.request_id) {
-            return;
-        }
+    /// Executes a native PDF rendering effect after the reducer captures its snapshot.
+    pub(crate) fn export_pdf(&self, request: &EditorPdfExportRequest) {
         let parent = self
             .source_editor
             .view()
@@ -276,7 +271,7 @@ impl EditorViewRefs {
             .and_downcast::<gtk::Window>();
         export_rendered_snapshot(
             &request.source,
-            model.preferences.load_remote_images,
+            self.remote_images.get(),
             request.print_dialog,
             &request.target_uri,
             parent.as_ref(),
@@ -483,10 +478,6 @@ pub(crate) fn build_editor(
         loaded_session: RefCell::new(None),
         dispatcher: dispatcher.clone(),
         assets_dir,
-        copied_request: Cell::new(None),
-        shown_export_dialog: Cell::new(None),
-        shown_export_warning: Cell::new(None),
-        printed_request: Cell::new(None),
     };
     Ok(EditorSurface {
         widget: view.upcast(),
@@ -1290,12 +1281,11 @@ pub(crate) fn install_source_shortcuts(
     controller.set_name(Some("source-format-shortcuts"));
     let toolbar = toolbar.clone();
     let anchor = view.clone().upcast::<gtk::Widget>();
-    let source_buffer = view.buffer();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
         let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
         if shift && !control && matches!(key, gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter) {
-            source_commands::insert_hard_break(&source_buffer);
+            toolbar.execute_source_command(crate::mvu::SourceCommand::InsertHardBreak);
             return glib::Propagation::Stop;
         }
         if !control {

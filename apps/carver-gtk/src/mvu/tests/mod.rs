@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg,
     EditorExportFormat, EditorMsg, Effect, LibraryReply, LoadState, NavigationMsg, RequestId,
-    Route, SidebarMsg, SourceImageTarget, TrashMsg, TrashMutation, UiError, update,
+    Route, SidebarMsg, SourceCommand, SourceImageTarget, TrashMsg, TrashMutation, UiError, update,
 };
 
 #[test]
@@ -497,7 +497,10 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowEditorExportDialog { .. }]
+    ));
     assert_eq!(model.route, Route::Editor);
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
@@ -657,9 +660,17 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
         }),
     );
 
-    assert!(
-        matches!(effects.as_slice(), [Effect::SchedulePreview { session: preview_session, .. }, Effect::ScheduleEditorSave { session: save_session, .. }] if *preview_session == session && *save_session == session)
-    );
+    assert!(matches!(
+        effects.as_slice(),
+        [
+            Effect::SchedulePreview { session: preview_session, .. },
+            Effect::ScheduleEditorSave { session: save_session, .. },
+            Effect::ReloadRichEditor { session: reload_session, source },
+        ] if *preview_session == session
+            && *save_session == session
+            && *reload_session == session
+            && source == "Before\n![Pasted image](assets/pasted.png)\n"
+    ));
     assert_eq!(
         model
             .editor
@@ -836,6 +847,127 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
 }
 
 #[test]
+fn completed_autosave_should_reload_browser_only_when_leaving_the_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Initial"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("Saved"))),
+    );
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::AutosaveRequested));
+    let (session, timer_id) = match effects.as_slice() {
+        [
+            Effect::ScheduleEditorSave {
+                session, timer_id, ..
+            },
+        ] => (*session, *timer_id),
+        _ => panic!("an edited document should schedule one autosave"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let request = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("the autosave timer should persist the document"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadLibraryRevision { .. }]
+    ));
+    assert_eq!(model.route, Route::Editor);
+
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
+    assert!(matches!(effects.as_slice(), [Effect::LoadBrowser { .. }]));
+    assert_eq!(model.route, Route::Browser);
+}
+
+#[test]
+fn selecting_a_category_should_reload_that_category_after_closing_a_clean_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::new(),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::SelectCategory(Some(category_id))),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBrowser {
+            category_id: Some(actual_category_id),
+            ..
+        }] if *actual_category_id == category_id
+    ));
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.selected_category, Some(category_id));
+}
+
+#[test]
+fn source_format_command_should_update_only_the_reducer_model() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Carver"),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplySourceCommand {
+            command: SourceCommand::ToggleInline {
+                opening: String::from("*"),
+                closing: String::from("*"),
+            },
+            selection: 0..6,
+        }),
+    );
+
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("*Carver*")
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [
+            Effect::SchedulePreview { .. },
+            Effect::ScheduleEditorSave { .. },
+            Effect::SelectEditorSource { .. }
+        ]
+    ));
+}
+
+#[test]
 fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(
@@ -851,7 +983,11 @@ fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() 
         AppMsg::Editor(EditorMsg::SourceChanged("Unsaved source".to_owned())),
     );
 
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested)).is_empty());
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::CopyEditorDocument { request }] if request.source == "Unsaved source"
+    ));
     assert_eq!(
         model
             .editor_copy_request
@@ -1008,7 +1144,10 @@ fn export_warning_should_require_confirmation_before_writing() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowEditorExportWarning { request }] if request.request_id == dialog.request_id
+    ));
     assert_eq!(
         model
             .editor_export_warning_request

@@ -3,12 +3,15 @@
 use std::ops::Range;
 
 use carver_config::{EditorMode, SourceSyntaxStyle};
+use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
     NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
-use super::{ActionKey, EditorSaveRequest, EditorSessionId, RequestId, TimerId, UiError};
+use super::{
+    ActionKey, EditorSaveRequest, EditorSessionId, RequestId, SourceCommand, TimerId, UiError,
+};
 
 /// A user-selectable format for exporting a note outside the Carver library.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -154,6 +157,15 @@ pub enum EditorMsg {
     },
     /// Replace the canonical source after a source or rich projection changed it.
     SourceChanged(String),
+    /// Apply a pure source-formatting command to the canonical editor snapshot.
+    ApplySourceCommand {
+        /// Operation requested by the source-mode GTK adapter.
+        command: SourceCommand,
+        /// Character-based source selection captured at the input boundary.
+        selection: Range<usize>,
+    },
+    /// Apply a rich-editor command through the runtime's GTK/WebKit adapter.
+    ApplyRichCommand(EditorCommand),
     /// Debounce persistence after a source edit.
     AutosaveRequested,
     /// The latest editor autosave timer fired.

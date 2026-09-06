@@ -13,12 +13,14 @@ use super::{
 };
 
 /// Canonical source plus a character-based selection for pure editing commands.
+#[cfg(test)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SourceEdit {
     source: String,
     selection: Range<usize>,
 }
 
+#[cfg(test)]
 impl SourceEdit {
     /// Creates an edit snapshot, clamping the selection to valid character boundaries.
     #[must_use]
@@ -142,33 +144,6 @@ impl SourceEdit {
         self.selection = cursor..cursor;
     }
 
-    /// Inserts a Carve table at the cursor.
-    pub(crate) fn insert_table(&mut self, rows: u8, columns: u8, header: bool) {
-        if rows == 0 || columns == 0 {
-            return;
-        }
-        let mut table = String::new();
-        for row in 0..rows {
-            for _ in 0..columns {
-                table.push('|');
-                if header && row == 0 {
-                    table.push('=');
-                }
-                table.push(' ');
-            }
-            table.push('|');
-            if row + 1 != rows {
-                table.push('\n');
-            }
-        }
-        let markup = format!("\n{table}\n");
-        let length = markup.chars().count();
-        let cursor = self.selection.end;
-        self.replace(cursor..cursor, &markup, 0);
-        let cursor = cursor.saturating_add(length);
-        self.selection = cursor..cursor;
-    }
-
     /// Updates the width attribute of the direct image containing the cursor.
     pub(crate) fn set_image_width(&mut self, width: Option<u8>) -> bool {
         let cursor = character_to_byte(&self.source, self.selection.end);
@@ -240,50 +215,41 @@ impl SourceEdit {
 }
 
 /// Wraps the selection in a Carve inline delimiter, or inserts an empty pair.
+#[cfg(test)]
 pub(crate) fn toggle_inline(buffer: &gtk::TextBuffer, opening: &str, closing: &str) {
     apply_buffer_edit(buffer, |edit| edit.toggle_inline(opening, closing));
 }
 
 /// Sets a heading level for every selected line, replacing any existing heading.
 /// A zero level returns the lines to ordinary paragraph text.
+#[cfg(test)]
 pub(crate) fn set_heading(buffer: &gtk::TextBuffer, level: u8) {
     apply_buffer_edit(buffer, |edit| edit.set_heading(level));
 }
 
 /// Switches every selected line between a Carve list marker and ordinary text.
 /// Existing supported list markers are replaced instead of nesting prefixes.
+#[cfg(test)]
 pub(crate) fn toggle_list(buffer: &gtk::TextBuffer, prefix: &str) {
     apply_buffer_edit(buffer, |edit| edit.toggle_list(prefix));
 }
 
-/// Switches selected lines between a consecutively numbered Carve list and plain text.
-pub(crate) fn toggle_ordered_list(buffer: &gtk::TextBuffer) {
-    apply_buffer_edit(buffer, SourceEdit::toggle_ordered_list);
-}
-
 /// Wraps selected lines in a fenced Carve code block.
+#[cfg(test)]
 pub(crate) fn toggle_code_block(buffer: &gtk::TextBuffer) {
     apply_buffer_edit(buffer, SourceEdit::toggle_code_block);
 }
 
-/// Replaces the selection with a Carve hard line break and places the cursor on the next line.
-pub(crate) fn insert_hard_break(buffer: &gtk::TextBuffer) {
-    apply_buffer_edit(buffer, SourceEdit::insert_hard_break);
-}
-
 /// Inserts a direct Carve link using already collected dialog values.
+#[cfg(test)]
 pub(crate) fn insert_link(buffer: &gtk::TextBuffer, text: &str, destination: &str) {
     apply_buffer_edit(buffer, |edit| edit.insert_link(text, destination));
-}
-
-/// Inserts a Carve table with the selected dimensions at the source cursor.
-pub(crate) fn insert_table(buffer: &gtk::TextBuffer, rows: u8, columns: u8, header: bool) {
-    apply_buffer_edit(buffer, |edit| edit.insert_table(rows, columns, header));
 }
 
 /// Updates the width attribute of the direct Carve image containing the cursor.
 ///
 /// Returns `false` when the cursor does not point at a direct image form.
+#[cfg(test)]
 pub(crate) fn set_image_width(buffer: &gtk::TextBuffer, width: Option<u8>) -> bool {
     let mut edit = source_edit_from_buffer(buffer);
     let changed = edit.set_image_width(width);
@@ -338,12 +304,14 @@ pub(crate) fn toolbar_state_from_context(context: Option<SourceContext>) -> Tool
     state
 }
 
+#[cfg(test)]
 fn apply_buffer_edit(buffer: &gtk::TextBuffer, command: impl FnOnce(&mut SourceEdit)) {
     let mut edit = source_edit_from_buffer(buffer);
     command(&mut edit);
     apply_source_edit(buffer, &edit);
 }
 
+#[cfg(test)]
 fn source_edit_from_buffer(buffer: &gtk::TextBuffer) -> SourceEdit {
     let source = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
     let selection = buffer.selection_bounds().map_or_else(
@@ -362,7 +330,17 @@ fn source_edit_from_buffer(buffer: &gtk::TextBuffer) -> SourceEdit {
 
 /// Returns the current source selection in Unicode code-point offsets.
 pub(crate) fn selection_from_buffer(buffer: &gtk::TextBuffer) -> Range<usize> {
-    source_edit_from_buffer(buffer).selection()
+    buffer.selection_bounds().map_or_else(
+        || {
+            let cursor = usize::try_from(buffer.iter_at_mark(&buffer.get_insert()).offset())
+                .unwrap_or_default();
+            cursor..cursor
+        },
+        |(start, end)| {
+            usize::try_from(start.offset()).unwrap_or_default()
+                ..usize::try_from(end.offset()).unwrap_or_default()
+        },
+    )
 }
 
 /// Captures the source snapshot and selection that a native image import may replace.
@@ -373,6 +351,7 @@ pub(crate) fn image_target_from_buffer(buffer: &gtk::TextBuffer) -> SourceImageT
     }
 }
 
+#[cfg(test)]
 fn apply_source_edit(buffer: &gtk::TextBuffer, edit: &SourceEdit) {
     replace_source_buffer(buffer, edit.source());
     let selection = edit.selection();
@@ -431,6 +410,7 @@ fn replace_changed_buffer_range(buffer: &gtk::TextBuffer, replacement: &str) {
     buffer.end_user_action();
 }
 
+#[cfg(test)]
 fn image_span_at(source: &str, cursor: usize) -> Option<(usize, usize)> {
     let start = source[..cursor].rfind("![")?;
     let close = source[start..].find(')')? + start + 1;
@@ -442,6 +422,7 @@ fn image_span_at(source: &str, cursor: usize) -> Option<(usize, usize)> {
     (cursor <= end).then_some((start, end))
 }
 
+#[cfg(test)]
 fn image_with_width(image: &str, width: Option<u8>) -> String {
     let Some(close) = image.rfind(')') else {
         return image.to_owned();
@@ -461,6 +442,7 @@ fn image_with_width(image: &str, width: Option<u8>) -> String {
     }
 }
 
+#[cfg(test)]
 fn image_attributes_without_width(attributes: &str) -> Vec<String> {
     let mut entries = Vec::new();
     let mut cursor = 0;
@@ -512,6 +494,7 @@ fn image_attributes_without_width(attributes: &str) -> Vec<String> {
     entries
 }
 
+#[cfg(test)]
 fn character_to_byte(source: &str, character_offset: usize) -> Option<usize> {
     source
         .char_indices()
@@ -520,10 +503,12 @@ fn character_to_byte(source: &str, character_offset: usize) -> Option<usize> {
         .or_else(|| (character_offset == source.chars().count()).then_some(source.len()))
 }
 
+#[cfg(test)]
 fn character_offset_at_byte(source: &str, byte_offset: usize) -> Option<usize> {
     (byte_offset <= source.len()).then(|| source[..byte_offset].chars().count())
 }
 
+#[cfg(test)]
 fn strip_list_marker(line: &str) -> &str {
     if let Some(text) = line
         .strip_prefix("- [ ] ")
@@ -537,6 +522,7 @@ fn strip_list_marker(line: &str) -> &str {
     ordered_list_item(line).unwrap_or(line)
 }
 
+#[cfg(test)]
 fn ordered_list_item(line: &str) -> Option<&str> {
     let digits = line.bytes().take_while(u8::is_ascii_digit).count();
     (digits > 0)
@@ -544,6 +530,7 @@ fn ordered_list_item(line: &str) -> Option<&str> {
         .flatten()
 }
 
+#[cfg(test)]
 fn inline_replacement(selected: &str, opening: &str, closing: &str) -> String {
     if selected.starts_with(opening) && selected.ends_with(closing) {
         selected[opening.len()..selected.len().saturating_sub(closing.len())].to_owned()
@@ -552,6 +539,7 @@ fn inline_replacement(selected: &str, opening: &str, closing: &str) -> String {
     }
 }
 
+#[cfg(test)]
 fn heading_replacement(line: &str, prefix: &str) -> String {
     let without_heading = line
         .strip_prefix('#')
@@ -560,6 +548,7 @@ fn heading_replacement(line: &str, prefix: &str) -> String {
     format!("{prefix}{without_heading}")
 }
 
+#[cfg(test)]
 fn list_replacement(line: &str, prefix: &str, remove: bool) -> String {
     if remove {
         line.to_owned()

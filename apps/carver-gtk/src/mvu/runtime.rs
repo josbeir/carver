@@ -187,6 +187,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn run_effect(&self, effect: Effect) {
         match effect {
+            effect @ (Effect::ApplyRichEditorCommand { .. }
+            | Effect::ReloadRichEditor { .. }
+            | Effect::SelectEditorSource { .. }
+            | Effect::CopyEditorDocument { .. }
+            | Effect::ShowEditorExportDialog { .. }
+            | Effect::ShowEditorExportWarning { .. }
+            | Effect::ExportEditorPdf { .. }) => self.run_editor_effect(effect),
             effect @ (Effect::PrepareEditorExport { .. }
             | Effect::WriteEditorExport { .. }
             | Effect::DiscardEditorExport { .. }) => self.run_editor_export_effect(effect),
@@ -238,18 +245,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     }));
                 });
             }
-            Effect::RestoreCategory { category_id } => {
-                self.restore_category(category_id);
-            }
-            Effect::RestoreNote { note_id } => {
-                self.restore_note(note_id);
-            }
-            Effect::EmptyTrash => {
-                self.empty_trash();
-            }
-            Effect::CreateCategory { name } => {
-                self.create_category(name);
-            }
+            Effect::RestoreCategory { category_id } => self.restore_category(category_id),
+            Effect::RestoreNote { note_id } => self.restore_note(note_id),
+            Effect::EmptyTrash => self.empty_trash(),
+            Effect::CreateCategory { name } => self.create_category(name),
             Effect::CreateCategoryWithAppearance { name, appearance } => {
                 self.create_category_with_appearance(name, appearance);
             }
@@ -282,6 +281,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 self.trash_note(note_id);
             }
         }
+    }
+
+    fn run_editor_effect(&self, effect: Effect) {
+        self.inner.view.run_editor_effect(effect);
     }
 
     fn run_editor_export_effect(&self, effect: Effect) {
