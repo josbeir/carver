@@ -18,10 +18,23 @@ use crate::{
 };
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
-type SidebarSnapshot = (
-    LoadState<Vec<carver_sdk::CategorySummary>>,
-    Option<carver_sdk::CategoryId>,
-);
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SidebarSnapshot {
+    categories: Vec<carver_sdk::CategorySummary>,
+    selected_category: Option<carver_sdk::CategoryId>,
+}
+
+impl SidebarSnapshot {
+    fn from_model(model: &AppModel) -> Option<Self> {
+        let LoadState::Ready(categories) = &model.sidebar.state else {
+            return None;
+        };
+        Some(Self {
+            categories: categories.clone(),
+            selected_category: model.selected_category,
+        })
+    }
+}
 struct BrowserProjectionSnapshot {
     browser: BrowserModel,
     selected_category: Option<carver_sdk::CategoryId>,
@@ -240,7 +253,15 @@ impl ViewRefs {
 
     fn render_sidebar(&self, model: &AppModel) {
         if let Some(renderer) = &self.sidebar_renderer {
-            let snapshot = (model.sidebar.state.clone(), model.selected_category);
+            let Some(snapshot) = SidebarSnapshot::from_model(model) else {
+                if matches!(model.sidebar.state, LoadState::Loading(_)) {
+                    return;
+                }
+                if self.last_sidebar_snapshot.borrow_mut().take().is_some() {
+                    renderer(model);
+                }
+                return;
+            };
             let changed = self.last_sidebar_snapshot.borrow().as_ref() != Some(&snapshot);
             if changed {
                 self.last_sidebar_snapshot.replace(Some(snapshot));
