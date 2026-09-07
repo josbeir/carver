@@ -515,7 +515,7 @@ pub(crate) fn build_editor(
     favorite.set_tooltip_text(Some("Add to Favorites"));
     favorite.add_css_class("flat");
     let media_toggle = gtk::ToggleButton::new();
-    media_toggle.set_icon_name("sidebar-show-symbolic");
+    media_toggle.set_icon_name("folder-pictures-symbolic");
     media_toggle.set_widget_name("editor-media-sidebar-toggle");
     media_toggle.set_tooltip_text(Some("Show media"));
     media_toggle.add_css_class("flat");
