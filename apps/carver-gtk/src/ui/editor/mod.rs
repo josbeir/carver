@@ -565,6 +565,7 @@ pub(crate) fn build_editor(
     media_list.add_css_class("boxed-list");
     let media_scroller = gtk::ScrolledWindow::new();
     media_scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    media_scroller.set_vexpand(true);
     media_scroller.set_child(Some(&media_list));
     let media_panel = gtk::Box::new(gtk::Orientation::Vertical, 12);
     media_panel.set_widget_name("editor-media-sidebar");
@@ -585,6 +586,10 @@ pub(crate) fn build_editor(
     media_revealer.set_transition_type(gtk::RevealerTransitionType::SlideLeft);
     media_revealer.set_child(Some(&media_panel));
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    content.set_hexpand(true);
+    content.set_vexpand(true);
+    editor_stack.set_hexpand(true);
+    editor_stack.set_vexpand(true);
     content.append(&editor_stack);
     content.append(&media_revealer);
     view.set_content(Some(&content));
