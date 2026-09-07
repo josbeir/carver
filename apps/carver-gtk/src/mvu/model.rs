@@ -48,6 +48,8 @@ pub enum ActionKey {
     UndoMove(NoteId),
     /// Trash one note.
     TrashNote(NoteId),
+    /// Change one note's favorite metadata.
+    SetNoteFavorite(NoteId),
 }
 
 /// The move that remains available for a one-click Undo action.
@@ -146,6 +148,8 @@ pub struct BrowserModel {
     pub search_query: String,
     /// Loaded note summaries for the active category and query.
     pub notes: Resource<Vec<NoteSummary>>,
+    /// Favorite notes rendered above the All Notes feed.
+    pub favorites: Resource<Vec<NoteSummary>>,
     /// Most recent successful note list, retained while a replacement request loads.
     ///
     /// This keeps fast-reload rendering a deterministic projection of the model rather than
@@ -245,14 +249,20 @@ pub struct EditorDocument {
     pub note_id: NoteId,
     /// Last persisted revision of the note.
     pub revision: Revision,
+    /// Whether this note appears in the Favorites carousel.
+    pub is_favorite: bool,
     /// Canonical Carve source shared by the source and rich projections.
     pub source: String,
     /// Currently selected editor surface.
     pub mode: EditorMode,
+    /// Latest favorite state requested before the current mutation completes.
+    pub(crate) pending_favorite: Option<bool>,
+    /// Whether a favorite mutation is in flight for this editor document.
+    pub(crate) favorite_mutation_in_flight: bool,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
     save_timer: Option<TimerId>,
-    close_after_save: bool,
+    close_requested: bool,
 }
 
 /// The canonical source snapshot currently authorized for preview rendering.
@@ -330,6 +340,7 @@ impl EditorDocument {
         session: EditorSessionId,
         note_id: NoteId,
         revision: Revision,
+        is_favorite: bool,
         source: String,
         mode: EditorMode,
     ) -> Self {
@@ -337,11 +348,14 @@ impl EditorDocument {
             session,
             note_id,
             revision,
+            is_favorite,
             source,
             mode,
+            pending_favorite: None,
+            favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
             save_timer: None,
-            close_after_save: false,
+            close_requested: false,
         }
     }
 
@@ -383,11 +397,11 @@ impl EditorDocument {
     }
 
     pub(super) fn request_close(&mut self) {
-        self.close_after_save = true;
+        self.close_requested = true;
     }
 
-    pub(super) fn closes_after_save(&self) -> bool {
-        self.close_after_save
+    pub(super) fn close_is_requested(&self) -> bool {
+        self.close_requested
     }
 }
 

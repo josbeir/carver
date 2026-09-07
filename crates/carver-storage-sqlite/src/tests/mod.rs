@@ -38,7 +38,7 @@ fn reopening_a_versioned_library_should_not_have_pending_migrations() {
         .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
     drop(library);
 
-    assert_eq!(schema_version(&database_path), 1);
+    assert_eq!(schema_version(&database_path), 2);
     let connection = rusqlite::Connection::open(&database_path)
         .unwrap_or_else(|error| panic!("database open failed: {error}"));
     assert_eq!(
@@ -85,7 +85,7 @@ fn opening_an_unversioned_current_library_should_adopt_the_schema() {
         LibraryRevision(0)
     );
     drop(adopted);
-    assert_eq!(schema_version(&database_path), 1);
+    assert_eq!(schema_version(&database_path), 2);
 }
 
 #[test]
@@ -178,6 +178,109 @@ fn updating_note_timestamps_should_preserve_source_and_increment_the_revision() 
 }
 
 #[test]
+fn favoriting_a_note_should_preserve_content_timestamp_and_increment_revision() {
+    let (_directory, library) = library();
+    let created_at = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Favorites", created_at)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note_with_source(category.id, "# Keep", created_at)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    let favorite = library
+        .set_note_favorite(
+            note.id,
+            note.revision,
+            true,
+            created_at + time::Duration::days(1),
+        )
+        .unwrap_or_else(|error| panic!("favorite update failed: {error}"));
+
+    assert_eq!(
+        (favorite.is_favorite, favorite.revision, favorite.updated_at),
+        (true, Revision(note.revision.0 + 1), note.updated_at)
+    );
+}
+
+#[test]
+fn favorite_notes_should_return_active_notes_by_most_recent_favorite() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Favorites", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let first = library
+        .create_note_with_source(category.id, "# First", now)
+        .unwrap_or_else(|error| panic!("first note failed: {error}"));
+    let second = library
+        .create_note_with_source(category.id, "# Second", now)
+        .unwrap_or_else(|error| panic!("second note failed: {error}"));
+    let _first = library
+        .set_note_favorite(first.id, first.revision, true, now)
+        .unwrap_or_else(|error| panic!("first favorite failed: {error}"));
+    let _second = library
+        .set_note_favorite(
+            second.id,
+            second.revision,
+            true,
+            now + time::Duration::seconds(1),
+        )
+        .unwrap_or_else(|error| panic!("second favorite failed: {error}"));
+    let other_category = library
+        .create_category("Other Favorites", now)
+        .unwrap_or_else(|error| panic!("other category failed: {error}"));
+    let other = library
+        .create_note_with_source(other_category.id, "# Other", now)
+        .unwrap_or_else(|error| panic!("other note failed: {error}"));
+    let _other = library
+        .set_note_favorite(
+            other.id,
+            other.revision,
+            true,
+            now + time::Duration::seconds(2),
+        )
+        .unwrap_or_else(|error| panic!("other favorite failed: {error}"));
+
+    let favorites = library
+        .favorite_notes(None, 20, 0)
+        .unwrap_or_else(|error| panic!("favorite list failed: {error}"));
+
+    assert_eq!(
+        favorites.iter().map(|note| note.id).collect::<Vec<_>>(),
+        vec![other.id, second.id, first.id]
+    );
+    let category_favorites = library
+        .favorite_notes(Some(category.id), 20, 0)
+        .unwrap_or_else(|error| panic!("category favorite list failed: {error}"));
+    assert_eq!(
+        category_favorites
+            .iter()
+            .map(|note| note.id)
+            .collect::<Vec<_>>(),
+        vec![second.id, first.id]
+    );
+}
+
+#[test]
+fn favoriting_with_a_stale_revision_should_fail() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Favorites", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note(category.id, now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    let _updated = library
+        .set_note_favorite(note.id, note.revision, true, now)
+        .unwrap_or_else(|error| panic!("first favorite failed: {error}"));
+
+    let result = library.set_note_favorite(note.id, note.revision, false, now);
+
+    assert!(matches!(result, Err(StorageError::Conflict)));
+}
+
+#[test]
 fn updating_note_timestamps_should_reject_modification_before_creation() {
     let (_directory, library) = library();
     let timestamp = OffsetDateTime::UNIX_EPOCH;
@@ -263,7 +366,7 @@ fn opening_a_legacy_library_should_assign_the_default_category_appearance() {
 
     assert_eq!(categories[0].appearance, CategoryAppearance::default());
     drop(library);
-    assert_eq!(schema_version(&database_path), 1);
+    assert_eq!(schema_version(&database_path), 2);
 }
 #[test]
 fn fts_search_finds_saved_notes() {

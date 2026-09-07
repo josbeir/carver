@@ -186,6 +186,53 @@ async fn write_tools_should_manage_a_note_lifecycle() -> TestResult {
 }
 
 #[tokio::test]
+async fn favorite_tools_should_list_and_update_notes_when_writes_are_enabled() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let (category_id, note_id) = create_and_read_note(&server).await?;
+    let note = server
+        .get_note(Parameters(GetNoteRequest {
+            note_id: note_id.clone(),
+            markdown: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let note =
+        serde_json::from_str::<serde_json::Value>(&note).map_err(|error| error.to_string())?;
+    let updated = server
+        .set_note_favorite(Parameters(SetNoteFavoriteRequest {
+            note_id,
+            revision: note["revision"]
+                .as_i64()
+                .ok_or_else(|| "missing revision".to_owned())?,
+            favorite: true,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let updated =
+        serde_json::from_str::<serde_json::Value>(&updated).map_err(|error| error.to_string())?;
+    assert_eq!(updated["is_favorite"], true);
+    let favorites = server
+        .list_favorite_notes(Parameters(ListFavoriteNotesRequest {
+            category_id: None,
+            limit: Some(10),
+            offset: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    assert!(favorites.contains("Planning"));
+    let category_favorites = server
+        .list_favorite_notes(Parameters(ListFavoriteNotesRequest {
+            category_id: Some(category_id),
+            limit: Some(10),
+            offset: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    assert!(category_favorites.contains("Planning"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn create_category_should_return_requested_appearance() -> TestResult {
     let (_directory, server) = server(true)?;
     let created = server
@@ -318,6 +365,16 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
         .await
         .err()
         .ok_or_else(|| "read-only server should reject category creation".to_owned())?;
+    assert!(error.message.contains("--allow-write"));
+    let error = server
+        .set_note_favorite(Parameters(SetNoteFavoriteRequest {
+            note_id: uuid::Uuid::new_v4().to_string(),
+            revision: 1,
+            favorite: true,
+        }))
+        .await
+        .err()
+        .ok_or_else(|| "read-only server should reject favorite writes".to_owned())?;
     assert!(error.message.contains("--allow-write"));
     let error = server
         .list_notes(Parameters(ListNotesRequest {

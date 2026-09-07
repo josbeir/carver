@@ -86,6 +86,13 @@ struct ListNotesRequest {
 }
 
 #[derive(Deserialize, JsonSchema)]
+struct ListFavoriteNotesRequest {
+    category_id: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct SearchRequest {
     query: String,
     category_id: Option<String>,
@@ -219,6 +226,13 @@ struct MoveNoteRequest {
     category_id: String,
 }
 
+#[derive(Deserialize, JsonSchema)]
+struct SetNoteFavoriteRequest {
+    note_id: String,
+    revision: i64,
+    favorite: bool,
+}
+
 #[tool_router]
 impl CarverServer {
     /// Lists active categories with their note counts.
@@ -239,6 +253,23 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.client
             .recent_notes_async(
+                parse_optional_category(request.category_id.as_deref())?,
+                limit(request.limit)?,
+                request.offset.unwrap_or(0),
+            )
+            .await
+            .map_err(storage_error)
+            .and_then(json)
+    }
+
+    /// Lists active favorite notes, newest favorite first.
+    #[tool(annotations(title = "List favorite notes", read_only_hint = true))]
+    async fn list_favorite_notes(
+        &self,
+        Parameters(request): Parameters<ListFavoriteNotesRequest>,
+    ) -> Result<String, ErrorData> {
+        self.client
+            .favorite_notes_async(
                 parse_optional_category(request.category_id.as_deref())?,
                 limit(request.limit)?,
                 request.offset.unwrap_or(0),
@@ -421,6 +452,24 @@ impl CarverServer {
             .move_note_async(
                 parse_note(&request.note_id)?,
                 parse_category(&request.category_id)?,
+            )
+            .await
+            .map_err(storage_error)
+            .and_then(json)
+    }
+
+    /// Sets an active note's favorite state when its revision is current.
+    #[tool(annotations(title = "Set note favorite", destructive_hint = false))]
+    async fn set_note_favorite(
+        &self,
+        Parameters(request): Parameters<SetNoteFavoriteRequest>,
+    ) -> Result<String, ErrorData> {
+        self.require_write()?;
+        self.client
+            .set_note_favorite_async(
+                parse_note(&request.note_id)?,
+                Revision(request.revision),
+                request.favorite,
             )
             .await
             .map_err(storage_error)

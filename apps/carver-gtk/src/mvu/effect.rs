@@ -2,7 +2,7 @@
 
 use carver_config::Config;
 use carver_editor_protocol::EditorCommand;
-use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId};
+use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId, Revision};
 
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
@@ -162,6 +162,13 @@ pub enum Effect {
         /// Search input to apply.
         query: String,
     },
+    /// Load favorite note summaries for the visible Favorites section.
+    LoadFavorites {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Category to restrict the listing to, if any.
+        category_id: Option<CategoryId>,
+    },
     /// Load a complete note before showing it in the editor.
     LoadEditorNote {
         /// Identity for stale-completion protection.
@@ -241,5 +248,16 @@ pub enum Effect {
     TrashNote {
         /// Note to trash.
         note_id: NoteId,
+    },
+    /// Set one note's favorite state.
+    SetNoteFavorite {
+        /// Mutation identity used by the completion reply.
+        action: ActionKey,
+        /// Note to update.
+        note_id: NoteId,
+        /// Revision expected by the mutation.
+        revision: Revision,
+        /// Desired favorite state.
+        is_favorite: bool,
     },
 }
