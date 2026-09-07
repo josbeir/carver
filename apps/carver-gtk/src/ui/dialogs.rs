@@ -77,6 +77,10 @@ const EDITOR_SHORTCUTS: &[Shortcut] = &[
         title: "Move note to Trash",
         accelerator: "<Control>d",
     },
+    Shortcut {
+        title: "Toggle Media pane",
+        accelerator: "<Control><Shift>m",
+    },
 ];
 
 const FIND_SHORTCUTS: &[Shortcut] = &[

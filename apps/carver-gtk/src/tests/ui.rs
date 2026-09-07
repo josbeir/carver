@@ -1781,6 +1781,14 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     window.present();
     let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-media-sidebar-toggle")
         .ok_or("media toggle")?;
+    let editor_view =
+        widget_as::<adw::ToolbarView>(&surface, "editor-surface").ok_or("editor view")?;
+    let controllers = editor_view.observe_controllers();
+    let editor_shortcuts = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("editor-window-shortcuts"))
+        .ok_or("editor shortcuts")?;
     for source in [
         "Plain document",
         "![Photo](assets/missing.png)",
@@ -1815,6 +1823,7 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     assert!(run_main_context_until(|| media_split.is_collapsed()));
     window.set_default_size(1200, 800);
     assert!(run_main_context_until(|| !media_split.is_collapsed()));
+    assert_media_sidebar_shortcut(&editor_shortcuts, &config_path, &media_split)?;
     toggle.set_active(false);
     assert!(!carver_config::load(&config_path)?.editor.show_media_sidebar);
     assert!(run_main_context_until(|| !media_split.shows_sidebar()));
@@ -1828,6 +1837,27 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     assert!(carver_config::load(&config_path)?.editor.show_media_sidebar);
     assert_missing_media_preview_should_report_error(&surface, &runtime)?;
     window.close();
+    Ok(())
+}
+
+fn assert_media_sidebar_shortcut(
+    shortcuts: &gtk::EventControllerKey,
+    config_path: &std::path::Path,
+    media_split: &adw::OverlaySplitView,
+) -> TestResult {
+    let modifiers = gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK;
+    for expected_visible in [false, true] {
+        let handled =
+            shortcuts.emit_by_name::<bool>("key-pressed", &[&gtk::gdk::Key::m, &0_u32, &modifiers]);
+        assert!(handled);
+        assert_eq!(
+            carver_config::load(config_path)?.editor.show_media_sidebar,
+            expected_visible
+        );
+        assert!(run_main_context_until(
+            || media_split.shows_sidebar() == expected_visible
+        ));
+    }
     Ok(())
 }
 

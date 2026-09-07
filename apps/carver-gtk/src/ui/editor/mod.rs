@@ -585,7 +585,7 @@ pub(crate) fn build_editor(
     let media_toggle = gtk::ToggleButton::new();
     media_toggle.set_icon_name("folder-pictures-symbolic");
     media_toggle.set_widget_name("editor-media-sidebar-toggle");
-    media_toggle.set_tooltip_text(Some("Show media"));
+    media_toggle.set_tooltip_text(Some("Show media (Ctrl+Shift+M)"));
     media_toggle.add_css_class("flat");
     let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
     copy_note.set_widget_name("copy-note-button");
@@ -633,7 +633,7 @@ pub(crate) fn build_editor(
     media_selection::connect(&split_preview, dispatcher, EditorMode::Source);
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
-    install_editor_window_shortcuts(&view);
+    install_editor_window_shortcuts(&view, dispatcher);
     let toolbar = Toolbar::new(source.upcast_ref(), &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
     let selection_dispatcher = dispatcher.clone();
@@ -1404,17 +1404,22 @@ fn editor_options_menu() -> gtk::MenuButton {
 }
 
 /// Installs editor-wide actions before embedded rich-text widgets receive their key events.
-fn install_editor_window_shortcuts(view: &adw::ToolbarView) {
+fn install_editor_window_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDispatcher) {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("editor-window-shortcuts"));
     controller.set_propagation_phase(gtk::PropagationPhase::Capture);
     let action_host = view.clone().upcast::<gtk::Widget>();
     let action_host_for_callback = action_host.clone();
+    let dispatcher = dispatcher.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
         if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+        if (key, shift) == (gtk::gdk::Key::m, true) {
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+            return glib::Propagation::Stop;
+        }
         let action = match (key, shift) {
             (gtk::gdk::Key::e, false) => EXPORT_NOTE_ACTION,
             (gtk::gdk::Key::p, false) => PRINT_NOTE_ACTION,
