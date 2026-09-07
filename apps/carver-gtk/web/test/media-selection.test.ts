@@ -14,7 +14,7 @@ const schema = new Schema({
       attrs: { src: { default: null } },
     },
   },
-  marks: { link: { attrs: { href: {} } }, bold: {} },
+  marks: { link: { attrs: { href: {}, title: { default: null } } }, bold: {} },
 });
 
 describe('media selection', () => {
@@ -68,6 +68,20 @@ describe('media selection', () => {
   it('keeps adjacent images as separate occurrences', () => {
     const image = schema.node('image', { src: 'assets/a.png' });
     const doc = schema.node('doc', null, [image, image]);
+    expect(mediaOccurrences(doc).map((item) => item.occurrence)).toEqual([
+      0, 1,
+    ]);
+  });
+
+  it('keeps adjacent attachment links separate when their marks differ', () => {
+    const path = 'assets/brief.pdf';
+    const first = schema.mark('link', { href: path, title: 'first' });
+    const second = schema.mark('link', { href: path, title: 'second' });
+    const doc = schema.node('doc', null, [
+      schema.text('First', [first]),
+      schema.text('Second', [second]),
+    ]);
+
     expect(mediaOccurrences(doc).map((item) => item.occurrence)).toEqual([
       0, 1,
     ]);

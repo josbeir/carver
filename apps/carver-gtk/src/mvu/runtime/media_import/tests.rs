@@ -52,6 +52,39 @@ fn batch_staging_should_finish_before_any_file_is_stored() -> TestResult {
 }
 
 #[test]
+fn batch_staging_should_enforce_the_total_file_limit() -> TestResult {
+    assert_eq!(
+        remaining_batch_capacity(MAX_BATCH_BYTES - MAX_FILE_BYTES, MAX_BATCH_BYTES),
+        Ok(MAX_FILE_BYTES)
+    );
+    assert!(remaining_batch_capacity(MAX_BATCH_BYTES, MAX_BATCH_BYTES).is_err());
+
+    let directory = tempfile::tempdir()?;
+    let first = directory.path().join("first.txt");
+    let second = directory.path().join("second.txt");
+    std::fs::write(&first, "12")?;
+    std::fs::write(&second, "34")?;
+    let files = [first, second]
+        .into_iter()
+        .map(|path| ImportFileSource {
+            uri: gio::File::for_path(path).uri().to_string(),
+            label: "file.txt".into(),
+            extension: "txt".into(),
+            image: false,
+        })
+        .collect();
+    let context = glib::MainContext::new();
+    context.with_thread_default(|| {
+        assert!(
+            context
+                .block_on(stage_native_files_with_limit(files, 3))
+                .is_err()
+        );
+    })?;
+    Ok(())
+}
+
+#[test]
 fn stream_read_should_enforce_the_limit_even_without_file_metadata() -> TestResult {
     let context = glib::MainContext::new();
     context.with_thread_default(|| {

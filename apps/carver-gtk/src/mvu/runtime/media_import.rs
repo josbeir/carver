@@ -5,6 +5,9 @@ use carver_sdk::LibraryBackend;
 use gtk::gio::{self, prelude::*};
 
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024;
+const MAX_BATCH_BYTES: usize = 200 * 1024 * 1024;
+const FILE_SIZE_ERROR: &str = "Files must be 50 MB or smaller";
+const BATCH_SIZE_ERROR: &str = "Selected files must total 200 MB or smaller";
 
 impl<B: LibraryBackend> AppRuntime<B> {
     pub(super) fn import_editor_files(
@@ -67,15 +70,51 @@ struct StagedFile {
 }
 
 async fn stage_native_files(files: Vec<ImportFileSource>) -> Result<Vec<StagedFile>, UiError> {
+    stage_native_files_with_limit(files, MAX_BATCH_BYTES).await
+}
+
+async fn stage_native_files_with_limit(
+    files: Vec<ImportFileSource>,
+    batch_limit: usize,
+) -> Result<Vec<StagedFile>, UiError> {
     let mut staged = Vec::with_capacity(files.len());
+    let mut staged_bytes = 0_usize;
     for source in files {
-        let bytes = read_bounded_file(&gio::File::for_uri(&source.uri)).await?;
+        let remaining = remaining_batch_capacity(staged_bytes, batch_limit)?;
+        let limit = MAX_FILE_BYTES.min(remaining);
+        let bytes = read_bounded_file_with_limit(
+            &gio::File::for_uri(&source.uri),
+            limit,
+            if limit == MAX_FILE_BYTES {
+                FILE_SIZE_ERROR
+            } else {
+                BATCH_SIZE_ERROR
+            },
+        )
+        .await?;
+        staged_bytes += bytes.len();
         staged.push(StagedFile { source, bytes });
     }
     Ok(staged)
 }
 
+fn remaining_batch_capacity(staged_bytes: usize, batch_limit: usize) -> Result<usize, UiError> {
+    batch_limit
+        .checked_sub(staged_bytes)
+        .filter(|remaining| *remaining > 0)
+        .ok_or_else(|| UiError::new(BATCH_SIZE_ERROR))
+}
+
+#[cfg(test)]
 async fn read_bounded_file(file: &gio::File) -> Result<Vec<u8>, UiError> {
+    read_bounded_file_with_limit(file, MAX_FILE_BYTES, FILE_SIZE_ERROR).await
+}
+
+async fn read_bounded_file_with_limit(
+    file: &gio::File,
+    limit: usize,
+    limit_error: &str,
+) -> Result<Vec<u8>, UiError> {
     let info = file
         .query_info_future(
             "standard::type,standard::size",
@@ -87,19 +126,28 @@ async fn read_bounded_file(file: &gio::File) -> Result<Vec<u8>, UiError> {
     if info.file_type() != gio::FileType::Regular {
         return Err(UiError::new("Only regular files can be added"));
     }
-    if u64::try_from(info.size()).unwrap_or(u64::MAX) > MAX_FILE_BYTES as u64 {
-        return Err(UiError::new("Files must be 50 MB or smaller"));
+    if u64::try_from(info.size()).unwrap_or(u64::MAX) > limit as u64 {
+        return Err(UiError::new(limit_error));
     }
     let stream = file
         .read_future(glib::Priority::DEFAULT)
         .await
         .map_err(display_error)?;
-    read_bounded_stream(&stream, MAX_FILE_BYTES).await
+    read_bounded_stream_with_limit(&stream, limit, limit_error).await
 }
 
+#[cfg(test)]
 async fn read_bounded_stream(
     stream: &impl IsA<gio::InputStream>,
     limit: usize,
+) -> Result<Vec<u8>, UiError> {
+    read_bounded_stream_with_limit(stream, limit, FILE_SIZE_ERROR).await
+}
+
+async fn read_bounded_stream_with_limit(
+    stream: &impl IsA<gio::InputStream>,
+    limit: usize,
+    limit_error: &str,
 ) -> Result<Vec<u8>, UiError> {
     let mut bytes = Vec::new();
     loop {
@@ -115,7 +163,7 @@ async fn read_bounded_stream(
         }
         bytes.extend_from_slice(chunk.as_ref());
         if bytes.len() > limit {
-            return Err(UiError::new("Files must be 50 MB or smaller"));
+            return Err(UiError::new(limit_error));
         }
     }
 }
