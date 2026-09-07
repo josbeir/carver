@@ -164,3 +164,12 @@ fn worker_queue_applies_backpressure_when_the_backend_is_busy()
         .map_err(|_| LibraryError::Unavailable)??;
     Ok(())
 }
+
+#[test]
+fn asset_metadata_should_propagate_backend_errors() -> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    assert_backend_error(&block_on(
+        client.note_asset_size_async(NoteId::new(), "assets/a.pdf".into()),
+    ));
+    Ok(())
+}

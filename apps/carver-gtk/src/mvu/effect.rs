@@ -13,6 +13,15 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Read and store native files sequentially with a bounded per-file read.
+    ImportEditorFiles {
+        /// Initiating document and source position.
+        target: super::ImportTarget,
+        /// Owning note.
+        note_id: NoteId,
+        /// Files in selection order.
+        files: Vec<super::ImportFileSource>,
+    },
     /// Read and stage one managed attachment for external preview.
     PrepareMediaPreview {
         /// Requesting editor lifetime.
@@ -171,6 +180,8 @@ pub enum Effect {
     },
     /// Store a rich-editor image as a managed asset for the active note.
     StoreEditorAsset {
+        /// Requested markup kind, independent of the canonical filename.
+        image: bool,
         /// Editor lifetime that requested the asset.
         session: EditorSessionId,
         /// Owning note.

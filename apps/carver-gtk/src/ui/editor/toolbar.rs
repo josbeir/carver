@@ -336,13 +336,19 @@ impl CommandRouter {
     }
 
     fn choose_image(&self, button: &gtk::Button) {
+        let Some(session) = self.rich.document_session() else {
+            return;
+        };
         let source_target = (self.mode.get() == EditorMode::Source)
             .then(|| source_commands::image_target_from_buffer(&self.source));
         formatting::choose_managed_image(
             button,
             &self.dispatcher,
             &self.toast_overlay,
-            source_target,
+            crate::mvu::ImportTarget {
+                session,
+                source: source_target,
+            },
             &self.focus,
         );
     }

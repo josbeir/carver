@@ -41,6 +41,7 @@ pub(super) fn set_session(view: &webkit6::WebView, session: EditorSessionId) {
             const report = event => {{
                 const node = event.target.closest?.('img,a[href]');
                 const path = node ? pathFor(node) : '';
+                if (node?.tagName === 'A' && path.startsWith('assets/')) event.preventDefault();
                 let media = null;
                 if (node && (node.tagName === 'IMG' || path.startsWith('assets/'))) {{
                     const matches = [...document.querySelectorAll('img,a[href]')]

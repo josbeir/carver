@@ -262,6 +262,8 @@ pub struct EditorDocument {
     pub selected_media: Option<std::ops::Range<usize>>,
     /// Requested asset bytes; absent results represent unavailable files.
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
+    /// Thumbnail requirements of in-flight and cached asset detail requests.
+    pub media_file_kinds: std::collections::BTreeMap<String, bool>,
     /// Current visibility of the editor's media navigation sidebar.
     pub media_sidebar: MediaSidebarVisibility,
     /// Latest favorite state requested before the current mutation completes.
@@ -364,6 +366,7 @@ impl EditorDocument {
             media,
             selected_media: None,
             media_files: std::collections::BTreeMap::new(),
+            media_file_kinds: std::collections::BTreeMap::new(),
             media_sidebar: MediaSidebarVisibility::Hidden,
             pending_favorite: None,
             favorite_mutation_in_flight: false,

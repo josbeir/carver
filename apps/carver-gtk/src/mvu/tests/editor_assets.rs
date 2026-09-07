@@ -126,6 +126,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
             }),
         ),
         vec![Effect::StoreEditorAsset {
+            image: true,
             session,
             note_id,
             extension: "png".to_owned(),
@@ -137,6 +138,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
             session,
             alt: "Pasted image".to_owned(),
             source_target: None,
@@ -167,6 +169,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
         update(
             &mut model,
             AppMsg::Library(LibraryReply::EditorAssetStored {
+                image: true,
                 session,
                 alt: "Pasted image".to_owned(),
                 source_target: None,
@@ -207,13 +210,13 @@ fn source_image_paste_should_replace_the_captured_cursor_selection() {
             source_target: Some(target.clone()),
         }),
     );
-    assert!(
-        matches!(effects.as_slice(), [Effect::StoreEditorAsset { source_target: Some(actual), .. }] if actual == &target)
-    );
+    assert!(matches!(effects.as_slice(), [Effect::StoreEditorAsset {
+            image: true, source_target: Some(actual), .. }] if actual == &target));
 
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
             session,
             alt: "Pasted image".to_owned(),
             source_target: Some(target),
@@ -257,6 +260,7 @@ fn file_import_should_insert_a_managed_link_and_refresh_media() {
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: false,
             session,
             alt: String::from("Project brief.pdf"),
             source_target: None,
@@ -342,6 +346,7 @@ fn source_image_import_should_not_replace_text_changed_while_asset_stores() {
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
             session,
             alt: String::from("Pasted image"),
             source_target: Some(target),
@@ -465,6 +470,7 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
     let _ = update(
         &mut model,
         AppMsg::Editor(EditorMsg::MediaFileLoaded {
+            image: true,
             session,
             path: String::from("assets/a.png"),
             file: Some(crate::mvu::MediaFile {
@@ -639,4 +645,180 @@ fn open_media_document(model: &AppModel) -> &crate::mvu::model::EditorDocument {
         panic!("editor should be open");
     };
     document
+}
+
+#[test]
+fn native_import_should_reject_a_different_document_and_preview_mode() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Untouched".into(),
+        }),
+    );
+    let session = open_media_document(&model).session;
+    let target = crate::mvu::ImportTarget {
+        session: EditorSessionId(session.0 + 1),
+        source: None,
+    };
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::ImportFiles {
+                target: target.clone(),
+                files: Vec::new()
+            })
+        )
+        .is_empty()
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::ImportFilesStored {
+                target,
+                result: Ok(vec![crate::mvu::StoredMedia {
+                    path: "assets/a.png".into(),
+                    label: "A".into(),
+                    image: true
+                }])
+            })
+        )
+        .is_empty()
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+            carver_config::EditorMode::Rendered,
+        )),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::ImportFiles {
+                target: crate::mvu::ImportTarget {
+                    session,
+                    source: None
+                },
+                files: Vec::new()
+            })
+        )
+        .is_empty()
+    );
+    assert_eq!(open_media_document(&model).source, "Untouched");
+    assert_eq!(open_media_document(&model).revision, Revision(1));
+}
+
+#[test]
+fn imported_files_should_replace_source_selection_once_in_selection_order() {
+    let mut model = AppModel::new(&Config::default());
+    let source = "Before replace After";
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: source.into(),
+        }),
+    );
+    let session = open_media_document(&model).session;
+    let target = crate::mvu::ImportTarget {
+        session,
+        source: Some(SourceImageTarget {
+            source: source.into(),
+            selection: 7..14,
+        }),
+    };
+    let files = vec![
+        crate::mvu::StoredMedia {
+            path: "assets/first.bin".into(),
+            label: "First".into(),
+            image: true,
+        },
+        crate::mvu::StoredMedia {
+            path: "assets/second.png".into(),
+            label: "Second".into(),
+            image: false,
+        },
+    ];
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ImportFilesStored {
+            target,
+            result: Ok(files),
+        }),
+    );
+    assert_eq!(
+        open_media_document(&model).source,
+        "Before ![First](assets/first.bin)\n[Second](assets/second.png) After"
+    );
+}
+
+#[test]
+fn pasted_image_should_keep_image_markup_when_deduplication_returns_an_attachment_path() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::new(),
+        }),
+    );
+    let session = open_media_document(&model).session;
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            session,
+            image: true,
+            alt: "Pasted".into(),
+            source_target: None,
+            result: Ok("assets/image.bin".into()),
+        }),
+    );
+    assert_eq!(
+        open_media_document(&model).source,
+        "![Pasted](assets/image.bin)\n"
+    );
+}
+
+#[test]
+fn changing_attachment_to_image_should_reload_details_and_reject_stale_results() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "[Photo](assets/a.png)".into(),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    let session = open_media_document(&model).session;
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("![Photo](assets/a.png)".into())),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadMediaFile { image: true, .. }))
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::MediaFileLoaded {
+            session,
+            image: false,
+            path: "assets/a.png".into(),
+            file: Some(crate::mvu::MediaFile {
+                size: 123,
+                preview: None,
+            }),
+        }),
+    );
+    assert_eq!(
+        open_media_document(&model).media_files.get("assets/a.png"),
+        Some(&None)
+    );
 }

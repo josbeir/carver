@@ -158,6 +158,12 @@ pub trait LibraryBackend: Send + 'static {
         extension: &str,
         bytes: &[u8],
     ) -> Result<String, Self::Error>;
+    /// Returns the size of a managed file belonging to one note without reading its contents.
+    fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, Self::Error>;
     /// Reads managed file bytes for one note.
     fn note_asset_bytes(
         &self,

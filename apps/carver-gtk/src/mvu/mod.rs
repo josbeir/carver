@@ -19,8 +19,9 @@ pub use model::{
     SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
-    ActionMsg, AppMsg, BrowserMsg, EditorExportFormat, EditorMsg, LibraryReply, NavigationMsg,
-    PreferencesMsg, SidebarMsg, SourceImageTarget, TrashMsg, TrashMutation, WindowMsg,
+    ActionMsg, AppMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource, ImportTarget,
+    LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg, SourceImageTarget, StoredMedia,
+    TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use source_edit::{SourceCommand, SourceEdit};

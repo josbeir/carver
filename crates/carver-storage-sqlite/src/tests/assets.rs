@@ -52,3 +52,36 @@ fn store_asset_reuses_the_canonical_filename_for_identical_bytes() -> Result<(),
     );
     Ok(())
 }
+
+#[test]
+fn existing_asset_should_not_bypass_extension_validation() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let first = library.create_note(category.id, now)?;
+    let second = library.create_note(category.id, now)?;
+    let path = library.store_asset(first.id, "png", b"same bytes")?;
+    assert!(matches!(
+        library.store_asset(second.id, "../sqlite", b"same bytes"),
+        Err(StorageError::UnsupportedAssetExtension(_))
+    ));
+    assert_eq!(library.note_asset_size(second.id, &path)?, None);
+    Ok(())
+}
+
+#[test]
+fn asset_size_should_respect_note_ownership_without_reading_bytes() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let first = library.create_note(category.id, now)?;
+    let second = library.create_note(category.id, now)?;
+    let path = library.store_asset(first.id, "pdf", b"document")?;
+    assert_eq!(library.note_asset_size(first.id, &path)?, Some(8));
+    assert_eq!(library.note_asset_size(second.id, &path)?, None);
+    assert_eq!(
+        library.note_asset_size(first.id, "../database.sqlite")?,
+        None
+    );
+    Ok(())
+}

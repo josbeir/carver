@@ -886,6 +886,7 @@ impl SqliteLibrary {
         extension: &str,
         bytes: &[u8],
     ) -> Result<String, StorageError> {
+        let extension = asset_extension(extension)?;
         let digest = format!("{:x}", Sha256::digest(bytes));
         let existing_filename: Option<String> = self
             .connection
@@ -897,7 +898,7 @@ impl SqliteLibrary {
             .optional()?;
         let filename = match existing_filename {
             Some(filename) => filename,
-            None => format!("{digest}.{}", asset_extension(extension)?),
+            None => format!("{digest}.{extension}"),
         };
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
@@ -918,6 +919,29 @@ impl SqliteLibrary {
             params![note_id.to_string(), &digest],
         )?;
         Ok(format!("assets/{filename}"))
+    }
+
+    /// Returns the on-disk size of an asset belonging to this note without reading its bytes.
+    ///
+    /// # Errors
+    /// Returns an error for unsafe paths, database failures, or inaccessible files.
+    pub fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, StorageError> {
+        let Some(filename) = relative_path.strip_prefix("assets/") else {
+            return Ok(None);
+        };
+        let attached: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM assets a JOIN note_assets na ON na.asset_hash = a.hash WHERE na.note_id = ?1 AND a.filename = ?2)",
+            params![note_id.to_string(), filename], |row| row.get(0))?;
+        if !attached {
+            return Ok(None);
+        }
+        Ok(Some(
+            fs::metadata(self.managed_asset_path(filename)?)?.len(),
+        ))
     }
 
     /// Reads a managed file only when it belongs to the requested note.
@@ -1164,6 +1188,14 @@ impl LibraryBackend for SqliteLibrary {
         bytes: &[u8],
     ) -> Result<String, Self::Error> {
         Self::store_asset(self, note_id, extension, bytes)
+    }
+
+    fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, Self::Error> {
+        Self::note_asset_size(self, note_id, relative_path)
     }
 
     fn note_asset_bytes(

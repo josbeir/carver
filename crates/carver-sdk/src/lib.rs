@@ -402,6 +402,19 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Returns managed asset size through the asynchronous storage boundary.
+    ///
+    /// # Errors
+    /// Returns an error when the worker or backend cannot inspect the asset.
+    pub async fn note_asset_size_async(
+        &self,
+        note_id: NoteId,
+        relative_path: String,
+    ) -> Result<Option<u64>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.note_asset_size(note_id, &relative_path))
+            .await
+    }
+
     /// Reads a managed file asset without blocking the caller.
     pub async fn note_asset_bytes_async(
         &self,

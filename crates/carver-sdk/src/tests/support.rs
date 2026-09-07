@@ -265,6 +265,14 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn note_asset_size(
+        &self,
+        _note_id: NoteId,
+        _relative_path: &str,
+    ) -> Result<Option<u64>, Self::Error> {
+        Self::unsupported()
+    }
+
     fn note_asset_bytes(
         &self,
         _note_id: NoteId,

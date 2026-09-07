@@ -75,14 +75,29 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     if let Some(document) = model.editor.as_mut()
         && document.media_sidebar.is_visible()
     {
+        let mut requested = std::collections::BTreeMap::new();
         for media in &document.media {
-            if !document.media_files.contains_key(&media.path) {
-                document.media_files.insert(media.path.clone(), None);
+            let image = media.kind == carver_domain::source_analysis::MediaKind::Image;
+            requested
+                .entry(media.path.clone())
+                .and_modify(|value| *value |= image)
+                .or_insert(image);
+        }
+        document
+            .media_files
+            .retain(|path, _| requested.contains_key(path));
+        document
+            .media_file_kinds
+            .retain(|path, _| requested.contains_key(path));
+        for (path, image) in requested {
+            if document.media_file_kinds.get(&path) != Some(&image) {
+                document.media_file_kinds.insert(path.clone(), image);
+                document.media_files.insert(path.clone(), None);
                 effects.push(Effect::LoadMediaFile {
                     session: document.session,
                     note_id: document.note_id,
-                    path: media.path.clone(),
-                    image: media.kind == carver_domain::source_analysis::MediaKind::Image,
+                    path,
+                    image,
                 });
             }
         }
@@ -315,21 +330,59 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             omitted_images,
         } => complete_copy_request(model, request_id, omitted_images),
         EditorMsg::CopyFailed { request_id } => fail_copy_request(model, request_id),
-        EditorMsg::PasteImage { extension, bytes } => {
-            store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"), None)
+        EditorMsg::PasteImage { extension, bytes } => store_editor_asset_effect(
+            model,
+            extension,
+            bytes,
+            String::from("Pasted image"),
+            None,
+            true,
+        ),
+        EditorMsg::ImportFiles { target, files } => model
+            .editor
+            .as_ref()
+            .filter(|document| {
+                document.session == target.session
+                    && document.mode != carver_config::EditorMode::Rendered
+            })
+            .map(|document| Effect::ImportEditorFiles {
+                note_id: document.note_id,
+                target,
+                files,
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::ImportFilesStored { target, result } => {
+            complete_file_import(model, target, result)
+        }
+        EditorMsg::ImportImageRead { target, bytes } => {
+            if !model.editor.as_ref().is_some_and(|document| {
+                document.session == target.session
+                    && document.mode != carver_config::EditorMode::Rendered
+            }) {
+                return Vec::new();
+            }
+            store_editor_asset_effect(
+                model,
+                "png".into(),
+                bytes,
+                "Pasted image".into(),
+                target.source,
+                true,
+            )
         }
         EditorMsg::ImportImage {
             extension,
             bytes,
             alt,
             source_target,
-        } => store_editor_asset_effect(model, extension, bytes, alt, source_target),
+        } => store_editor_asset_effect(model, extension, bytes, alt, source_target, true),
         EditorMsg::ImportFile {
             extension,
             bytes,
             name,
             source_target,
-        } => store_editor_asset_effect(model, extension, bytes, name, source_target),
+        } => store_editor_asset_effect(model, extension, bytes, name, source_target, false),
         EditorMsg::MediaSelected {
             session,
             mode,
@@ -412,12 +465,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::MediaFileLoaded {
+            image,
             session,
             path,
             file,
         } => {
             if let Some(document) = model.editor.as_mut()
                 && document.session == session
+                && document.media_file_kinds.get(&path) == Some(&image)
             {
                 document.media_files.insert(path, file);
             }
@@ -1013,11 +1068,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_loaded(model, request_id, result)
         }
         LibraryReply::EditorAssetStored {
+            image,
             session,
             alt,
             source_target,
             result,
-        } => update_editor_asset_stored(model, session, &alt, source_target, result),
+        } => update_editor_asset_stored(model, session, &alt, source_target, result, image),
         LibraryReply::EditorExportPrepared {
             request_id,
             session,
@@ -1131,6 +1187,7 @@ fn update_editor_asset_stored(
     alt: &str,
     source_target: Option<super::SourceImageTarget>,
     result: Result<String, UiError>,
+    image: bool,
 ) -> Vec<Effect> {
     let Some(document) = model
         .editor
@@ -1141,7 +1198,7 @@ fn update_editor_asset_stored(
     };
     match result {
         Ok(path) => {
-            let source = if is_image_path(&path) {
+            let source = if image {
                 image_source(&document.source, alt, &path, source_target)
             } else {
                 attachment_source(&document.source, alt, &path, source_target)
@@ -1326,11 +1383,14 @@ fn store_editor_asset_effect(
     bytes: Vec<u8>,
     alt: String,
     source_target: Option<super::SourceImageTarget>,
+    image: bool,
 ) -> Vec<Effect> {
     model
         .editor
         .as_ref()
+        .filter(|document| document.mode != carver_config::EditorMode::Rendered)
         .map(|document| Effect::StoreEditorAsset {
+            image,
             session: document.session,
             note_id: document.note_id,
             extension,
@@ -1349,13 +1409,21 @@ fn image_source(
     source_target: Option<super::SourceImageTarget>,
 ) -> String {
     let markup = format!("![{alt}]({path})");
+    insert_media_markup(source, &markup, source_target)
+}
+
+fn insert_media_markup(
+    source: &str,
+    markup: &str,
+    source_target: Option<super::SourceImageTarget>,
+) -> String {
     let Some(target) = source_target.filter(|target| target.source == source) else {
-        return append_image_source(source, &markup);
+        return append_image_source(source, markup);
     };
     let start = character_byte_offset(source, target.selection.start);
     let end = character_byte_offset(source, target.selection.end.max(target.selection.start));
     let mut inserted = source.to_owned();
-    inserted.replace_range(start..end, &markup);
+    inserted.replace_range(start..end, markup);
     inserted
 }
 
@@ -1385,11 +1453,6 @@ fn attachment_source(
     let mut inserted = source.to_owned();
     inserted.replace_range(start..end, &markup);
     inserted
-}
-
-fn is_image_path(path: &str) -> bool {
-    path.rsplit_once('.')
-        .is_some_and(|(_, extension)| matches!(extension, "png" | "jpg" | "gif" | "webp" | "svg"))
 }
 
 fn character_byte_offset(source: &str, offset: usize) -> usize {
@@ -1718,4 +1781,54 @@ fn reload_trash(model: &mut AppModel) -> Option<Effect> {
         .trash
         .begin_reload(request_id)
         .then_some(Effect::LoadTrash { request_id })
+}
+
+fn complete_file_import(
+    model: &mut AppModel,
+    target: super::ImportTarget,
+    result: Result<Vec<super::StoredMedia>, UiError>,
+) -> Vec<Effect> {
+    let Some(document) = model
+        .editor
+        .as_mut()
+        .filter(|document| document.session == target.session)
+    else {
+        return Vec::new();
+    };
+    let files = match result {
+        Ok(files) => files,
+        Err(error) => {
+            model.notice = Some(error);
+            return Vec::new();
+        }
+    };
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let markup = files
+        .iter()
+        .map(|file| {
+            let label = file.label.replace(['[', ']', '\n', '\r'], "");
+            format!(
+                "{}[{label}]({})",
+                if file.image { "!" } else { "" },
+                file.path
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let source = insert_media_markup(&document.source, &markup, target.source);
+    document.source_changed(source);
+    let source = document.source.clone();
+    [
+        schedule_preview(model),
+        schedule_editor_save(model),
+        Some(Effect::ReloadRichEditor {
+            session: target.session,
+            source,
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

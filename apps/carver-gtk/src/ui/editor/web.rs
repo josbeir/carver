@@ -101,6 +101,11 @@ impl RichEditor {
         &self.view
     }
 
+    /// Returns the document identity rendered by this editor.
+    pub(crate) fn document_session(&self) -> Option<crate::mvu::EditorSessionId> {
+        self.document_session.get()
+    }
+
     /// Associates projection events with the current MVU document session.
     pub(crate) fn set_document_session(&self, session: crate::mvu::EditorSessionId) {
         self.document_session.set(Some(session));

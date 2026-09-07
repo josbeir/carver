@@ -56,13 +56,18 @@ use web::RichEditor;
 type PreviewSource = (EditorSessionId, String);
 type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
 
+type ThumbnailCache =
+    std::collections::BTreeMap<String, (std::sync::Arc<Vec<u8>>, gtk::gdk::Texture)>;
+
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
     media_toggle: gtk::ToggleButton,
+    add_files: gtk::Button,
     media_revealer: gtk::Revealer,
     media_list: gtk::ListBox,
     media_pages: gtk::Stack,
+    thumbnails: RefCell<ThumbnailCache>,
     rendered_media_files:
         RefCell<std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>>,
     rendered_media: RefCell<Option<Vec<carver_domain::source_analysis::MediaOccurrence>>>,
@@ -92,6 +97,36 @@ pub(crate) struct EditorViewRefs {
 }
 
 impl EditorViewRefs {
+    fn update_thumbnails(
+        &self,
+        files: &std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>,
+    ) {
+        self.thumbnails
+            .borrow_mut()
+            .retain(|path, _| files.contains_key(path));
+        for (path, file) in files {
+            let Some(bytes) = file.as_ref().and_then(|file| file.preview.as_ref()) else {
+                self.thumbnails.borrow_mut().remove(path);
+                continue;
+            };
+            if self
+                .thumbnails
+                .borrow()
+                .get(path)
+                .is_some_and(|(cached, _)| std::sync::Arc::ptr_eq(cached, bytes))
+            {
+                continue;
+            }
+            if let Ok(texture) =
+                gtk::gdk::Texture::from_bytes(&glib::Bytes::from_owned(bytes.as_ref().clone()))
+            {
+                self.thumbnails
+                    .borrow_mut()
+                    .insert(path.clone(), (std::sync::Arc::clone(bytes), texture));
+            }
+        }
+    }
+
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     // CONTEXT: Rendering all projections together prevents GTK widgets from becoming a second
     // document state store.
@@ -107,6 +142,8 @@ impl EditorViewRefs {
         };
         self.rendering.set(true);
         self.favorite.set_active(document.is_favorite);
+        self.add_files
+            .set_sensitive(document.mode != EditorMode::Rendered);
         self.media_toggle
             .set_active(document.media_sidebar.is_visible());
         self.media_revealer
@@ -120,11 +157,19 @@ impl EditorViewRefs {
         if self.rendered_media.borrow().as_deref() != Some(document.media.as_slice())
             || *self.rendered_media_files.borrow() != document.media_files
         {
+            self.update_thumbnails(&document.media_files);
+            let thumbnails = self
+                .thumbnails
+                .borrow()
+                .iter()
+                .map(|(path, (_, texture))| (path.clone(), texture.clone()))
+                .collect();
             render_media_list(
                 &self.media_list,
                 &document.media,
                 &self.dispatcher,
                 &document.media_files,
+                &thumbnails,
             );
             self.rendered_media_files
                 .replace(document.media_files.clone());
@@ -410,7 +455,7 @@ fn focus_preview_media(view: &webkit6::WebView, path: &str, occurrence: usize) {
     let path = serde_json::to_string(path).unwrap_or_else(|_| String::from("\"\""));
     view.evaluate_javascript(
         &format!(
-            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].filter((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path))[{occurrence}]; if (node) {{ node.setAttribute('tabindex', '-1'); node.focus({{preventScroll: true}}); node.animate([{{outline: '2px solid currentColor'}}, {{outline: '2px solid transparent'}}], {{duration: 1800}}); }} node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
+            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].filter((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').replace(/^carver-asset:\\/\\/\\//, '') === path)[{occurrence}]; if (node) {{ node.setAttribute('tabindex', '-1'); node.focus({{preventScroll: true}}); node.animate([{{outline: '2px solid currentColor'}}, {{outline: '2px solid transparent'}}], {{duration: 1800}}); }} node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
         ),
         None,
         Some("carver-editor:///bridge"),
@@ -719,18 +764,20 @@ pub(crate) fn build_editor(
     connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
     connect_media_toggle(dispatcher, &media_toggle, &rendering);
-    connect_add_files(dispatcher, &add_files, &source_buffer, toast_overlay);
+    connect_add_files(dispatcher, &add_files, &source_buffer, &source_mode, &rich);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
-    let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher);
-    let _source_image_drop = render::install_image_drop(&source, dispatcher, toast_overlay);
-    let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, toast_overlay);
+    let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher, &rich);
+    let _source_image_drop = render::install_image_drop(&source, dispatcher, &rich);
+    let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, &rich);
     let refs = EditorViewRefs {
         favorite,
+        add_files,
         media_toggle,
         media_revealer,
         media_list,
         media_pages,
+        thumbnails: RefCell::new(std::collections::BTreeMap::new()),
         rendered_media_files: RefCell::new(std::collections::BTreeMap::new()),
         rendered_media: RefCell::new(None),
         rich_mode,
@@ -782,17 +829,27 @@ fn connect_add_files(
     dispatcher: &AppDispatcher,
     button: &gtk::Button,
     source_buffer: &gtk::TextBuffer,
-    toast_overlay: &adw::ToastOverlay,
+    source_mode: &gtk::ToggleButton,
+    rich: &RichEditor,
 ) {
     let dispatcher = dispatcher.clone();
     let source_buffer = source_buffer.clone();
-    let toast_overlay = toast_overlay.clone();
+    let source_mode = source_mode.clone();
+    let rich = rich.clone();
     button.connect_clicked(move |button| {
+        if !button.is_sensitive() {
+            return;
+        }
+        let Some(session) = rich.document_session() else {
+            return;
+        };
+        let source = source_mode
+            .is_active()
+            .then(|| source_commands::image_target_from_buffer(&source_buffer));
         super::formatting::choose_managed_files(
             button,
             &dispatcher,
-            &toast_overlay,
-            Some(source_commands::image_target_from_buffer(&source_buffer)),
+            crate::mvu::ImportTarget { session, source },
         );
     });
 }
@@ -824,6 +881,7 @@ fn render_media_list(
     media: &[carver_domain::source_analysis::MediaOccurrence],
     dispatcher: &AppDispatcher,
     files: &std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>,
+    thumbnails: &std::collections::BTreeMap<String, gtk::gdk::Texture>,
 ) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
@@ -842,11 +900,10 @@ fn render_media_list(
         let (content_type, _) = gtk::gio::content_type_guess(Some(Path::new(&item.path)), None);
         icon.set_from_gicon(&gtk::gio::content_type_get_symbolic_icon(&content_type));
         let file = files.get(&item.path).and_then(Option::as_ref);
-        if let Some(bytes) = file.and_then(|file| file.preview.as_ref())
-            && let Ok(texture) =
-                gtk::gdk::Texture::from_bytes(&glib::Bytes::from_owned(bytes.as_ref().clone()))
+        if item.kind == carver_domain::source_analysis::MediaKind::Image
+            && let Some(texture) = thumbnails.get(&item.path)
         {
-            icon.set_paintable(Some(&texture));
+            icon.set_paintable(Some(texture));
         }
         content.append(&icon);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);

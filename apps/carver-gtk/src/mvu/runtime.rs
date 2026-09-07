@@ -22,6 +22,7 @@ use super::{
     TrashMutation, UiError, update,
 };
 
+mod media_import;
 mod media_preview;
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
@@ -242,7 +243,23 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 bytes,
                 alt,
                 source_target,
-            } => self.store_editor_asset(session, note_id, extension, bytes, alt, source_target),
+                image,
+            } => self.store_editor_asset(
+                super::ImportTarget {
+                    session,
+                    source: source_target,
+                },
+                note_id,
+                extension,
+                bytes,
+                alt,
+                image,
+            ),
+            Effect::ImportEditorFiles {
+                target,
+                note_id,
+                files,
+            } => self.import_editor_files(target, note_id, files),
             Effect::LoadSidebar { request_id } => self.load_sidebar(request_id),
             Effect::LoadLibraryRevision { request_id } => self.load_library_revision(request_id),
             Effect::LoadBrowser {
@@ -583,16 +600,28 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let file = client
-                .note_asset_bytes_async(note_id, path.clone())
+            let size = client
+                .note_asset_size_async(note_id, path.clone())
                 .await
                 .ok()
-                .flatten()
-                .map(|bytes| super::MediaFile {
-                    size: bytes.len() as u64,
-                    preview: image.then(|| std::sync::Arc::new(bytes)),
-                });
+                .flatten();
+            let preview = if image && size.is_some() {
+                if let Ok(Some(bytes)) = client.note_asset_bytes_async(note_id, path.clone()).await
+                {
+                    gio::spawn_blocking(move || media_import::thumbnail(&bytes))
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(std::sync::Arc::new)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let file = size.map(|size| super::MediaFile { size, preview });
             runtime.dispatch(AppMsg::Editor(super::EditorMsg::MediaFileLoaded {
+                image,
                 session,
                 path,
                 file,
@@ -602,12 +631,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn store_editor_asset(
         &self,
-        session: super::EditorSessionId,
+        target: super::ImportTarget,
         note_id: carver_sdk::NoteId,
         extension: String,
         bytes: Vec<u8>,
         alt: String,
-        source_target: Option<super::SourceImageTarget>,
+        image: bool,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
@@ -617,9 +646,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorAssetStored {
-                session,
+                image,
+                session: target.session,
                 alt,
-                source_target,
+                source_target: target.source,
                 result,
             }));
         });

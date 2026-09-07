@@ -181,6 +181,8 @@ pub enum EditorMsg {
 
     /// Asset bytes resolved by the runtime for sidebar presentation.
     MediaFileLoaded {
+        /// Thumbnail requirement of this request, used to reject stale kind changes.
+        image: bool,
         /// Owning editor lifetime.
         session: EditorSessionId,
         /// Canonical asset path.
@@ -293,6 +295,27 @@ pub enum EditorMsg {
         /// File extension selected from the `WebKit` MIME type.
         extension: String,
         /// Decoded image bytes from the `WebKit` bridge.
+        bytes: Vec<u8>,
+    },
+    /// Import a batch of native files into the document that initiated the interaction.
+    ImportFiles {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Files in picker or drop order.
+        files: Vec<ImportFileSource>,
+    },
+    /// Complete an ordered native file import as one source edit.
+    ImportFilesStored {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Stored references or an import error.
+        result: Result<Vec<StoredMedia>, UiError>,
+    },
+    /// Accept a native clipboard read only for its initiating document.
+    ImportImageRead {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Image bytes.
         bytes: Vec<u8>,
     },
     /// Store a native image selected outside the rich-editor bridge.
@@ -546,6 +569,8 @@ pub enum LibraryReply {
     },
     /// A session-identified managed editor asset finished storing.
     EditorAssetStored {
+        /// Requested markup kind, independent of the canonical filename.
+        image: bool,
         /// Editor lifetime that requested the asset.
         session: EditorSessionId,
         /// Alternative text selected when the import began.
@@ -582,4 +607,37 @@ pub enum TrashMutation {
     NoteRestored,
     /// Trash was permanently emptied.
     Emptied(TrashPurgeResult),
+}
+
+/// Snapshot of the editor that initiated a native file interaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportTarget {
+    /// Initiating document lifetime.
+    pub session: EditorSessionId,
+    /// Optional insertion point captured only in Source mode.
+    pub source: Option<SourceImageTarget>,
+}
+
+/// A native file selected for managed storage.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportFileSource {
+    /// GIO URI, including document portal file URIs.
+    pub uri: String,
+    /// Authored label.
+    pub label: String,
+    /// Requested file extension.
+    pub extension: String,
+    /// Whether to insert image markup.
+    pub image: bool,
+}
+
+/// Stored file metadata needed for one ordered insertion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StoredMedia {
+    /// Portable asset reference.
+    pub path: String,
+    /// User-selected label.
+    pub label: String,
+    /// Requested markup kind.
+    pub image: bool,
 }

@@ -7,9 +7,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use super::editor::{focus::EditorFocusRestorer, source_commands};
-use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand, SourceImageTarget};
-
-const MAX_ATTACHMENT_BYTES: usize = 50 * 1024 * 1024;
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarget, SourceCommand};
 
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///
@@ -19,7 +17,7 @@ pub(crate) fn choose_managed_image(
     button: &gtk::Button,
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
-    source_target: Option<SourceImageTarget>,
+    source_target: ImportTarget,
     focus: &EditorFocusRestorer,
 ) {
     let filter = gtk::FileFilter::new();
@@ -77,7 +75,7 @@ fn show_image_alt_dialog(
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     parent: Option<&gtk::Window>,
-    source_target: Option<SourceImageTarget>,
+    source_target: ImportTarget,
     focus: &EditorFocusRestorer,
 ) {
     let alt = gtk::Entry::new();
@@ -109,7 +107,6 @@ fn show_image_alt_dialog(
             &file,
             alt.text().as_str(),
             &dispatcher,
-            &toast_overlay,
             extension,
             source_target.clone(),
         );
@@ -118,30 +115,23 @@ fn show_image_alt_dialog(
     dialog.present(parent);
 }
 
-/// Stores a local image and dispatches its portable asset path for editor insertion.
-pub(crate) fn import_managed_image_file(
+/// Requests storage of a selected image through the scoped import runtime.
+fn import_managed_image_file(
     file: &gtk::gio::File,
     alt: &str,
     dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
-    extension: &'static str,
-    source_target: Option<SourceImageTarget>,
+    extension: &str,
+    target: ImportTarget,
 ) {
-    let alt = alt.to_owned();
-    let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
-    file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
-        let Ok((bytes, _)) = result else {
-            toast_overlay.add_toast(adw::Toast::new("Could not read the selected image"));
-            return;
-        };
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImage {
+    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportFiles {
+        target,
+        files: vec![ImportFileSource {
+            uri: file.uri().to_string(),
+            label: alt.to_owned(),
             extension: extension.to_owned(),
-            bytes: bytes.as_ref().to_vec(),
-            alt,
-            source_target,
-        }));
-    });
+            image: true,
+        }],
+    }));
 }
 
 pub(crate) fn image_extension_for_file(file: &gtk::gio::File) -> Option<&'static str> {
@@ -160,26 +150,15 @@ pub(crate) fn image_extension_for_file(file: &gtk::gio::File) -> Option<&'static
     }
 }
 
-pub(crate) fn image_alt_for_file(file: &gtk::gio::File) -> String {
-    let name = file.basename().map_or_else(
-        || String::from("Image"),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    name.rsplit_once('.')
-        .map_or(name.clone(), |(stem, _)| stem.to_owned())
-}
-
-/// Opens a native chooser for regular files and stores each selection as a managed attachment.
+/// Opens a chooser while retaining the initiating editor session and insertion target.
 pub(crate) fn choose_managed_files(
     button: &impl IsA<gtk::Widget>,
     dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
-    source_target: Option<SourceImageTarget>,
+    target: ImportTarget,
 ) {
     let dialog = gtk::FileDialog::builder().title("Add files").build();
     let parent = button.root().and_downcast::<gtk::Window>();
     let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
     dialog.open_multiple(
         parent.as_ref(),
         None::<&gtk::gio::Cancellable>,
@@ -187,59 +166,42 @@ pub(crate) fn choose_managed_files(
             let Ok(files) = result else {
                 return;
             };
-            for file in files.iter::<gtk::gio::File>().flatten() {
-                import_managed_file(&file, &dispatcher, &toast_overlay, source_target.clone());
-            }
+            let files: Vec<_> = files.iter::<gtk::gio::File>().flatten().collect();
+            import_managed_files(&files, &dispatcher, target);
         },
     );
 }
 
-/// Reads one regular file and requests its managed storage through the MVU runtime.
-pub(crate) fn import_managed_file(
-    file: &gtk::gio::File,
+/// Dispatches an ordered batch; the runtime owns all reads and storage.
+pub(crate) fn import_managed_files(
+    files: &[gtk::gio::File],
     dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
-    source_target: Option<SourceImageTarget>,
+    target: ImportTarget,
 ) {
-    let name = file.basename().map_or_else(
-        || String::from("Attachment"),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    let extension = attachment_extension(&name);
-    let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
-    file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
-        let Ok((bytes, _)) = result else {
-            toast_overlay.add_toast(adw::Toast::new("Could not read the selected file"));
-            return;
-        };
-        if bytes.len() > MAX_ATTACHMENT_BYTES {
-            toast_overlay.add_toast(adw::Toast::new("Files must be 50 MB or smaller"));
-            return;
-        }
-        let bytes = bytes.as_ref().to_vec();
-        let message = if matches!(
-            extension.as_str(),
-            "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg"
-        ) {
-            AppMsg::Editor(EditorMsg::ImportImage {
+    let files = files
+        .iter()
+        .map(|file| {
+            let name = file.basename().map_or_else(
+                || "Attachment".into(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            let extension = attachment_extension(&name);
+            let image = image_extension_for_file(file).is_some();
+            let label = if image {
+                name.rsplit_once('.')
+                    .map_or_else(|| name.clone(), |(stem, _)| stem.to_owned())
+            } else {
+                name
+            };
+            ImportFileSource {
+                uri: file.uri().to_string(),
+                label,
                 extension,
-                bytes,
-                alt: name
-                    .rsplit_once('.')
-                    .map_or_else(|| name.clone(), |(stem, _)| stem.to_owned()),
-                source_target,
-            })
-        } else {
-            AppMsg::Editor(EditorMsg::ImportFile {
-                extension,
-                bytes,
-                name,
-                source_target,
-            })
-        };
-        let _ = dispatcher.dispatch(message);
-    });
+                image,
+            }
+        })
+        .collect();
+    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportFiles { target, files }));
 }
 
 fn attachment_extension(name: &str) -> String {

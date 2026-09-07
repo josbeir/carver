@@ -1022,6 +1022,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         &client,
         note.id,
     )?;
+    assert_native_file_drop_should_insert_an_ordered_batch(&source, &source_mode)?;
     source_mode.set_active(true);
     source
         .buffer()
@@ -1555,6 +1556,8 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
         thumbnail.paintable().is_some(),
         "managed images should display a thumbnail"
     );
+    assert_thumbnail_should_follow_markup_kind(root, source, &path, &text);
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
     button.emit_clicked();
     let (start, end) = source
         .buffer()
@@ -1647,7 +1650,7 @@ fn assert_attachment_card_should_focus_in_edit_and_preview(
     let bytes = vec![b'x'; 4096];
     let path = client.store_asset(note_id, "pdf", &bytes)?;
     source_mode.set_active(true);
-    let text = format!("[Brief]({path})");
+    let text = format!("[External](https://example.test/{path})\n\n[Brief]({path})");
     source.buffer().set_text(&text);
     assert!(run_main_context_until(|| widget_as::<gtk::Label>(
         root,
@@ -1686,9 +1689,15 @@ fn assert_attachment_card_should_focus_in_edit_and_preview(
     assert!(run_main_context_until(|| list.selected_row().is_none()));
     assert_web_script_should_be_true(
         &preview,
-        "document.querySelector('a').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); true",
+        "document.querySelector('a[href^=\"assets/\"]').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); true",
     );
     assert!(run_main_context_until(|| list.selected_row().is_some()));
+    assert_web_script_should_be_true(
+        &preview,
+        &format!("document.activeElement?.getAttribute('href') === '{path}'"),
+    );
+    let add_files = widget_as::<gtk::Button>(root, "editor-media-add-files").ok_or("add files")?;
+    assert!(!add_files.is_sensitive());
     assert!(widget_is_window_focus(preview.upcast_ref()));
     assert_eq!(
         source.buffer().text(
@@ -1826,4 +1835,57 @@ fn assert_missing_media_preview_should_report_error(
     assert!(run_main_context_until(|| runtime.model().notice.is_some()));
     assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
     Ok(())
+}
+
+fn assert_native_file_drop_should_insert_an_ordered_batch(
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+) -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let first = directory.path().join("first.txt");
+    let second = directory.path().join("second.txt");
+    std::fs::write(&first, b"first contents")?;
+    std::fs::write(&second, b"second contents")?;
+    source_mode.set_active(true);
+    let buffer = source.buffer();
+    buffer.set_text("Before replace After");
+    buffer.select_range(&buffer.iter_at_offset(7), &buffer.iter_at_offset(14));
+    let controllers = source.observe_controllers();
+    let target = (0..controllers.n_items())
+        .find_map(|index| controllers.item(index).and_downcast::<gtk::DropTarget>())
+        .ok_or("source drop target")?;
+    let files = gtk::gdk::FileList::from_array(&[
+        gtk::gio::File::for_path(first),
+        gtk::gio::File::for_path(second),
+    ]);
+    assert!(target.emit_by_name::<bool>(
+        "drop",
+        &[&glib::BoxedValue(files.to_value()), &0.0_f64, &0.0_f64]
+    ));
+    assert!(run_main_context_until(|| {
+        let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+        text.starts_with("Before [first.txt](assets/")
+            && text.contains(")\n[second.txt](assets/")
+            && text.ends_with(") After")
+    }));
+    Ok(())
+}
+
+fn assert_thumbnail_should_follow_markup_kind(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    path: &str,
+    original: &str,
+) {
+    let has_thumbnail = || {
+        widget_as::<gtk::Button>(root, "editor-media-item")
+            .and_then(|button| button.child())
+            .and_then(|child| child.first_child())
+            .and_downcast::<gtk::Image>()
+            .is_some_and(|image| image.paintable().is_some())
+    };
+    source.buffer().set_text(&format!("[Diagram]({path})"));
+    assert!(run_main_context_until(|| !has_thumbnail()));
+    source.buffer().set_text(original);
+    assert!(run_main_context_until(has_thumbnail));
 }
