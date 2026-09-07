@@ -4,8 +4,7 @@
 
 use std::{
     collections::BTreeSet,
-    io::{Cursor, Write},
-    path::{Component, Path},
+    io::{Cursor, Seek, Write},
 };
 
 use carve::{CheckedRenderOptions, to_markdown_with_report};
@@ -86,6 +85,13 @@ pub struct ExportArtifact {
     pub warnings: Vec<ExportWarning>,
 }
 
+/// Incrementally builds a portable archive without retaining every managed asset in memory.
+pub struct PortableArchive<W: Write + Seek> {
+    writer: ZipWriter<W>,
+    expected_assets: BTreeSet<String>,
+    warnings: Vec<ExportWarning>,
+}
+
 /// Failures while converting or packaging an export.
 #[derive(Debug, Error)]
 pub enum ExportError {
@@ -131,8 +137,8 @@ pub fn prepare_export(
     include_assets: bool,
     assets: &[ManagedAsset],
 ) -> Result<ExportArtifact, ExportError> {
-    let (document, mut warnings) = document_bytes(source, format)?;
     if !include_assets {
+        let (document, warnings) = document_bytes(source, format)?;
         return Ok(ExportArtifact {
             bytes: document,
             extension: format.extension(),
@@ -140,32 +146,85 @@ pub fn prepare_export(
         });
     }
 
-    let document_name = archive_document_name(document_stem, format)?;
-    let expected = managed_asset_paths(source);
-    let available: std::collections::BTreeMap<_, _> = assets
-        .iter()
-        .filter(|asset| is_managed_asset_path(&asset.path))
-        .map(|asset| (asset.path.as_str(), asset.bytes.as_slice()))
-        .collect();
-    let archive = Cursor::new(Vec::new());
-    let mut writer = ZipWriter::new(archive);
-    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-    writer.start_file(document_name, options)?;
-    writer.write_all(&document)?;
-    for path in expected {
-        let Some(bytes) = available.get(path.as_str()) else {
-            warnings.push(ExportWarning::MissingManagedAsset { path });
-            continue;
-        };
-        writer.start_file(path, options)?;
-        writer.write_all(bytes)?;
+    let mut archive =
+        begin_portable_export(source, document_stem, format, Cursor::new(Vec::new()))?;
+    for asset in assets {
+        archive.add_asset(&asset.path, &asset.bytes)?;
     }
-    let bytes = writer.finish()?.into_inner();
+    let (archive, warnings) = archive.finish()?;
     Ok(ExportArtifact {
-        bytes,
+        bytes: archive.into_inner(),
         extension: "zip",
         warnings,
     })
+}
+
+/// Starts a portable archive by writing the selected document representation.
+///
+/// Call [`PortableArchive::add_asset`] as each managed asset becomes available, then
+/// [`PortableArchive::finish`] to receive the completed writer and missing-asset warnings.
+///
+/// # Errors
+///
+/// Returns an error when source conversion or ZIP initialization fails.
+pub fn begin_portable_export<W>(
+    source: &str,
+    document_stem: &str,
+    format: ExportFormat,
+    destination: W,
+) -> Result<PortableArchive<W>, ExportError>
+where
+    W: Write + Seek,
+{
+    let (document, warnings) = document_bytes(source, format)?;
+    let document_name = archive_document_name(document_stem, format)?;
+    let mut writer = ZipWriter::new(destination);
+    writer.start_file(document_name, portable_file_options())?;
+    writer.write_all(&document)?;
+    Ok(PortableArchive {
+        writer,
+        expected_assets: managed_asset_paths(source).into_iter().collect(),
+        warnings,
+    })
+}
+
+impl<W> PortableArchive<W>
+where
+    W: Write + Seek,
+{
+    /// Adds one expected managed asset to this archive.
+    ///
+    /// Assets that are not referenced by the document are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when ZIP writing fails.
+    pub fn add_asset(&mut self, path: &str, bytes: &[u8]) -> Result<(), ExportError> {
+        if !self.expected_assets.remove(path) {
+            return Ok(());
+        }
+        self.writer.start_file(path, portable_file_options())?;
+        self.writer.write_all(bytes)?;
+        Ok(())
+    }
+
+    /// Completes the ZIP stream and returns its destination with collected warnings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when ZIP finalization fails.
+    pub fn finish(mut self) -> Result<(W, Vec<ExportWarning>), ExportError> {
+        self.warnings.extend(
+            self.expected_assets
+                .into_iter()
+                .map(|path| ExportWarning::MissingManagedAsset { path }),
+        );
+        Ok((self.writer.finish()?, self.warnings))
+    }
+}
+
+fn portable_file_options() -> SimpleFileOptions {
+    SimpleFileOptions::default().compression_method(CompressionMethod::Stored)
 }
 
 fn document_bytes(
@@ -213,16 +272,6 @@ pub fn sanitized_filename_stem(title: &str) -> String {
     } else {
         value.chars().take(120).collect()
     }
-}
-
-fn is_managed_asset_path(path: &str) -> bool {
-    let Some(relative) = path.strip_prefix("assets/") else {
-        return false;
-    };
-    !relative.is_empty()
-        && Path::new(relative)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
 }
 
 #[cfg(test)]
@@ -313,6 +362,28 @@ mod tests {
             .read_to_end(&mut image)?;
 
         assert_eq!(image, [1, 2, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn portable_archive_should_accept_assets_incrementally()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut archive = begin_portable_export(
+            "![Diagram](assets/diagram.png)",
+            "Diagram",
+            ExportFormat::Carve,
+            Cursor::new(Vec::new()),
+        )?;
+        archive.add_asset("assets/diagram.png", &[1, 2, 3])?;
+        let (archive, warnings) = archive.finish()?;
+        let mut archive = zip::ZipArchive::new(archive)?;
+        let mut image = Vec::new();
+        archive
+            .by_name("assets/diagram.png")?
+            .read_to_end(&mut image)?;
+
+        assert_eq!(image, [1, 2, 3]);
+        assert!(warnings.is_empty());
         Ok(())
     }
 

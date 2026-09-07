@@ -17,6 +17,7 @@ enum PreviewCopyError {
 enum PreparedPreview {
     Cached(PathBuf),
     New {
+        note_id: carver_sdk::NoteId,
         asset_path: String,
         directory: tempfile::TempDir,
         preview_path: PathBuf,
@@ -34,7 +35,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let cached = cached_preview_path(&runtime.inner.preview_copies, &path);
+            let cached = cached_preview_path(&runtime.inner.preview_copies, note_id, &path);
             let result = if let Some(cached) = cached {
                 Ok(PreparedPreview::Cached(cached))
             } else {
@@ -47,6 +48,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                             .map_err(|_| UiError::new("Could not prepare the file preview."))
                             .and_then(|result| result.map_err(display_error))
                             .map(|(directory, preview_path)| PreparedPreview::New {
+                                note_id,
                                 asset_path,
                                 directory,
                                 preview_path,
@@ -67,11 +69,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
             let result = result.map(|preview| match preview {
                 PreparedPreview::Cached(path) => path,
                 PreparedPreview::New {
+                    note_id,
                     asset_path,
                     directory,
                     preview_path,
                 } => retain_preview_copy(
                     &runtime.inner.preview_copies,
+                    note_id,
                     asset_path,
                     directory,
                     preview_path,
@@ -85,24 +89,26 @@ impl<B: LibraryBackend> AppRuntime<B> {
 }
 
 fn cached_preview_path(
-    copies: &std::cell::RefCell<std::collections::BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
+    copies: &std::cell::RefCell<super::PreviewCopies>,
+    note_id: carver_sdk::NoteId,
     path: &str,
 ) -> Option<PathBuf> {
     copies
         .borrow()
-        .get(path)
+        .get(&(note_id, path.to_owned()))
         .map(|(_, preview_path)| preview_path.clone())
 }
 
 fn retain_preview_copy(
-    copies: &std::cell::RefCell<std::collections::BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
+    copies: &std::cell::RefCell<super::PreviewCopies>,
+    note_id: carver_sdk::NoteId,
     asset_path: String,
     directory: tempfile::TempDir,
     preview_path: PathBuf,
 ) -> PathBuf {
     copies
         .borrow_mut()
-        .insert(asset_path, (directory, preview_path.clone()));
+        .insert((note_id, asset_path), (directory, preview_path.clone()));
     preview_path
 }
 

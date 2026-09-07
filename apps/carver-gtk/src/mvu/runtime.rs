@@ -3,6 +3,7 @@
 use std::{
     cell::RefCell,
     collections::BTreeMap,
+    fs::File,
     future::Future,
     path::{Path, PathBuf},
     rc::{Rc, Weak},
@@ -12,7 +13,7 @@ use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::change_notification_files;
 use gtk::gio::{
     self, FileMonitor, FileMonitorEvent,
-    prelude::{FileExt, FileMonitorExt},
+    prelude::{FileExt, FileExtManual, FileMonitorExt},
 };
 
 use crate::view::ViewRefs;
@@ -26,6 +27,7 @@ mod media_import;
 mod media_preview;
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
+type PreviewCopies = BTreeMap<(carver_sdk::NoteId, String), (tempfile::TempDir, PathBuf)>;
 
 const BROWSER_LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
 
@@ -71,14 +73,28 @@ struct RuntimeInner<B: LibraryBackend> {
     config_path: Option<PathBuf>,
     model: RefCell<AppModel>,
     view: ViewRefs,
-    preview_copies: RefCell<BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
+    preview_copies: RefCell<PreviewCopies>,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
     library_monitor: RefCell<Option<FileMonitor>>,
 }
 
 struct PreparedExport {
-    artifact: carver_export::ExportArtifact,
+    artifact: PreparedExportArtifact,
     target_uri: String,
+}
+
+enum PreparedExportArtifact {
+    Bytes(Vec<u8>),
+    File {
+        directory: tempfile::TempDir,
+        path: PathBuf,
+    },
+}
+
+struct PortableExportStaging {
+    directory: tempfile::TempDir,
+    path: PathBuf,
+    archive: carver_export::PortableArchive<File>,
 }
 
 impl<B: LibraryBackend> Clone for AppRuntime<B> {
@@ -673,45 +689,42 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = async {
-                let mut assets = Vec::new();
-                if include_assets {
-                    for path in carver_export::managed_asset_paths(&source) {
-                        if let Some(bytes) = client
-                            .note_asset_bytes_async(note_id, path.clone())
-                            .await
-                            .map_err(display_error)?
-                        {
-                            assets.push(carver_export::ManagedAsset { path, bytes });
-                        }
-                    }
-                }
-                let format = match format {
-                    EditorExportFormat::Carve => carver_export::ExportFormat::Carve,
-                    EditorExportFormat::Markdown => carver_export::ExportFormat::Markdown,
-                    EditorExportFormat::Pdf => {
-                        return Err(UiError::new(
+            let format = match format {
+                EditorExportFormat::Carve => carver_export::ExportFormat::Carve,
+                EditorExportFormat::Markdown => carver_export::ExportFormat::Markdown,
+                EditorExportFormat::Pdf => {
+                    runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportPrepared {
+                        request_id,
+                        session,
+                        result: Err(UiError::new(
                             "PDF export must be rendered by the GTK adapter.",
-                        ));
-                    }
-                };
-                carver_export::prepare_export(
-                    &source,
-                    &filename_stem,
-                    format,
-                    include_assets,
-                    &assets,
-                )
-                .map_err(display_error)
-            }
-            .await;
+                        )),
+                    }));
+                    return;
+                }
+            };
+            let result = if include_assets {
+                stage_portable_export(client, note_id, source, filename_stem, format)
+                    .await
+                    .map(|(directory, path, warnings)| {
+                        (PreparedExportArtifact::File { directory, path }, warnings)
+                    })
+            } else {
+                carver_export::prepare_export(&source, &filename_stem, format, false, &[])
+                    .map_err(display_error)
+                    .map(|artifact| {
+                        (
+                            PreparedExportArtifact::Bytes(artifact.bytes),
+                            artifact.warnings,
+                        )
+                    })
+            };
 
-            let result = result.map(|artifact| {
-                let warnings = artifact
-                    .warnings
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>();
+            let result = result.map(|(artifact, warnings)| {
+                let warnings = warnings
+                    .into_iter()
+                    .map(|warning| warning.to_string())
+                    .collect();
                 runtime.inner.prepared_exports.borrow_mut().insert(
                     request_id,
                     PreparedExport {
@@ -738,21 +751,42 @@ impl<B: LibraryBackend> AppRuntime<B> {
             return;
         };
         let file = gtk::gio::File::for_uri(&prepared.target_uri);
-        let bytes = glib::Bytes::from_owned(prepared.artifact.bytes);
         let runtime = self.clone();
-        file.replace_contents_bytes_async(
-            &bytes,
-            None,
-            false,
-            gtk::gio::FileCreateFlags::REPLACE_DESTINATION,
-            None::<&gtk::gio::Cancellable>,
-            move |result| {
-                runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportWritten {
-                    request_id,
-                    result: result.map(|_| ()).map_err(display_error),
-                }));
-            },
-        );
+        match prepared.artifact {
+            PreparedExportArtifact::Bytes(bytes) => {
+                let bytes = glib::Bytes::from_owned(bytes);
+                file.replace_contents_bytes_async(
+                    &bytes,
+                    None,
+                    false,
+                    gtk::gio::FileCreateFlags::REPLACE_DESTINATION,
+                    None::<&gtk::gio::Cancellable>,
+                    move |result| {
+                        runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportWritten {
+                            request_id,
+                            result: result.map(|_| ()).map_err(display_error),
+                        }));
+                    },
+                );
+            }
+            PreparedExportArtifact::File { directory, path } => {
+                let staged_file = gtk::gio::File::for_path(path);
+                staged_file.copy_async(
+                    &file,
+                    gtk::gio::FileCopyFlags::OVERWRITE,
+                    glib::Priority::DEFAULT,
+                    None::<&gtk::gio::Cancellable>,
+                    None,
+                    move |result| {
+                        let _directory = directory;
+                        runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportWritten {
+                            request_id,
+                            result: result.map_err(display_error),
+                        }));
+                    },
+                );
+            }
+        }
     }
 
     fn rename_category(&self, category_id: carver_sdk::CategoryId, name: String) {
@@ -902,6 +936,69 @@ impl<B: LibraryBackend> AppRuntime<B> {
             }));
         });
     }
+}
+
+async fn stage_portable_export<B: LibraryBackend>(
+    client: LibraryClient<B>,
+    note_id: carver_sdk::NoteId,
+    source: String,
+    filename_stem: String,
+    format: carver_export::ExportFormat,
+) -> Result<
+    (
+        tempfile::TempDir,
+        PathBuf,
+        Vec<carver_export::ExportWarning>,
+    ),
+    UiError,
+> {
+    let archive_source = source.clone();
+    let staging = gio::spawn_blocking(move || {
+        let directory = tempfile::Builder::new()
+            .prefix("carver-export-")
+            .tempdir()?;
+        let path = directory.path().join("export.zip");
+        let archive = carver_export::begin_portable_export(
+            &archive_source,
+            &filename_stem,
+            format,
+            File::create(&path)?,
+        )?;
+        Ok::<_, carver_export::ExportError>(PortableExportStaging {
+            directory,
+            path,
+            archive,
+        })
+    })
+    .await
+    .map_err(|_| UiError::new("Could not prepare the portable export."))
+    .and_then(|result| result.map_err(display_error))?;
+
+    let mut staging = staging;
+    for path in carver_export::managed_asset_paths(&source) {
+        let bytes = client
+            .note_asset_bytes_async(note_id, path.clone())
+            .await
+            .map_err(display_error)?;
+        let Some(bytes) = bytes else {
+            continue;
+        };
+        staging = gio::spawn_blocking(move || {
+            staging.archive.add_asset(&path, &bytes)?;
+            Ok::<_, carver_export::ExportError>(staging)
+        })
+        .await
+        .map_err(|_| UiError::new("Could not prepare the portable export."))
+        .and_then(|result| result.map_err(display_error))?;
+    }
+    gio::spawn_blocking(move || {
+        let (file, warnings) = staging.archive.finish()?;
+        file.sync_all()?;
+        Ok::<_, carver_export::ExportError>((staging.directory, staging.path, warnings))
+    })
+    .await
+    .map_err(|_| UiError::new("Could not prepare the portable export."))
+    .and_then(|result| result.map_err(display_error))
 }
 
 fn display_error(error: impl std::fmt::Display) -> UiError {
