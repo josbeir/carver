@@ -10,7 +10,7 @@ license.workspace = true
 json-schema = ["dep:schemars"]
 
 [dependencies]
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true, features = ["uuid1"] }
 carve-lang.workspace = true
 serde.workspace = true
 thiserror.workspace = true

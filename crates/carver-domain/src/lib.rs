@@ -35,6 +35,7 @@ pub fn import_document(source: &str, format: DocumentImportFormat) -> String {
 
 /// A stable category identifier.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CategoryId(Uuid);
 
 impl CategoryId {
@@ -71,6 +72,7 @@ impl fmt::Display for CategoryId {
 
 /// A stable note identifier.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct NoteId(Uuid);
 
 impl NoteId {
@@ -107,6 +109,7 @@ impl fmt::Display for NoteId {
 
 /// A monotonic version used to detect concurrent note writes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct Revision(pub i64);
 
 /// The visual identity chosen for a category.

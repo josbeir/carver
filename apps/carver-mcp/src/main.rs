@@ -63,31 +63,24 @@ impl CarverServer {
 
 #[derive(Deserialize, JsonSchema)]
 struct CategoryRequest {
-    category_id: String,
+    category_id: CategoryId,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct NoteRequest {
-    note_id: String,
+    note_id: NoteId,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct GetNoteRequest {
-    note_id: String,
+    note_id: NoteId,
     /// Return Markdown in `source` instead of canonical Carve source.
     markdown: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct ListNotesRequest {
-    category_id: Option<String>,
-    limit: Option<usize>,
-    offset: Option<usize>,
-}
-
-#[derive(Deserialize, JsonSchema)]
-struct ListFavoriteNotesRequest {
-    category_id: Option<String>,
+    category_id: Option<CategoryId>,
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -95,7 +88,7 @@ struct ListFavoriteNotesRequest {
 #[derive(Deserialize, JsonSchema)]
 struct SearchRequest {
     query: String,
-    category_id: Option<String>,
+    category_id: Option<CategoryId>,
     limit: Option<usize>,
 }
 
@@ -108,20 +101,20 @@ struct CreateCategoryRequest {
 
 #[derive(Deserialize, JsonSchema)]
 struct RenameCategoryRequest {
-    category_id: String,
+    category_id: CategoryId,
     name: String,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct UpdateCategoryRequest {
-    category_id: String,
+    category_id: CategoryId,
     name: String,
     appearance: CategoryAppearance,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct CreateNoteRequest {
-    category_id: String,
+    category_id: CategoryId,
     source: String,
     /// Interpret `source` as `CommonMark` and convert it to canonical Carve.
     markdown: Option<bool>,
@@ -129,8 +122,8 @@ struct CreateNoteRequest {
 
 #[derive(Deserialize, JsonSchema)]
 struct SaveNoteRequest {
-    note_id: String,
-    revision: i64,
+    note_id: NoteId,
+    revision: Revision,
     source: String,
     /// Interpret `source` as `CommonMark` and convert it to canonical Carve.
     markdown: Option<bool>,
@@ -138,8 +131,8 @@ struct SaveNoteRequest {
 
 #[derive(Deserialize, JsonSchema)]
 struct UpdateNoteTimestampsRequest {
-    note_id: String,
-    revision: i64,
+    note_id: NoteId,
+    revision: Revision,
     /// ISO 8601/RFC 3339 creation timestamp, for example `2026-09-05T12:30:00Z`.
     created_at: String,
     /// ISO 8601/RFC 3339 modification timestamp, for example `2026-09-05T12:30:00Z`.
@@ -148,14 +141,14 @@ struct UpdateNoteTimestampsRequest {
 
 #[derive(Deserialize, JsonSchema)]
 struct MoveNoteRequest {
-    note_id: String,
-    category_id: String,
+    note_id: NoteId,
+    category_id: CategoryId,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct SetNoteFavoriteRequest {
-    note_id: String,
-    revision: i64,
+    note_id: NoteId,
+    revision: Revision,
     favorite: bool,
 }
 
@@ -179,7 +172,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.client
             .recent_notes_async(
-                parse_optional_category(request.category_id.as_deref())?,
+                request.category_id,
                 limit(request.limit)?,
                 request.offset.unwrap_or(0),
             )
@@ -192,11 +185,11 @@ impl CarverServer {
     #[tool(annotations(title = "List favorite notes", read_only_hint = true))]
     async fn list_favorite_notes(
         &self,
-        Parameters(request): Parameters<ListFavoriteNotesRequest>,
+        Parameters(request): Parameters<ListNotesRequest>,
     ) -> Result<String, ErrorData> {
         self.client
             .favorite_notes_async(
-                parse_optional_category(request.category_id.as_deref())?,
+                request.category_id,
                 limit(request.limit)?,
                 request.offset.unwrap_or(0),
             )
@@ -212,11 +205,7 @@ impl CarverServer {
         Parameters(request): Parameters<SearchRequest>,
     ) -> Result<String, ErrorData> {
         self.client
-            .search_async(
-                request.query,
-                parse_optional_category(request.category_id.as_deref())?,
-                limit(request.limit)?,
-            )
+            .search_async(request.query, request.category_id, limit(request.limit)?)
             .await
             .map_err(storage_error)
             .and_then(json)
@@ -230,7 +219,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         let note = self
             .client
-            .note_async(parse_note(&request.note_id)?)
+            .note_async(request.note_id)
             .await
             .map_err(storage_error)?;
         let note = note
@@ -289,7 +278,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .rename_category_async(parse_category(&request.category_id)?, request.name)
+            .rename_category_async(request.category_id, request.name)
             .await
             .map_err(storage_error)
             .and_then(json)
@@ -303,11 +292,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .update_category_async(
-                parse_category(&request.category_id)?,
-                request.name,
-                request.appearance,
-            )
+            .update_category_async(request.category_id, request.name, request.appearance)
             .await
             .map_err(storage_error)
             .and_then(json)
@@ -320,7 +305,7 @@ impl CarverServer {
         Parameters(request): Parameters<CreateNoteRequest>,
     ) -> Result<String, ErrorData> {
         self.require_write()?;
-        let category_id = parse_category(&request.category_id)?;
+        let category_id = request.category_id;
         let format = document_format(request.markdown);
         self.client
             .import_note_async(category_id, format, request.source)
@@ -338,8 +323,8 @@ impl CarverServer {
         self.require_write()?;
         self.client
             .save_note_with_format_async(
-                parse_note(&request.note_id)?,
-                Revision(request.revision),
+                request.note_id,
+                request.revision,
                 request.source,
                 document_format(request.markdown),
             )
@@ -357,8 +342,8 @@ impl CarverServer {
         self.require_write()?;
         self.client
             .update_note_timestamps_async(
-                parse_note(&request.note_id)?,
-                Revision(request.revision),
+                request.note_id,
+                request.revision,
                 parse_rfc3339_timestamp(&request.created_at, "created_at")?,
                 parse_rfc3339_timestamp(&request.updated_at, "updated_at")?,
             )
@@ -375,10 +360,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .move_note_async(
-                parse_note(&request.note_id)?,
-                parse_category(&request.category_id)?,
-            )
+            .move_note_async(request.note_id, request.category_id)
             .await
             .map_err(storage_error)
             .and_then(json)
@@ -392,11 +374,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .set_note_favorite_async(
-                parse_note(&request.note_id)?,
-                Revision(request.revision),
-                request.favorite,
-            )
+            .set_note_favorite_async(request.note_id, request.revision, request.favorite)
             .await
             .map_err(storage_error)
             .and_then(json)
@@ -410,7 +388,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .trash_note_async(parse_note(&request.note_id)?)
+            .trash_note_async(request.note_id)
             .await
             .map_err(storage_error)?;
         Ok("note moved to trash".to_owned())
@@ -424,7 +402,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .restore_note_async(parse_note(&request.note_id)?)
+            .restore_note_async(request.note_id)
             .await
             .map_err(storage_error)?;
         Ok("note restored".to_owned())
@@ -438,7 +416,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .trash_category_async(parse_category(&request.category_id)?)
+            .trash_category_async(request.category_id)
             .await
             .map_err(storage_error)?;
         Ok("category moved to trash".to_owned())
@@ -452,7 +430,7 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         self.client
-            .restore_category_async(parse_category(&request.category_id)?)
+            .restore_category_async(request.category_id)
             .await
             .map_err(storage_error)?;
         Ok("category restored".to_owned())
@@ -528,19 +506,6 @@ fn prompt(text: &str) -> Vec<PromptMessage> {
     vec![PromptMessage::new_text(Role::User, text.to_owned())]
 }
 
-fn parse_category(value: &str) -> Result<CategoryId, ErrorData> {
-    uuid::Uuid::parse_str(value)
-        .map(CategoryId::from_uuid)
-        .map_err(|_| ErrorData::invalid_params("category_id must be a UUID", None))
-}
-fn parse_note(value: &str) -> Result<NoteId, ErrorData> {
-    uuid::Uuid::parse_str(value)
-        .map(NoteId::from_uuid)
-        .map_err(|_| ErrorData::invalid_params("note_id must be a UUID", None))
-}
-fn parse_optional_category(value: Option<&str>) -> Result<Option<CategoryId>, ErrorData> {
-    value.map(parse_category).transpose()
-}
 fn parse_rfc3339_timestamp(value: &str, field: &str) -> Result<OffsetDateTime, ErrorData> {
     OffsetDateTime::parse(value, &Rfc3339).map_err(|_| {
         ErrorData::invalid_params(
