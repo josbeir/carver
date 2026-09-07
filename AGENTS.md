@@ -7,25 +7,28 @@ Libadwaita, SQLite, and the Carve markup crate.
 
 - `crates/carver-domain`: markup-derived domain entities and pure transformations.
 - `crates/carver-config`: XDG locations and TOML configuration.
+- `crates/carver-library-port`: UI-neutral storage contract shared by SDK and backends.
 - `crates/carver-storage-sqlite`: SQLite schema, migrations, search, and managed assets.
 - `crates/carver-sdk`: UI-neutral facade for current and future native frontends.
-- `crates/carver-richtext`: format-neutral document model and structural editing commands.
-- `crates/carver-richtext-carve`: the Carve parser, serializer, and HTML-preview codec.
+- `crates/carver-editor-protocol`: format-neutral commands and events exchanged by the host
+  and web editor, including the source types for generated TypeScript events.
+- `crates/carver-export`: Carve and Markdown exports and portable managed-asset archives.
 - `apps/carver-gtk`: GTK4/Libadwaita application. `main.rs` is bootstrap only;
   `app.rs` composes one window-local MVU runtime; `mvu/` owns the UI-neutral model,
   messages, reducer, and asynchronous effects; `view/` owns snapshot rendering;
-  and `browser.rs`, `sidebar.rs`, `editor/`, `dialogs.rs`, `trash.rs`, and
-  `formatting.rs` own their GTK boundaries. `src/tests/` contains cross-module
-  GTK frontend tests. Keep UI code local to this crate.
+  and `ui/` owns GTK boundaries, including `ui/editor/web.rs` for the WebKit bridge.
+  `web/` contains the TypeScript/Tiptap editor and Carve adapter integration.
+  `src/tests/` contains cross-module GTK frontend tests. Keep UI code local to this crate.
 - `apps/carver-mcp`: local stdio Model Context Protocol companion. It has no GTK dependency and
   opens Carver through the SDK against the same XDG-scoped library.
 - `crates/carver-agent-integration`: package-aware launch instructions and agent setup metadata
   shared by the GTK onboarding surface and `carver-mcp`.
 
-Dependencies must point inward: GTK calls the SDK; the SDK calls storage; storage and
-configuration use domain types. The GTK editor depends on the format-neutral rich-text model
-and its Carve codec; `carver-richtext` must not depend on Carve, storage, or GTK. Domain must
-not depend on infrastructure or GTK.
+Dependencies must point inward: GTK calls the SDK; the SDK uses the library contract and
+storage; storage and configuration use domain types. The GTK editor exchanges messages through
+`carver-editor-protocol`; its web surface uses Carve Grammars for parsing and serialization.
+Keep the editor protocol independent of Carve, storage, and GTK. Domain must not depend on
+infrastructure or GTK.
 
 ## MCP and agent integration
 
@@ -33,6 +36,9 @@ not depend on infrastructure or GTK.
   agent registration.
 - `carver-mcp` must use `carver-sdk`; it must not access SQLite, GTK, or application UI state
   directly. It shares the installed package's XDG library boundary, including Flatpak and Snap.
+- Reuse shared domain types through the SDK in MCP requests when their wire representation
+  matches. Keep `JsonSchema` support behind optional `json-schema` features; do not duplicate
+  domain enums or wrap primitives solely to generate request schemas.
 - Read tools are the default. Every mutation must require the explicit `--allow-write` process
   flag and retain Carver's revision checks, soft-delete/restore behavior, and validation rules.
 - Store canonical Carve only. MCP create/save inputs may opt into Markdown conversion, but output
@@ -61,6 +67,18 @@ not depend on infrastructure or GTK.
   Do not add `AppState`, direct refresh paths, storage fallbacks, or business state to a view.
 - Keep blocking SQLite work behind the SDK's async boundary. Do not perform storage work
   directly from a GTK signal handler or capture GTK objects in a background task.
+
+## Editor protocol generation
+
+- `EditorEvent` and `SelectionState` in `carver-editor-protocol` are the source of truth for
+  web editor event types. After changing them, run
+  `npm run protocol:generate --prefix apps/carver-gtk/web` and commit the generated
+  `apps/carver-gtk/web/src/editor/protocol.generated.ts`. Do not edit that file manually.
+- Run `npm run check --prefix apps/carver-gtk/web` after editor protocol or web changes.
+  It checks generated-type drift, lint, formatting, tests, coverage, and the TypeScript build.
+- Keep editor schema generation development-only. Normal builds consume committed type
+  definitions; do not add runtime schema generation or validation, or enable the editor
+  protocol's `json-schema` feature in the GTK application.
 
 ## UI and persistence rules
 

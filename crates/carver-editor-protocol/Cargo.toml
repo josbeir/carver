@@ -6,7 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+json-schema = ["dep:schemars"]
+
 [dependencies]
+schemars = { workspace = true, optional = true }
 serde.workspace = true
 
 [dev-dependencies]
@@ -14,3 +18,7 @@ serde_json.workspace = true
 
 [lints]
 workspace = true
+
+[[example]]
+name = "export-editor-schema"
+required-features = ["json-schema"]

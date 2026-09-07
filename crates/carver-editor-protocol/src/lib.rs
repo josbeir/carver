@@ -38,6 +38,7 @@ pub enum EditorCommand {
 
 /// Selection information used to reflect state in host-native controls.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SelectionState {
     /// Active formatting identifiers.
     pub active: Vec<String>,
@@ -50,6 +51,7 @@ pub struct SelectionState {
 /// Events emitted by an editing surface.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum EditorEvent {
     /// The web surface has loaded and can accept a document.
     Ready,

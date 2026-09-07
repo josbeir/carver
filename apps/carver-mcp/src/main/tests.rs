@@ -1,4 +1,5 @@
 use super::*;
+use carver_sdk::{CategoryColor, CategoryIcon};
 
 type TestResult = Result<(), String>;
 
@@ -12,16 +13,13 @@ fn server(allow_write: bool) -> Result<(tempfile::TempDir, CarverServer), String
     Ok((directory, CarverServer::new(client, allow_write)))
 }
 
-fn id(result: &str) -> Result<String, String> {
-    let value =
-        serde_json::from_str::<serde_json::Value>(result).map_err(|error| error.to_string())?;
-    value["id"]
-        .as_str()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| "tool output did not include an id".to_owned())
+fn id<T: serde::de::DeserializeOwned>(result: &str) -> Result<T, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(result).map_err(|error| error.to_string())?;
+    serde_json::from_value(value["id"].clone()).map_err(|error| error.to_string())
 }
 
-async fn create_and_read_note(server: &CarverServer) -> Result<(String, String), String> {
+async fn create_and_read_note(server: &CarverServer) -> Result<(CategoryId, NoteId), String> {
     let category = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Journal".to_owned(),
@@ -32,7 +30,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
     let category_id = id(&category)?;
     let renamed = server
         .rename_category(Parameters(RenameCategoryRequest {
-            category_id: category_id.clone(),
+            category_id,
             name: "Work".to_owned(),
         }))
         .await
@@ -41,7 +39,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
 
     let created = server
         .create_note(Parameters(CreateNoteRequest {
-            category_id: category_id.clone(),
+            category_id,
             source: "# Planning\n\nPrepare the launch.".to_owned(),
             markdown: Some(true),
         }))
@@ -50,7 +48,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
     let note_id = id(&created)?;
     let listed = server
         .list_notes(Parameters(ListNotesRequest {
-            category_id: Some(category_id.clone()),
+            category_id: Some(category_id),
             limit: Some(1),
             offset: None,
         }))
@@ -68,7 +66,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
     assert!(search.contains("Planning"));
     let note = server
         .get_note(Parameters(GetNoteRequest {
-            note_id: note_id.clone(),
+            note_id,
             markdown: None,
         }))
         .await
@@ -76,7 +74,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
     assert!(note.contains("Planning"));
     let markdown = server
         .get_note(Parameters(GetNoteRequest {
-            note_id: note_id.clone(),
+            note_id,
             markdown: Some(true),
         }))
         .await
@@ -89,19 +87,18 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(String, String),
 
 async fn save_move_and_restore_note(
     server: &CarverServer,
-    note_id: String,
-) -> Result<String, String> {
-    let parsed_id = parse_note(&note_id).map_err(|error| error.to_string())?;
+    note_id: NoteId,
+) -> Result<CategoryId, String> {
     let note = server
         .client
-        .note_async(parsed_id)
+        .note_async(note_id)
         .await
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "created note should exist".to_owned())?;
     let saved = server
         .save_note(Parameters(SaveNoteRequest {
-            note_id: note_id.clone(),
-            revision: note.revision.0,
+            note_id,
+            revision: note.revision,
             source: "Saved as Carve".to_owned(),
             markdown: Some(false),
         }))
@@ -119,26 +116,24 @@ async fn save_move_and_restore_note(
     let destination_id = id(&category)?;
     let moved = server
         .move_note(Parameters(MoveNoteRequest {
-            note_id: note_id.clone(),
-            category_id: destination_id.clone(),
+            note_id,
+            category_id: destination_id,
         }))
         .await
         .map_err(|error| error.to_string())?;
     let moved =
         serde_json::from_str::<serde_json::Value>(&moved).map_err(|error| error.to_string())?;
-    assert_eq!(moved["category_id"], destination_id);
+    assert_eq!(moved["category_id"], serde_json::json!(destination_id));
 
     let trashed = server
-        .trash_note(Parameters(NoteRequest {
-            note_id: note_id.clone(),
-        }))
+        .trash_note(Parameters(NoteRequest { note_id }))
         .await
         .map_err(|error| error.to_string())?;
     assert_eq!(trashed, "note moved to trash");
     assert!(
         server
             .get_note(Parameters(GetNoteRequest {
-                note_id: note_id.clone(),
+                note_id,
                 markdown: None,
             }))
             .await
@@ -165,7 +160,7 @@ async fn write_tools_should_manage_a_note_lifecycle() -> TestResult {
 
     let trashed = server
         .trash_category(Parameters(CategoryRequest {
-            category_id: destination_id.clone(),
+            category_id: destination_id,
         }))
         .await
         .map_err(|error| error.to_string())?;
@@ -191,7 +186,7 @@ async fn favorite_tools_should_list_and_update_notes_when_writes_are_enabled() -
     let (category_id, note_id) = create_and_read_note(&server).await?;
     let note = server
         .get_note(Parameters(GetNoteRequest {
-            note_id: note_id.clone(),
+            note_id,
             markdown: None,
         }))
         .await
@@ -201,9 +196,8 @@ async fn favorite_tools_should_list_and_update_notes_when_writes_are_enabled() -
     let updated = server
         .set_note_favorite(Parameters(SetNoteFavoriteRequest {
             note_id,
-            revision: note["revision"]
-                .as_i64()
-                .ok_or_else(|| "missing revision".to_owned())?,
+            revision: serde_json::from_value(note["revision"].clone())
+                .map_err(|error| error.to_string())?,
             favorite: true,
         }))
         .await
@@ -212,7 +206,7 @@ async fn favorite_tools_should_list_and_update_notes_when_writes_are_enabled() -
         serde_json::from_str::<serde_json::Value>(&updated).map_err(|error| error.to_string())?;
     assert_eq!(updated["is_favorite"], true);
     let favorites = server
-        .list_favorite_notes(Parameters(ListFavoriteNotesRequest {
+        .list_favorite_notes(Parameters(ListNotesRequest {
             category_id: None,
             limit: Some(10),
             offset: None,
@@ -221,7 +215,7 @@ async fn favorite_tools_should_list_and_update_notes_when_writes_are_enabled() -
         .map_err(|error| error.to_string())?;
     assert!(favorites.contains("Planning"));
     let category_favorites = server
-        .list_favorite_notes(Parameters(ListFavoriteNotesRequest {
+        .list_favorite_notes(Parameters(ListNotesRequest {
             category_id: Some(category_id),
             limit: Some(10),
             offset: None,
@@ -238,9 +232,9 @@ async fn create_category_should_return_requested_appearance() -> TestResult {
     let created = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Ideas".to_owned(),
-            appearance: Some(CategoryAppearanceRequest {
-                icon: CategoryIconRequest::Lightbulb,
-                color: CategoryColorRequest::Yellow,
+            appearance: Some(CategoryAppearance {
+                icon: CategoryIcon::Lightbulb,
+                color: CategoryColor::Yellow,
             }),
         }))
         .await
@@ -271,9 +265,9 @@ async fn update_category_should_return_requested_appearance() -> TestResult {
         .update_category(Parameters(UpdateCategoryRequest {
             category_id,
             name: "Personal ideas".to_owned(),
-            appearance: CategoryAppearanceRequest {
-                icon: CategoryIconRequest::Heart,
-                color: CategoryColorRequest::Rose,
+            appearance: CategoryAppearance {
+                icon: CategoryIcon::Heart,
+                color: CategoryColor::Rose,
             },
         }))
         .await
@@ -316,7 +310,7 @@ async fn update_note_timestamps_should_return_requested_dates() -> TestResult {
     let updated = server
         .update_note_timestamps(Parameters(UpdateNoteTimestampsRequest {
             note_id,
-            revision,
+            revision: Revision(revision),
             created_at: "2020-01-02T03:04:05Z".to_owned(),
             updated_at: "2021-02-03T04:05:06Z".to_owned(),
         }))
@@ -341,8 +335,8 @@ async fn update_note_timestamps_should_reject_non_rfc3339_dates() -> TestResult 
 
     let error = server
         .update_note_timestamps(Parameters(UpdateNoteTimestampsRequest {
-            note_id: uuid::Uuid::new_v4().to_string(),
-            revision: 1,
+            note_id: NoteId::new(),
+            revision: Revision(1),
             created_at: "yesterday".to_owned(),
             updated_at: "2021-02-03T04:05:06Z".to_owned(),
         }))
@@ -368,8 +362,8 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
     assert!(error.message.contains("--allow-write"));
     let error = server
         .set_note_favorite(Parameters(SetNoteFavoriteRequest {
-            note_id: uuid::Uuid::new_v4().to_string(),
-            revision: 1,
+            note_id: NoteId::new(),
+            revision: Revision(1),
             favorite: true,
         }))
         .await
@@ -386,17 +380,6 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
         .err()
         .ok_or_else(|| "zero limit should be rejected".to_owned())?;
     assert!(error.message.contains("between 1 and 100"));
-    let error = server
-        .search_notes(Parameters(SearchRequest {
-            query: "anything".to_owned(),
-            category_id: Some("not-a-uuid".to_owned()),
-            limit: Some(101),
-        }))
-        .await
-        .err()
-        .ok_or_else(|| "invalid category should be rejected".to_owned())?;
-    assert!(error.message.contains("category_id"));
-    assert!(parse_note("not-a-uuid").is_err());
     assert_eq!(document_format(None), DocumentImportFormat::Carve);
     assert_eq!(document_format(Some(true)), DocumentImportFormat::Markdown);
     assert_eq!(prompt("Read this").len(), 1);
@@ -410,5 +393,106 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
     assert_eq!(print_setup(&["vscode".to_owned()]), ExitCode::SUCCESS);
     assert_eq!(print_setup(&["generic".to_owned()]), ExitCode::SUCCESS);
     assert_eq!(print_setup(&["unknown".to_owned()]), ExitCode::FAILURE);
+    Ok(())
+}
+
+#[test]
+fn category_request_should_preserve_appearance_wire_format() -> TestResult {
+    let request: CreateCategoryRequest = serde_json::from_value(serde_json::json!({
+        "name": "Ideas",
+        "appearance": { "icon": "Lightbulb", "color": "Yellow" }
+    }))
+    .map_err(|error| error.to_string())?;
+    assert_eq!(
+        request.appearance,
+        Some(CategoryAppearance {
+            icon: CategoryIcon::Lightbulb,
+            color: CategoryColor::Yellow,
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn category_request_schema_should_expose_shared_appearance_choices() -> TestResult {
+    let schema = serde_json::to_value(schemars::schema_for!(CreateCategoryRequest))
+        .map_err(|error| error.to_string())?;
+    let definitions = &schema["$defs"];
+    assert_eq!(
+        definitions["CategoryAppearance"]["properties"]["icon"]["$ref"],
+        "#/$defs/CategoryIcon"
+    );
+    assert_eq!(
+        definitions["CategoryAppearance"]["properties"]["color"]["$ref"],
+        "#/$defs/CategoryColor"
+    );
+    for (name, expected) in [("CategoryIcon", "Lightbulb"), ("CategoryColor", "Yellow")] {
+        let variants = definitions[name]["oneOf"]
+            .as_array()
+            .ok_or_else(|| format!("{name} schema did not expose variants"))?;
+        assert!(variants.iter().any(|variant| variant["const"] == expected));
+    }
+    Ok(())
+}
+
+#[test]
+fn save_request_should_preserve_id_and_revision_wire_format() -> TestResult {
+    let note_id = NoteId::new();
+    let request: SaveNoteRequest = serde_json::from_value(serde_json::json!({
+        "note_id": note_id.to_string(),
+        "revision": 7,
+        "source": "Hello"
+    }))
+    .map_err(|error| error.to_string())?;
+    assert_eq!((request.note_id, request.revision), (note_id, Revision(7)));
+    Ok(())
+}
+
+#[test]
+fn list_request_should_accept_optional_category_uuid() -> TestResult {
+    let category_id = CategoryId::new();
+    let request: ListNotesRequest = serde_json::from_value(serde_json::json!({
+        "category_id": category_id.to_string()
+    }))
+    .map_err(|error| error.to_string())?;
+    assert_eq!(request.category_id, Some(category_id));
+    let request: ListNotesRequest =
+        serde_json::from_str("{}").map_err(|error| error.to_string())?;
+    assert_eq!(request.category_id, None);
+    Ok(())
+}
+
+#[test]
+fn note_request_should_reject_invalid_uuid() {
+    assert!(
+        serde_json::from_value::<NoteRequest>(serde_json::json!({
+            "note_id": "not-a-uuid"
+        }))
+        .is_err()
+    );
+}
+
+#[test]
+fn search_request_should_reject_invalid_category_uuid() {
+    assert!(
+        serde_json::from_value::<SearchRequest>(serde_json::json!({
+            "query": "anything",
+            "category_id": "not-a-uuid"
+        }))
+        .is_err()
+    );
+}
+
+#[test]
+fn request_schemas_should_describe_uuid_ids_and_integer_revisions() -> TestResult {
+    let save = serde_json::to_value(schemars::schema_for!(SaveNoteRequest))
+        .map_err(|error| error.to_string())?;
+    assert_eq!(save["$defs"]["NoteId"]["type"], "string");
+    assert_eq!(save["$defs"]["NoteId"]["format"], "uuid");
+    assert_eq!(save["$defs"]["Revision"]["type"], "integer");
+    let list = serde_json::to_value(schemars::schema_for!(ListNotesRequest))
+        .map_err(|error| error.to_string())?;
+    assert_eq!(list["$defs"]["CategoryId"]["type"], "string");
+    assert_eq!(list["$defs"]["CategoryId"]["format"], "uuid");
     Ok(())
 }

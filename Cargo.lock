@@ -136,6 +136,7 @@ name = "carver-domain"
 version = "0.1.1"
 dependencies = [
  "carve-lang",
+ "schemars",
  "serde",
  "thiserror",
  "time",
@@ -146,6 +147,7 @@ dependencies = [
 name = "carver-editor-protocol"
 version = "0.1.1"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
 ]
@@ -208,7 +210,6 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
- "uuid",
 ]
 
 [[package]]
@@ -1518,6 +1519,7 @@ dependencies = [
  "schemars_derive",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
