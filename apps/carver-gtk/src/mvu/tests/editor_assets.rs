@@ -545,3 +545,98 @@ fn prepared_preview_should_be_ignored_after_switching_documents() {
         .is_empty()
     );
 }
+
+#[test]
+fn editor_media_selection_should_track_occurrences_without_editing_source() {
+    let mut model = AppModel::new(&Config::default());
+    let source = "Before\n\n![One](assets/a.png)\n\n![Two](assets/a.png)";
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: source.into(),
+        }),
+    );
+    let document = open_media_document(&model);
+    let session = document.session;
+    let mode = document.mode;
+    let range = document.media[1].range.clone();
+    let message = |session, mode, media| {
+        AppMsg::Editor(EditorMsg::MediaSelected {
+            session,
+            mode,
+            media,
+        })
+    };
+    let media = carver_editor_protocol::MediaSelection {
+        path: "assets/a.png".into(),
+        occurrence: 1,
+    };
+    assert!(update(&mut model, message(session, mode, Some(media.clone()))).is_empty());
+    assert_eq!(
+        open_media_document(&model).selected_media,
+        Some(range.clone())
+    );
+    let stale = EditorSessionId(session.0 + 1);
+    let _ = update(&mut model, message(stale, mode, None));
+    assert_eq!(open_media_document(&model).selected_media, Some(range));
+    let _ = update(&mut model, message(session, mode, None));
+    let document = open_media_document(&model);
+    assert_eq!(document.selected_media, None);
+    assert_eq!(document.source, source);
+    assert_eq!(document.revision, Revision(1));
+}
+
+#[test]
+fn source_caret_should_select_media_only_inside_its_range() {
+    let mut config = Config::default();
+    config.editor.last_mode = carver_config::EditorMode::Source;
+    let mut model = AppModel::new(&config);
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Before\n\n![One](assets/a.png)".into(),
+        }),
+    );
+    let range = open_media_document(&model).media[0].range.clone();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceSelectionChanged {
+            selection: range.start..range.start,
+        }),
+    );
+    assert_eq!(
+        open_media_document(&model).selected_media,
+        Some(range.clone())
+    );
+    let session = open_media_document(&model).session;
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::MediaSelected {
+            session,
+            mode: carver_config::EditorMode::Rich,
+            media: None,
+        }),
+    );
+    assert_eq!(
+        open_media_document(&model).selected_media,
+        Some(range.clone())
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceSelectionChanged {
+            selection: range.end..range.end,
+        }),
+    );
+    assert_eq!(open_media_document(&model).selected_media, None);
+}
+
+fn open_media_document(model: &AppModel) -> &crate::mvu::model::EditorDocument {
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should be open");
+    };
+    document
+}

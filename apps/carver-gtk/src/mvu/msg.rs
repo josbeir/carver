@@ -146,6 +146,21 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// A web projection selected a media occurrence without changing source.
+    MediaSelected {
+        /// Editor lifetime that emitted this event.
+        session: EditorSessionId,
+        /// Projection that emitted this event.
+        mode: carver_config::EditorMode,
+        /// Selected occurrence, or none when selection leaves media.
+        media: Option<carver_editor_protocol::MediaSelection>,
+    },
+    /// The source cursor moved.
+    SourceSelectionChanged {
+        /// Character-based source selection.
+        selection: Range<usize>,
+    },
+
     /// Preview an attachment referenced by the active document.
     PreviewMedia {
         /// Authored occurrence selected by the user.

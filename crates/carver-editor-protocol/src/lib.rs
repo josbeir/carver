@@ -36,6 +36,16 @@ pub enum EditorCommand {
     ImageWidth(Option<u8>),
 }
 
+/// One media occurrence in an editor projection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct MediaSelection {
+    /// Authored image source or attachment destination.
+    pub path: String,
+    /// Zero-based occurrence among references to the same path.
+    pub occurrence: usize,
+}
+
 /// Selection information used to reflect state in host-native controls.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -46,6 +56,9 @@ pub struct SelectionState {
     pub heading: u8,
     /// Selected image width percentage, when an image is selected.
     pub image_width: Option<u8>,
+    /// Media at the current selection, if any.
+    #[serde(default)]
+    pub media: Option<MediaSelection>,
 }
 
 /// Events emitted by an editing surface.
@@ -127,6 +140,7 @@ mod tests {
                 active: vec![String::from("bold"), String::from("table")],
                 heading: 2,
                 image_width: None,
+                media: None,
             },
         };
         let encoded = serde_json::to_string(&event).unwrap_or_default();

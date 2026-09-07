@@ -258,6 +258,8 @@ pub struct EditorDocument {
     pub mode: EditorMode,
     /// Positioned images and managed attachments in the current canonical source.
     pub media: Vec<MediaOccurrence>,
+    /// Source range of the media currently selected in the editor.
+    pub selected_media: Option<std::ops::Range<usize>>,
     /// Requested asset bytes; absent results represent unavailable files.
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Current visibility of the editor's media navigation sidebar.
@@ -360,6 +362,7 @@ impl EditorDocument {
             source,
             mode,
             media,
+            selected_media: None,
             media_files: std::collections::BTreeMap::new(),
             media_sidebar: MediaSidebarVisibility::Hidden,
             pending_favorite: None,
@@ -374,6 +377,7 @@ impl EditorDocument {
         if self.source != source {
             self.source = source;
             self.media = SourceAnalysis::parse(&self.source).media().to_vec();
+            self.selected_media = None;
             if !matches!(self.save_state, EditorSaveState::Saving(_)) {
                 self.save_state = EditorSaveState::Dirty;
             }

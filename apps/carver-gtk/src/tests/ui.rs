@@ -1573,6 +1573,13 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
             .and_then(|window| gtk::prelude::RootExt::focus(&window))
             .map(|widget| widget.widget_name())
     );
+    assert!(list.selected_row().is_some());
+    source.buffer().place_cursor(&source.buffer().start_iter());
+    assert!(list.selected_row().is_none());
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(10));
+    assert!(list.selected_row().is_some());
     rich_mode.set_active(true);
     assert!(run_main_context_until(|| rich.is_visible()));
     let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
@@ -1587,6 +1594,8 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
         move |value| result.set(value.is_ok_and(|value| value.to_boolean())),
     );
     assert!(run_main_context_until(|| selected.get()));
+    assert!(list.selected_row().is_some());
+    assert_rich_media_selection_should_update_sidebar(rich, &list, &path);
     assert!(widget_is_window_focus(rich.upcast_ref()));
     assert_eq!(
         source.buffer().text(
@@ -1607,6 +1616,23 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
     )?;
     toggle.set_active(false);
     Ok(())
+}
+
+fn assert_rich_media_selection_should_update_sidebar(
+    rich: &webkit6::WebView,
+    list: &gtk::ListBox,
+    path: &str,
+) {
+    assert_web_script_should_be_true(
+        rich,
+        "window.carverEditor.editor.commands.setTextSelection(1)",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_none()));
+    assert_web_script_should_be_true(
+        rich,
+        &format!("window.carverEditor.focusMedia('{path}', 0)"),
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
 }
 
 fn assert_attachment_card_should_focus_in_edit_and_preview(
@@ -1651,6 +1677,18 @@ fn assert_attachment_card_should_focus_in_edit_and_preview(
     let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("attachment card")?;
     button.emit_clicked();
     assert_web_script_should_be_true(&preview, "document.activeElement?.tagName === 'A'");
+    let list = widget_as::<gtk::ListBox>(root, "editor-media-list").ok_or("media list")?;
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
+    assert_web_script_should_be_true(
+        &preview,
+        "document.body.dispatchEvent(new MouseEvent('click', {bubbles:true})); true",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_none()));
+    assert_web_script_should_be_true(
+        &preview,
+        "document.querySelector('a').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); true",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
     assert!(widget_is_window_focus(preview.upcast_ref()));
     assert_eq!(
         source.buffer().text(

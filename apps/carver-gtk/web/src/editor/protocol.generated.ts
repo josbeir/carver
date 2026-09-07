@@ -80,4 +80,21 @@ export interface SelectionState {
    * Selected image width percentage, when an image is selected.
    */
   image_width: number | null;
+  /**
+   * Media at the current selection, if any.
+   */
+  media: MediaSelection | null;
+}
+/**
+ * One media occurrence in an editor projection.
+ */
+export interface MediaSelection {
+  /**
+   * Zero-based occurrence among references to the same path.
+   */
+  occurrence: number;
+  /**
+   * Authored image source or attachment destination.
+   */
+  path: string;
 }

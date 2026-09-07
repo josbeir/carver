@@ -32,6 +32,7 @@ pub(crate) mod focus;
 mod media_preview;
 #[cfg(test)]
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
+mod media_selection;
 mod preview;
 mod render;
 mod source;
@@ -129,6 +130,13 @@ impl EditorViewRefs {
                 .replace(document.media_files.clone());
             self.rendered_media.replace(Some(document.media.clone()));
         }
+        let selected_row = document
+            .selected_media
+            .as_ref()
+            .and_then(|range| document.media.iter().position(|item| &item.range == range))
+            .and_then(|index| i32::try_from(index).ok())
+            .and_then(|index| self.media_list.row_at_index(index));
+        self.media_list.select_row(selected_row.as_ref());
         self.favorite
             .set_tooltip_text(Some(if document.is_favorite {
                 "Remove from Favorites"
@@ -155,6 +163,9 @@ impl EditorViewRefs {
             .filter(|preview| preview.session == document.session)
             .cloned();
         if new_document {
+            self.rich.set_document_session(document.session);
+            media_selection::set_session(&self.rendered_preview, document.session);
+            media_selection::set_session(&self.split_preview, document.session);
             self.find.reset();
         }
         if source_changed {
@@ -573,11 +584,30 @@ pub(crate) fn build_editor(
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     rendered_preview.set_widget_name("editor-rendered-preview");
+    media_selection::connect(&rendered_preview, dispatcher, EditorMode::Rendered);
+    media_selection::connect(&split_preview, dispatcher, EditorMode::Source);
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
     install_editor_window_shortcuts(&view);
     let toolbar = Toolbar::new(source.upcast_ref(), &rich, dispatcher, toast_overlay);
     let source_context = SourceContextCache::new(&source_buffer);
+    let selection_dispatcher = dispatcher.clone();
+    let selection_rendering = Rc::clone(&rendering);
+    source_buffer.connect_mark_set(move |buffer, _, mark| {
+        if selection_rendering.get()
+            || !matches!(mark.name().as_deref(), Some("insert" | "selection_bound"))
+        {
+            return;
+        }
+        let (start, end) = buffer.selection_bounds().unwrap_or_else(|| {
+            let cursor = buffer.iter_at_mark(&buffer.get_insert());
+            (cursor, cursor)
+        });
+        let _ = selection_dispatcher.dispatch(AppMsg::Editor(EditorMsg::SourceSelectionChanged {
+            selection: usize::try_from(start.offset()).unwrap_or(0)
+                ..usize::try_from(end.offset()).unwrap_or(0),
+        }));
+    });
     connect_source_context(&source_buffer, &source_context, &toolbar);
     let find_for_source_change = find.clone();
     source_buffer.connect_changed(move |_| find_for_source_change.refresh_after_document_change());
@@ -606,7 +636,7 @@ pub(crate) fn build_editor(
     view.add_bottom_bar(&toolbar_bar);
     let media_list = gtk::ListBox::new();
     media_list.set_widget_name("editor-media-list");
-    media_list.set_selection_mode(gtk::SelectionMode::None);
+    media_list.set_selection_mode(gtk::SelectionMode::Single);
     media_list.set_valign(gtk::Align::Start);
     media_list.add_css_class("boxed-list");
     let media_scroller = gtk::ScrolledWindow::new();

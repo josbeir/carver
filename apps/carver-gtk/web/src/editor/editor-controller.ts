@@ -1,6 +1,6 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { mediaOccurrences, selectedMedia } from './media-selection';
 import {
   CarveKit,
   carveToProseMirrorWithReport,
@@ -178,28 +178,12 @@ export class EditorController implements RichEditorApi {
   public focusMedia(path: string, occurrence = 0): boolean {
     const editor = this.editor;
     if (!editor) return false;
-    let remaining = occurrence;
-    let target: { position: number; size: number; image: boolean } | null =
-      null;
-    editor.state.doc.descendants((node: ProseMirrorNode, position: number) => {
-      if (target) return false;
-      const image = node.type.name === 'image';
-      const matches = image
-        ? node.attrs.src === path
-        : node.isText &&
-          node.marks.some(
-            (mark) => mark.type.name === 'link' && mark.attrs.href === path,
-          );
-      if (matches && remaining-- === 0) {
-        target = { position, size: node.nodeSize, image };
-      }
-    });
+    const target = mediaOccurrences(editor.state.doc).find(
+      (item) => item.path === path && item.occurrence === occurrence,
+    );
     if (!target) return false;
-    const { position, size, image } = target as {
-      position: number;
-      size: number;
-      image: boolean;
-    };
+    const { from: position, to, image } = target;
+    const size = to - position;
     const chain = editor.chain().focus();
     return (
       image
@@ -306,6 +290,7 @@ export class EditorController implements RichEditorApi {
         active: states.filter(([, enabled]) => enabled).map(([name]) => name),
         heading: active('heading') ? heading.level : 0,
         image_width: image ? this.imageWidth() : null,
+        media: selectedMedia(editor.state),
       },
     });
   }

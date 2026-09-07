@@ -330,6 +330,42 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             name,
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, name, source_target),
+        EditorMsg::MediaSelected {
+            session,
+            mode,
+            media,
+        } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.session == session
+                && document.mode == mode
+            {
+                document.selected_media = media.and_then(|selected| {
+                    document
+                        .media
+                        .iter()
+                        .filter(|item| item.path == selected.path)
+                        .nth(selected.occurrence)
+                        .map(|item| item.range.clone())
+                });
+            }
+            Vec::new()
+        }
+        EditorMsg::SourceSelectionChanged { selection } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.mode == carver_config::EditorMode::Source
+            {
+                document.selected_media = document
+                    .media
+                    .iter()
+                    .find(|item| {
+                        item.range.start <= selection.start
+                            && selection.start < item.range.end
+                            && selection.end <= item.range.end
+                    })
+                    .map(|item| item.range.clone());
+            }
+            Vec::new()
+        }
         EditorMsg::PreviewMedia { selection } => model
             .editor
             .as_ref()
@@ -397,22 +433,25 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         }
         EditorMsg::FocusMedia { selection } => model
             .editor
-            .as_ref()
+            .as_mut()
             .and_then(|document| {
                 document
                     .media
                     .iter()
                     .find(|media| media.range == selection)
-                    .map(|media| Effect::FocusEditorMedia {
-                        session: document.session,
-                        selection: selection.clone(),
-                        path: media.path.clone(),
-                        occurrence: document
-                            .media
-                            .iter()
-                            .take_while(|item| item.range != selection)
-                            .filter(|item| item.path == media.path)
-                            .count(),
+                    .map(|media| {
+                        document.selected_media = Some(selection.clone());
+                        Effect::FocusEditorMedia {
+                            session: document.session,
+                            selection: selection.clone(),
+                            path: media.path.clone(),
+                            occurrence: document
+                                .media
+                                .iter()
+                                .take_while(|item| item.range != selection)
+                                .filter(|item| item.path == media.path)
+                                .count(),
+                        }
                     })
             })
             .into_iter()
