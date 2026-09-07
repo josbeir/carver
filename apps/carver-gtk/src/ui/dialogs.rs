@@ -79,7 +79,7 @@ const EDITOR_SHORTCUTS: &[Shortcut] = &[
     },
     Shortcut {
         title: "Toggle Media pane",
-        accelerator: "<Control><Shift>m",
+        accelerator: "F9",
     },
 ];
 

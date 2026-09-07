@@ -1845,10 +1845,10 @@ fn assert_media_sidebar_shortcut(
     config_path: &std::path::Path,
     media_split: &adw::OverlaySplitView,
 ) -> TestResult {
-    let modifiers = gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK;
+    let modifiers = gtk::gdk::ModifierType::empty();
     for expected_visible in [false, true] {
-        let handled =
-            shortcuts.emit_by_name::<bool>("key-pressed", &[&gtk::gdk::Key::m, &0_u32, &modifiers]);
+        let handled = shortcuts
+            .emit_by_name::<bool>("key-pressed", &[&gtk::gdk::Key::F9, &0_u32, &modifiers]);
         assert!(handled);
         assert_eq!(
             carver_config::load(config_path)?.editor.show_media_sidebar,
