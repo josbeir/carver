@@ -111,6 +111,7 @@ pub struct Revision(pub i64);
 
 /// The visual identity chosen for a category.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CategoryAppearance {
     /// Symbolic icon shown for the category.
     pub icon: CategoryIcon,
@@ -120,6 +121,7 @@ pub struct CategoryAppearance {
 
 /// A curated symbolic icon available for a category.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum CategoryIcon {
     /// A general-purpose folder.
     #[default]
@@ -146,6 +148,7 @@ pub enum CategoryIcon {
 
 /// A warm accent colour available for a category.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum CategoryColor {
     /// Select a stable colour from the category identity.
     #[default]

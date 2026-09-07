@@ -6,8 +6,8 @@ use std::{env, process::ExitCode};
 
 use carve::{CheckedRenderOptions, to_markdown_with_report};
 use carver_sdk::{
-    CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, DocumentImportFormat,
-    InstalledLibraryClient, NoteId, Revision, open_installed_library,
+    CategoryAppearance, CategoryId, DocumentImportFormat, InstalledLibraryClient, NoteId, Revision,
+    open_installed_library,
 };
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt,
@@ -103,7 +103,7 @@ struct SearchRequest {
 struct CreateCategoryRequest {
     name: String,
     /// Optional visual identity. Omitting it uses Carver's default appearance.
-    appearance: Option<CategoryAppearanceRequest>,
+    appearance: Option<CategoryAppearance>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -116,81 +116,7 @@ struct RenameCategoryRequest {
 struct UpdateCategoryRequest {
     category_id: String,
     name: String,
-    appearance: CategoryAppearanceRequest,
-}
-
-/// A category's icon and accent colour, using the values returned by `list_categories`.
-#[derive(Deserialize, JsonSchema)]
-struct CategoryAppearanceRequest {
-    icon: CategoryIconRequest,
-    color: CategoryColorRequest,
-}
-
-#[derive(Deserialize, JsonSchema)]
-enum CategoryIconRequest {
-    Folder,
-    Briefcase,
-    Calendar,
-    Book,
-    Heart,
-    Home,
-    People,
-    Star,
-    Tag,
-    Lightbulb,
-}
-
-#[derive(Deserialize, JsonSchema)]
-enum CategoryColorRequest {
-    Auto,
-    Rose,
-    Tangerine,
-    Yellow,
-    Olive,
-    Teal,
-    Blue,
-    Purple,
-}
-
-impl From<CategoryAppearanceRequest> for CategoryAppearance {
-    fn from(request: CategoryAppearanceRequest) -> Self {
-        Self {
-            icon: request.icon.into(),
-            color: request.color.into(),
-        }
-    }
-}
-
-impl From<CategoryIconRequest> for CategoryIcon {
-    fn from(icon: CategoryIconRequest) -> Self {
-        match icon {
-            CategoryIconRequest::Folder => Self::Folder,
-            CategoryIconRequest::Briefcase => Self::Briefcase,
-            CategoryIconRequest::Calendar => Self::Calendar,
-            CategoryIconRequest::Book => Self::Book,
-            CategoryIconRequest::Heart => Self::Heart,
-            CategoryIconRequest::Home => Self::Home,
-            CategoryIconRequest::People => Self::People,
-            CategoryIconRequest::Star => Self::Star,
-            CategoryIconRequest::Tag => Self::Tag,
-            CategoryIconRequest::Lightbulb => Self::Lightbulb,
-        }
-    }
-}
-
-impl From<CategoryColorRequest> for CategoryColor {
-    fn from(color: CategoryColorRequest) -> Self {
-        match color {
-            CategoryColorRequest::Auto => Self::Auto,
-            CategoryColorRequest::Rose => Self::Rose,
-            CategoryColorRequest::Tangerine => Self::Tangerine,
-            CategoryColorRequest::Yellow => Self::Yellow,
-            CategoryColorRequest::Olive => Self::Olive,
-            CategoryColorRequest::Teal => Self::Teal,
-            CategoryColorRequest::Blue => Self::Blue,
-            CategoryColorRequest::Purple => Self::Purple,
-        }
-    }
+    appearance: CategoryAppearance,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -342,7 +268,7 @@ impl CarverServer {
         match appearance {
             Some(appearance) => self
                 .client
-                .create_category_with_appearance_async(name, appearance.into())
+                .create_category_with_appearance_async(name, appearance)
                 .await
                 .map_err(storage_error)
                 .and_then(json),
@@ -380,7 +306,7 @@ impl CarverServer {
             .update_category_async(
                 parse_category(&request.category_id)?,
                 request.name,
-                request.appearance.into(),
+                request.appearance,
             )
             .await
             .map_err(storage_error)

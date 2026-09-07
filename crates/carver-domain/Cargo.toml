@@ -6,7 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+json-schema = ["dep:schemars"]
+
 [dependencies]
+schemars = { workspace = true, optional = true }
 carve-lang.workspace = true
 serde.workspace = true
 thiserror.workspace = true

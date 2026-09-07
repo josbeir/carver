@@ -136,6 +136,7 @@ name = "carver-domain"
 version = "0.1.1"
 dependencies = [
  "carve-lang",
+ "schemars",
  "serde",
  "thiserror",
  "time",

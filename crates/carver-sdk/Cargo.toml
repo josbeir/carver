@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+json-schema = ["carver-domain/json-schema"]
+
 [dependencies]
 carver-config = { path = "../carver-config", version = "0.1.1" }
 carver-domain = { path = "../carver-domain", version = "0.1.1" }

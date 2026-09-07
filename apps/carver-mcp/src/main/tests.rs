@@ -1,4 +1,5 @@
 use super::*;
+use carver_sdk::{CategoryColor, CategoryIcon};
 
 type TestResult = Result<(), String>;
 
@@ -238,9 +239,9 @@ async fn create_category_should_return_requested_appearance() -> TestResult {
     let created = server
         .create_category(Parameters(CreateCategoryRequest {
             name: "Ideas".to_owned(),
-            appearance: Some(CategoryAppearanceRequest {
-                icon: CategoryIconRequest::Lightbulb,
-                color: CategoryColorRequest::Yellow,
+            appearance: Some(CategoryAppearance {
+                icon: CategoryIcon::Lightbulb,
+                color: CategoryColor::Yellow,
             }),
         }))
         .await
@@ -271,9 +272,9 @@ async fn update_category_should_return_requested_appearance() -> TestResult {
         .update_category(Parameters(UpdateCategoryRequest {
             category_id,
             name: "Personal ideas".to_owned(),
-            appearance: CategoryAppearanceRequest {
-                icon: CategoryIconRequest::Heart,
-                color: CategoryColorRequest::Rose,
+            appearance: CategoryAppearance {
+                icon: CategoryIcon::Heart,
+                color: CategoryColor::Rose,
             },
         }))
         .await
@@ -410,5 +411,44 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
     assert_eq!(print_setup(&["vscode".to_owned()]), ExitCode::SUCCESS);
     assert_eq!(print_setup(&["generic".to_owned()]), ExitCode::SUCCESS);
     assert_eq!(print_setup(&["unknown".to_owned()]), ExitCode::FAILURE);
+    Ok(())
+}
+
+#[test]
+fn category_request_should_preserve_appearance_wire_format() -> TestResult {
+    let request: CreateCategoryRequest = serde_json::from_value(serde_json::json!({
+        "name": "Ideas",
+        "appearance": { "icon": "Lightbulb", "color": "Yellow" }
+    }))
+    .map_err(|error| error.to_string())?;
+    assert_eq!(
+        request.appearance,
+        Some(CategoryAppearance {
+            icon: CategoryIcon::Lightbulb,
+            color: CategoryColor::Yellow,
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn category_request_schema_should_expose_shared_appearance_choices() -> TestResult {
+    let schema = serde_json::to_value(schemars::schema_for!(CreateCategoryRequest))
+        .map_err(|error| error.to_string())?;
+    let definitions = &schema["$defs"];
+    assert_eq!(
+        definitions["CategoryAppearance"]["properties"]["icon"]["$ref"],
+        "#/$defs/CategoryIcon"
+    );
+    assert_eq!(
+        definitions["CategoryAppearance"]["properties"]["color"]["$ref"],
+        "#/$defs/CategoryColor"
+    );
+    for (name, expected) in [("CategoryIcon", "Lightbulb"), ("CategoryColor", "Yellow")] {
+        let variants = definitions[name]["oneOf"]
+            .as_array()
+            .ok_or_else(|| format!("{name} schema did not expose variants"))?;
+        assert!(variants.iter().any(|variant| variant["const"] == expected));
+    }
     Ok(())
 }
