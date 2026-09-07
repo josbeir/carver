@@ -14,6 +14,15 @@ enum PreviewCopyError {
     Io(#[from] std::io::Error),
 }
 
+enum PreparedPreview {
+    Cached(PathBuf),
+    New {
+        asset_path: String,
+        directory: tempfile::TempDir,
+        preview_path: PathBuf,
+    },
+}
+
 impl<B: LibraryBackend> AppRuntime<B> {
     pub(super) fn prepare_media_preview(
         &self,
@@ -25,13 +34,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = match client.note_asset_bytes_async(note_id, path.clone()).await {
-                Ok(Some(bytes)) => gio::spawn_blocking(move || prepare_copy(&bytes, &path, &label))
-                    .await
-                    .map_err(|_| UiError::new("Could not prepare the file preview."))
-                    .and_then(|result| result.map_err(display_error)),
-                Ok(None) => Err(UiError::new("This file is no longer available.")),
-                Err(error) => Err(display_error(error)),
+            let cached = cached_preview_path(&runtime.inner.preview_copies, &path);
+            let result = if let Some(cached) = cached {
+                Ok(PreparedPreview::Cached(cached))
+            } else {
+                let asset_path = path.clone();
+                let copy_path = asset_path.clone();
+                match client.note_asset_bytes_async(note_id, path).await {
+                    Ok(Some(bytes)) => {
+                        gio::spawn_blocking(move || prepare_copy(&bytes, &copy_path, &label))
+                            .await
+                            .map_err(|_| UiError::new("Could not prepare the file preview."))
+                            .and_then(|result| result.map_err(display_error))
+                            .map(|(directory, preview_path)| PreparedPreview::New {
+                                asset_path,
+                                directory,
+                                preview_path,
+                            })
+                    }
+                    Ok(None) => Err(UiError::new("This file is no longer available.")),
+                    Err(error) => Err(display_error(error)),
+                }
             };
             if runtime
                 .model()
@@ -41,15 +64,46 @@ impl<B: LibraryBackend> AppRuntime<B> {
             {
                 return;
             }
-            let result = result.map(|(directory, path)| {
-                runtime.inner.preview_copies.borrow_mut().push(directory);
-                path
+            let result = result.map(|preview| match preview {
+                PreparedPreview::Cached(path) => path,
+                PreparedPreview::New {
+                    asset_path,
+                    directory,
+                    preview_path,
+                } => retain_preview_copy(
+                    &runtime.inner.preview_copies,
+                    asset_path,
+                    directory,
+                    preview_path,
+                ),
             });
             runtime.dispatch(AppMsg::Editor(
                 super::super::EditorMsg::MediaPreviewPrepared { session, result },
             ));
         });
     }
+}
+
+fn cached_preview_path(
+    copies: &std::cell::RefCell<std::collections::BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
+    path: &str,
+) -> Option<PathBuf> {
+    copies
+        .borrow()
+        .get(path)
+        .map(|(_, preview_path)| preview_path.clone())
+}
+
+fn retain_preview_copy(
+    copies: &std::cell::RefCell<std::collections::BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
+    asset_path: String,
+    directory: tempfile::TempDir,
+    preview_path: PathBuf,
+) -> PathBuf {
+    copies
+        .borrow_mut()
+        .insert(asset_path, (directory, preview_path.clone()));
+    preview_path
 }
 
 fn prepare_copy(

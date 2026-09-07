@@ -20,6 +20,19 @@ fn preview_copy_should_keep_original_bytes_and_use_a_safe_filename()
 }
 
 #[test]
+fn preview_copies_should_reuse_one_copy_per_managed_asset() -> Result<(), Box<dyn std::error::Error>>
+{
+    let copies = std::cell::RefCell::new(std::collections::BTreeMap::new());
+    let (directory, path) = prepare_copy(b"first", "assets/hash.pdf", "Brief")?;
+    let retained = retain_preview_copy(&copies, "assets/hash.pdf".into(), directory, path.clone());
+
+    assert_eq!(retained, path);
+    assert_eq!(cached_preview_path(&copies, "assets/hash.pdf"), Some(path));
+    assert_eq!(copies.borrow().len(), 1);
+    Ok(())
+}
+
+#[test]
 fn preview_filename_should_preserve_an_existing_extension() {
     assert_eq!(
         preview_filename("assets/hash.pdf", "Project brief.pdf"),

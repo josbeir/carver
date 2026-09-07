@@ -71,7 +71,7 @@ struct RuntimeInner<B: LibraryBackend> {
     config_path: Option<PathBuf>,
     model: RefCell<AppModel>,
     view: ViewRefs,
-    preview_copies: RefCell<Vec<tempfile::TempDir>>,
+    preview_copies: RefCell<BTreeMap<String, (tempfile::TempDir, PathBuf)>>,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
     library_monitor: RefCell<Option<FileMonitor>>,
 }
@@ -110,7 +110,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 config_path,
                 model: RefCell::new(model),
                 view,
-                preview_copies: RefCell::new(Vec::new()),
+                preview_copies: RefCell::new(BTreeMap::new()),
                 prepared_exports: RefCell::new(BTreeMap::new()),
                 library_monitor: RefCell::new(None),
             }),
