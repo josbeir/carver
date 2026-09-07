@@ -1,4 +1,4 @@
-/* src/document.css */
+/* src/styles/document.css */
 :root {
   color-scheme: dark;
   --document-background: #1d1d20;
@@ -100,7 +100,7 @@ body[data-preview] > img {
 }
 :where(.ProseMirror, body[data-preview]) ul li,
 :where(.ProseMirror, body[data-preview]) ol li {
-  margin-block: .25rem;
+  margin-block: 0.25rem;
 }
 :where(.ProseMirror, body[data-preview]) li > p {
   margin: 0;
@@ -136,12 +136,12 @@ body[data-preview] ul:has(> li > input[type=checkbox]) {
 body[data-preview] ul.task-list li {
   display: flex;
   align-items: flex-start;
-  margin-block: .4rem;
+  margin-block: 0.4rem;
 }
 :where(.ProseMirror, body[data-preview]) ul[data-type=taskList] li > label,
 body[data-preview] ul.task-list li > label {
   flex: 0 0 auto;
-  margin: .3rem .55rem 0 0;
+  margin: 0.3rem 0.55rem 0 0;
   user-select: none;
 }
 :where(.ProseMirror, body[data-preview]) ul[data-type=taskList] input[type=checkbox],
@@ -161,25 +161,25 @@ body[data-preview] ul.task-list li > div > p {
   margin: 0;
 }
 :where(.ProseMirror, body[data-preview]) ul[data-type=taskList] li > div > ul[data-type=taskList] {
-  margin: .4rem 0 0;
+  margin: 0.4rem 0 0;
   padding-inline-start: 1.5rem;
 }
 body[data-preview] ul:has(> li > input[type=checkbox]) li {
-  margin-block: .5rem;
+  margin-block: 0.5rem;
 }
 body[data-preview] ul:has(> li > input[type=checkbox]) input[type=checkbox] {
   accent-color: var(--preview-accent-color, var(--accent-color));
   inline-size: 1rem;
   block-size: 1rem;
-  margin: 0 .55rem 0 0;
-  vertical-align: -.1em;
+  margin: 0 0.55rem 0 0;
+  vertical-align: -0.1em;
 }
 body[data-preview] ul:has(> li > input[type=checkbox]) input[type=checkbox]:disabled {
   opacity: 1;
   filter: none;
 }
 body[data-preview] li > ul:has(> li > input[type=checkbox]) {
-  margin: .4rem 0 0;
+  margin: 0.4rem 0 0;
   padding-inline-start: 3rem;
 }
 :where(.ProseMirror, body[data-preview]) a {
@@ -251,4 +251,4 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
   }
 }
 
-/* src/preview.css */
+/* src/styles/preview.css */

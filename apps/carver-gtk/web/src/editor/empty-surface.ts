@@ -2,7 +2,11 @@
 // an empty document, extend that interaction to the whole editor surface.
 export function focusEmptyEditorSurface(event, editor, root) {
   const surface = editor?.view?.dom;
-  if (!editor?.isEmpty || !surface || (event.target !== root && event.target !== surface)) {
+  if (
+    !editor?.isEmpty ||
+    !surface ||
+    (event.target !== root && event.target !== surface)
+  ) {
     return false;
   }
 

@@ -37,9 +37,9 @@ jobs:
           libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev weston
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Build the bundled editor
+      - name: Check the bundled TypeScript editor
         working-directory: apps/carver-gtk/web
-        run: npm ci && npm test && npm run build
+        run: npm ci && npm run check
       - name: Lint
         run: >-
           cargo clippy --workspace --all-targets --all-features --locked --
@@ -60,7 +60,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: coverage/lcov.info
+          files: coverage/lcov.info,apps/carver-gtk/web/coverage/lcov.info
           disable_search: true
           fail_ci_if_error: true
           use_oidc: true
