@@ -16,14 +16,14 @@ use libadwaita::prelude::{
 };
 use webkit6::prelude::*;
 
-use crate::{
+use super::{
     dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
-    mvu::{
-        AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
-        EditorExportFormat, EditorExportWarningRequest, EditorMsg, EditorPdfExportRequest,
-        EditorSessionId, PreferencesMsg,
-    },
     sidebar::sidebar_toggle_button,
+};
+use crate::mvu::{
+    AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
+    EditorExportFormat, EditorExportWarningRequest, EditorMsg, EditorPdfExportRequest,
+    EditorSessionId, PreferencesMsg,
 };
 
 mod clipboard;

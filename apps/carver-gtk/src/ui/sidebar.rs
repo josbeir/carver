@@ -6,9 +6,9 @@ use carver_sdk::{Category, CategoryAppearance, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    dialogs::{category_color_css_class, category_icon_name, show_category_dialog},
-    mvu::{ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, LoadState, NavigationMsg},
+use super::dialogs::{category_color_css_class, category_icon_name, show_category_dialog};
+use crate::mvu::{
+    ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, LoadState, NavigationMsg,
 };
 
 /// Responsive category sidebar and its snapshot renderer.
@@ -86,7 +86,7 @@ fn settings_menu_button() -> gtk::MenuButton {
     menu.append(Some("Preferences"), Some("win.preferences"));
     menu.append(
         Some("Keyboard Shortcuts"),
-        Some(crate::dialogs::KEYBOARD_SHORTCUTS_ACTION),
+        Some(super::dialogs::KEYBOARD_SHORTCUTS_ACTION),
     );
     menu.append(Some("About Carver"), Some("win.about"));
     let settings = gtk::MenuButton::new();

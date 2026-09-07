@@ -12,10 +12,8 @@ use carver_editor_protocol::{EditorCommand, SelectionState};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    formatting,
-    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand},
-};
+use super::super::formatting;
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand};
 
 use super::{RichEditor, focus::EditorFocusRestorer, source_commands};
 

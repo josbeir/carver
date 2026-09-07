@@ -8,15 +8,17 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Duration, Month, OffsetDateTime, UtcOffset};
 
-use crate::{
+use super::{
     dialogs::{
         IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
         show_category_dialog, show_category_trash_confirmation,
     },
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
-    mvu::{ActionMsg, AppDispatcher, AppMsg, BrowserMsg, EditorMsg, LoadState, NavigationMsg},
     sidebar::sidebar_toggle_button,
     trash::{TrashViewRefs, build_trash},
+};
+use crate::mvu::{
+    ActionMsg, AppDispatcher, AppMsg, BrowserMsg, EditorMsg, LoadState, NavigationMsg,
 };
 
 const MOUSE_BACK_BUTTON: u32 = 8;

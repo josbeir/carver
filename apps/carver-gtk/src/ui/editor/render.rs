@@ -4,10 +4,8 @@ use super::source_commands;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    formatting,
-    mvu::{AppDispatcher, AppMsg, EditorMsg},
-};
+use super::super::formatting;
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 
 /// Installs Ctrl+V image paste support for the Carve source editor.
 ///

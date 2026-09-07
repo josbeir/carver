@@ -9,11 +9,11 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::{
-    browser::build_content,
-    dialogs::install_window_actions,
-    editor::install_syntax_assets,
     mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
-    sidebar::build_sidebar,
+    ui::{
+        browser::build_content, dialogs::install_window_actions, editor::install_syntax_assets,
+        sidebar::build_sidebar,
+    },
     view::ViewRefs,
 };
 
@@ -83,7 +83,7 @@ pub(crate) fn load_styles() {
         }
     }
     let provider = gtk::CssProvider::new();
-    provider.load_from_string(include_str!("style.css"));
+    provider.load_from_string(include_str!("ui/style.css"));
     if let Some(display) = gtk::gdk::Display::default() {
         gtk::style_context_add_provider_for_display(
             &display,
@@ -114,7 +114,7 @@ fn build_window(
     source_syntax_dir: &Path,
     config_path: Option<&Path>,
     database_path: Option<&Path>,
-) -> Result<adw::ApplicationWindow, crate::editor::SourceSyntaxError> {
+) -> Result<adw::ApplicationWindow, crate::ui::editor::SourceSyntaxError> {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
@@ -190,7 +190,7 @@ pub(crate) fn build_window_for_test(
     client: AppLibraryClient,
     config: &Config,
     config_path: &Path,
-) -> Result<adw::ApplicationWindow, crate::editor::SourceSyntaxError> {
+) -> Result<adw::ApplicationWindow, crate::ui::editor::SourceSyntaxError> {
     load_styles();
     let data_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
     let source_syntax_dir = install_syntax_assets(data_dir)?;
