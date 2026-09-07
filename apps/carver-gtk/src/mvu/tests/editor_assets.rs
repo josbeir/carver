@@ -756,6 +756,37 @@ fn imported_files_should_replace_source_selection_once_in_selection_order() {
 }
 
 #[test]
+fn imported_attachment_label_should_escape_backslashes() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::new(),
+        }),
+    );
+    let target = crate::mvu::ImportTarget {
+        session: open_media_document(&model).session,
+        source: None,
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ImportFilesStored {
+            target,
+            result: Ok(vec![crate::mvu::StoredMedia {
+                path: "assets/report.bin".into(),
+                label: "report\\".into(),
+                image: false,
+            }]),
+        }),
+    );
+    let document = open_media_document(&model);
+    assert_eq!(document.source, "[report\\\\](assets/report.bin)\n");
+    assert_eq!(document.media.len(), 1);
+}
+
+#[test]
 fn pasted_image_should_keep_image_markup_when_deduplication_returns_an_attachment_path() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(

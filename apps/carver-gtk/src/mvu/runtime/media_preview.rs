@@ -71,9 +71,9 @@ fn prepare_copy(
 }
 
 fn preview_filename(path: &str, label: &str) -> String {
+    const MAX_FILENAME_BYTES: usize = 255;
     let name: String = label
         .chars()
-        .take(100)
         .map(|character| {
             if character.is_alphanumeric() || matches!(character, ' ' | '-' | '_' | '.') {
                 character
@@ -82,17 +82,37 @@ fn preview_filename(path: &str, label: &str) -> String {
             }
         })
         .collect();
-    let mut name = name.trim_matches([' ', '.']).to_owned();
-    if name.is_empty() {
-        name = String::from("Attachment");
+    let name = name.trim_matches([' ', '.']);
+    let suffix = Path::new(path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|extension| format!(".{extension}"));
+    let stem = suffix
+        .as_deref()
+        .and_then(|suffix| name.strip_suffix(suffix))
+        .unwrap_or(name)
+        .trim_matches([' ', '.']);
+    let suffix_bytes = suffix.as_ref().map_or(0, String::len);
+    let mut filename = truncate_utf8(stem, MAX_FILENAME_BYTES.saturating_sub(suffix_bytes));
+    if filename.is_empty() {
+        filename = String::from("Attachment");
     }
-    if let Some(extension) = Path::new(path).extension().and_then(|value| value.to_str())
-        && !name.ends_with(&format!(".{extension}"))
-    {
-        name.push('.');
-        name.push_str(extension);
-    }
-    name
+    filename.push_str(suffix.as_deref().unwrap_or_default());
+    filename
+}
+
+/// Truncates on a UTF-8 boundary so preview filenames fit one filesystem component.
+fn truncate_utf8(value: &str, max_bytes: usize) -> String {
+    value
+        .chars()
+        .scan(0, |bytes, character| {
+            let character_bytes = character.len_utf8();
+            (*bytes + character_bytes <= max_bytes).then(|| {
+                *bytes += character_bytes;
+                character
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

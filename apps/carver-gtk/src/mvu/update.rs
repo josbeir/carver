@@ -1443,7 +1443,7 @@ fn attachment_source(
     path: &str,
     source_target: Option<super::SourceImageTarget>,
 ) -> String {
-    let label = name.replace(['[', ']', '\n', '\r'], "");
+    let label = carve_link_label(name);
     let markup = format!("[{label}]({path})");
     let Some(target) = source_target.filter(|target| target.source == source) else {
         return append_image_source(source, &markup);
@@ -1453,6 +1453,18 @@ fn attachment_source(
     let mut inserted = source.to_owned();
     inserted.replace_range(start..end, &markup);
     inserted
+}
+
+/// Produces link text that remains literal inside canonical Carve markup.
+fn carve_link_label(label: &str) -> String {
+    label.chars().fold(String::new(), |mut escaped, character| {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '[' | ']' | '\n' | '\r' => {}
+            _ => escaped.push(character),
+        }
+        escaped
+    })
 }
 
 fn character_byte_offset(source: &str, offset: usize) -> usize {
@@ -1808,7 +1820,7 @@ fn complete_file_import(
     let markup = files
         .iter()
         .map(|file| {
-            let label = file.label.replace(['[', ']', '\n', '\r'], "");
+            let label = carve_link_label(&file.label);
             format!(
                 "{}[{label}]({})",
                 if file.image { "!" } else { "" },
