@@ -480,3 +480,68 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
             .is_some_and(|document| document.media_files.is_empty())
     );
 }
+
+#[test]
+fn preview_should_request_only_an_authored_managed_attachment() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("[Brief](assets/brief.pdf)"),
+        }),
+    );
+    let Some(document) = model.editor.as_ref() else {
+        panic!("document");
+    };
+    let selection = document.media[0].range.clone();
+    let session = document.session;
+    let before = document.clone();
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PreviewMedia { selection })
+        ),
+        vec![Effect::PrepareMediaPreview {
+            session,
+            note_id,
+            path: String::from("assets/brief.pdf"),
+            label: String::from("Brief")
+        }]
+    );
+    assert_eq!(model.editor.as_ref(), Some(&before));
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PreviewMedia {
+                selection: 100..200
+            })
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn prepared_preview_should_be_ignored_after_switching_documents() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Another note"),
+        }),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::MediaPreviewPrepared {
+                session: EditorSessionId(999),
+                result: Ok(std::path::PathBuf::from("/tmp/preview.pdf")),
+            })
+        )
+        .is_empty()
+    );
+}

@@ -330,6 +330,51 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             name,
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, name, source_target),
+        EditorMsg::PreviewMedia { selection } => model
+            .editor
+            .as_ref()
+            .and_then(|document| {
+                document
+                    .media
+                    .iter()
+                    .find(|media| media.range == selection && media.path.starts_with("assets/"))
+                    .map(|media| Effect::PrepareMediaPreview {
+                        session: document.session,
+                        note_id: document.note_id,
+                        path: media.path.clone(),
+                        label: media.label.clone(),
+                    })
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::MediaPreviewPrepared { session, result } => {
+            if model
+                .editor
+                .as_ref()
+                .is_none_or(|document| document.session != session)
+            {
+                return Vec::new();
+            }
+            match result {
+                Ok(path) => vec![Effect::ShowMediaPreview { session, path }],
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
+        EditorMsg::MediaPreviewFailed { session } => {
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session)
+            {
+                model.notice = Some(UiError::new(
+                    "Could not open this file. Install an application that can view it.",
+                ));
+            }
+            Vec::new()
+        }
         EditorMsg::MediaFileLoaded {
             session,
             path,

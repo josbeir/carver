@@ -29,6 +29,9 @@ use crate::mvu::{
 mod clipboard;
 mod find;
 pub(crate) mod focus;
+mod media_preview;
+#[cfg(test)]
+pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
 mod preview;
 mod render;
 mod source;
@@ -318,6 +321,15 @@ impl EditorViewRefs {
         } else {
             focus_preview_media(&self.rendered_preview, path, occurrence);
         }
+    }
+
+    /// Launches a prepared file copy after the reducer admits the preview.
+    pub(crate) fn preview_media(&self, session: EditorSessionId, path: &Path) {
+        if self.loaded_session.borrow().as_ref() != Some(&session) {
+            return;
+        }
+        let parent = self.media_list.root().and_downcast::<gtk::Window>();
+        media_preview::launch(path, parent.as_ref(), session, &self.dispatcher);
     }
 
     /// Executes a clipboard effect after the reducer has admitted its immutable request.
@@ -828,7 +840,25 @@ fn render_media_list(
         button.set_widget_name("editor-media-item");
         button.add_css_class("flat");
         button.set_child(Some(&content));
-        row.set_child(Some(&button));
+        button.set_hexpand(true);
+        let preview = gtk::Button::from_icon_name("view-reveal-symbolic");
+        preview.set_widget_name("editor-media-preview");
+        preview.add_css_class("flat");
+        preview.set_valign(gtk::Align::Center);
+        preview.set_tooltip_text(Some("Preview file"));
+        preview.update_property(&[gtk::accessible::Property::Label("Preview file")]);
+        preview.set_sensitive(item.path.starts_with("assets/"));
+        let preview_dispatcher = dispatcher.clone();
+        let preview_selection = item.range.clone();
+        preview.connect_clicked(move |_| {
+            let _ = preview_dispatcher.dispatch(AppMsg::Editor(EditorMsg::PreviewMedia {
+                selection: preview_selection.clone(),
+            }));
+        });
+        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        actions.append(&button);
+        actions.append(&preview);
+        row.set_child(Some(&actions));
         let dispatcher = dispatcher.clone();
         let selection = item.range.clone();
         button.connect_clicked(move |_| {

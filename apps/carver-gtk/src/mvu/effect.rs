@@ -13,6 +13,25 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Read and stage one managed attachment for external preview.
+    PrepareMediaPreview {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Note that owns the asset.
+        note_id: NoteId,
+        /// Canonical managed asset path.
+        path: String,
+        /// Friendly title for the preview copy.
+        label: String,
+    },
+    /// Open the prepared copy through Sushi or the desktop file launcher.
+    ShowMediaPreview {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Path of the isolated copy.
+        path: std::path::PathBuf,
+    },
+
     /// Apply an editor command through the selected rich-text projection.
     ApplyRichEditorCommand {
         /// Immutable protocol command accepted by the reducer.

@@ -146,6 +146,24 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// Preview an attachment referenced by the active document.
+    PreviewMedia {
+        /// Authored occurrence selected by the user.
+        selection: Range<usize>,
+    },
+    /// The runtime prepared an isolated copy for an external viewer.
+    MediaPreviewPrepared {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Prepared local path or a user-visible error.
+        result: Result<std::path::PathBuf, UiError>,
+    },
+    /// Both the previewer and default application failed to open the copy.
+    MediaPreviewFailed {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+    },
+
     /// Asset bytes resolved by the runtime for sidebar presentation.
     MediaFileLoaded {
         /// Owning editor lifetime.

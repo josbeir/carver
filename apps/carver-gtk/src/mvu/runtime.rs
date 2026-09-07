@@ -22,6 +22,8 @@ use super::{
     TrashMutation, UiError, update,
 };
 
+mod media_preview;
+
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 
 const BROWSER_LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
@@ -68,6 +70,7 @@ struct RuntimeInner<B: LibraryBackend> {
     config_path: Option<PathBuf>,
     model: RefCell<AppModel>,
     view: ViewRefs,
+    preview_copies: RefCell<Vec<tempfile::TempDir>>,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
     library_monitor: RefCell<Option<FileMonitor>>,
 }
@@ -106,6 +109,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 config_path,
                 model: RefCell::new(model),
                 view,
+                preview_copies: RefCell::new(Vec::new()),
                 prepared_exports: RefCell::new(BTreeMap::new()),
                 library_monitor: RefCell::new(None),
             }),
@@ -185,12 +189,15 @@ impl<B: LibraryBackend> AppRuntime<B> {
         self.inner.view.is_rendering()
     }
 
+    // CONTEXT: Keep the exhaustive typed effect routing visible in one dispatch table.
+    #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::SelectEditorSource { .. }
             | Effect::FocusEditorMedia { .. }
+            | Effect::ShowMediaPreview { .. }
             | Effect::CopyEditorDocument { .. }
             | Effect::ShowEditorExportDialog { .. }
             | Effect::ShowEditorExportWarning { .. }
@@ -204,6 +211,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 path,
                 image,
             } => self.load_media_file(session, note_id, path, image),
+            Effect::PrepareMediaPreview {
+                session,
+                note_id,
+                path,
+                label,
+            } => self.prepare_media_preview(session, note_id, path, label),
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::CreateNote { category_id } => self.create_note(category_id),
@@ -257,9 +270,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 action,
                 name,
                 note_id,
-            } => {
-                self.create_category_and_move_note(action, name, note_id);
-            }
+            } => self.create_category_and_move_note(action, name, note_id),
             Effect::RenameCategory { category_id, name } => {
                 self.rename_category(category_id, name);
             }
@@ -273,9 +284,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 action,
                 note_id,
                 category_id,
-            } => {
-                self.move_note(action, note_id, category_id);
-            }
+            } => self.move_note(action, note_id, category_id),
             Effect::TrashNote { note_id } => self.trash_note(note_id),
             Effect::SetNoteFavorite {
                 action,

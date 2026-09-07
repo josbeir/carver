@@ -58,3 +58,16 @@ The script requires the Cargo and Node generators from
 [`flatpak-builder-tools`](https://github.com/flatpak/flatpak-builder-tools).
 They are intentionally development-only tools; Flatpak CI consumes the
 generated manifests and never downloads dependencies while compiling.
+
+
+## Media previews
+
+The Media sidebar uses the optional host GNOME Sushi service
+(`org.gnome.NautilusPreviewer`) for previews. The manifest permits communication
+with that service; Sushi is not bundled or required. When Sushi is unavailable or
+rejects the request, GTK's file launcher opens the default application.
+
+Carver previews an isolated, read-only temporary copy rather than the managed
+asset. In a sandbox, the copy is exported through the document portal before
+calling Sushi. Copies remain available for the lifetime of the Carver window and
+are removed when that window's runtime is released.

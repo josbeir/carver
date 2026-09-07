@@ -23,6 +23,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     glib::set_application_name("Carver test");
     gtk::init()?;
     assert_sidebar_reload_preserves_rows()?;
+    crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     assert_media_visibility_should_restore_without_reentrant_toggles()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
@@ -1771,6 +1772,20 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     assert!(!toggle.is_active());
     toggle.set_active(true);
     assert!(carver_config::load(&config_path)?.editor.show_media_sidebar);
+    assert_missing_media_preview_should_report_error(&surface, &runtime)?;
     window.close();
+    Ok(())
+}
+
+fn assert_missing_media_preview_should_report_error(
+    surface: &gtk::Widget,
+    runtime: &crate::mvu::AppRuntime<carver_storage_sqlite::SqliteLibrary>,
+) -> TestResult {
+    let before = runtime.model().editor.ok_or("document")?.source;
+    let button =
+        widget_as::<gtk::Button>(surface, "editor-media-preview").ok_or("preview action")?;
+    button.emit_clicked();
+    assert!(run_main_context_until(|| runtime.model().notice.is_some()));
+    assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
     Ok(())
 }
