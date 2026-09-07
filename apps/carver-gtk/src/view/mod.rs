@@ -10,11 +10,11 @@ use libadwaita as adw;
 use time::{Date, OffsetDateTime};
 
 use crate::{
-    dialogs::show_move_note_dialog,
     mvu::{
         ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserModel, EditorSaveState, Effect,
         LoadState, MoveUndo, Route,
     },
+    ui::dialogs::show_move_note_dialog,
 };
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
@@ -81,7 +81,7 @@ pub struct ViewRefs {
     last_browser_snapshot: RefCell<Option<BrowserProjectionSnapshot>>,
     last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
-    editor: Option<crate::editor::EditorViewRefs>,
+    editor: Option<crate::ui::editor::EditorViewRefs>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
 }
@@ -159,7 +159,7 @@ impl ViewRefs {
 
     /// Adds the browser widgets created by the window composition.
     #[must_use]
-    pub(crate) fn with_browser(mut self, browser: crate::browser::BrowserViewRefs) -> Self {
+    pub(crate) fn with_browser(mut self, browser: crate::ui::browser::BrowserViewRefs) -> Self {
         self.browser_list = Some(browser.list);
         self.browser_favorites_section = Some(browser.favorites_section);
         self.browser_favorites = Some(browser.favorites);
@@ -184,7 +184,7 @@ impl ViewRefs {
 
     /// Adds the editor projections created by the composition shell.
     #[must_use]
-    pub(crate) fn with_editor(mut self, editor: crate::editor::EditorViewRefs) -> Self {
+    pub(crate) fn with_editor(mut self, editor: crate::ui::editor::EditorViewRefs) -> Self {
         self.editor = Some(editor);
         self
     }
@@ -273,7 +273,7 @@ impl ViewRefs {
             return;
         };
         if let Some(hero) = &self.browser_category_hero {
-            crate::browser::render_category_hero(
+            crate::ui::browser::render_category_hero(
                 hero,
                 &model.sidebar.state,
                 model.selected_category,
@@ -360,7 +360,7 @@ impl ViewRefs {
     }
 
     fn browser_projection_changed(&self, model: &AppModel) -> bool {
-        let today = crate::browser::local_day(OffsetDateTime::now_utc());
+        let today = crate::ui::browser::local_day(OffsetDateTime::now_utc());
         if self
             .last_browser_snapshot
             .borrow()
@@ -608,7 +608,7 @@ fn render_browser_notes(
     let mut previous_group = None;
     for note in notes {
         if show_date_groups {
-            let group = crate::browser::note_date_group(note.updated_at, now);
+            let group = crate::ui::browser::note_date_group(note.updated_at, now);
             if previous_group != Some(group) {
                 append_note_date_group_heading(list, group);
                 previous_group = Some(group);
@@ -714,7 +714,7 @@ fn browser_row(
     let category_color = show_category
         .then(|| note_category_color(note, sidebar))
         .flatten();
-    content.append(&crate::browser::note_card_details(
+    content.append(&crate::ui::browser::note_card_details(
         note,
         show_category,
         category_color,
@@ -859,7 +859,7 @@ fn append_section_heading_widget(list: &gtk::ListBox, child: &impl IsA<gtk::Widg
     list.append(&row);
 }
 
-fn append_note_date_group_heading(list: &gtk::ListBox, group: crate::browser::NoteDateGroup) {
+fn append_note_date_group_heading(list: &gtk::ListBox, group: crate::ui::browser::NoteDateGroup) {
     let row = gtk::ListBoxRow::new();
     row.set_widget_name(&format!("note-group:{}", group.identifier()));
     row.set_selectable(false);
@@ -924,7 +924,7 @@ fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> gtk::ListBoxRow {
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
     title.set_single_line_mode(true);
     details.append(&title);
-    let excerpt_text = crate::browser::compact_note_excerpt(&note.title, &note.excerpt);
+    let excerpt_text = crate::ui::browser::compact_note_excerpt(&note.title, &note.excerpt);
     if !excerpt_text.is_empty() {
         let excerpt = gtk::Label::new(Some(&excerpt_text));
         excerpt.set_widget_name(&format!("trashed-note-excerpt:{}", note.id));

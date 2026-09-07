@@ -34,7 +34,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     );
 
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
-    assert!(crate::tests::support::run_main_context_until(|| {
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().sidebar.state, LoadState::Ready(_))
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
@@ -44,7 +44,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
         format: DocumentImportFormat::Markdown,
         source: String::from("# Imported\n\n- [x] Converted"),
     }));
-    assert!(crate::tests::support::run_main_context_until(|| {
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
         runtime.model().editor.as_ref().is_some_and(|document| {
             document.source.contains("# Imported") && document.source.contains("- [x] Converted")
         })
@@ -54,12 +54,12 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
         "needle".to_owned(),
     )));
-    assert!(crate::tests::support::run_main_context_until(|| {
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
     }));
 
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::ShowTrash));
-    assert!(crate::tests::support::run_main_context_until(|| {
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().trash.state, LoadState::Ready(_))
     }));
 
@@ -105,8 +105,8 @@ fn browser_view_refs(
     list: gtk::ListBox,
     pages: gtk::Stack,
     status: libadwaita::StatusPage,
-) -> crate::browser::BrowserViewRefs {
-    crate::browser::BrowserViewRefs {
+) -> crate::ui::browser::BrowserViewRefs {
+    crate::ui::browser::BrowserViewRefs {
         favorites_section: gtk::Box::new(gtk::Orientation::Vertical, 0),
         favorites: gtk::ListBox::new(),
         list,
@@ -150,7 +150,7 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
     runtime.bind_dispatcher(&dispatcher);
     runtime.monitor_library(&paths.database_file(), dispatcher)?;
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
-    if !crate::tests::support::run_main_context_until(|| {
+    if !crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().sidebar.state, LoadState::Ready(_))
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
             && runtime.model().library_revision.is_some()
@@ -162,7 +162,7 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
     let category = agent_client.create_category("From agent")?;
     let note = agent_client.create_note_with_source(category.id, "# Created by agent")?;
 
-    if crate::tests::support::run_main_context_until(|| {
+    if crate::ui::tests::support::run_main_context_until(|| {
         let model = runtime.model();
         matches!(
             model.sidebar.state,
@@ -202,7 +202,7 @@ fn runtime_should_write_the_current_carve_snapshot<B: LibraryBackend>(
         include_assets: false,
         target_uri: export_target,
     }));
-    assert!(crate::tests::support::run_main_context_until(|| {
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
         std::fs::read_to_string(&export_path)
             .is_ok_and(|source| source == "# Exported draft\n\nUnsaved body")
     }));

@@ -12,11 +12,11 @@ use carver_sdk::{
 use gtk::prelude::*;
 use libadwaita as adw;
 
+use super::editor::{normalize_source_font_description, system_monospace_font_description};
 use crate::mvu::{
     ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, NavigationMsg, PreferencesMsg, Route,
     TrashMsg,
 };
-use crate::{editor::normalize_source_font_description, editor::system_monospace_font_description};
 use carver_storage_sqlite::SqliteLibrary;
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";

@@ -6,10 +6,8 @@ use adw::prelude::*;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::{
-    editor::{focus::EditorFocusRestorer, source_commands},
-    mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand, SourceImageTarget},
-};
+use super::editor::{focus::EditorFocusRestorer, source_commands};
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand, SourceImageTarget};
 
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///

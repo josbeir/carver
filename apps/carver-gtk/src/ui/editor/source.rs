@@ -13,13 +13,13 @@ use gtk::prelude::*;
 use sourceview5::prelude::*;
 use thiserror::Error;
 
-const CARVE_LANGUAGE: &str = include_str!("../../resources/source-syntax/carve.lang");
-const CARVE_LIGHT_STYLE: &str = include_str!("../../resources/source-syntax/carve-light.xml");
-const CARVE_DARK_STYLE: &str = include_str!("../../resources/source-syntax/carve-dark.xml");
+const CARVE_LANGUAGE: &str = include_str!("../../../resources/source-syntax/carve.lang");
+const CARVE_LIGHT_STYLE: &str = include_str!("../../../resources/source-syntax/carve-light.xml");
+const CARVE_DARK_STYLE: &str = include_str!("../../../resources/source-syntax/carve-dark.xml");
 const CARVE_WRITING_FOCUS_LIGHT_STYLE: &str =
-    include_str!("../../resources/source-syntax/carve-writing-focus-light.xml");
+    include_str!("../../../resources/source-syntax/carve-writing-focus-light.xml");
 const CARVE_WRITING_FOCUS_DARK_STYLE: &str =
-    include_str!("../../resources/source-syntax/carve-writing-focus-dark.xml");
+    include_str!("../../../resources/source-syntax/carve-writing-focus-dark.xml");
 const SYSTEM_INTERFACE_SCHEMA: &str = "org.gnome.desktop.interface";
 const SYSTEM_MONOSPACE_FONT_KEY: &str = "monospace-font-name";
 const FALLBACK_MONOSPACE_FONT: &str = "Monospace 11";

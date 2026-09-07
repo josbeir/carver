@@ -22,7 +22,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
-    crate::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
+    crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
@@ -47,7 +47,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
-    crate::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
+    crate::ui::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
     let (temporary_directory, client) = test_state()?;
     let category = client.create_category_with_appearance(
@@ -71,7 +71,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
-    let (preferences_dialog, about_dialog) = crate::dialogs::present_dialogs_for_test(
+    let (preferences_dialog, about_dialog) = crate::ui::dialogs::present_dialogs_for_test(
         &window,
         &config,
         &crate::mvu::AppDispatcher::default(),
@@ -86,7 +86,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     assert!(window.lookup_action("connect-agent").is_some());
     assert!(window.lookup_action("toggle-favorite").is_some());
-    let agent_setup = crate::dialogs::show_agent_setup_dialog_for_test(&window);
+    let agent_setup = crate::ui::dialogs::show_agent_setup_dialog_for_test(&window);
     let agent = widget_as::<adw::ComboRow>(agent_setup.upcast_ref(), "agent-setup-agent")
         .ok_or("agent setup selection")?;
     let allow_agent_write =
@@ -191,7 +191,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     source_font.emit_by_name::<()>("activated", &[]);
     let mut custom_font_config = config.clone();
     custom_font_config.editor.source_font = Some("Adwaita Mono 13".to_owned());
-    let (custom_font_preferences, _) = crate::dialogs::present_dialogs_for_test(
+    let (custom_font_preferences, _) = crate::ui::dialogs::present_dialogs_for_test(
         &window,
         &custom_font_config,
         &crate::mvu::AppDispatcher::default(),
@@ -209,7 +209,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some(crate::app::APPLICATION_ICON)
     );
     let root = window.child().ok_or("window content")?;
-    let source_font_filter = crate::dialogs::source_font_filter_for_test();
+    let source_font_filter = crate::ui::dialogs::source_font_filter_for_test();
     let monospace_family = root
         .pango_context()
         .list_families()
@@ -243,7 +243,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         window_shortcuts.propagation_phase(),
         gtk::PropagationPhase::Capture
     );
-    let keyboard_shortcuts = crate::dialogs::show_keyboard_shortcuts_dialog(&window);
+    let keyboard_shortcuts = crate::ui::dialogs::show_keyboard_shortcuts_dialog(&window);
     assert_eq!(
         keyboard_shortcuts.widget_name(),
         "keyboard-shortcuts-dialog"
@@ -291,19 +291,19 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     assert!(window.lookup_action("import-note").is_some());
     assert_eq!(
-        crate::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
+        crate::ui::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
         Some(carver_sdk::DocumentImportFormat::Carve)
     );
     assert_eq!(
-        crate::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.md")),
+        crate::ui::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.md")),
         Some(carver_sdk::DocumentImportFormat::Markdown)
     );
-    crate::dialogs::read_import_file(
+    crate::ui::dialogs::read_import_file(
         &gtk::gio::File::for_path("unsupported.txt"),
         crate::mvu::AppDispatcher::default(),
     );
     assert_eq!(
-        crate::dialogs::import_message_from_bytes(
+        crate::ui::dialogs::import_message_from_bytes(
             carver_sdk::DocumentImportFormat::Markdown,
             b"# Imported",
         ),
@@ -313,10 +313,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         }
     );
     assert!(matches!(
-        crate::dialogs::import_message_from_bytes(carver_sdk::DocumentImportFormat::Carve, &[0xff],),
+        crate::ui::dialogs::import_message_from_bytes(
+            carver_sdk::DocumentImportFormat::Carve,
+            &[0xff],
+        ),
         crate::mvu::NavigationMsg::ImportFailed(_)
     ));
-    crate::dialogs::show_import_file_dialog(
+    crate::ui::dialogs::show_import_file_dialog(
         window.upcast_ref(),
         crate::mvu::AppDispatcher::default(),
     );
@@ -679,7 +682,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         source: "# Exported note".to_owned(),
         filename_stem: "Exported note".to_owned(),
     };
-    let export_options = crate::editor::show_export_options_dialog(
+    let export_options = crate::ui::editor::show_export_options_dialog(
         export_request,
         Some(&gtk_window),
         crate::mvu::AppDispatcher::default(),
@@ -695,7 +698,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some("Include managed images".into())
     );
     export_options.emit_by_name::<()>("response", &[&"cancel"]);
-    let export_warning = crate::editor::show_export_warning_dialog(
+    let export_warning = crate::ui::editor::show_export_warning_dialog(
         &crate::mvu::EditorExportWarningRequest {
             request_id: 92,
             session: crate::mvu::EditorSessionId(1),
@@ -708,7 +711,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let export_directory = tempfile::tempdir()?;
     let pdf_path = export_directory.path().join("exported-note.pdf");
     let pdf_uri = gtk::gio::File::for_path(&pdf_path).uri().to_string();
-    crate::editor::export_rendered_snapshot(
+    crate::ui::editor::export_rendered_snapshot(
         "# Exported note\n\nPDF body",
         false,
         false,
@@ -1341,7 +1344,7 @@ fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Windo
         attempts_for_timeout.update(|attempt| attempt + 1);
         glib::ControlFlow::Continue
     });
-    crate::editor::export_rendered_snapshot(
+    crate::ui::editor::export_rendered_snapshot(
         "# Printable note\n\nBody",
         false,
         true,
