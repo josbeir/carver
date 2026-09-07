@@ -110,6 +110,13 @@ views render immutable snapshots.
 
 ## Development and quality
 
+The editor's `EditorEvent` and `SelectionState` TypeScript definitions are generated from
+`carver-editor-protocol` using its optional `json-schema` feature. After changing those Rust
+types, run `npm run protocol:generate --prefix apps/carver-gtk/web` and commit the generated
+`protocol.generated.ts`. The web `npm run check` workflow rejects stale definitions.
+Generation is development-only: normal builds use the committed types, which are erased
+from the JavaScript bundle, and the GTK app does not enable the schema feature.
+
 Run the standard checks before contributing:
 
 ```sh

@@ -5,12 +5,14 @@
   "scripts": {
     "build": "npm run typecheck && esbuild src/main.ts --bundle --format=iife --minify --target=es2022 --outfile=dist/editor.js && esbuild src/styles/preview.css --bundle --outfile=dist/preview.css",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint --error-on-warnings src/main.ts src/editor src/types test package.json tsconfig.json vitest.config.ts biome.json",
-    "format:check": "biome format --error-on-warnings src test package.json tsconfig.json vitest.config.ts biome.json",
-    "format": "biome format --write src test package.json tsconfig.json vitest.config.ts biome.json",
+    "lint": "biome lint --error-on-warnings src/main.ts src/editor src/types scripts test package.json tsconfig.json vitest.config.ts biome.json",
+    "format:check": "biome format --error-on-warnings src scripts test package.json tsconfig.json vitest.config.ts biome.json",
+    "format": "biome format --write src scripts test package.json tsconfig.json vitest.config.ts biome.json",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "check": "npm run lint && npm run format:check && npm run coverage && npm run build"
+    "check": "npm run protocol:check && npm run lint && npm run format:check && npm run coverage && npm run build",
+    "protocol:generate": "node scripts/generate-protocol.mjs",
+    "protocol:check": "node scripts/generate-protocol.mjs --check"
   },
   "dependencies": {
     "@markup-carve/carve-grammars": "0.1.6",
@@ -40,6 +42,7 @@
     "@types/node": "22.15.3",
     "@vitest/coverage-v8": "4.0.18",
     "esbuild": "0.28.2",
+    "json-schema-to-typescript": "15.0.4",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   }

@@ -147,6 +147,7 @@ dependencies = [
 name = "carver-editor-protocol"
 version = "0.1.1"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
 ]
