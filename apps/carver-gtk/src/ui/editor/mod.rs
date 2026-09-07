@@ -771,6 +771,7 @@ fn render_media_list(
         }
         content.append(&icon);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        labels.set_valign(gtk::Align::Center);
         let title = gtk::Label::new(Some(&item.label));
         title.set_halign(gtk::Align::Start);
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
