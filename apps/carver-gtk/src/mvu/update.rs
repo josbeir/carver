@@ -943,6 +943,12 @@ fn update_favorite_changed(
                     effects.extend(
                         session.map_or_else(Vec::new, |session| close_editor(model, session)),
                     );
+                    let pending_effects = complete_pending_category_selection(model);
+                    if pending_effects.is_empty() {
+                        effects.extend(reload_browser(model));
+                    } else {
+                        effects.extend(pending_effects);
+                    }
                 }
             }
             effects.extend(reload_after_local_mutation(model));

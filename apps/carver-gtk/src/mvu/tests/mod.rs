@@ -1320,6 +1320,61 @@ fn favorite_reversal_should_finish_before_a_clean_editor_closes() {
 }
 
 #[test]
+fn category_selection_should_complete_after_a_clean_favorite_mutation_closes() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let category_id = CategoryId::new();
+    let selected_category_id = CategoryId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("Source"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Navigation(NavigationMsg::SelectCategory(Some(selected_category_id))),
+        )
+        .is_empty()
+    );
+    assert!(model.editor.is_some());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::FavoriteChanged {
+            action: ActionKey::SetNoteFavorite(note_id),
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("Source"),
+                title: String::from("Source"),
+                plain_text: String::from("Source"),
+                revision: Revision(2),
+                is_favorite: true,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.selected_category, Some(selected_category_id));
+    assert!(model.editor.is_none());
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::LoadBrowser {
+            category_id: Some(actual_category_id),
+            ..
+        } if *actual_category_id == selected_category_id
+    )));
+}
+
+#[test]
 fn favorite_action_should_use_the_summary_revision() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

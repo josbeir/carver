@@ -1176,8 +1176,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     favorite.emit_clicked();
     back.emit_clicked();
     assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
+    let source_category_row =
+        find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
+            .and_downcast::<gtk::ListBoxRow>()
+            .ok_or("source category row")?;
+    sidebar.select_row(Some(&source_category_row));
+    assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("browser")
+            && widget_as::<gtk::Label>(&root, "browser-hero-title")
+                .is_some_and(|title| title.text() == "Notes")
             && client
                 .note(note.id)
                 .ok()
