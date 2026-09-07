@@ -525,9 +525,9 @@ pub(crate) fn build_editor(
     copy_note.add_css_class("flat");
     let options_menu = editor_options_menu();
     header.pack_end(&options_menu);
+    header.pack_end(&media_toggle);
     header.pack_end(&copy_note);
     header.pack_end(&favorite);
-    header.pack_end(&media_toggle);
     view.add_top_bar(&header);
 
     let split_toggle = gtk::ToggleButton::new();
