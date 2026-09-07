@@ -22,6 +22,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    assert_sidebar_reload_preserves_rows()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
@@ -1404,6 +1405,42 @@ fn select_all(buffer: &gtk::TextBuffer) {
 
 fn all_notes_row(sidebar: &gtk::ListBox) -> Option<gtk::ListBoxRow> {
     sidebar.first_child().and_downcast::<gtk::ListBoxRow>()
+}
+
+fn assert_sidebar_reload_preserves_rows() -> TestResult {
+    let split_view = adw::NavigationSplitView::new();
+    let sidebar =
+        crate::ui::sidebar::build_sidebar(&crate::mvu::AppDispatcher::default(), &split_view);
+    let sidebar_for_render = sidebar.clone();
+    let render_count = Rc::new(Cell::new(0));
+    let render_count_for_renderer = Rc::clone(&render_count);
+    let route_stack = gtk::Stack::new();
+    for route in ["browser", "editor", "trash"] {
+        route_stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(route));
+    }
+    let view =
+        crate::view::ViewRefs::new(route_stack, adw::StatusPage::new(), adw::StatusPage::new())
+            .with_sidebar_renderer(move |model| {
+                render_count_for_renderer.set(render_count_for_renderer.get() + 1);
+                sidebar_for_render.render(model);
+            });
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
+    view.render(&model);
+    let initial_row = sidebar.list.first_child();
+
+    model.sidebar.state = crate::mvu::LoadState::Loading(crate::mvu::RequestId(1));
+    view.render(&model);
+    if sidebar.list.first_child() != initial_row {
+        return Err("sidebar cleared its existing rows while reloading".into());
+    }
+
+    model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
+    view.render(&model);
+    if render_count.get() != 1 || sidebar.list.first_child() != initial_row {
+        return Err("sidebar rebuilt after receiving an unchanged reload result".into());
+    }
+    Ok(())
 }
 
 fn assert_split_preview_tracks_source_scroll(

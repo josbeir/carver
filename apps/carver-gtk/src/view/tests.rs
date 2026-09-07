@@ -8,6 +8,19 @@ use time::{Duration, OffsetDateTime};
 use super::{LoadState, browser_projection_snapshot, note_category_color};
 
 #[test]
+fn sidebar_snapshot_should_preserve_the_last_ready_projection_during_a_reload() {
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    model.sidebar.state = LoadState::Ready(Vec::new());
+    let snapshot = super::SidebarSnapshot::from_model(&model);
+
+    model.sidebar.state = LoadState::Loading(crate::mvu::RequestId(1));
+    assert!(super::SidebarSnapshot::from_model(&model).is_none());
+
+    model.sidebar.state = LoadState::Ready(Vec::new());
+    assert_eq!(super::SidebarSnapshot::from_model(&model), snapshot);
+}
+
+#[test]
 fn note_category_color_should_use_the_category_appearance() {
     let category_id = CategoryId::new();
     let note = NoteSummary {

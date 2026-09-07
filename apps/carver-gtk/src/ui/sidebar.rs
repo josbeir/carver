@@ -102,7 +102,6 @@ impl SidebarSurface {
     pub(crate) fn render(&self, model: &AppModel) {
         self.rendering.set(true);
         let LoadState::Ready(categories) = &model.sidebar.state else {
-            clear_list(&self.list);
             self.rendering.set(false);
             return;
         };
