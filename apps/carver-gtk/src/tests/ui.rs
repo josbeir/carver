@@ -1011,6 +1011,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
     }));
+    assert_media_sidebar_should_focus_and_show_file_details(
+        &root,
+        &source,
+        &source_mode,
+        &rich_mode,
+        &rich,
+        &client,
+        note.id,
+    )?;
     source_mode.set_active(true);
     source
         .buffer()
@@ -1502,4 +1511,166 @@ fn assert_split_preview_tracks_source_scroll(
     }));
     split_toggle.set_active(false);
     Ok(())
+}
+
+fn assert_media_sidebar_should_focus_and_show_file_details(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+    rich_mode: &gtk::ToggleButton,
+    rich: &webkit6::WebView,
+    client: &super::support::TestLibraryClient,
+    note_id: carver_sdk::NoteId,
+) -> TestResult {
+    let image = gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, 16, 16)
+        .ok_or("image fixture")?;
+    image.fill(0x33aa_66ff);
+    let bytes = image.save_to_bufferv("png", &[])?;
+    let path = client.store_asset(note_id, "png", &bytes)?;
+    let text = format!("Before\n\n![Diagram]({path})\n\nAfter");
+    source_mode.set_active(true);
+    source.buffer().set_text(&text);
+    let toggle = widget_as::<gtk::ToggleButton>(root, "editor-media-sidebar-toggle")
+        .ok_or("media toggle")?;
+    toggle.set_active(true);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(root, "editor-media-size")
+            .is_some_and(|label| label.text() == glib::format_size(bytes.len() as u64))
+    }));
+    let list = widget_as::<gtk::ListBox>(root, "editor-media-list").ok_or("media list")?;
+    assert!(run_main_context_until(|| list.height() > 0));
+    assert!(
+        list.height() < 150,
+        "one card should use its natural height"
+    );
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
+    let content = button.child().ok_or("card contents")?;
+    let thumbnail = content
+        .first_child()
+        .and_then(|widget| widget.downcast::<gtk::Image>().ok())
+        .ok_or("thumbnail")?;
+    assert!(
+        thumbnail.paintable().is_some(),
+        "managed images should display a thumbnail"
+    );
+    button.emit_clicked();
+    let (start, end) = source
+        .buffer()
+        .selection_bounds()
+        .ok_or("source media selection")?;
+    assert_eq!(
+        source.buffer().text(&start, &end, false),
+        format!("![Diagram]({path})")
+    );
+    assert!(
+        run_main_context_until(|| widget_is_window_focus(source.upcast_ref())),
+        "source focus: {:?}",
+        source
+            .root()
+            .and_downcast::<gtk::Window>()
+            .and_then(|window| gtk::prelude::RootExt::focus(&window))
+            .map(|widget| widget.widget_name())
+    );
+    rich_mode.set_active(true);
+    assert!(run_main_context_until(|| rich.is_visible()));
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
+    button.emit_clicked();
+    let selected = Rc::new(Cell::new(false));
+    let result = Rc::clone(&selected);
+    rich.evaluate_javascript(
+        "!!document.querySelector('img.ProseMirror-selectednode')",
+        None,
+        None,
+        None::<&gtk::gio::Cancellable>,
+        move |value| result.set(value.is_ok_and(|value| value.to_boolean())),
+    );
+    assert!(run_main_context_until(|| selected.get()));
+    assert!(widget_is_window_focus(rich.upcast_ref()));
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        text
+    );
+    assert_attachment_card_should_focus_in_edit_and_preview(
+        root,
+        source,
+        source_mode,
+        rich_mode,
+        rich,
+        client,
+        note_id,
+    )?;
+    toggle.set_active(false);
+    Ok(())
+}
+
+fn assert_attachment_card_should_focus_in_edit_and_preview(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+    rich_mode: &gtk::ToggleButton,
+    rich: &webkit6::WebView,
+    client: &super::support::TestLibraryClient,
+    note_id: carver_sdk::NoteId,
+) -> TestResult {
+    let bytes = vec![b'x'; 4096];
+    let path = client.store_asset(note_id, "pdf", &bytes)?;
+    source_mode.set_active(true);
+    let text = format!("[Brief]({path})");
+    source.buffer().set_text(&text);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        root,
+        "editor-media-size"
+    )
+    .is_some_and(|label| label.text() == glib::format_size(4096))));
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("attachment card")?;
+    let icon = button
+        .child()
+        .and_then(|child| child.first_child())
+        .and_then(|widget| widget.downcast::<gtk::Image>().ok())
+        .ok_or("file icon")?;
+    assert!(
+        icon.gicon().is_some(),
+        "attachments should display a file type icon"
+    );
+    rich_mode.set_active(true);
+    button.emit_clicked();
+    assert_web_script_should_be_true(rich, "window.getSelection().toString() === 'Brief'");
+    let rendered_mode =
+        widget_as::<gtk::ToggleButton>(root, "editor-mode-rendered").ok_or("preview mode")?;
+    rendered_mode.set_active(true);
+    let preview =
+        widget_as::<webkit6::WebView>(root, "editor-rendered-preview").ok_or("preview")?;
+    assert!(run_main_context_until(|| !preview.is_loading()));
+    assert_web_script_should_be_true(&preview, "!!document.querySelector('a')");
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("attachment card")?;
+    button.emit_clicked();
+    assert_web_script_should_be_true(&preview, "document.activeElement?.tagName === 'A'");
+    assert!(widget_is_window_focus(preview.upcast_ref()));
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        text
+    );
+    Ok(())
+}
+
+fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
+    let result = Rc::new(Cell::new(None));
+    let response = Rc::clone(&result);
+    view.evaluate_javascript(
+        script,
+        None,
+        None,
+        None::<&gtk::gio::Cancellable>,
+        move |value| response.set(Some(value.is_ok_and(|value| value.to_boolean()))),
+    );
+    assert!(run_main_context_until(|| result.get().is_some()));
+    assert_eq!(result.get(), Some(true), "{script}");
 }

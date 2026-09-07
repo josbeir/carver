@@ -58,6 +58,9 @@ pub(crate) struct EditorViewRefs {
     media_toggle: gtk::ToggleButton,
     media_revealer: gtk::Revealer,
     media_list: gtk::ListBox,
+    rendered_media_files:
+        RefCell<std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>>,
+    rendered_media: RefCell<Option<Vec<carver_domain::source_analysis::MediaOccurrence>>>,
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
@@ -102,7 +105,19 @@ impl EditorViewRefs {
             .set_active(document.media_sidebar.is_visible());
         self.media_revealer
             .set_reveal_child(document.media_sidebar.is_visible());
-        render_media_list(&self.media_list, &document.media, &self.dispatcher);
+        if self.rendered_media.borrow().as_deref() != Some(document.media.as_slice())
+            || *self.rendered_media_files.borrow() != document.media_files
+        {
+            render_media_list(
+                &self.media_list,
+                &document.media,
+                &self.dispatcher,
+                &document.media_files,
+            );
+            self.rendered_media_files
+                .replace(document.media_files.clone());
+            self.rendered_media.replace(Some(document.media.clone()));
+        }
         self.favorite
             .set_tooltip_text(Some(if document.is_favorite {
                 "Remove from Favorites"
@@ -271,6 +286,7 @@ impl EditorViewRefs {
         session: EditorSessionId,
         selection: std::ops::Range<usize>,
         path: &str,
+        occurrence: usize,
     ) {
         if self.loaded_session.borrow().as_ref() != Some(&session) {
             return;
@@ -283,13 +299,17 @@ impl EditorViewRefs {
             .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
         self.source_buffer.select_range(&start, &end);
         if self.source_mode.is_active() {
+            self.source_editor.view().grab_focus();
+            if let Some(root) = self.source_editor.view().root() {
+                root.set_focus(Some(self.source_editor.view()));
+            }
             self.source_editor
                 .view()
                 .scroll_to_iter(&mut start, 0.2, false, 0.0, 0.0);
         } else if self.rich_mode.is_active() {
-            self.rich.focus_media(path);
+            self.rich.focus_media(path, occurrence);
         } else {
-            focus_preview_media(&self.rendered_preview, path);
+            focus_preview_media(&self.rendered_preview, path, occurrence);
         }
     }
 
@@ -352,11 +372,15 @@ impl EditorViewRefs {
     }
 }
 
-fn focus_preview_media(view: &webkit6::WebView, path: &str) {
+fn focus_preview_media(view: &webkit6::WebView, path: &str, occurrence: usize) {
+    view.grab_focus();
+    if let Some(root) = view.root() {
+        root.set_focus(Some(view));
+    }
     let path = serde_json::to_string(path).unwrap_or_else(|_| String::from("\"\""));
     view.evaluate_javascript(
         &format!(
-            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].find((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path)); node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
+            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].filter((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path))[{occurrence}]; if (node) {{ node.setAttribute('tabindex', '-1'); node.focus({{preventScroll: true}}); node.animate([{{outline: '2px solid currentColor'}}, {{outline: '2px solid transparent'}}], {{duration: 1800}}); }} node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
         ),
         None,
         Some("carver-editor:///bridge"),
@@ -529,6 +553,7 @@ pub(crate) fn build_editor(
     let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
+    rendered_preview.set_widget_name("editor-rendered-preview");
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
     install_editor_window_shortcuts(&view);
@@ -561,7 +586,9 @@ pub(crate) fn build_editor(
     toolbar_bar.append(toolbar.widget());
     view.add_bottom_bar(&toolbar_bar);
     let media_list = gtk::ListBox::new();
+    media_list.set_widget_name("editor-media-list");
     media_list.set_selection_mode(gtk::SelectionMode::None);
+    media_list.set_valign(gtk::Align::Start);
     media_list.add_css_class("boxed-list");
     let media_scroller = gtk::ScrolledWindow::new();
     media_scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -640,6 +667,8 @@ pub(crate) fn build_editor(
         media_toggle,
         media_revealer,
         media_list,
+        rendered_media_files: RefCell::new(std::collections::BTreeMap::new()),
+        rendered_media: RefCell::new(None),
         rich_mode,
         source_mode,
         rendered_mode,
@@ -700,6 +729,7 @@ fn render_media_list(
     list: &gtk::ListBox,
     media: &[carver_domain::source_analysis::MediaOccurrence],
     dispatcher: &AppDispatcher,
+    files: &std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>,
 ) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
@@ -714,32 +744,49 @@ fn render_media_list(
     }
     for item in media {
         let row = gtk::ListBoxRow::new();
-        row.set_activatable(true);
+        row.set_activatable(false);
         let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         content.set_margin_top(8);
         content.set_margin_bottom(8);
         content.set_margin_start(8);
         content.set_margin_end(8);
-        let icon = gtk::Image::from_icon_name(match item.kind {
-            carver_domain::source_analysis::MediaKind::Image => "image-x-generic-symbolic",
-            carver_domain::source_analysis::MediaKind::Attachment => "mail-attachment-symbolic",
-        });
+        let icon = gtk::Image::new();
+        icon.set_pixel_size(48);
+        icon.set_size_request(48, 48);
+        let (content_type, _) = gtk::gio::content_type_guess(Some(Path::new(&item.path)), None);
+        icon.set_from_gicon(&gtk::gio::content_type_get_symbolic_icon(&content_type));
+        let file = files.get(&item.path).and_then(Option::as_ref);
+        if let Some(bytes) = file.and_then(|file| file.preview.as_ref())
+            && let Ok(texture) =
+                gtk::gdk::Texture::from_bytes(&glib::Bytes::from_owned(bytes.as_ref().clone()))
+        {
+            icon.set_paintable(Some(&texture));
+        }
         content.append(&icon);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
         let title = gtk::Label::new(Some(&item.label));
         title.set_halign(gtk::Align::Start);
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        let subtitle = gtk::Label::new(Some(&item.path));
+        let size = file.map_or_else(
+            || String::from("Unavailable"),
+            |file| glib::format_size(file.size).to_string(),
+        );
+        let subtitle = gtk::Label::new(Some(&size));
+        subtitle.set_widget_name("editor-media-size");
         subtitle.add_css_class("dim-label");
         subtitle.set_halign(gtk::Align::Start);
         subtitle.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
         labels.append(&title);
         labels.append(&subtitle);
         content.append(&labels);
-        row.set_child(Some(&content));
+        let button = gtk::Button::new();
+        button.set_widget_name("editor-media-item");
+        button.add_css_class("flat");
+        button.set_child(Some(&content));
+        row.set_child(Some(&button));
         let dispatcher = dispatcher.clone();
         let selection = item.range.clone();
-        row.connect_activate(move |_| {
+        button.connect_clicked(move |_| {
             let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::FocusMedia {
                 selection: selection.clone(),
             }));

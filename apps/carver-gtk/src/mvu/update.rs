@@ -10,7 +10,7 @@ use super::{
 /// Applies one message and returns the work a runtime must perform afterwards.
 #[must_use]
 pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
-    match message {
+    let mut effects = match message {
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
         }
@@ -71,7 +71,23 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 .collect()
         }
         AppMsg::Library(reply) => update_library(model, reply),
+    };
+    if let Some(document) = model.editor.as_mut()
+        && document.media_sidebar.is_visible()
+    {
+        for media in &document.media {
+            if !document.media_files.contains_key(&media.path) {
+                document.media_files.insert(media.path.clone(), None);
+                effects.push(Effect::LoadMediaFile {
+                    session: document.session,
+                    note_id: document.note_id,
+                    path: media.path.clone(),
+                    image: media.kind == carver_domain::source_analysis::MediaKind::Image,
+                });
+            }
+        }
     }
+    effects
 }
 
 fn request_editor_load(
@@ -314,6 +330,18 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             name,
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, name, source_target),
+        EditorMsg::MediaFileLoaded {
+            session,
+            path,
+            file,
+        } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.session == session
+            {
+                document.media_files.insert(path, file);
+            }
+            Vec::new()
+        }
         EditorMsg::ToggleMediaSidebar => {
             if let Some(document) = model.editor.as_mut() {
                 document.media_sidebar = document.media_sidebar.toggled();
@@ -330,8 +358,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                     .find(|media| media.range == selection)
                     .map(|media| Effect::FocusEditorMedia {
                         session: document.session,
-                        selection,
+                        selection: selection.clone(),
                         path: media.path.clone(),
+                        occurrence: document
+                            .media
+                            .iter()
+                            .take_while(|item| item.range != selection)
+                            .filter(|item| item.path == media.path)
+                            .count(),
                     })
             })
             .into_iter()

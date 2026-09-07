@@ -258,6 +258,8 @@ pub struct EditorDocument {
     pub mode: EditorMode,
     /// Positioned images and managed attachments in the current canonical source.
     pub media: Vec<MediaOccurrence>,
+    /// Requested asset bytes; absent results represent unavailable files.
+    pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Current visibility of the editor's media navigation sidebar.
     pub media_sidebar: MediaSidebarVisibility,
     /// Latest favorite state requested before the current mutation completes.
@@ -358,6 +360,7 @@ impl EditorDocument {
             source,
             mode,
             media,
+            media_files: std::collections::BTreeMap::new(),
             media_sidebar: MediaSidebarVisibility::Hidden,
             pending_favorite: None,
             favorite_mutation_in_flight: false,
@@ -592,4 +595,13 @@ pub(crate) enum LibraryRevisionCheckReason {
     InitialLoad,
     LocalMutation,
     ExternalWakeup,
+}
+
+/// Resolved file details used by the Media sidebar.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MediaFile {
+    /// Original file size in bytes.
+    pub size: u64,
+    /// Encoded image bytes for thumbnail rendering.
+    pub preview: Option<std::sync::Arc<Vec<u8>>>,
 }

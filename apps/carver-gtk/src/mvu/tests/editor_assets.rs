@@ -299,6 +299,7 @@ fn media_sidebar_should_focus_only_current_occurrences() {
             session,
             selection: 0..30,
             path: String::from("assets/diagram.png"),
+            occurrence: 0,
         }]
     );
 }
@@ -402,4 +403,74 @@ fn source_change_should_update_the_canonical_document_and_mark_it_dirty() {
     assert_eq!(document.source, unsupported_source);
     assert_eq!(document.mode, carver_config::EditorMode::Rich);
     assert_eq!(document.save_state, super::EditorSaveState::Dirty);
+}
+
+#[test]
+fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("![One](assets/a.png)\n\n![Two](assets/a.png)"),
+        }),
+    );
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should exist");
+    };
+    let session = document.session;
+    assert_eq!(
+        update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar)),
+        vec![Effect::LoadMediaFile {
+            session,
+            note_id,
+            path: String::from("assets/a.png"),
+            image: true
+        },]
+    );
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should exist");
+    };
+    let selection = document.media[1].range.clone();
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::FocusMedia {
+                selection: selection.clone()
+            })
+        ),
+        vec![Effect::FocusEditorMedia {
+            session,
+            selection,
+            path: String::from("assets/a.png"),
+            occurrence: 1
+        },]
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Another document"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::MediaFileLoaded {
+            session,
+            path: String::from("assets/a.png"),
+            file: Some(crate::mvu::MediaFile {
+                size: 1024,
+                preview: None,
+            }),
+        }),
+    );
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.media_files.is_empty())
+    );
 }

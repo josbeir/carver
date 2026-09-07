@@ -198,6 +198,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
             effect @ (Effect::PrepareEditorExport { .. }
             | Effect::WriteEditorExport { .. }
             | Effect::DiscardEditorExport { .. }) => self.run_editor_export_effect(effect),
+            Effect::LoadMediaFile {
+                session,
+                note_id,
+                path,
+                image,
+            } => self.load_media_file(session, note_id, path, image),
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::CreateNote { category_id } => self.create_note(category_id),
@@ -262,9 +268,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 name,
                 appearance,
             } => self.update_category(category_id, name, appearance),
-            Effect::TrashCategory { category_id } => {
-                self.trash_category(category_id);
-            }
+            Effect::TrashCategory { category_id } => self.trash_category(category_id),
             Effect::MoveNote {
                 action,
                 note_id,
@@ -272,9 +276,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             } => {
                 self.move_note(action, note_id, category_id);
             }
-            Effect::TrashNote { note_id } => {
-                self.trash_note(note_id);
-            }
+            Effect::TrashNote { note_id } => self.trash_note(note_id),
             Effect::SetNoteFavorite {
                 action,
                 note_id,
@@ -558,6 +560,33 @@ impl<B: LibraryBackend> AppRuntime<B> {
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
                 result,
+            }));
+        });
+    }
+
+    fn load_media_file(
+        &self,
+        session: super::EditorSessionId,
+        note_id: carver_sdk::NoteId,
+        path: String,
+        image: bool,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let file = client
+                .note_asset_bytes_async(note_id, path.clone())
+                .await
+                .ok()
+                .flatten()
+                .map(|bytes| super::MediaFile {
+                    size: bytes.len() as u64,
+                    preview: image.then(|| std::sync::Arc::new(bytes)),
+                });
+            runtime.dispatch(AppMsg::Editor(super::EditorMsg::MediaFileLoaded {
+                session,
+                path,
+                file,
             }));
         });
     }

@@ -32,6 +32,17 @@ pub enum Effect {
         /// Character-based selection in the canonical source.
         selection: std::ops::Range<usize>,
     },
+    /// Resolve a managed asset through the asynchronous SDK boundary.
+    LoadMediaFile {
+        /// Whether image bytes are needed for a thumbnail.
+        image: bool,
+        /// Editor lifetime receiving the result.
+        session: EditorSessionId,
+        /// Owning note.
+        note_id: NoteId,
+        /// Canonical asset path.
+        path: String,
+    },
     /// Focus a media occurrence through the active editor projection.
     FocusEditorMedia {
         /// Active editor lifetime that owns the occurrence.
@@ -40,6 +51,8 @@ pub enum Effect {
         selection: std::ops::Range<usize>,
         /// Managed asset path used to locate the rendered occurrence.
         path: String,
+        /// Index among occurrences referencing the same asset.
+        occurrence: usize,
     },
     /// Publish a canonical editor snapshot through the native clipboard adapter.
     CopyEditorDocument {

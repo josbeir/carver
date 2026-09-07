@@ -149,9 +149,13 @@ impl RichEditor {
     }
 
     /// Scrolls a rendered managed asset into view without changing its source.
-    pub(crate) fn focus_media(&self, path: &str) {
+    pub(crate) fn focus_media(&self, path: &str, occurrence: usize) {
+        self.view.grab_focus();
+        if let Some(root) = self.view.root() {
+            root.set_focus(Some(&self.view));
+        }
         self.evaluate(&format!(
-            "(() => {{ const path = {}; const node = [...document.querySelectorAll('img,a')].find((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path)); node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();",
+            "window.carverEditor.focusMedia({}, {occurrence});",
             json(path)
         ));
     }

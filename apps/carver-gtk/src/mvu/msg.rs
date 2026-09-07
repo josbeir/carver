@@ -146,6 +146,15 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// Asset bytes resolved by the runtime for sidebar presentation.
+    MediaFileLoaded {
+        /// Owning editor lifetime.
+        session: EditorSessionId,
+        /// Canonical asset path.
+        path: String,
+        /// Missing or inaccessible files have no bytes.
+        file: Option<super::MediaFile>,
+    },
     /// Load a persisted note into the canonical editor document.
     Load {
         /// Persisted note to edit.
