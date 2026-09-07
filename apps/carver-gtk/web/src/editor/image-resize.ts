@@ -5,7 +5,10 @@ import { NodeSelection } from '@tiptap/pm/state';
 // continue to target the same image.
 export function resizeSelectedImage(state, width) {
   const { selection } = state;
-  if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') {
+  if (
+    !(selection instanceof NodeSelection) ||
+    selection.node.type.name !== 'image'
+  ) {
     return null;
   }
 
@@ -18,5 +21,7 @@ export function resizeSelectedImage(state, width) {
     carveKeyValues: values,
   });
   const imagePosition = transaction.mapping.map(selection.from);
-  return transaction.setSelection(NodeSelection.create(transaction.doc, imagePosition));
+  return transaction.setSelection(
+    NodeSelection.create(transaction.doc, imagePosition),
+  );
 }

@@ -7,7 +7,10 @@ function activeLinkRange(state) {
 
 function linkDestination(state, from) {
   const link = state.schema.marks.link;
-  return state.doc.nodeAt(from)?.marks.find(mark => mark.type === link)?.attrs.href ?? '';
+  return (
+    state.doc.nodeAt(from)?.marks.find((mark) => mark.type === link)?.attrs
+      .href ?? ''
+  );
 }
 
 export function linkContext(state) {
@@ -24,7 +27,10 @@ export function linkContext(state) {
 
 export function insertOrUpdateLink(state, argument) {
   const text = typeof argument?.text === 'string' ? argument.text : '';
-  const href = typeof argument?.destination === 'string' ? argument.destination.trim() : '';
+  const href =
+    typeof argument?.destination === 'string'
+      ? argument.destination.trim()
+      : '';
   const link = state.schema.marks.link;
   if (!text.trim() || !href || !link) return undefined;
 

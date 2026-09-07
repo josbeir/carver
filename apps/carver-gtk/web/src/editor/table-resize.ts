@@ -1,4 +1,10 @@
-import { addColumn, addRow, removeColumn, removeRow, selectedRect } from '@tiptap/pm/tables';
+import {
+  addColumn,
+  addRow,
+  removeColumn,
+  removeRow,
+  selectedRect,
+} from '@tiptap/pm/tables';
 
 const MAX_ROWS = 4;
 const MAX_COLUMNS = 6;
@@ -22,7 +28,7 @@ export function resizeSelectedTable(state, { rows, columns, header }) {
 
   while (rect.map.height < target.rows) {
     const height = rect.map.height;
-    currentState = applyTableChange(currentState, transactions, current => {
+    currentState = applyTableChange(currentState, transactions, (current) => {
       const currentRect = selectedTableRect(current);
       return addRow(current.tr, currentRect, currentRect.map.height);
     });
@@ -31,7 +37,7 @@ export function resizeSelectedTable(state, { rows, columns, header }) {
   }
   while (rect.map.height > target.rows) {
     const height = rect.map.height;
-    currentState = applyTableChange(currentState, transactions, current => {
+    currentState = applyTableChange(currentState, transactions, (current) => {
       const currentRect = selectedTableRect(current);
       const transaction = current.tr;
       removeRow(transaction, currentRect, currentRect.map.height - 1);
@@ -42,7 +48,7 @@ export function resizeSelectedTable(state, { rows, columns, header }) {
   }
   while (rect.map.width < target.columns) {
     const width = rect.map.width;
-    currentState = applyTableChange(currentState, transactions, current => {
+    currentState = applyTableChange(currentState, transactions, (current) => {
       const currentRect = selectedTableRect(current);
       return addColumn(current.tr, currentRect, currentRect.map.width);
     });
@@ -51,7 +57,7 @@ export function resizeSelectedTable(state, { rows, columns, header }) {
   }
   while (rect.map.width > target.columns) {
     const width = rect.map.width;
-    currentState = applyTableChange(currentState, transactions, current => {
+    currentState = applyTableChange(currentState, transactions, (current) => {
       const currentRect = selectedTableRect(current);
       const transaction = current.tr;
       removeColumn(transaction, currentRect, currentRect.map.width - 1);
