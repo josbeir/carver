@@ -32,6 +32,15 @@ pub enum Effect {
         /// Character-based selection in the canonical source.
         selection: std::ops::Range<usize>,
     },
+    /// Focus a media occurrence through the active editor projection.
+    FocusEditorMedia {
+        /// Active editor lifetime that owns the occurrence.
+        session: EditorSessionId,
+        /// Unicode code-point range of the authored occurrence.
+        selection: std::ops::Range<usize>,
+        /// Managed asset path used to locate the rendered occurrence.
+        path: String,
+    },
     /// Publish a canonical editor snapshot through the native clipboard adapter.
     CopyEditorDocument {
         /// Immutable copy request owned by the current editor session.

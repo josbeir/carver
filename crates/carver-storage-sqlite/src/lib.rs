@@ -875,7 +875,7 @@ impl SqliteLibrary {
         })
     }
 
-    /// Adds bytes to the managed asset store and returns its portable source path.
+    /// Adds file bytes to the managed asset store and returns its portable source path.
     ///
     /// # Errors
     ///
@@ -887,8 +887,18 @@ impl SqliteLibrary {
         bytes: &[u8],
     ) -> Result<String, StorageError> {
         let digest = format!("{:x}", Sha256::digest(bytes));
-        let safe_extension = asset_extension(extension)?;
-        let filename = format!("{digest}.{safe_extension}");
+        let existing_filename: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT filename FROM assets WHERE hash = ?1",
+                [&digest],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let filename = match existing_filename {
+            Some(filename) => filename,
+            None => format!("{digest}.{}", asset_extension(extension)?),
+        };
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
             let temporary = path.with_extension("partial");
@@ -910,7 +920,7 @@ impl SqliteLibrary {
         Ok(format!("assets/{filename}"))
     }
 
-    /// Reads a managed image only when it belongs to the requested note.
+    /// Reads a managed file only when it belongs to the requested note.
     ///
     /// # Errors
     ///
@@ -1341,21 +1351,18 @@ fn category_color_from_value(value: &str) -> Result<CategoryColor, StorageError>
     }
 }
 
-fn asset_extension(extension: &str) -> Result<&'static str, StorageError> {
-    match extension
-        .trim_start_matches('.')
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "png" => Ok("png"),
-        "jpg" | "jpeg" => Ok("jpg"),
-        "gif" => Ok("gif"),
-        "webp" => Ok("webp"),
-        "svg" => Ok("svg"),
-        _ => Err(StorageError::UnsupportedAssetExtension(
-            extension.to_owned(),
-        )),
+fn asset_extension(extension: &str) -> Result<String, StorageError> {
+    let extension = extension.trim_start_matches('.').to_ascii_lowercase();
+    let valid = !extension.is_empty()
+        && extension.len() <= 32
+        && extension.bytes().all(|byte| byte.is_ascii_alphanumeric());
+    if !valid {
+        return Err(StorageError::UnsupportedAssetExtension(extension));
     }
+    Ok(match extension.as_str() {
+        "jpeg" => String::from("jpg"),
+        _ => extension,
+    })
 }
 fn note_id(value: &str) -> Result<NoteId, StorageError> {
     Uuid::parse_str(value)

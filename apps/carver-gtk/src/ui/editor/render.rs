@@ -44,7 +44,7 @@ pub(crate) fn install_image_paste(
     controller
 }
 
-/// Installs managed image-file drag and drop for an editing surface.
+/// Installs managed file drag and drop for an editing surface.
 ///
 /// GTK owns native file drops, including `WebKit` drops that only expose a URI
 /// to JavaScript. Routing both source and rich editors through this handler
@@ -71,18 +71,19 @@ pub(crate) fn install_image_drop(
             return false;
         }
         for file in files {
-            let Some(extension) = formatting::image_extension_for_file(&file) else {
-                continue;
-            };
-            let alt = formatting::image_alt_for_file(&file);
-            formatting::import_managed_image_file(
-                &file,
-                &alt,
-                &dispatcher,
-                &toast_overlay,
-                extension,
-                None,
-            );
+            if let Some(extension) = formatting::image_extension_for_file(&file) {
+                let alt = formatting::image_alt_for_file(&file);
+                formatting::import_managed_image_file(
+                    &file,
+                    &alt,
+                    &dispatcher,
+                    &toast_overlay,
+                    extension,
+                    None,
+                );
+            } else {
+                formatting::import_managed_file(&file, &dispatcher, &toast_overlay, None);
+            }
         }
         true
     });

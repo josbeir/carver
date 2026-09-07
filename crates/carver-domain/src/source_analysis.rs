@@ -154,6 +154,29 @@ impl SourceContext {
 #[derive(Clone, Debug, Default)]
 pub struct SourceAnalysis {
     nodes: Vec<AnalyzedNode>,
+    media: Vec<MediaOccurrence>,
+}
+
+/// One positioned image or managed-file link in a Carve document.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MediaOccurrence {
+    /// The type of document media represented by this occurrence.
+    pub kind: MediaKind,
+    /// The source-relative managed asset path.
+    pub path: String,
+    /// Text shown to the user in media navigation.
+    pub label: String,
+    /// Unicode code-point range of the authored markup.
+    pub range: Range<usize>,
+}
+
+/// The rendering category of a media occurrence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MediaKind {
+    /// An image node rendered directly by Carve.
+    Image,
+    /// A managed file represented by an ordinary Carve link.
+    Attachment,
 }
 
 #[derive(Clone, Debug)]
@@ -192,6 +215,12 @@ impl SourceAnalysis {
             .map(|node| SourceContext {
                 path: node.path.clone(),
             })
+    }
+
+    /// Returns images and managed file links in authored document order.
+    #[must_use]
+    pub fn media(&self) -> &[MediaOccurrence] {
+        &self.media
     }
 
     fn push(&mut self, pos: Option<&Pos>, kind: SourceNodeKind, path: &mut Vec<SourceNodeKind>) {
@@ -321,13 +350,21 @@ impl SourceAnalysis {
                 &node.children,
                 path,
             ),
-            BlockNode::BlockImage(node) => self.leaf(
-                node.pos.as_ref(),
-                SourceNodeKind::Image {
-                    width: image_width(node.attrs.as_ref()),
-                },
-                path,
-            ),
+            BlockNode::BlockImage(node) => {
+                self.record_media(
+                    MediaKind::Image,
+                    &node.src,
+                    node.alt.clone(),
+                    node.pos.as_ref(),
+                );
+                self.leaf(
+                    node.pos.as_ref(),
+                    SourceNodeKind::Image {
+                        width: image_width(node.attrs.as_ref()),
+                    },
+                    path,
+                );
+            }
             BlockNode::RawBlock(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Raw, path),
             BlockNode::Comment(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Comment, path),
             BlockNode::Extension(node) => {
@@ -359,6 +396,12 @@ impl SourceAnalysis {
                     Self::pop(path);
                 }
                 InlineNode::Link(node) => {
+                    self.record_media(
+                        MediaKind::Attachment,
+                        &node.href,
+                        inline_label(&node.children),
+                        node.pos.as_ref(),
+                    );
                     self.push(node.pos.as_ref(), SourceNodeKind::Link, path);
                     self.visit_inlines(&node.children, path);
                     Self::pop(path);
@@ -383,13 +426,21 @@ impl SourceAnalysis {
                     self.visit_inlines(&node.children, path);
                     Self::pop(path);
                 }
-                InlineNode::Image(node) => self.leaf(
-                    node.pos.as_ref(),
-                    SourceNodeKind::Image {
-                        width: image_width(node.attrs.as_ref()),
-                    },
-                    path,
-                ),
+                InlineNode::Image(node) => {
+                    self.record_media(
+                        MediaKind::Image,
+                        &node.src,
+                        node.alt.clone(),
+                        node.pos.as_ref(),
+                    );
+                    self.leaf(
+                        node.pos.as_ref(),
+                        SourceNodeKind::Image {
+                            width: image_width(node.attrs.as_ref()),
+                        },
+                        path,
+                    );
+                }
                 InlineNode::Code(node) => {
                     self.leaf(node.pos.as_ref(), SourceNodeKind::InlineCode, path);
                 }
@@ -414,6 +465,25 @@ impl SourceAnalysis {
                 _ => {}
             }
         }
+    }
+
+    fn record_media(&mut self, kind: MediaKind, path: &str, label: String, pos: Option<&Pos>) {
+        let Some(range) = pos.and_then(pos_range) else {
+            return;
+        };
+        if !is_managed_asset_path(path) {
+            return;
+        }
+        self.media.push(MediaOccurrence {
+            kind,
+            path: path.to_owned(),
+            label: if label.is_empty() {
+                path.to_owned()
+            } else {
+                label
+            },
+            range,
+        });
     }
 
     fn leaf(&mut self, pos: Option<&Pos>, kind: SourceNodeKind, path: &mut Vec<SourceNodeKind>) {
@@ -455,6 +525,33 @@ fn image_width(attrs: Option<&carve::Attrs>) -> Option<u8> {
         .strip_suffix('%')?
         .parse()
         .ok()
+}
+
+fn is_managed_asset_path(path: &str) -> bool {
+    let Some(filename) = path.strip_prefix("assets/") else {
+        return false;
+    };
+    !filename.is_empty()
+        && !filename.contains('/')
+        && !filename.contains('\\')
+        && filename != "."
+        && filename != ".."
+}
+
+fn inline_label(nodes: &[InlineNode]) -> String {
+    nodes
+        .iter()
+        .map(|node| match node {
+            InlineNode::Text(node) => node.value.clone(),
+            InlineNode::EscapedText(node) => node.value.clone(),
+            InlineNode::Emphasis(node) => inline_label(&node.children),
+            InlineNode::Span(node) => inline_label(&node.children),
+            InlineNode::CriticInsert(node) => inline_label(&node.children),
+            InlineNode::CriticDelete(node) => inline_label(&node.children),
+            InlineNode::Code(node) => node.value.clone(),
+            _ => String::new(),
+        })
+        .collect()
 }
 
 #[cfg(test)]

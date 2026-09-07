@@ -9,6 +9,8 @@ use libadwaita as adw;
 use super::editor::{focus::EditorFocusRestorer, source_commands};
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand, SourceImageTarget};
 
+const MAX_ATTACHMENT_BYTES: usize = 50 * 1024 * 1024;
+
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///
 /// The callback only receives asset paths created by the storage client; source
@@ -165,6 +167,90 @@ pub(crate) fn image_alt_for_file(file: &gtk::gio::File) -> String {
     );
     name.rsplit_once('.')
         .map_or(name.clone(), |(stem, _)| stem.to_owned())
+}
+
+/// Opens a native chooser for regular files and stores each selection as a managed attachment.
+pub(crate) fn choose_managed_files(
+    button: &impl IsA<gtk::Widget>,
+    dispatcher: &AppDispatcher,
+    toast_overlay: &adw::ToastOverlay,
+    source_target: Option<SourceImageTarget>,
+) {
+    let dialog = gtk::FileDialog::builder().title("Add files").build();
+    let parent = button.root().and_downcast::<gtk::Window>();
+    let dispatcher = dispatcher.clone();
+    let toast_overlay = toast_overlay.clone();
+    dialog.open_multiple(
+        parent.as_ref(),
+        None::<&gtk::gio::Cancellable>,
+        move |result| {
+            let Ok(files) = result else {
+                return;
+            };
+            for file in files.iter::<gtk::gio::File>().flatten() {
+                import_managed_file(&file, &dispatcher, &toast_overlay, source_target.clone());
+            }
+        },
+    );
+}
+
+/// Reads one regular file and requests its managed storage through the MVU runtime.
+pub(crate) fn import_managed_file(
+    file: &gtk::gio::File,
+    dispatcher: &AppDispatcher,
+    toast_overlay: &adw::ToastOverlay,
+    source_target: Option<SourceImageTarget>,
+) {
+    let name = file.basename().map_or_else(
+        || String::from("Attachment"),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    let extension = attachment_extension(&name);
+    let dispatcher = dispatcher.clone();
+    let toast_overlay = toast_overlay.clone();
+    file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
+        let Ok((bytes, _)) = result else {
+            toast_overlay.add_toast(adw::Toast::new("Could not read the selected file"));
+            return;
+        };
+        if bytes.len() > MAX_ATTACHMENT_BYTES {
+            toast_overlay.add_toast(adw::Toast::new("Files must be 50 MB or smaller"));
+            return;
+        }
+        let bytes = bytes.as_ref().to_vec();
+        let message = if matches!(
+            extension.as_str(),
+            "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg"
+        ) {
+            AppMsg::Editor(EditorMsg::ImportImage {
+                extension,
+                bytes,
+                alt: name
+                    .rsplit_once('.')
+                    .map_or_else(|| name.clone(), |(stem, _)| stem.to_owned()),
+                source_target,
+            })
+        } else {
+            AppMsg::Editor(EditorMsg::ImportFile {
+                extension,
+                bytes,
+                name,
+                source_target,
+            })
+        };
+        let _ = dispatcher.dispatch(message);
+    });
+}
+
+fn attachment_extension(name: &str) -> String {
+    name.rsplit_once('.')
+        .map(|(_, extension)| extension)
+        .filter(|extension| {
+            !extension.is_empty()
+                && extension.len() <= 32
+                && extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+        .map_or_else(|| String::from("bin"), str::to_ascii_lowercase)
 }
 
 /// Appends the shared hoverable table-size picker used by both editing modes.

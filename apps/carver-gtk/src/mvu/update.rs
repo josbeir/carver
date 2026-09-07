@@ -220,6 +220,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
     persist_config_effect(model)
 }
 
+// CONTEXT: The full editor message vocabulary is intentionally centralized so source changes,
+// persistence, and asynchronous asset completion share one admission point.
+#[expect(clippy::too_many_lines)]
 fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
     match message {
         EditorMsg::Load {
@@ -305,6 +308,34 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             alt,
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, alt, source_target),
+        EditorMsg::ImportFile {
+            extension,
+            bytes,
+            name,
+            source_target,
+        } => store_editor_asset_effect(model, extension, bytes, name, source_target),
+        EditorMsg::ToggleMediaSidebar => {
+            if let Some(document) = model.editor.as_mut() {
+                document.media_sidebar = document.media_sidebar.toggled();
+            }
+            Vec::new()
+        }
+        EditorMsg::FocusMedia { selection } => model
+            .editor
+            .as_ref()
+            .and_then(|document| {
+                document
+                    .media
+                    .iter()
+                    .find(|media| media.range == selection)
+                    .map(|media| Effect::FocusEditorMedia {
+                        session: document.session,
+                        selection,
+                        path: media.path.clone(),
+                    })
+            })
+            .into_iter()
+            .collect(),
         EditorMsg::Close(session_id) => close_editor(model, session_id),
         EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
@@ -986,7 +1017,11 @@ fn update_editor_asset_stored(
     };
     match result {
         Ok(path) => {
-            let source = image_source(&document.source, alt, &path, source_target);
+            let source = if is_image_path(&path) {
+                image_source(&document.source, alt, &path, source_target)
+            } else {
+                attachment_source(&document.source, alt, &path, source_target)
+            };
             if !document.source_changed(source) {
                 return Vec::new();
             }
@@ -1208,6 +1243,29 @@ fn append_image_source(source: &str, markup: &str) -> String {
     source.push_str(markup);
     source.push('\n');
     source
+}
+
+fn attachment_source(
+    source: &str,
+    name: &str,
+    path: &str,
+    source_target: Option<super::SourceImageTarget>,
+) -> String {
+    let label = name.replace(['[', ']', '\n', '\r'], "");
+    let markup = format!("[{label}]({path})");
+    let Some(target) = source_target.filter(|target| target.source == source) else {
+        return append_image_source(source, &markup);
+    };
+    let start = character_byte_offset(source, target.selection.start);
+    let end = character_byte_offset(source, target.selection.end.max(target.selection.start));
+    let mut inserted = source.to_owned();
+    inserted.replace_range(start..end, &markup);
+    inserted
+}
+
+fn is_image_path(path: &str) -> bool {
+    path.rsplit_once('.')
+        .is_some_and(|(_, extension)| matches!(extension, "png" | "jpg" | "gif" | "webp" | "svg"))
 }
 
 fn character_byte_offset(source: &str, offset: usize) -> usize {

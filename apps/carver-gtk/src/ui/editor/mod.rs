@@ -55,6 +55,9 @@ type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
+    media_toggle: gtk::ToggleButton,
+    media_revealer: gtk::Revealer,
+    media_list: gtk::ListBox,
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
@@ -82,6 +85,9 @@ pub(crate) struct EditorViewRefs {
 
 impl EditorViewRefs {
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
+    // CONTEXT: Rendering all projections together prevents GTK widgets from becoming a second
+    // document state store.
+    #[expect(clippy::too_many_lines)]
     pub(crate) fn render(&self, model: &AppModel) {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
@@ -92,6 +98,11 @@ impl EditorViewRefs {
             return;
         };
         self.favorite.set_active(document.is_favorite);
+        self.media_toggle
+            .set_active(document.media_sidebar.is_visible());
+        self.media_revealer
+            .set_reveal_child(document.media_sidebar.is_visible());
+        render_media_list(&self.media_list, &document.media, &self.dispatcher);
         self.favorite
             .set_tooltip_text(Some(if document.is_favorite {
                 "Remove from Favorites"
@@ -254,6 +265,34 @@ impl EditorViewRefs {
         }
     }
 
+    /// Focuses a media occurrence while retaining the current editor mode.
+    pub(crate) fn focus_media(
+        &self,
+        session: EditorSessionId,
+        selection: std::ops::Range<usize>,
+        path: &str,
+    ) {
+        if self.loaded_session.borrow().as_ref() != Some(&session) {
+            return;
+        }
+        let mut start = self
+            .source_buffer
+            .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
+        let end = self
+            .source_buffer
+            .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
+        self.source_buffer.select_range(&start, &end);
+        if self.source_mode.is_active() {
+            self.source_editor
+                .view()
+                .scroll_to_iter(&mut start, 0.2, false, 0.0, 0.0);
+        } else if self.rich_mode.is_active() {
+            self.rich.focus_media(path);
+        } else {
+            focus_preview_media(&self.rendered_preview, path);
+        }
+    }
+
     /// Executes a clipboard effect after the reducer has admitted its immutable request.
     pub(crate) fn copy_document(&self, request: &EditorCopyRequest) {
         let dispatcher = self.dispatcher.clone();
@@ -311,6 +350,19 @@ impl EditorViewRefs {
             request.request_id,
         );
     }
+}
+
+fn focus_preview_media(view: &webkit6::WebView, path: &str) {
+    let path = serde_json::to_string(path).unwrap_or_else(|_| String::from("\"\""));
+    view.evaluate_javascript(
+        &format!(
+            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].find((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path)); node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
+        ),
+        None,
+        Some("carver-editor:///bridge"),
+        None::<&gtk::gio::Cancellable>,
+        |_| {},
+    );
 }
 
 fn invalidate_preview_sources(
@@ -431,6 +483,11 @@ pub(crate) fn build_editor(
     favorite.set_widget_name("favorite-note-button");
     favorite.set_tooltip_text(Some("Add to Favorites"));
     favorite.add_css_class("flat");
+    let media_toggle = gtk::ToggleButton::new();
+    media_toggle.set_icon_name("sidebar-show-symbolic");
+    media_toggle.set_widget_name("editor-media-sidebar-toggle");
+    media_toggle.set_tooltip_text(Some("Show media"));
+    media_toggle.add_css_class("flat");
     let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
@@ -439,6 +496,7 @@ pub(crate) fn build_editor(
     header.pack_end(&options_menu);
     header.pack_end(&copy_note);
     header.pack_end(&favorite);
+    header.pack_end(&media_toggle);
     view.add_top_bar(&header);
 
     let split_toggle = gtk::ToggleButton::new();
@@ -502,7 +560,34 @@ pub(crate) fn build_editor(
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
     toolbar_bar.append(toolbar.widget());
     view.add_bottom_bar(&toolbar_bar);
-    view.set_content(Some(&editor_stack));
+    let media_list = gtk::ListBox::new();
+    media_list.set_selection_mode(gtk::SelectionMode::None);
+    media_list.add_css_class("boxed-list");
+    let media_scroller = gtk::ScrolledWindow::new();
+    media_scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    media_scroller.set_child(Some(&media_list));
+    let media_panel = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    media_panel.set_widget_name("editor-media-sidebar");
+    media_panel.set_width_request(280);
+    media_panel.set_margin_top(12);
+    media_panel.set_margin_bottom(12);
+    media_panel.set_margin_start(12);
+    media_panel.set_margin_end(12);
+    let media_title = gtk::Label::new(Some("Media"));
+    media_title.add_css_class("title-4");
+    media_title.set_halign(gtk::Align::Start);
+    media_panel.append(&media_title);
+    let add_files = gtk::Button::with_label("Add files…");
+    add_files.set_halign(gtk::Align::Start);
+    media_panel.append(&add_files);
+    media_panel.append(&media_scroller);
+    let media_revealer = gtk::Revealer::new();
+    media_revealer.set_transition_type(gtk::RevealerTransitionType::SlideLeft);
+    media_revealer.set_child(Some(&media_panel));
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    content.append(&editor_stack);
+    content.append(&media_revealer);
+    view.set_content(Some(&content));
 
     connect_mode_buttons(
         dispatcher,
@@ -538,6 +623,8 @@ pub(crate) fn build_editor(
     connect_theme_changes(dispatcher);
     connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
+    connect_media_toggle(dispatcher, &media_toggle);
+    connect_add_files(dispatcher, &add_files, &source_buffer, toast_overlay);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher);
@@ -545,6 +632,9 @@ pub(crate) fn build_editor(
     let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, toast_overlay);
     let refs = EditorViewRefs {
         favorite,
+        media_toggle,
+        media_revealer,
+        media_list,
         rich_mode,
         source_mode,
         rendered_mode,
@@ -573,6 +663,84 @@ pub(crate) fn build_editor(
         widget: view.upcast(),
         refs,
     })
+}
+
+fn connect_media_toggle(dispatcher: &AppDispatcher, toggle: &gtk::ToggleButton) {
+    let dispatcher = dispatcher.clone();
+    toggle.connect_toggled(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    });
+}
+
+fn connect_add_files(
+    dispatcher: &AppDispatcher,
+    button: &gtk::Button,
+    source_buffer: &gtk::TextBuffer,
+    toast_overlay: &adw::ToastOverlay,
+) {
+    let dispatcher = dispatcher.clone();
+    let source_buffer = source_buffer.clone();
+    let toast_overlay = toast_overlay.clone();
+    button.connect_clicked(move |button| {
+        super::formatting::choose_managed_files(
+            button,
+            &dispatcher,
+            &toast_overlay,
+            Some(source_commands::image_target_from_buffer(&source_buffer)),
+        );
+    });
+}
+
+fn render_media_list(
+    list: &gtk::ListBox,
+    media: &[carver_domain::source_analysis::MediaOccurrence],
+    dispatcher: &AppDispatcher,
+) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    if media.is_empty() {
+        let empty = gtk::Label::new(Some("No media in this document"));
+        empty.add_css_class("dim-label");
+        empty.set_wrap(true);
+        empty.set_margin_top(12);
+        list.append(&empty);
+        return;
+    }
+    for item in media {
+        let row = gtk::ListBoxRow::new();
+        row.set_activatable(true);
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        content.set_margin_top(8);
+        content.set_margin_bottom(8);
+        content.set_margin_start(8);
+        content.set_margin_end(8);
+        let icon = gtk::Image::from_icon_name(match item.kind {
+            carver_domain::source_analysis::MediaKind::Image => "image-x-generic-symbolic",
+            carver_domain::source_analysis::MediaKind::Attachment => "mail-attachment-symbolic",
+        });
+        content.append(&icon);
+        let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        let title = gtk::Label::new(Some(&item.label));
+        title.set_halign(gtk::Align::Start);
+        title.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        let subtitle = gtk::Label::new(Some(&item.path));
+        subtitle.add_css_class("dim-label");
+        subtitle.set_halign(gtk::Align::Start);
+        subtitle.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+        labels.append(&title);
+        labels.append(&subtitle);
+        content.append(&labels);
+        row.set_child(Some(&content));
+        let dispatcher = dispatcher.clone();
+        let selection = item.range.clone();
+        row.connect_activate(move |_| {
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::FocusMedia {
+                selection: selection.clone(),
+            }));
+        });
+        list.append(&row);
+    }
 }
 
 /// Falls back to the lossless read-only renderer when the web adapter reports
@@ -1054,8 +1222,8 @@ pub(crate) fn show_export_options_dialog(
     format.set_selected(0);
     let include_assets = adw::SwitchRow::new();
     include_assets.set_widget_name("export-assets-setting");
-    include_assets.set_title("Include managed images");
-    include_assets.set_subtitle("Create a portable ZIP archive with the document and its images.");
+    include_assets.set_title("Include managed files");
+    include_assets.set_subtitle("Create a portable ZIP archive with the document and its files.");
     let format_for_toggle = format.clone();
     let assets_for_toggle = include_assets.clone();
     format.connect_selected_notify(move |_| {

@@ -148,6 +148,14 @@ impl RichEditor {
         ));
     }
 
+    /// Scrolls a rendered managed asset into view without changing its source.
+    pub(crate) fn focus_media(&self, path: &str) {
+        self.evaluate(&format!(
+            "(() => {{ const path = {}; const node = [...document.querySelectorAll('img,a')].find((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').endsWith(path)); node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();",
+            json(path)
+        ));
+    }
+
     /// Opens the Rich editor's contextual link dialog from the shared toolbar.
     pub(crate) fn show_link_dialog(
         &self,

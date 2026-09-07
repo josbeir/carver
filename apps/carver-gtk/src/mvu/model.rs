@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use carver_config::{Config, EditorMode, SourceSyntaxStyle};
+use carver_domain::source_analysis::{MediaOccurrence, SourceAnalysis};
 use carver_sdk::{
     CategoryId, CategorySummary, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
 };
@@ -255,6 +256,10 @@ pub struct EditorDocument {
     pub source: String,
     /// Currently selected editor surface.
     pub mode: EditorMode,
+    /// Positioned images and managed attachments in the current canonical source.
+    pub media: Vec<MediaOccurrence>,
+    /// Current visibility of the editor's media navigation sidebar.
+    pub media_sidebar: MediaSidebarVisibility,
     /// Latest favorite state requested before the current mutation completes.
     pub(crate) pending_favorite: Option<bool>,
     /// Whether a favorite mutation is in flight for this editor document.
@@ -344,6 +349,7 @@ impl EditorDocument {
         source: String,
         mode: EditorMode,
     ) -> Self {
+        let media = SourceAnalysis::parse(&source).media().to_vec();
         Self {
             session,
             note_id,
@@ -351,6 +357,8 @@ impl EditorDocument {
             is_favorite,
             source,
             mode,
+            media,
+            media_sidebar: MediaSidebarVisibility::Hidden,
             pending_favorite: None,
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
@@ -362,6 +370,7 @@ impl EditorDocument {
     pub(super) fn source_changed(&mut self, source: String) -> bool {
         if self.source != source {
             self.source = source;
+            self.media = SourceAnalysis::parse(&self.source).media().to_vec();
             if !matches!(self.save_state, EditorSaveState::Saving(_)) {
                 self.save_state = EditorSaveState::Dirty;
             }
@@ -402,6 +411,31 @@ impl EditorDocument {
 
     pub(super) fn close_is_requested(&self) -> bool {
         self.close_requested
+    }
+}
+
+/// Visibility state for the editor's media navigation sidebar.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum MediaSidebarVisibility {
+    /// The sidebar is not taking editor space.
+    #[default]
+    Hidden,
+    /// The sidebar is visible beside the editor.
+    Visible,
+}
+
+impl MediaSidebarVisibility {
+    /// Toggles visibility.
+    pub const fn toggled(self) -> Self {
+        match self {
+            Self::Hidden => Self::Visible,
+            Self::Visible => Self::Hidden,
+        }
+    }
+
+    /// Returns whether the sidebar is visible.
+    pub const fn is_visible(self) -> bool {
+        matches!(self, Self::Visible)
     }
 }
 

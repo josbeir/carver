@@ -9,6 +9,7 @@ use std::{
 };
 
 use carve::{CheckedRenderOptions, to_markdown_with_report};
+use carver_domain::source_analysis::SourceAnalysis;
 use thiserror::Error;
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
@@ -49,7 +50,7 @@ pub enum ExportWarning {
         /// Number of omitted constructs.
         count: usize,
     },
-    /// A portable archive could not include one referenced managed image.
+    /// A portable archive could not include one referenced managed file.
     MissingManagedAsset {
         /// Source-relative managed asset location.
         path: String,
@@ -67,7 +68,7 @@ impl std::fmt::Display for ExportWarning {
             Self::MissingManagedAsset { path } => {
                 write!(
                     formatter,
-                    "The managed image `{path}` could not be included."
+                    "The managed file `{path}` could not be included."
                 )
             }
         }
@@ -105,21 +106,13 @@ pub enum ExportError {
 /// Returns the safe managed asset paths referenced by a Carve document.
 #[must_use]
 pub fn managed_asset_paths(source: &str) -> Vec<String> {
-    let html = carve::to_html(source);
-    let mut paths = BTreeSet::new();
-    let mut remaining = html.as_str();
-    while let Some(image_start) = remaining.find("<img ") {
-        let image_and_rest = &remaining[image_start..];
-        let Some(image_end) = image_and_rest.find('>') else {
-            break;
-        };
-        let image = &image_and_rest[..=image_end];
-        if let Some(path) = attribute(image, "src").filter(|path| is_managed_asset_path(path)) {
-            paths.insert(path.to_owned());
-        }
-        remaining = &image_and_rest[image_end + 1..];
-    }
-    paths.into_iter().collect()
+    SourceAnalysis::parse(source)
+        .media()
+        .iter()
+        .map(|media| media.path.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Prepares direct document bytes or a ZIP archive containing managed assets.
@@ -232,12 +225,6 @@ fn is_managed_asset_path(path: &str) -> bool {
             .all(|component| matches!(component, Component::Normal(_)))
 }
 
-fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
-    let prefix = format!("{name}=\"");
-    let value = tag.split_once(&prefix)?.1;
-    value.split_once('"').map(|(value, _)| value)
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Read};
@@ -302,7 +289,7 @@ mod tests {
                 path: "assets/missing.png".to_owned()
             }
             .to_string(),
-            "The managed image `assets/missing.png` could not be included."
+            "The managed file `assets/missing.png` could not be included."
         );
     }
 
@@ -355,6 +342,17 @@ mod tests {
         );
 
         assert_eq!(paths, vec![String::from("assets/photo.png")]);
+    }
+
+    #[test]
+    fn managed_asset_paths_should_include_attachment_links() {
+        assert_eq!(
+            managed_asset_paths("[Brief](assets/brief.pdf) ![Diagram](assets/diagram.png)"),
+            vec![
+                String::from("assets/brief.pdf"),
+                String::from("assets/diagram.png")
+            ]
+        );
     }
 
     #[test]

@@ -391,7 +391,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
-    /// Stores an image asset without blocking the caller.
+    /// Stores a managed file asset without blocking the caller.
     pub async fn store_asset_async(
         &self,
         note_id: NoteId,
@@ -402,7 +402,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
-    /// Reads an image asset without blocking the caller.
+    /// Reads a managed file asset without blocking the caller.
     pub async fn note_asset_bytes_async(
         &self,
         note_id: NoteId,

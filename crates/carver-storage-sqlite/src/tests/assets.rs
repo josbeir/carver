@@ -16,3 +16,39 @@ fn store_asset_rejects_unsupported_extensions() {
         Err(StorageError::UnsupportedAssetExtension(_))
     ));
 }
+
+#[test]
+fn store_asset_accepts_non_image_file_extensions() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let note = library.create_note(category.id, now)?;
+
+    let path = library.store_asset(note.id, "pdf", b"document")?;
+
+    assert!(
+        std::path::Path::new(&path)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+    );
+    Ok(())
+}
+
+#[test]
+fn store_asset_reuses_the_canonical_filename_for_identical_bytes() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let first = library.create_note(category.id, now)?;
+    let second = library.create_note(category.id, now)?;
+
+    let first_path = library.store_asset(first.id, "pdf", b"same bytes")?;
+    let second_path = library.store_asset(second.id, "txt", b"same bytes")?;
+
+    assert_eq!(first_path, second_path);
+    assert_eq!(
+        library.note_asset_bytes(second.id, &second_path)?,
+        Some(b"same bytes".to_vec())
+    );
+    Ok(())
+}

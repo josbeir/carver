@@ -265,6 +265,24 @@ pub enum EditorMsg {
         /// native source editor.
         source_target: Option<SourceImageTarget>,
     },
+    /// Store a selected non-image file as a managed attachment.
+    ImportFile {
+        /// Safe extension used for the managed filename.
+        extension: String,
+        /// File content read by the GTK adapter.
+        bytes: Vec<u8>,
+        /// User-visible filename used for the inserted link label.
+        name: String,
+        /// Source target to replace after storage completes, when applicable.
+        source_target: Option<SourceImageTarget>,
+    },
+    /// Show or hide the editor's AST-derived media navigation sidebar.
+    ToggleMediaSidebar,
+    /// Focus one current media occurrence without mutating canonical source.
+    FocusMedia {
+        /// Unicode code-point range of the occurrence's Carve markup.
+        selection: std::ops::Range<usize>,
+    },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
 }

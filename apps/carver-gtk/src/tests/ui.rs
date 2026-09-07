@@ -696,7 +696,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_eq!(
         widget_as::<adw::SwitchRow>(export_options.upcast_ref(), "export-assets-setting")
             .map(|row| row.title()),
-        Some("Include managed images".into())
+        Some("Include managed files".into())
     );
     export_options.emit_by_name::<()>("response", &[&"cancel"]);
     let export_warning = crate::ui::editor::show_export_warning_dialog(

@@ -190,6 +190,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::SelectEditorSource { .. }
+            | Effect::FocusEditorMedia { .. }
             | Effect::CopyEditorDocument { .. }
             | Effect::ShowEditorExportDialog { .. }
             | Effect::ShowEditorExportWarning { .. }

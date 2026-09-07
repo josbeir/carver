@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{SourceAnalysis, SourceNodeKind};
+use super::{MediaKind, SourceAnalysis, SourceNodeKind};
 
 fn context(source: &str, selection: Range<usize>) -> Vec<SourceNodeKind> {
     SourceAnalysis::parse(source)
@@ -125,6 +125,21 @@ fn context_should_include_image_width_and_table_ancestry() {
             SourceNodeKind::TableHeader,
         ])
     );
+}
+
+#[test]
+fn media_should_use_positioned_carve_ast_nodes() {
+    let source = "![Diagram](assets/diagram.png) [Brief](assets/brief.pdf) `![code](assets/no.png)` [web](https://example.test)";
+    let media = SourceAnalysis::parse(source).media().to_vec();
+
+    assert_eq!(media.len(), 2);
+    assert_eq!(media[0].kind, MediaKind::Image);
+    assert_eq!(media[0].path, "assets/diagram.png");
+    assert_eq!(media[0].label, "Diagram");
+    assert_eq!(media[1].kind, MediaKind::Attachment);
+    assert_eq!(media[1].path, "assets/brief.pdf");
+    assert_eq!(media[1].label, "Brief");
+    assert_eq!(&source[media[1].range.clone()], "[Brief](assets/brief.pdf)");
 }
 
 #[test]

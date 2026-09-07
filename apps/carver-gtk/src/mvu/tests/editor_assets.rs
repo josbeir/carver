@@ -230,6 +230,80 @@ fn source_image_paste_should_replace_the_captured_cursor_selection() {
 }
 
 #[test]
+fn file_import_should_insert_a_managed_link_and_refresh_media() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::new(),
+        }),
+    );
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor should be open");
+    };
+
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ImportFile {
+            extension: String::from("pdf"),
+            bytes: vec![1, 2, 3],
+            name: String::from("Project brief.pdf"),
+            source_target: None,
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            session,
+            alt: String::from("Project brief.pdf"),
+            source_target: None,
+            result: Ok(String::from("assets/brief.pdf")),
+        }),
+    );
+
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should remain open");
+    };
+    assert_eq!(document.source, "[Project brief.pdf](assets/brief.pdf)\n");
+    assert_eq!(document.media.len(), 1);
+}
+
+#[test]
+fn media_sidebar_should_focus_only_current_occurrences() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("![Diagram](assets/diagram.png)"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should be open");
+    };
+    assert!(document.media_sidebar.is_visible());
+    let selection = document.media[0].range.clone();
+    let session = document.session;
+
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::FocusMedia { selection })
+        ),
+        vec![Effect::FocusEditorMedia {
+            session,
+            selection: 0..30,
+            path: String::from("assets/diagram.png"),
+        }]
+    );
+}
+
+#[test]
 fn source_image_import_should_not_replace_text_changed_while_asset_stores() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
