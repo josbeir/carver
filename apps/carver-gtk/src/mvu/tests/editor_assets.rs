@@ -421,14 +421,20 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
         panic!("editor should exist");
     };
     let session = document.session;
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
     assert_eq!(
-        update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar)),
-        vec![Effect::LoadMediaFile {
-            session,
-            note_id,
-            path: String::from("assets/a.png"),
-            image: true
-        },]
+        effects,
+        vec![
+            Effect::PersistConfig {
+                config: model.config.clone()
+            },
+            Effect::LoadMediaFile {
+                session,
+                note_id,
+                path: String::from("assets/a.png"),
+                image: true
+            },
+        ]
     );
     let Some(document) = model.editor.as_ref() else {
         panic!("editor should exist");

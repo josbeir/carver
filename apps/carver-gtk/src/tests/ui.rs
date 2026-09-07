@@ -23,6 +23,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     glib::set_application_name("Carver test");
     gtk::init()?;
     assert_sidebar_reload_preserves_rows()?;
+    assert_media_visibility_should_restore_without_reentrant_toggles()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
@@ -1662,15 +1663,114 @@ fn assert_attachment_card_should_focus_in_edit_and_preview(
 }
 
 fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
-    let result = Rc::new(Cell::new(None));
-    let response = Rc::clone(&result);
-    view.evaluate_javascript(
-        script,
-        None,
-        None,
-        None::<&gtk::gio::Cancellable>,
-        move |value| response.set(Some(value.is_ok_and(|value| value.to_boolean()))),
+    let result = Rc::new(Cell::new(false));
+    let pending = Rc::new(Cell::new(false));
+    assert!(
+        run_main_context_until(|| {
+            if result.get() {
+                return true;
+            }
+            if !pending.replace(true) {
+                let response = Rc::clone(&result);
+                let pending = Rc::clone(&pending);
+                view.evaluate_javascript(
+                    script,
+                    None,
+                    None,
+                    None::<&gtk::gio::Cancellable>,
+                    move |value| {
+                        response.set(value.is_ok_and(|value| value.to_boolean()));
+                        pending.set(false);
+                    },
+                );
+            }
+            false
+        }),
+        "{script}"
     );
-    assert!(run_main_context_until(|| result.get().is_some()));
-    assert_eq!(result.get(), Some(true), "{script}");
+}
+
+fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestResult {
+    use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, EditorMsg};
+    let (directory, client) = test_state()?;
+    let syntax = crate::ui::editor::install_syntax_assets(directory.path())?;
+    let config_path = directory.path().join("media-settings.toml");
+    let mut config = Config::default();
+    config.editor.show_media_sidebar = true;
+    config.editor.last_mode = carver_config::EditorMode::Source;
+    carver_config::save(&config_path, &config)?;
+    let config = carver_config::load(&config_path)?;
+    let dispatcher = AppDispatcher::default();
+    let overlay = adw::ToastOverlay::new();
+    let editor = crate::ui::editor::build_editor(
+        &dispatcher,
+        &config,
+        None,
+        &syntax,
+        &overlay,
+        &adw::NavigationSplitView::new(),
+    )?;
+    let (surface, refs) = editor.into_parts();
+    let stack = gtk::Stack::new();
+    stack.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    stack.add_named(&surface, Some("editor"));
+    let window = gtk::Window::builder()
+        .default_width(1200)
+        .default_height(800)
+        .child(&stack)
+        .build();
+    let runtime = AppRuntime::new_with_config_path(
+        client,
+        AppModel::new(&config),
+        crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
+            .with_editor(refs),
+        Some(config_path.clone()),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    window.present();
+    let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-media-sidebar-toggle")
+        .ok_or("media toggle")?;
+    for source in [
+        "Plain document",
+        "![Photo](assets/missing.png)",
+        "Another document",
+    ] {
+        runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+            note_id: carver_sdk::NoteId::new(),
+            revision: carver_sdk::Revision(1),
+            source: source.to_owned(),
+        }));
+        assert!(toggle.is_active());
+        assert!(runtime.model().config.editor.show_media_sidebar);
+        let pages = widget_as::<gtk::Stack>(&surface, "editor-media-pages").ok_or("media pages")?;
+        assert_eq!(
+            pages.visible_child_name().as_deref(),
+            Some(if source.starts_with("![") {
+                "files"
+            } else {
+                "empty"
+            })
+        );
+    }
+    let sidebar = find_widget(&surface, "editor-media-sidebar").ok_or("media sidebar")?;
+    assert!(run_main_context_until(|| sidebar.width() > 0));
+    assert!(sidebar.width() <= 320, "sidebar width: {}", sidebar.width());
+    let revealer = sidebar.parent().ok_or("sidebar revealer")?;
+    assert!(!revealer.compute_expand(gtk::Orientation::Horizontal));
+    toggle.set_active(false);
+    assert!(!carver_config::load(&config_path)?.editor.show_media_sidebar);
+    assert!(run_main_context_until(|| revealer.width() == 0));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        source: String::from("![Image](assets/another.png)"),
+    }));
+    assert!(!toggle.is_active());
+    toggle.set_active(true);
+    assert!(carver_config::load(&config_path)?.editor.show_media_sidebar);
+    window.close();
+    Ok(())
 }

@@ -58,6 +58,7 @@ pub(crate) struct EditorViewRefs {
     media_toggle: gtk::ToggleButton,
     media_revealer: gtk::Revealer,
     media_list: gtk::ListBox,
+    media_pages: gtk::Stack,
     rendered_media_files:
         RefCell<std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>>,
     rendered_media: RefCell<Option<Vec<carver_domain::source_analysis::MediaOccurrence>>>,
@@ -100,11 +101,18 @@ impl EditorViewRefs {
             self.rendered_preview_source.replace(None);
             return;
         };
+        self.rendering.set(true);
         self.favorite.set_active(document.is_favorite);
         self.media_toggle
             .set_active(document.media_sidebar.is_visible());
         self.media_revealer
             .set_reveal_child(document.media_sidebar.is_visible());
+        self.media_pages
+            .set_visible_child_name(if document.media.is_empty() {
+                "empty"
+            } else {
+                "files"
+            });
         if self.rendered_media.borrow().as_deref() != Some(document.media.as_slice())
             || *self.rendered_media_files.borrow() != document.media_files
         {
@@ -143,7 +151,6 @@ impl EditorViewRefs {
             .as_ref()
             .filter(|preview| preview.session == document.session)
             .cloned();
-        self.rendering.set(true);
         if new_document {
             self.find.reset();
         }
@@ -615,8 +622,15 @@ pub(crate) fn build_editor(
     media_header.append(&media_title);
     media_header.append(&add_files);
     media_panel.append(&media_header);
-    media_panel.append(&media_scroller);
+    let media_pages = gtk::Stack::new();
+    media_pages.set_widget_name("editor-media-pages");
+    media_pages.set_vexpand(true);
+    media_pages.set_hhomogeneous(false);
+    media_pages.add_named(&media_scroller, Some("files"));
+    media_pages.add_named(&media_empty_state(), Some("empty"));
+    media_panel.append(&media_pages);
     let media_revealer = gtk::Revealer::new();
+    media_revealer.set_hexpand(false);
     media_revealer.set_transition_type(gtk::RevealerTransitionType::SlideLeft);
     media_revealer.set_child(Some(&media_panel));
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -662,7 +676,7 @@ pub(crate) fn build_editor(
     connect_theme_changes(dispatcher);
     connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
-    connect_media_toggle(dispatcher, &media_toggle);
+    connect_media_toggle(dispatcher, &media_toggle, &rendering);
     connect_add_files(dispatcher, &add_files, &source_buffer, toast_overlay);
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
@@ -674,6 +688,7 @@ pub(crate) fn build_editor(
         media_toggle,
         media_revealer,
         media_list,
+        media_pages,
         rendered_media_files: RefCell::new(std::collections::BTreeMap::new()),
         rendered_media: RefCell::new(None),
         rich_mode,
@@ -706,9 +721,17 @@ pub(crate) fn build_editor(
     })
 }
 
-fn connect_media_toggle(dispatcher: &AppDispatcher, toggle: &gtk::ToggleButton) {
+fn connect_media_toggle(
+    dispatcher: &AppDispatcher,
+    toggle: &gtk::ToggleButton,
+    rendering: &Rc<Cell<bool>>,
+) {
+    let rendering = Rc::clone(rendering);
     let dispatcher = dispatcher.clone();
     toggle.connect_toggled(move |_| {
+        if rendering.get() {
+            return;
+        }
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
     });
 }
@@ -732,6 +755,28 @@ fn connect_add_files(
     });
 }
 
+fn media_empty_state() -> gtk::Box {
+    let empty = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    empty.set_widget_name("editor-media-empty");
+    empty.set_valign(gtk::Align::Center);
+    empty.set_margin_start(20);
+    empty.set_margin_end(20);
+    let icon = gtk::Image::from_icon_name("mail-attachment-symbolic");
+    icon.set_pixel_size(48);
+    icon.add_css_class("dim-label");
+    let title = gtk::Label::new(Some("No media yet"));
+    title.add_css_class("heading");
+    let hint = gtk::Label::new(Some("Use + to add files, or drag them into the document."));
+    hint.set_wrap(true);
+    hint.set_max_width_chars(28);
+    hint.set_justify(gtk::Justification::Center);
+    hint.add_css_class("dim-label");
+    empty.append(&icon);
+    empty.append(&title);
+    empty.append(&hint);
+    empty
+}
+
 fn render_media_list(
     list: &gtk::ListBox,
     media: &[carver_domain::source_analysis::MediaOccurrence],
@@ -740,14 +785,6 @@ fn render_media_list(
 ) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
-    }
-    if media.is_empty() {
-        let empty = gtk::Label::new(Some("No media in this document"));
-        empty.add_css_class("dim-label");
-        empty.set_wrap(true);
-        empty.set_margin_top(12);
-        list.append(&empty);
-        return;
     }
     for item in media {
         let row = gtk::ListBoxRow::new();

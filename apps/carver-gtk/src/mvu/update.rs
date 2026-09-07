@@ -345,6 +345,8 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         EditorMsg::ToggleMediaSidebar => {
             if let Some(document) = model.editor.as_mut() {
                 document.media_sidebar = document.media_sidebar.toggled();
+                model.config.editor.show_media_sidebar = document.media_sidebar.is_visible();
+                return persist_config_effect(model);
             }
             Vec::new()
         }
@@ -544,14 +546,18 @@ fn open_editor(
     source: String,
 ) {
     let session = model.next_editor_session_id();
-    model.editor = Some(super::EditorDocument::new(
+    let mut document = super::EditorDocument::new(
         session,
         note_id,
         revision,
         is_favorite,
         source.clone(),
         model.preferences.editor_mode,
-    ));
+    );
+    if model.config.editor.show_media_sidebar {
+        document.media_sidebar = super::model::MediaSidebarVisibility::Visible;
+    }
+    model.editor = Some(document);
     model.editor_preview = Some(super::EditorPreview { session, source });
     model.editor_copy_request = None;
     model.editor_export_dialog_request = None;
