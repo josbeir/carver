@@ -24,6 +24,34 @@ fn file_read_should_reject_oversized_files_before_loading_their_contents() -> Te
 }
 
 #[test]
+fn batch_staging_should_finish_before_any_file_is_stored() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let valid = directory.path().join("valid.txt");
+    std::fs::write(&valid, "valid")?;
+    let oversized = directory.path().join("oversized.bin");
+    std::fs::File::create(&oversized)?.set_len(MAX_FILE_BYTES as u64 + 1)?;
+    let files = vec![
+        ImportFileSource {
+            uri: gio::File::for_path(valid).uri().to_string(),
+            label: "valid.txt".into(),
+            extension: "txt".into(),
+            image: false,
+        },
+        ImportFileSource {
+            uri: gio::File::for_path(oversized).uri().to_string(),
+            label: "oversized.bin".into(),
+            extension: "bin".into(),
+            image: false,
+        },
+    ];
+    let context = glib::MainContext::new();
+    context.with_thread_default(|| {
+        assert!(context.block_on(stage_native_files(files)).is_err());
+    })?;
+    Ok(())
+}
+
+#[test]
 fn stream_read_should_enforce_the_limit_even_without_file_metadata() -> TestResult {
     let context = glib::MainContext::new();
     context.with_thread_default(|| {

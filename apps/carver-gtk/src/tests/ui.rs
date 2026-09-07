@@ -1806,11 +1806,18 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     let sidebar = find_widget(&surface, "editor-media-sidebar").ok_or("media sidebar")?;
     assert!(run_main_context_until(|| sidebar.width() > 0));
     assert!(sidebar.width() <= 320, "sidebar width: {}", sidebar.width());
-    let revealer = sidebar.parent().ok_or("sidebar revealer")?;
-    assert!(!revealer.compute_expand(gtk::Orientation::Horizontal));
+    let media_split = widget_as::<adw::OverlaySplitView>(&surface, "editor-media-split-view")
+        .ok_or("media split")?;
+    assert_eq!(media_split.sidebar_position(), gtk::PackType::End);
+    assert!(media_split.is_pin_sidebar());
+    assert!(media_split.shows_sidebar());
+    window.set_default_size(700, 800);
+    assert!(run_main_context_until(|| media_split.is_collapsed()));
+    window.set_default_size(1200, 800);
+    assert!(run_main_context_until(|| !media_split.is_collapsed()));
     toggle.set_active(false);
     assert!(!carver_config::load(&config_path)?.editor.show_media_sidebar);
-    assert!(run_main_context_until(|| revealer.width() == 0));
+    assert!(run_main_context_until(|| !media_split.shows_sidebar()));
     runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
         note_id: carver_sdk::NoteId::new(),
         revision: carver_sdk::Revision(1),

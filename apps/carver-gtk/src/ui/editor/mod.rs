@@ -64,7 +64,7 @@ pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
     media_toggle: gtk::ToggleButton,
     add_files: gtk::Button,
-    media_revealer: gtk::Revealer,
+    media_split: adw::OverlaySplitView,
     media_list: gtk::ListBox,
     media_pages: gtk::Stack,
     thumbnails: RefCell<ThumbnailCache>,
@@ -146,8 +146,8 @@ impl EditorViewRefs {
             .set_sensitive(document.mode != EditorMode::Rendered);
         self.media_toggle
             .set_active(document.media_sidebar.is_visible());
-        self.media_revealer
-            .set_reveal_child(document.media_sidebar.is_visible());
+        self.media_split
+            .set_show_sidebar(document.media_sidebar.is_visible());
         self.media_pages
             .set_visible_child_name(if document.media.is_empty() {
                 "empty"
@@ -690,7 +690,6 @@ pub(crate) fn build_editor(
     media_scroller.set_child(Some(&media_list));
     let media_panel = gtk::Box::new(gtk::Orientation::Vertical, 12);
     media_panel.set_widget_name("editor-media-sidebar");
-    media_panel.set_width_request(280);
     media_panel.set_margin_top(12);
     media_panel.set_margin_bottom(12);
     media_panel.set_margin_start(12);
@@ -716,18 +715,31 @@ pub(crate) fn build_editor(
     media_pages.add_named(&media_scroller, Some("files"));
     media_pages.add_named(&media_empty_state(), Some("empty"));
     media_panel.append(&media_pages);
-    let media_revealer = gtk::Revealer::new();
-    media_revealer.set_hexpand(false);
-    media_revealer.set_transition_type(gtk::RevealerTransitionType::SlideLeft);
-    media_revealer.set_child(Some(&media_panel));
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    content.set_hexpand(true);
-    content.set_vexpand(true);
     editor_stack.set_hexpand(true);
     editor_stack.set_vexpand(true);
-    content.append(&editor_stack);
-    content.append(&media_revealer);
-    view.set_content(Some(&content));
+    let media_split = adw::OverlaySplitView::new();
+    media_split.set_widget_name("editor-media-split-view");
+    media_split.set_sidebar_position(gtk::PackType::End);
+    media_split.set_min_sidebar_width(240.0);
+    media_split.set_max_sidebar_width(320.0);
+    media_split.set_sidebar_width_fraction(0.25);
+    media_split.set_pin_sidebar(true);
+    media_split.set_enable_hide_gesture(false);
+    media_split.set_enable_show_gesture(false);
+    media_split.set_content(Some(&editor_stack));
+    media_split.set_sidebar(Some(&media_panel));
+    let media_container = adw::BreakpointBin::new();
+    // `BreakpointBin` needs a minimum allocation while the editor surface is mapped.
+    media_container.set_size_request(360, 240);
+    media_container.set_child(Some(&media_split));
+    let media_breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+        adw::BreakpointConditionLengthType::MaxWidth,
+        900.0,
+        adw::LengthUnit::Px,
+    ));
+    media_breakpoint.add_setters(&[(&media_split, "collapsed", true)]);
+    media_container.add_breakpoint(media_breakpoint);
+    view.set_content(Some(&media_container));
 
     connect_mode_buttons(
         dispatcher,
@@ -774,7 +786,7 @@ pub(crate) fn build_editor(
         favorite,
         add_files,
         media_toggle,
-        media_revealer,
+        media_split,
         media_list,
         media_pages,
         thumbnails: RefCell::new(std::collections::BTreeMap::new()),

@@ -31,9 +31,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
         note_id: carver_sdk::NoteId,
         files: Vec<ImportFileSource>,
     ) -> Result<Vec<StoredMedia>, UiError> {
-        let mut stored = Vec::new();
+        let files = stage_native_files(files).await?;
+        let mut stored = Vec::with_capacity(files.len());
         for file in files {
-            let bytes = read_bounded_file(&gio::File::for_uri(&file.uri)).await?;
             if !self
                 .inner
                 .model
@@ -47,17 +47,32 @@ impl<B: LibraryBackend> AppRuntime<B> {
             let path = self
                 .inner
                 .client
-                .store_asset_async(note_id, file.extension, bytes)
+                .store_asset_async(note_id, file.source.extension, file.bytes)
                 .await
                 .map_err(display_error)?;
             stored.push(StoredMedia {
                 path,
-                label: file.label,
-                image: file.image,
+                label: file.source.label,
+                image: file.source.image,
             });
         }
         Ok(stored)
     }
+}
+
+/// A validated native file kept in memory until the complete selection is ready to store.
+struct StagedFile {
+    source: ImportFileSource,
+    bytes: Vec<u8>,
+}
+
+async fn stage_native_files(files: Vec<ImportFileSource>) -> Result<Vec<StagedFile>, UiError> {
+    let mut staged = Vec::with_capacity(files.len());
+    for source in files {
+        let bytes = read_bounded_file(&gio::File::for_uri(&source.uri)).await?;
+        staged.push(StagedFile { source, bytes });
+    }
+    Ok(staged)
 }
 
 async fn read_bounded_file(file: &gio::File) -> Result<Vec<u8>, UiError> {
