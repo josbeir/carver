@@ -155,7 +155,7 @@ export class EditorController implements RichEditorApi {
       case 'code-block':
         return chain.toggleCodeBlock().run();
       case 'heading':
-        return typeof argument === 'number'
+        return typeof argument === 'number' && argument > 0
           ? chain.toggleHeading({ level: argument }).run()
           : chain.setParagraph().run();
       case 'insert-table':

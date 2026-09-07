@@ -85,6 +85,7 @@ describe('link commands', () => {
     expect(
       insertOrUpdateLink(state, { text: 'Carve', destination: '   ' }),
     ).toBeUndefined();
+    expect(insertOrUpdateLink(state)).toBeUndefined();
   });
 
   it('returns no link command when a schema does not support links', () => {

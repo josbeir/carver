@@ -72,6 +72,15 @@ describe('EditorController', () => {
     expect(controller.command('unknown-command')).toBe(false);
   });
 
+  it('returns a heading to normal text when given level zero', () => {
+    const { chain, controller } = controllerFixture();
+    controller.initialize();
+
+    expect(controller.command('heading', 0)).toBe(true);
+    expect(chain.setParagraph).toHaveBeenCalledOnce();
+    expect(chain.toggleHeading).not.toHaveBeenCalled();
+  });
+
   it('has safe empty public read results before initialization', () => {
     const { controller } = controllerFixture();
 

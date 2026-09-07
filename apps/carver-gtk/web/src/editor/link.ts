@@ -1,4 +1,5 @@
 import { getMarkRange } from '@tiptap/core';
+import type { LinkCommand } from './protocol';
 
 function activeLinkRange(state) {
   const link = state.schema.marks.link;
@@ -25,7 +26,7 @@ export function linkContext(state) {
   };
 }
 
-export function insertOrUpdateLink(state, argument) {
+export function insertOrUpdateLink(state, argument?: LinkCommand) {
   const text = typeof argument?.text === 'string' ? argument.text : '';
   const href =
     typeof argument?.destination === 'string'
