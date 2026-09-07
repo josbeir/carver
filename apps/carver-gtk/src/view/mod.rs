@@ -254,6 +254,12 @@ impl ViewRefs {
     fn render_sidebar(&self, model: &AppModel) {
         if let Some(renderer) = &self.sidebar_renderer {
             let Some(snapshot) = SidebarSnapshot::from_model(model) else {
+                if matches!(model.sidebar.state, LoadState::Loading(_)) {
+                    return;
+                }
+                if self.last_sidebar_snapshot.borrow_mut().take().is_some() {
+                    renderer(model);
+                }
                 return;
             };
             let changed = self.last_sidebar_snapshot.borrow().as_ref() != Some(&snapshot);

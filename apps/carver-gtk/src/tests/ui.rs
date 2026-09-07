@@ -1440,6 +1440,14 @@ fn assert_sidebar_reload_preserves_rows() -> TestResult {
     if render_count.get() != 1 || sidebar.list.first_child() != initial_row {
         return Err("sidebar rebuilt after receiving an unchanged reload result".into());
     }
+
+    model.sidebar.state = crate::mvu::LoadState::Loading(crate::mvu::RequestId(2));
+    view.render(&model);
+    model.sidebar.state = crate::mvu::LoadState::Failed(crate::mvu::UiError::new("offline"));
+    view.render(&model);
+    if sidebar.list.first_child().is_some() {
+        return Err("sidebar retained stale rows after a reload failed".into());
+    }
     Ok(())
 }
 

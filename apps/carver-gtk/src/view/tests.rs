@@ -18,6 +18,9 @@ fn sidebar_snapshot_should_preserve_the_last_ready_projection_during_a_reload() 
 
     model.sidebar.state = LoadState::Ready(Vec::new());
     assert_eq!(super::SidebarSnapshot::from_model(&model), snapshot);
+
+    model.sidebar.state = LoadState::Failed(crate::mvu::UiError::new("offline"));
+    assert!(super::SidebarSnapshot::from_model(&model).is_none());
 }
 
 #[test]
