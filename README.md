@@ -34,6 +34,9 @@ Carver—turning them into a useful, organized project context instead of an iso
   GtkSourceView highlighting, breadcrumbs, search, line controls, and configurable typography.
 - **Images that travel with the note**<br>
   Paste, resize, and retain managed images alongside canonical source.
+- **Media sidebar and attachments**<br>
+  Browse and focus every image or managed file used in a note, add attachments, and preview them
+  with GNOME's native viewers.
 - **Organized, recoverable notes**<br>
   Categories, recent-note browsing, Trash restoration, and Undo.
 - **Search, import, and export**<br>
