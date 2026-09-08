@@ -734,8 +734,11 @@ pub(crate) fn build_editor(
     media_split.set_max_sidebar_width(320.0);
     media_split.set_sidebar_width_fraction(0.25);
     media_split.set_pin_sidebar(true);
-    media_split.set_enable_hide_gesture(true);
-    media_split.set_enable_show_gesture(true);
+    // Sidebar visibility is owned by the MVU document state. Leave gestures
+    // disabled because `OverlaySplitView` changes this property directly,
+    // bypassing the reducer and persisted user preference.
+    media_split.set_enable_hide_gesture(false);
+    media_split.set_enable_show_gesture(false);
     media_split.set_content(Some(&editor_stack));
     media_split.set_sidebar(Some(&media_panel));
     let media_container = adw::BreakpointBin::new();
@@ -1463,11 +1466,14 @@ fn install_compact_editor_actions(
     });
     actions.add_action(&copy_note);
     let split_preview = gtk::gio::SimpleAction::new("toggle-split-preview", None);
+    split_preview.set_enabled(split_toggle.is_sensitive());
+    let split_preview_for_sensitivity = split_preview.clone();
+    split_toggle.connect_sensitive_notify(move |toggle| {
+        split_preview_for_sensitivity.set_enabled(toggle.is_sensitive());
+    });
     let split_toggle = split_toggle.clone();
     split_preview.connect_activate(move |_, _| {
-        if split_toggle.is_sensitive() {
-            split_toggle.set_active(!split_toggle.is_active());
-        }
+        split_toggle.set_active(!split_toggle.is_active());
     });
     actions.add_action(&split_preview);
     view.insert_action_group("editor", Some(&actions));

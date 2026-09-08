@@ -703,6 +703,27 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?
     );
     assert_shared_toolbar_controls(&root)?;
+    let split_toggle =
+        widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
+    assert!(split_toggle.is_sensitive());
+    window.set_default_size(360, 640);
+    assert!(run_main_context_until(|| !split_toggle.is_sensitive()));
+    let options_menu =
+        widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
+    options_menu.popup();
+    let options_popover = options_menu.popover().ok_or("editor options popover")?;
+    let split_preview_label = run_main_context_until(|| {
+        find_label(options_popover.upcast_ref(), "Show rendered preview").is_some()
+    });
+    assert!(split_preview_label);
+    assert!(
+        find_label(options_popover.upcast_ref(), "Show rendered preview")
+            .is_some_and(|label| !label.is_sensitive())
+    );
+    options_menu.popdown();
+    assert!(!split_toggle.is_active());
+    window.set_default_size(1120, 760);
+    assert!(run_main_context_until(|| split_toggle.is_sensitive()));
     let source_controllers = source_view.observe_controllers();
     let source_shortcuts = (0..source_controllers.n_items())
         .filter_map(|index| source_controllers.item(index))
@@ -1936,8 +1957,7 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     assert!(sidebar.width() <= 320, "sidebar width: {}", sidebar.width());
     let media_split = widget_as::<adw::OverlaySplitView>(&surface, "editor-media-split-view")
         .ok_or("media split")?;
-    assert_eq!(media_split.sidebar_position(), gtk::PackType::End);
-    assert!(media_split.is_pin_sidebar());
+    assert_media_split_configuration(&media_split);
     assert!(media_split.shows_sidebar());
     window.set_default_size(700, 800);
     assert!(run_main_context_until(|| media_split.is_collapsed()));
@@ -1981,6 +2001,13 @@ fn assert_media_sidebar_shortcut(
     Ok(())
 }
 
+fn assert_media_split_configuration(media_split: &adw::OverlaySplitView) {
+    assert_eq!(media_split.sidebar_position(), gtk::PackType::End);
+    assert!(media_split.is_pin_sidebar());
+    assert!(!media_split.property::<bool>("enable-hide-gesture"));
+    assert!(!media_split.property::<bool>("enable-show-gesture"));
+}
+
 fn assert_missing_media_preview_should_report_error(
     surface: &gtk::Widget,
     runtime: &crate::mvu::AppRuntime<carver_storage_sqlite::SqliteLibrary>,
@@ -1992,6 +2019,22 @@ fn assert_missing_media_preview_should_report_error(
     assert!(run_main_context_until(|| runtime.model().notice.is_some()));
     assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
     Ok(())
+}
+
+fn find_label(root: &gtk::Widget, text: &str) -> Option<gtk::Label> {
+    if let Some(label) = root.downcast_ref::<gtk::Label>()
+        && label.text() == text
+    {
+        return Some(label.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(label) = find_label(&widget, text) {
+            return Some(label);
+        }
+        child = widget.next_sibling();
+    }
+    None
 }
 
 fn assert_native_file_drop_should_insert_an_ordered_batch(
