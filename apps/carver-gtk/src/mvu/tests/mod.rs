@@ -16,6 +16,7 @@ mod browser;
 mod editor_assets;
 mod editor_commands;
 mod editor_navigation;
+mod editor_refresh;
 mod editor_save;
 mod favorites;
 mod mutations;

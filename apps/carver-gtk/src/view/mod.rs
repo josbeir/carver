@@ -87,6 +87,7 @@ pub struct ViewRefs {
     toast_overlay: Option<adw::ToastOverlay>,
     dispatcher: Option<AppDispatcher>,
     last_notice: RefCell<Option<String>>,
+    external_change_toast: RefCell<Option<(crate::mvu::EditorSessionId, adw::Toast)>>,
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
     last_undo_trash_note: Cell<Option<carver_sdk::NoteId>>,
@@ -129,6 +130,7 @@ impl ViewRefs {
             toast_overlay: None,
             dispatcher: None,
             last_notice: RefCell::new(None),
+            external_change_toast: RefCell::new(None),
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
             last_undo_trash_note: Cell::new(None),
@@ -214,6 +216,7 @@ impl ViewRefs {
         self.render_browser(model);
         self.render_trash(model);
         self.render_editor(model);
+        self.clear_resolved_external_notice(model);
         self.render_notice(model);
         self.render_editor_save_error(model);
         self.render_undo_move(model);
@@ -226,6 +229,10 @@ impl ViewRefs {
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
+        if let Effect::ShowExternalEdit { session, deleted } = effect {
+            self.show_external_edit(session, deleted);
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };
@@ -251,6 +258,78 @@ impl ViewRefs {
             Effect::ShowEditorExportWarning { request } => editor.show_export_warning(&request),
             Effect::ExportEditorPdf { request } => editor.export_pdf(&request),
             _ => {}
+        }
+    }
+
+    fn show_external_edit(&self, session: crate::mvu::EditorSessionId, deleted: bool) {
+        use adw::prelude::*;
+        let (Some(overlay), Some(dispatcher)) = (&self.toast_overlay, &self.dispatcher) else {
+            return;
+        };
+        let toast = adw::Toast::builder()
+            .title(if deleted {
+                "This note was deleted elsewhere. Your open text is preserved."
+            } else {
+                "This note changed elsewhere. Your unsaved edits are preserved."
+            })
+            .button_label(if deleted {
+                "Close Note…"
+            } else {
+                "Reload…"
+            })
+            .timeout(0)
+            .build();
+        let parent = self.route_stack.clone();
+        let dispatcher = dispatcher.clone();
+        toast.connect_button_clicked(move |_| {
+            let dialog = adw::AlertDialog::builder()
+                .heading(if deleted { "Close deleted note?" } else { "Reload note?" })
+                .body(if deleted { "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first." }
+                    else { "Reloading replaces your unsaved edits with the latest saved note." })
+                .default_response("cancel")
+                .close_response("cancel")
+                .build();
+            dialog.add_responses(&[("cancel", "Cancel"), ("reload", if deleted { "Discard Draft and Open Trash" } else { "Discard Edits and Reload" })]);
+            dialog.set_response_appearance("reload", adw::ResponseAppearance::Destructive);
+            let dispatcher = dispatcher.clone();
+            dialog.connect_response(None, move |_, response| {
+                if response == "reload" {
+                    let _ = dispatcher.dispatch(AppMsg::Editor(
+                        if deleted { crate::mvu::EditorMsg::CloseDeleted { session } }
+                        else { crate::mvu::EditorMsg::ReloadExternal { session } },
+                    ));
+                } else {
+                    let _ = dispatcher.dispatch(AppMsg::Editor(
+                        crate::mvu::EditorMsg::KeepExternalDraft { session },
+                    ));
+                }
+            });
+            dialog.present(Some(&parent));
+        });
+        let previous = self
+            .external_change_toast
+            .replace(Some((session, toast.clone())));
+        if let Some((_, previous)) = previous {
+            previous.dismiss();
+        }
+        overlay.add_toast(toast);
+    }
+
+    fn clear_resolved_external_notice(&self, model: &AppModel) {
+        let resolved = self
+            .external_change_toast
+            .borrow()
+            .as_ref()
+            .is_some_and(|(session, _)| {
+                model.editor.as_ref().is_none_or(|document| {
+                    document.session != *session || document.external_change.is_none()
+                })
+            });
+        if resolved {
+            let previous = self.external_change_toast.take();
+            if let Some((_, toast)) = previous {
+                toast.dismiss();
+            }
         }
     }
 

@@ -146,6 +146,21 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// Discard the local draft of an externally deleted note after confirmation.
+    CloseDeleted {
+        /// Editor lifetime authorized by the user.
+        session: EditorSessionId,
+    },
+    /// Keep the local draft and offer reload again after cancelling confirmation.
+    KeepExternalDraft {
+        /// Editor lifetime displayed by the confirmation.
+        session: EditorSessionId,
+    },
+    /// Discard local edits after an explicit external-change confirmation.
+    ReloadExternal {
+        /// Editor lifetime authorized by the user.
+        session: EditorSessionId,
+    },
     /// A web projection selected a media occurrence without changing source.
     MediaSelected {
         /// Editor lifetime that emitted this event.
@@ -554,6 +569,19 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Successful note or a displayable failure.
         result: Result<carver_sdk::Note, UiError>,
+    },
+    /// An external refresh completed for the open editor.
+    EditorRefreshed {
+        /// Identity of this refresh.
+        request_id: RequestId,
+        /// Editor lifetime that requested the refresh.
+        session: EditorSessionId,
+        /// Revision and source at the start of the read.
+        snapshot: EditorSaveRequest,
+        /// Whether the user explicitly authorized discarding local edits.
+        discard_local: bool,
+        /// Latest active or trashed note, absent after permanent removal, or a read failure.
+        result: Result<Option<carver_sdk::Note>, UiError>,
     },
     /// Trash contents completed loading.
     TrashLoaded {

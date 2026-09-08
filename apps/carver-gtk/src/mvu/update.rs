@@ -1,6 +1,8 @@
 //! Pure state transitions for the application model.
 
-use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection};
+use super::model::{
+    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection,
+};
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
     EditorSessionId, Effect, LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg,
@@ -72,6 +74,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Library(reply) => update_library(model, reply),
     };
+    resume_editor_refresh(model, &mut effects);
     if let Some(document) = model.editor.as_mut()
         && document.media_sidebar.is_visible()
     {
@@ -103,6 +106,19 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
     }
     effects
+}
+
+fn resume_editor_refresh(model: &mut AppModel, effects: &mut Vec<Effect>) {
+    if model.editor_refresh_pending
+        && model.editor_refresh_request.is_none()
+        && model.editor.as_ref().is_none_or(|document| {
+            !matches!(document.save_state, super::EditorSaveState::Saving(_))
+                && !document.favorite_mutation_in_flight
+        })
+    {
+        model.editor_refresh_pending = false;
+        effects.extend(refresh_open_editor(model, false));
+    }
 }
 
 fn request_editor_load(
@@ -256,6 +272,40 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
 #[expect(clippy::too_many_lines)]
 fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
     match message {
+        EditorMsg::CloseDeleted { session } => {
+            if model.editor.as_ref().is_some_and(|document| {
+                document.session == session
+                    && document.external_change == Some(ExternalChange::Deleted)
+                    && !matches!(document.save_state, super::EditorSaveState::Saving(_))
+            }) {
+                let _ = close_editor(model, session);
+                model.pending_category_selection = None;
+                model.route = super::Route::Trash;
+                reload_trash(model).into_iter().collect()
+            } else {
+                Vec::new()
+            }
+        }
+        EditorMsg::KeepExternalDraft { session } => model
+            .editor
+            .as_ref()
+            .filter(|document| document.session == session && document.external_change.is_some())
+            .map(|document| Effect::ShowExternalEdit {
+                session,
+                deleted: document.external_change == Some(ExternalChange::Deleted),
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::ReloadExternal { session } => {
+            if model.editor.as_ref().is_some_and(|document| {
+                document.session == session
+                    && !matches!(document.save_state, super::EditorSaveState::Saving(_))
+            }) {
+                refresh_open_editor(model, true).into_iter().collect()
+            } else {
+                Vec::new()
+            }
+        }
         EditorMsg::Load {
             note_id,
             revision,
@@ -699,6 +749,9 @@ fn open_editor(
     if model.config.editor.show_media_sidebar {
         document.media_sidebar = super::model::MediaSidebarVisibility::Visible;
     }
+    model.editor_refresh_request = None;
+    model.editor_refresh_pending = false;
+    model.editor_refresh_retry = None;
     model.editor = Some(document);
     model.editor_preview = Some(super::EditorPreview { session, source });
     model.editor_copy_request = None;
@@ -941,6 +994,16 @@ fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
+    if let ActionMsg::TrashNote(note_id) = action
+        && let Some(document) = model.editor.as_ref().filter(|document| {
+            document.note_id == note_id && document.external_change == Some(ExternalChange::Deleted)
+        })
+    {
+        return vec![Effect::ShowExternalEdit {
+            session: document.session,
+            deleted: true,
+        }];
+    }
     if matches!(action, ActionMsg::UndoMove) {
         return update_undo_move(model);
     }
@@ -1102,6 +1165,13 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::FavoriteChanged { action, result } => {
             update_favorite_changed(model, action, result)
         }
+        LibraryReply::EditorRefreshed {
+            request_id,
+            session,
+            snapshot,
+            discard_local,
+            result,
+        } => update_editor_refresh(model, request_id, session, &snapshot, discard_local, result),
         LibraryReply::EditorLoaded { request_id, result } => {
             update_editor_loaded(model, request_id, result)
         }
@@ -1605,6 +1675,12 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
+    if document.external_change.is_some() {
+        return vec![Effect::ShowExternalEdit {
+            session: document.session,
+            deleted: document.external_change == Some(ExternalChange::Deleted),
+        }];
+    }
     document.request_close();
     if matches!(&document.save_state, super::EditorSaveState::Clean)
         && !document.favorite_mutation_in_flight
@@ -1696,6 +1772,7 @@ fn request_library_revision(
     reason: LibraryRevisionCheckReason,
 ) -> Option<Effect> {
     if model.library_revision_request.is_some() {
+        model.library_revision_pending = true;
         return None;
     }
     let request_id = model.next_request_id();
@@ -1715,14 +1792,27 @@ fn update_library_revision(
         return Vec::new();
     }
     model.library_revision_request = None;
-    match result {
+    let mut effects = match result {
         Ok(revision) => {
             let changed = model
                 .library_revision
-                .is_some_and(|current| current != revision);
+                .is_none_or(|current| current != revision);
             model.library_revision = Some(revision);
-            if request.reason == LibraryRevisionCheckReason::ExternalWakeup && changed {
-                reload_all_resources(model)
+            let retry = model.editor_refresh_retry.is_some_and(|session| {
+                model
+                    .editor
+                    .as_ref()
+                    .is_some_and(|document| document.session == session)
+            });
+            if changed || retry {
+                let mut effects =
+                    if changed && request.reason == LibraryRevisionCheckReason::ExternalWakeup {
+                        reload_all_resources(model)
+                    } else {
+                        Vec::new()
+                    };
+                effects.extend(refresh_open_editor(model, false));
+                effects
             } else {
                 Vec::new()
             }
@@ -1731,7 +1821,117 @@ fn update_library_revision(
             model.notice = Some(error);
             Vec::new()
         }
+    };
+    if std::mem::take(&mut model.library_revision_pending) {
+        effects.extend(request_library_revision(
+            model,
+            LibraryRevisionCheckReason::ExternalWakeup,
+        ));
     }
+    effects
+}
+
+fn refresh_open_editor(model: &mut AppModel, discard_local: bool) -> Option<Effect> {
+    let document = model.editor.as_ref()?;
+    if !discard_local
+        && (model.editor_refresh_request.is_some()
+            || matches!(document.save_state, super::EditorSaveState::Saving(_))
+            || document.favorite_mutation_in_flight)
+    {
+        model.editor_refresh_pending = true;
+        return None;
+    }
+    let request_id = model.next_request_id();
+    let document = model.editor.as_ref()?;
+    model.editor_refresh_retry = None;
+    model.editor_refresh_request = Some(request_id);
+    Some(Effect::RefreshEditorNote {
+        request_id,
+        session: document.session,
+        snapshot: EditorSaveRequest {
+            session: document.session,
+            note_id: document.note_id,
+            expected_revision: document.revision,
+            source: document.source.clone(),
+        },
+        discard_local,
+    })
+}
+
+fn update_editor_refresh(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    session: super::EditorSessionId,
+    snapshot: &EditorSaveRequest,
+    discard_local: bool,
+    result: Result<Option<carver_sdk::Note>, UiError>,
+) -> Vec<Effect> {
+    if model.editor_refresh_request != Some(request_id) {
+        return Vec::new();
+    }
+    model.editor_refresh_request = None;
+    let Some(document) = model
+        .editor
+        .as_mut()
+        .filter(|document| document.session == session && document.note_id == snapshot.note_id)
+    else {
+        return Vec::new();
+    };
+    if document.revision != snapshot.expected_revision
+        || matches!(document.save_state, super::EditorSaveState::Saving(_))
+        || document.favorite_mutation_in_flight
+    {
+        model.editor_refresh_pending = true;
+        return Vec::new();
+    }
+    let note = match result {
+        Ok(note) => note,
+        Err(error) => {
+            model.editor_refresh_retry = Some(session);
+            model.notice = Some(error);
+            return Vec::new();
+        }
+    };
+    let Some(note) = note.filter(|note| note.trashed_at.is_none()) else {
+        if document.external_change.replace(ExternalChange::Deleted)
+            == Some(ExternalChange::Deleted)
+        {
+            return Vec::new();
+        }
+        return vec![Effect::ShowExternalEdit {
+            session,
+            deleted: true,
+        }];
+    };
+    if note.revision == document.revision && document.external_change.is_none() {
+        return Vec::new();
+    }
+    let safe = document.source == snapshot.source
+        && (discard_local || document.save_state == super::EditorSaveState::Clean);
+    if !safe {
+        if matches!(
+            document
+                .external_change
+                .replace(ExternalChange::Edited(note.revision)),
+            Some(ExternalChange::Edited(_))
+        ) {
+            return Vec::new();
+        }
+        return vec![Effect::ShowExternalEdit {
+            session,
+            deleted: false,
+        }];
+    }
+    document.accept_external_note(&note);
+    model.editor_preview = Some(super::EditorPreview {
+        session,
+        source: note.source.clone(),
+    });
+    model.preview_timer = None;
+    vec![Effect::ReloadRichEditor {
+        session,
+        source: note.source,
+    }]
 }
 
 fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {

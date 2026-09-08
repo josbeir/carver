@@ -241,6 +241,15 @@ pub struct EditorSaveRequest {
     pub source: String,
 }
 
+/// A persisted change that must be resolved before saving the local draft.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExternalChange {
+    /// Another client saved a different revision.
+    Edited(Revision),
+    /// Another client trashed or removed the note.
+    Deleted,
+}
+
 /// The UI-neutral, canonical representation of one note being edited.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorDocument {
@@ -272,6 +281,8 @@ pub struct EditorDocument {
     pub(crate) favorite_mutation_in_flight: bool,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
+    /// External conflict awaiting explicit resolution before saving local edits.
+    pub external_change: Option<ExternalChange>,
     save_timer: Option<TimerId>,
     close_requested: bool,
 }
@@ -382,6 +393,7 @@ impl EditorDocument {
             pending_favorite: None,
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
+            external_change: None,
             save_timer: None,
             close_requested: false,
         }
@@ -400,15 +412,28 @@ impl EditorDocument {
         false
     }
 
+    pub(super) fn accept_external_note(&mut self, note: &carver_sdk::Note) {
+        self.source_changed(note.source.clone());
+        self.revision = note.revision;
+        self.is_favorite = note.is_favorite;
+        self.save_state = EditorSaveState::Clean;
+        self.external_change = None;
+        self.save_timer = None;
+        self.close_requested = false;
+        self.pending_favorite = None;
+    }
+
     pub(super) fn schedule_save(&mut self, timer_id: TimerId) {
         self.save_timer = Some(timer_id);
     }
 
     pub(super) fn begin_save(&mut self) -> Option<EditorSaveRequest> {
-        if !matches!(
-            self.save_state,
-            EditorSaveState::Dirty | EditorSaveState::Failed(_)
-        ) {
+        if self.external_change.is_some()
+            || !matches!(
+                self.save_state,
+                EditorSaveState::Dirty | EditorSaveState::Failed(_)
+            )
+        {
             return None;
         }
         self.save_timer = None;
@@ -510,6 +535,10 @@ pub struct AppModel {
     pub editor_export_after_load: Option<RequestId>,
     pub(crate) library_revision: Option<LibraryRevision>,
     pub(crate) library_revision_request: Option<LibraryRevisionRequest>,
+    pub(crate) library_revision_pending: bool,
+    pub(crate) editor_refresh_request: Option<RequestId>,
+    pub(crate) editor_refresh_pending: bool,
+    pub(crate) editor_refresh_retry: Option<EditorSessionId>,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
@@ -548,6 +577,10 @@ impl AppModel {
             editor_export_after_load: None,
             library_revision: None,
             library_revision_request: None,
+            library_revision_pending: false,
+            editor_refresh_request: None,
+            editor_refresh_pending: false,
+            editor_refresh_retry: None,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,

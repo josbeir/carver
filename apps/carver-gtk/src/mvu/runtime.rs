@@ -212,6 +212,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         match effect {
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
+            | Effect::ShowExternalEdit { .. }
             | Effect::SelectEditorSource { .. }
             | Effect::FocusEditorMedia { .. }
             | Effect::ShowMediaPreview { .. }
@@ -291,6 +292,43 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 note_id,
             } => self.load_editor_note(request_id, note_id),
+            Effect::RefreshEditorNote {
+                request_id,
+                session,
+                snapshot,
+                discard_local,
+            } => {
+                let client = self.inner.client.clone();
+                let runtime = self.clone();
+                glib::spawn_future_local(async move {
+                    let result = async {
+                        let Some(note) = client
+                            .note_async(snapshot.note_id)
+                            .await
+                            .map_err(display_error)?
+                        else {
+                            return Ok(None);
+                        };
+                        if note.trashed_at.is_some() {
+                            return Ok(Some(note));
+                        }
+                        // Category trash leaves the note's own revision and deletion flag unchanged.
+                        let categories = client.categories_async().await.map_err(display_error)?;
+                        Ok(categories
+                            .iter()
+                            .any(|category| category.id == note.category_id)
+                            .then_some(note))
+                    }
+                    .await;
+                    runtime.dispatch(AppMsg::Library(LibraryReply::EditorRefreshed {
+                        request_id,
+                        session,
+                        snapshot,
+                        discard_local,
+                        result,
+                    }));
+                });
+            }
             Effect::LoadTrash { request_id } => self.load_trash(request_id),
             Effect::RestoreCategory { category_id } => self.restore_category(category_id),
             Effect::RestoreNote { note_id } => self.restore_note(note_id),
