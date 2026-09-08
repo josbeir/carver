@@ -6,7 +6,10 @@ import {
   CarveKit,
   serializeToCarve,
 } from '@markup-carve/carve-grammars/tiptap';
-import { sanitizePastedSlice } from '../src/editor/paste-sanitizer';
+import {
+  ClipboardPasteSanitizer,
+  sanitizePastedSlice,
+} from '../src/editor/paste-sanitizer';
 
 const schema = new Schema({
   nodes: {
@@ -124,7 +127,7 @@ describe('sanitizePastedSlice', () => {
     });
   });
 
-  it('preserves authored Carve attributes on internal paste', () => {
+  it('preserves authored Carve attributes on an exact internal paste', () => {
     const link = schema.marks.link.create({
       href: 'https://example.com',
       id: 'reference',
@@ -132,7 +135,6 @@ describe('sanitizePastedSlice', () => {
       carveKeyValues: {
         role: 'citation',
         style: 'color: red',
-        'data-pm-slice': '0 0 []',
       },
       carveAttrOrder: ['#id', '.class', 'role', 'style'],
     });
@@ -141,8 +143,29 @@ describe('sanitizePastedSlice', () => {
       schema.text('Reference', [link]),
     );
 
-    const sanitized = sanitizePastedSlice(
-      new Slice(Fragment.from(heading), 0, 0),
+    const copied = new Slice(Fragment.from(heading), 0, 0);
+    const sanitizer = new ClipboardPasteSanitizer();
+    sanitizer.recordCopiedSlice(copied);
+    const pastedLink = schema.marks.link.create({
+      ...link.attrs,
+      carveKeyValues: {
+        ...link.attrs.carveKeyValues,
+        'data-pm-slice': '0 0 []',
+      },
+      carveAttrOrder: [...link.attrs.carveAttrOrder, 'data-pm-slice'],
+    });
+    const pasted = new Slice(
+      Fragment.from(
+        schema.nodes.heading.create(
+          { level: 2 },
+          schema.text('Reference', [pastedLink]),
+        ),
+      ),
+      0,
+      0,
+    );
+    const sanitized = sanitizer.sanitizePastedSlice(
+      Slice.fromJSON(schema, pasted.toJSON()),
     );
 
     expect(sanitized.content.firstChild?.firstChild?.marks[0].attrs).toEqual({
@@ -152,6 +175,60 @@ describe('sanitizePastedSlice', () => {
       carveKeyValues: { role: 'citation', style: 'color: red' },
       carveAttrOrder: ['#id', '.class', 'role', 'style'],
     });
+  });
+
+  it('rejects forged attribute-order metadata from external HTML', () => {
+    const heading = schema.nodes.heading.create(
+      {
+        level: 2,
+        carveKeyValues: { style: 'color: red' },
+        carveAttrOrder: ['style'],
+      },
+      schema.text('External'),
+    );
+
+    const sanitized = new ClipboardPasteSanitizer().sanitizePastedSlice(
+      new Slice(Fragment.from(heading), 0, 0),
+    );
+
+    expect(sanitized.content.firstChild?.attrs).toEqual({
+      level: 2,
+      id: null,
+      class: null,
+      carveKeyValues: null,
+      carveAttrOrder: null,
+    });
+  });
+
+  it('sanitizes clipboard content that differs from the recorded internal copy', () => {
+    const copied = new Slice(
+      Fragment.from(
+        schema.nodes.heading.create({ level: 2 }, schema.text('Internal')),
+      ),
+      0,
+      0,
+    );
+    const forged = new Slice(
+      Fragment.from(
+        schema.nodes.heading.create(
+          {
+            level: 2,
+            carveKeyValues: { style: 'color: red' },
+            carveAttrOrder: ['style'],
+          },
+          schema.text('Internal'),
+        ),
+      ),
+      0,
+      0,
+    );
+    const sanitizer = new ClipboardPasteSanitizer();
+    sanitizer.recordCopiedSlice(copied);
+
+    expect(
+      sanitizer.sanitizePastedSlice(forged).content.firstChild?.attrs
+        .carveKeyValues,
+    ).toBeNull();
   });
 
   it('serializes pasted rich text without foreign clipboard attributes', () => {

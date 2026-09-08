@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { EditorController } from '../src/editor/editor-controller';
-import { sanitizePastedSlice } from '../src/editor/paste-sanitizer';
 
 function controllerFixture() {
   const listeners = new Map<string, EventListener>();
@@ -60,7 +59,8 @@ describe('EditorController', () => {
 
     expect(createEditor).toHaveBeenCalledOnce();
     expect(createEditor.mock.calls[0][0].editorProps).toMatchObject({
-      transformPasted: sanitizePastedSlice,
+      transformCopied: expect.any(Function),
+      transformPasted: expect.any(Function),
     });
     expect([...listeners.keys()].sort()).toEqual([
       'drop',

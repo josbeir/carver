@@ -10,7 +10,7 @@ import { unsupportedForEditing } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
-import { sanitizePastedSlice } from './paste-sanitizer';
+import { ClipboardPasteSanitizer } from './paste-sanitizer';
 import type {
   EditorEvent,
   LinkCommand,
@@ -65,6 +65,7 @@ export class EditorController implements RichEditorApi {
   private session = 0;
   private revision = 0;
   private readonly pendingBlobSources = new Set<string>();
+  private readonly pasteSanitizer = new ClipboardPasteSanitizer();
 
   public constructor(
     private readonly root: HTMLElement,
@@ -82,7 +83,10 @@ export class EditorController implements RichEditorApi {
       editorProps: {
         handlePaste: (_view, event) => this.pasteImage(event) ?? false,
         handleDrop: (_view, event) => this.dropImages(event),
-        transformPasted: sanitizePastedSlice,
+        transformCopied: (slice) =>
+          this.pasteSanitizer.recordCopiedSlice(slice),
+        transformPasted: (slice) =>
+          this.pasteSanitizer.sanitizePastedSlice(slice),
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),
