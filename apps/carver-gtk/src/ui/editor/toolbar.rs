@@ -219,6 +219,9 @@ const COMMANDS: [CommandSpec; 13] = [
     },
 ];
 
+type HeadingControl = (gtk::MenuButton, Vec<(u8, gtk::ToggleButton)>);
+type ImageControl = (gtk::MenuButton, Vec<(Option<u8>, gtk::ToggleButton)>);
+
 #[derive(Clone)]
 struct CommandRouter {
     mode: Rc<Cell<EditorMode>>,
@@ -400,13 +403,13 @@ fn source_command(command: ToolbarCommand) -> Option<SourceCommand> {
 #[derive(Clone)]
 pub(crate) struct Toolbar {
     widget: gtk::Box,
+    desktop: gtk::Box,
+    compact: gtk::Box,
     router: CommandRouter,
     command_buttons: Vec<(ToolbarCommand, gtk::ToggleButton)>,
-    heading: gtk::MenuButton,
-    heading_choices: Vec<(u8, gtk::ToggleButton)>,
-    table: gtk::MenuButton,
-    image: gtk::MenuButton,
-    image_width_choices: Vec<(Option<u8>, gtk::ToggleButton)>,
+    headings: Vec<HeadingControl>,
+    tables: Vec<gtk::MenuButton>,
+    images: Vec<ImageControl>,
     source_path: gtk::Label,
     source_context: Rc<RefCell<Option<SourceContext>>>,
 }
@@ -434,39 +437,78 @@ impl Toolbar {
             toast_overlay: toast_overlay.clone(),
             focus: EditorFocusRestorer::new(mode, source, rich.view()),
         };
+        let desktop = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        desktop.set_widget_name("formatting-toolbar-desktop");
+        desktop.set_size_request(0, -1);
+        let compact = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        compact.set_widget_name("formatting-toolbar-compact");
+        compact.set_size_request(0, -1);
+        compact.set_visible(false);
         let mut command_buttons = Vec::new();
         for spec in COMMANDS {
-            let button = gtk::ToggleButton::new();
-            set_toolbar_icon(&button, spec.icon);
-            button.set_widget_name(spec.id);
-            button.set_tooltip_text(Some(spec.tooltip));
-            button.add_css_class("flat");
-            let router = router.clone();
-            button.connect_clicked(move |button| router.execute(spec.command, button.upcast_ref()));
-            widget.append(&button);
+            let button = command_button(spec, &router);
+            desktop.append(&button);
             command_buttons.push((spec.command, button));
         }
-        let (heading, heading_choices) = append_heading_menu(&widget, &router);
-        let table = append_table_menu(&widget, &router);
-        let (image, image_width_choices) = append_image_menu(&widget, &router);
+        let (desktop_heading, desktop_heading_choices) = append_heading_menu(&desktop, &router);
+        let desktop_table = append_table_menu(&desktop, &router);
+        let (desktop_image, desktop_image_width_choices) = append_image_menu(&desktop, &router);
         let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         spacer.set_hexpand(true);
-        widget.append(&spacer);
+        desktop.append(&spacer);
         let source_path = gtk::Label::new(None);
         source_path.set_widget_name("source-ast-path");
         source_path.add_css_class("dim-label");
         source_path.set_tooltip_text(Some("Carve AST context"));
         source_path.set_visible(false);
-        widget.append(&source_path);
+        desktop.append(&source_path);
+        for spec in [COMMANDS[0], COMMANDS[1]] {
+            let button = command_button(spec, &router);
+            compact.append(&button);
+            command_buttons.push((spec.command, button));
+        }
+        let (compact_heading, compact_heading_choices) = append_heading_menu(&compact, &router);
+        let more_button = gtk::MenuButton::new();
+        more_button.set_widget_name("formatting-toolbar-more");
+        more_button.set_icon_name("view-more-symbolic");
+        more_button.set_tooltip_text(Some("More formatting"));
+        more_button.add_css_class("flat");
+        let more_contents = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        for commands in [&COMMANDS[2..8], &COMMANDS[8..]] {
+            let group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            for spec in commands {
+                let button = command_button(*spec, &router);
+                group.append(&button);
+                command_buttons.push((spec.command, button));
+            }
+            more_contents.append(&group);
+        }
+        let insert_group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let compact_table = append_table_menu(&insert_group, &router);
+        let (compact_image, compact_image_width_choices) =
+            append_image_menu(&insert_group, &router);
+        more_contents.append(&insert_group);
+        let more_popover = gtk::Popover::new();
+        more_popover.set_child(Some(&more_contents));
+        more_button.set_popover(Some(&more_popover));
+        compact.append(&more_button);
+        widget.append(&desktop);
+        widget.append(&compact);
         Self {
             widget,
+            desktop,
+            compact,
             router,
             command_buttons,
-            heading,
-            heading_choices,
-            table,
-            image,
-            image_width_choices,
+            headings: vec![
+                (desktop_heading, desktop_heading_choices),
+                (compact_heading, compact_heading_choices),
+            ],
+            tables: vec![desktop_table, compact_table],
+            images: vec![
+                (desktop_image, desktop_image_width_choices),
+                (compact_image, compact_image_width_choices),
+            ],
             source_path,
             source_context: Rc::new(RefCell::new(None)),
         }
@@ -474,6 +516,14 @@ impl Toolbar {
 
     pub(crate) fn widget(&self) -> &gtk::Box {
         &self.widget
+    }
+
+    pub(crate) fn desktop_widget(&self) -> &gtk::Box {
+        &self.desktop
+    }
+
+    pub(crate) fn compact_widget(&self) -> &gtk::Box {
+        &self.compact
     }
 
     pub(crate) fn set_mode(&self, mode: EditorMode) {
@@ -528,20 +578,37 @@ impl Toolbar {
         for (command, button) in &self.command_buttons {
             button.set_active(state.is_active(*command));
         }
-        set_context_active(&self.heading, state.heading != 0);
-        for (level, choice) in &self.heading_choices {
-            choice.set_active(*level == state.heading);
+        for (heading, choices) in &self.headings {
+            set_context_active(heading, state.heading != 0);
+            for (level, choice) in choices {
+                choice.set_active(*level == state.heading);
+            }
         }
-        set_context_active(&self.table, state.in_table);
-        set_context_active(&self.image, state.image != ImageState::None);
-        for (width, choice) in &self.image_width_choices {
-            choice.set_active(match (state.image, width) {
-                (ImageState::Original, None) => true,
-                (ImageState::Width(current), Some(width)) => current == *width,
-                _ => false,
-            });
+        for table in &self.tables {
+            set_context_active(table, state.in_table);
+        }
+        for (image, choices) in &self.images {
+            set_context_active(image, state.image != ImageState::None);
+            for (width, choice) in choices {
+                choice.set_active(match (state.image, width) {
+                    (ImageState::Original, None) => true,
+                    (ImageState::Width(current), Some(width)) => current == *width,
+                    _ => false,
+                });
+            }
         }
     }
+}
+
+fn command_button(spec: CommandSpec, router: &CommandRouter) -> gtk::ToggleButton {
+    let button = gtk::ToggleButton::new();
+    set_toolbar_icon(&button, spec.icon);
+    button.set_widget_name(spec.id);
+    button.set_tooltip_text(Some(spec.tooltip));
+    button.add_css_class("flat");
+    let router = router.clone();
+    button.connect_clicked(move |button| router.execute(spec.command, button.upcast_ref()));
+    button
 }
 
 fn append_heading_menu(

@@ -14,7 +14,7 @@ use super::{
         show_category_dialog, show_category_trash_confirmation,
     },
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
-    sidebar::sidebar_toggle_button,
+    sidebar::{CompactNavigation, sidebar_toggle_button},
     trash::{TrashViewRefs, build_trash},
 };
 use crate::mvu::{
@@ -132,12 +132,14 @@ pub(crate) fn build_content(
     assets_dir: Option<&std::path::Path>,
     source_syntax_dir: &std::path::Path,
     split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
     toast_overlay: &adw::ToastOverlay,
 ) -> Result<ContentSurface, SourceSyntaxError> {
     let stack = gtk::Stack::new();
     stack.set_widget_name("content-route-stack");
+    stack.set_hhomogeneous(false);
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
-    let (browser, browser_refs) = build_browser(dispatcher, split_view);
+    let (browser, browser_refs) = build_browser(dispatcher, split_view, compact_navigation);
     stack.add_named(&browser, Some("browser"));
     let (editor, editor_refs) = build_editor(
         dispatcher,
@@ -146,6 +148,7 @@ pub(crate) fn build_content(
         source_syntax_dir,
         toast_overlay,
         split_view,
+        compact_navigation,
     )?
     .into_parts();
     stack.add_named(&editor, Some("editor"));
@@ -237,6 +240,7 @@ fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
 pub(crate) fn build_browser(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
 ) -> (gtk::Widget, BrowserViewRefs) {
     let view = adw::ToolbarView::new();
     view.set_widget_name("browser-surface");
@@ -248,6 +252,7 @@ pub(crate) fn build_browser(
     header.pack_end(&new_note);
     header.pack_start(&sidebar_toggle_button(
         split_view,
+        compact_navigation,
         "toggle-categories-button",
     ));
     let (search_bar, search, search_toggle) = build_note_search_controls();
@@ -390,6 +395,7 @@ fn build_note_search_controls() -> (gtk::SearchBar, gtk::SearchEntry, gtk::Toggl
     search_toggle.add_css_class("flat");
     let search_bar = gtk::SearchBar::new();
     search_bar.set_widget_name("note-search-bar");
+    search_bar.set_size_request(0, -1);
     search_bar.set_show_close_button(true);
     let search = gtk::SearchEntry::new();
     search.set_widget_name("note-search-entry");
@@ -679,6 +685,9 @@ pub(crate) fn note_card_details(
     if show_category {
         let category = gtk::Label::new(Some(&note.category_name));
         category.set_widget_name(&format!("note-category:{}", note.id));
+        category.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        category.set_single_line_mode(true);
+        category.set_max_width_chars(18);
         category.add_css_class("note-category-pill");
         if let Some(color) = category_color {
             category.add_css_class(category_color_css_class(color));
@@ -691,6 +700,9 @@ pub(crate) fn note_card_details(
     )));
     updated.set_widget_name(&format!("note-updated:{}", note.id));
     updated.add_css_class("note-card-updated");
+    updated.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    updated.set_single_line_mode(true);
+    updated.set_hexpand(true);
     metadata.append(&updated);
     details.append(&metadata);
     details

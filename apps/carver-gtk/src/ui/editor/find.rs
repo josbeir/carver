@@ -35,7 +35,10 @@ impl FindController {
     ) -> Self {
         let bar = gtk::SearchBar::new();
         bar.set_widget_name("editor-find-bar");
+        // The bar is hidden until Ctrl+F; it must not set the editor's minimum width.
+        bar.set_size_request(0, -1);
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        row.set_size_request(0, -1);
         row.set_margin_start(12);
         row.set_margin_end(12);
         row.set_margin_top(6);
@@ -43,6 +46,7 @@ impl FindController {
         let entry = gtk::SearchEntry::new();
         entry.set_widget_name("editor-find-entry");
         entry.set_placeholder_text(Some("Find in note"));
+        entry.set_width_chars(1);
         entry.set_hexpand(true);
         let count = gtk::Label::new(None);
         count.set_widget_name("editor-find-count");
