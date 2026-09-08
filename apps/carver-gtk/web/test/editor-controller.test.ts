@@ -59,8 +59,12 @@ describe('EditorController', () => {
 
     expect(createEditor).toHaveBeenCalledOnce();
     expect(createEditor.mock.calls[0][0].editorProps).toMatchObject({
+      clipboardSerializer: expect.objectContaining({
+        serializeFragment: expect.any(Function),
+      }),
       transformCopied: expect.any(Function),
       transformPasted: expect.any(Function),
+      transformPastedHTML: expect.any(Function),
     });
     expect([...listeners.keys()].sort()).toEqual([
       'drop',

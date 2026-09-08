@@ -2,13 +2,17 @@ import { Fragment, type Mark, type Node, Slice } from '@tiptap/pm/model';
 
 type AttributeTransform = (
   attributes: Record<string, unknown>,
-  typeName: string,
 ) => Record<string, unknown>;
 
-const CLIPBOARD_METADATA_ATTRIBUTES = new Set([
-  'data-carve-attr-order',
-  'data-pm-slice',
-]);
+const COPY_MARKER_PREFIX = 'carver-copy:';
+
+function createCopyMarker(): string {
+  const values = new Uint32Array(4);
+  globalThis.crypto.getRandomValues(values);
+  return Array.from(values, (value) =>
+    value.toString(16).padStart(8, '0'),
+  ).join('');
+}
 
 function sanitizedAttributes(attributes: Record<string, unknown>) {
   const sanitized = { ...attributes };
@@ -20,41 +24,8 @@ function sanitizedAttributes(attributes: Record<string, unknown>) {
   return sanitized;
 }
 
-function withoutClipboardMetadata(attributes: Record<string, unknown>) {
-  const sanitized = { ...attributes };
-  if (!('carveAttrOrder' in sanitized)) return sanitized;
-  const keyValues = attributes.carveKeyValues;
-  if (keyValues && typeof keyValues === 'object' && !Array.isArray(keyValues)) {
-    const retained = Object.fromEntries(
-      Object.entries(keyValues).filter(
-        ([name]) => !CLIPBOARD_METADATA_ATTRIBUTES.has(name),
-      ),
-    );
-    sanitized.carveKeyValues = Object.keys(retained).length ? retained : null;
-  }
-  const order = attributes.carveAttrOrder;
-  if (Array.isArray(order)) {
-    const retained = order.filter(
-      (name) => !CLIPBOARD_METADATA_ATTRIBUTES.has(name),
-    );
-    sanitized.carveAttrOrder = retained.length ? retained : null;
-  }
-  return sanitized;
-}
-
-function withoutClipboardSerializationDifferences(
-  attributes: Record<string, unknown>,
-  typeName: string,
-) {
-  const normalized = withoutClipboardMetadata(attributes);
-  if (typeName === 'heading' && 'carveAttrOrder' in normalized) {
-    normalized.id = null;
-  }
-  return normalized;
-}
-
 function transformedMark(mark: Mark, transform: AttributeTransform) {
-  return mark.type.create(transform(mark.attrs, mark.type.name));
+  return mark.type.create(transform(mark.attrs));
 }
 
 function transformedNode(node: Node, transform: AttributeTransform): Node {
@@ -66,7 +37,7 @@ function transformedNode(node: Node, transform: AttributeTransform): Node {
     children.push(transformedNode(child, transform));
   });
   return node.type.create(
-    transform(node.attrs, node.type.name),
+    transform(node.attrs),
     Fragment.fromArray(children),
     marks,
   );
@@ -92,30 +63,38 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 /** Distinguishes exact editor-owned copies from untrusted clipboard HTML. */
 export class ClipboardPasteSanitizer {
   private copiedSlice: Slice | null = null;
-  private copiedSignature: string | null = null;
+  private copyMarker: string | null = null;
+  private pasteIsInternal = false;
+
+  public constructor(
+    private readonly createMarker: () => string = createCopyMarker,
+  ) {}
 
   /** Records the exact slice passed to ProseMirror's clipboard serializer. */
   public recordCopiedSlice(slice: Slice): Slice {
     this.copiedSlice = slice;
-    this.copiedSignature = this.signature(slice);
+    this.copyMarker = this.createMarker();
     return slice;
   }
 
-  /** Preserves plain-text context or an exact internal copy; sanitizes rich text. */
-  public sanitizePastedSlice(slice: Slice, plain = false): Slice {
-    const content = transformedSlice(slice, withoutClipboardMetadata);
-    if (plain) return content;
-    return this.copiedSlice && this.signature(content) === this.copiedSignature
-      ? this.copiedSlice
-      : sanitizePastedSlice(content);
+  /** Returns the private marker to append to editor-owned clipboard HTML. */
+  public copiedHtmlMarker(): string | null {
+    return this.copyMarker ? `${COPY_MARKER_PREFIX}${this.copyMarker}` : null;
   }
 
-  private signature(slice: Slice): string {
-    return JSON.stringify(
-      transformedSlice(
-        slice,
-        withoutClipboardSerializationDifferences,
-      ).toJSON(),
-    );
+  /** Recognizes and removes the private marker before clipboard HTML is parsed. */
+  public preparePastedHtml(html: string): string {
+    const marker = this.copiedHtmlMarker();
+    const comment = marker ? `<!--${marker}-->` : null;
+    this.pasteIsInternal = comment !== null && html.includes(comment);
+    return comment ? html.replace(comment, '') : html;
+  }
+
+  /** Preserves plain-text context or an editor-owned copy; sanitizes rich text. */
+  public sanitizePastedSlice(slice: Slice, plain = false): Slice {
+    const copiedSlice = this.pasteIsInternal ? this.copiedSlice : null;
+    this.pasteIsInternal = false;
+    if (plain) return slice;
+    return copiedSlice ?? sanitizePastedSlice(slice);
   }
 }

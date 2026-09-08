@@ -25,6 +25,16 @@ const schema = new Schema({
       content: 'inline*',
       group: 'block',
     },
+    paragraph: {
+      attrs: {
+        id: { default: null },
+        class: { default: null },
+        carveKeyValues: { default: null },
+        carveAttrOrder: { default: null },
+      },
+      content: 'inline*',
+      group: 'block',
+    },
     text: { group: 'inline' },
     mention: {
       attrs: { id: {} },
@@ -47,6 +57,18 @@ const schema = new Schema({
 });
 
 describe('sanitizePastedSlice', () => {
+  it('creates an opaque marker for editor-owned clipboard HTML', () => {
+    const sanitizer = new ClipboardPasteSanitizer();
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.text('Internal'),
+    );
+
+    sanitizer.recordCopiedSlice(new Slice(Fragment.from(heading), 0, 0));
+
+    expect(sanitizer.copiedHtmlMarker()).toMatch(/^carver-copy:[0-9a-f]{32}$/);
+  });
+
   it('removes foreign presentation attributes from pasted block nodes', () => {
     const heading = schema.nodes.heading.create(
       {
@@ -149,7 +171,7 @@ describe('sanitizePastedSlice', () => {
     );
 
     const copied = new Slice(Fragment.from(heading), 0, 0);
-    const sanitizer = new ClipboardPasteSanitizer();
+    const sanitizer = new ClipboardPasteSanitizer(() => 'internal-copy');
     sanitizer.recordCopiedSlice(copied);
     const pastedLink = schema.marks.link.create({
       ...link.attrs,
@@ -177,6 +199,12 @@ describe('sanitizePastedSlice', () => {
       0,
       0,
     );
+    expect(sanitizer.copiedHtmlMarker()).toBe('carver-copy:internal-copy');
+    expect(
+      sanitizer.preparePastedHtml(
+        '<h2>Reference</h2><!--carver-copy:internal-copy-->',
+      ),
+    ).toBe('<h2>Reference</h2>');
     const sanitized = sanitizer.sanitizePastedSlice(
       Slice.fromJSON(schema, pasted.toJSON()),
     );
@@ -195,6 +223,39 @@ describe('sanitizePastedSlice', () => {
       carveKeyValues: { role: 'bibliography' },
       carveAttrOrder: ['#id', 'role'],
     });
+  });
+
+  it('preserves lossy block attributes on editor-owned HTML paste', () => {
+    const paragraph = schema.nodes.paragraph.create(
+      {
+        id: 'intro',
+        carveKeyValues: { role: 'summary' },
+        carveAttrOrder: ['#id', 'role'],
+      },
+      schema.text('Introduction'),
+    );
+    const copied = new Slice(Fragment.from(paragraph), 0, 0);
+    const parsed = new Slice(
+      Fragment.from(
+        schema.nodes.paragraph.create(
+          {
+            id: null,
+            carveKeyValues: '[object Object]',
+            carveAttrOrder: ['#id', 'role'],
+          },
+          schema.text('Introduction'),
+        ),
+      ),
+      0,
+      0,
+    );
+    const sanitizer = new ClipboardPasteSanitizer(() => 'block-copy');
+    sanitizer.recordCopiedSlice(copied);
+    sanitizer.preparePastedHtml(
+      '<p>Introduction</p><!--carver-copy:block-copy-->',
+    );
+
+    expect(sanitizer.sanitizePastedSlice(parsed)).toEqual(copied);
   });
 
   it('preserves marks inherited from the selection on plain-text paste', () => {
@@ -265,8 +326,9 @@ describe('sanitizePastedSlice', () => {
       0,
       0,
     );
-    const sanitizer = new ClipboardPasteSanitizer();
+    const sanitizer = new ClipboardPasteSanitizer(() => 'internal-copy');
     sanitizer.recordCopiedSlice(copied);
+    sanitizer.preparePastedHtml('<h2>Internal</h2>');
 
     expect(
       sanitizer.sanitizePastedSlice(forged).content.firstChild?.attrs
