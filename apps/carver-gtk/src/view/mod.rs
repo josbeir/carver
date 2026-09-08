@@ -226,6 +226,10 @@ impl ViewRefs {
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
+        if let Effect::ShowExternalEdit { session } = effect {
+            self.show_external_edit(session);
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };
@@ -252,6 +256,44 @@ impl ViewRefs {
             Effect::ExportEditorPdf { request } => editor.export_pdf(&request),
             _ => {}
         }
+    }
+
+    fn show_external_edit(&self, session: crate::mvu::EditorSessionId) {
+        use adw::prelude::*;
+        let (Some(overlay), Some(dispatcher)) = (&self.toast_overlay, &self.dispatcher) else {
+            return;
+        };
+        let toast = adw::Toast::builder()
+            .title("This note changed elsewhere. Your unsaved edits are preserved.")
+            .button_label("Reload…")
+            .timeout(0)
+            .build();
+        let parent = self.route_stack.clone();
+        let dispatcher = dispatcher.clone();
+        toast.connect_button_clicked(move |_| {
+            let dialog = adw::AlertDialog::builder()
+                .heading("Reload note?")
+                .body("Reloading replaces your unsaved edits with the latest saved note.")
+                .default_response("cancel")
+                .close_response("cancel")
+                .build();
+            dialog.add_responses(&[("cancel", "Cancel"), ("reload", "Discard Edits and Reload")]);
+            dialog.set_response_appearance("reload", adw::ResponseAppearance::Destructive);
+            let dispatcher = dispatcher.clone();
+            dialog.connect_response(None, move |_, response| {
+                if response == "reload" {
+                    let _ = dispatcher.dispatch(AppMsg::Editor(
+                        crate::mvu::EditorMsg::ReloadExternal { session },
+                    ));
+                } else {
+                    let _ = dispatcher.dispatch(AppMsg::Editor(
+                        crate::mvu::EditorMsg::KeepExternalDraft { session },
+                    ));
+                }
+            });
+            dialog.present(Some(&parent));
+        });
+        overlay.add_toast(toast);
     }
 
     /// Reports whether a widget signal was caused by a programmatic render.

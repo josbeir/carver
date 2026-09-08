@@ -272,6 +272,8 @@ pub struct EditorDocument {
     pub(crate) favorite_mutation_in_flight: bool,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
+    /// External revision awaiting an explicit reload before saving local edits.
+    pub external_revision: Option<Revision>,
     save_timer: Option<TimerId>,
     close_requested: bool,
 }
@@ -371,6 +373,7 @@ impl EditorDocument {
             pending_favorite: None,
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
+            external_revision: None,
             save_timer: None,
             close_requested: false,
         }
@@ -389,15 +392,28 @@ impl EditorDocument {
         false
     }
 
+    pub(super) fn accept_external_note(&mut self, note: &carver_sdk::Note) {
+        self.source_changed(note.source.clone());
+        self.revision = note.revision;
+        self.is_favorite = note.is_favorite;
+        self.save_state = EditorSaveState::Clean;
+        self.external_revision = None;
+        self.save_timer = None;
+        self.close_requested = false;
+        self.pending_favorite = None;
+    }
+
     pub(super) fn schedule_save(&mut self, timer_id: TimerId) {
         self.save_timer = Some(timer_id);
     }
 
     pub(super) fn begin_save(&mut self) -> Option<EditorSaveRequest> {
-        if !matches!(
-            self.save_state,
-            EditorSaveState::Dirty | EditorSaveState::Failed(_)
-        ) {
+        if self.external_revision.is_some()
+            || !matches!(
+                self.save_state,
+                EditorSaveState::Dirty | EditorSaveState::Failed(_)
+            )
+        {
             return None;
         }
         self.save_timer = None;
@@ -499,6 +515,9 @@ pub struct AppModel {
     pub editor_export_after_load: Option<RequestId>,
     pub(crate) library_revision: Option<LibraryRevision>,
     pub(crate) library_revision_request: Option<LibraryRevisionRequest>,
+    pub(crate) library_revision_pending: bool,
+    pub(crate) editor_refresh_request: Option<RequestId>,
+    pub(crate) editor_refresh_pending: bool,
     next_request_id: u64,
     next_editor_session_id: u64,
     next_timer_id: u64,
@@ -537,6 +556,9 @@ impl AppModel {
             editor_export_after_load: None,
             library_revision: None,
             library_revision_request: None,
+            library_revision_pending: false,
+            editor_refresh_request: None,
+            editor_refresh_pending: false,
             next_request_id: 1,
             next_editor_session_id: 1,
             next_timer_id: 1,

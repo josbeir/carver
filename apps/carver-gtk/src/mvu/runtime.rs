@@ -212,6 +212,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         match effect {
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
+            | Effect::ShowExternalEdit { .. }
             | Effect::SelectEditorSource { .. }
             | Effect::FocusEditorMedia { .. }
             | Effect::ShowMediaPreview { .. }
@@ -291,6 +292,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 note_id,
             } => self.load_editor_note(request_id, note_id),
+            Effect::RefreshEditorNote {
+                request_id,
+                session,
+                snapshot,
+                discard_local,
+            } => {
+                let client = self.inner.client.clone();
+                let runtime = self.clone();
+                glib::spawn_future_local(async move {
+                    let result = client.note_async(snapshot.note_id).await.map_err(display_error)
+                        .and_then(|note| note.filter(|note| note.trashed_at.is_none())
+                            .ok_or_else(|| UiError::new("The note was deleted outside this window. Your open text has been preserved.")));
+                    runtime.dispatch(AppMsg::Library(LibraryReply::EditorRefreshed {
+                        request_id,
+                        session,
+                        snapshot,
+                        discard_local,
+                        result,
+                    }));
+                });
+            }
             Effect::LoadTrash { request_id } => self.load_trash(request_id),
             Effect::RestoreCategory { category_id } => self.restore_category(category_id),
             Effect::RestoreNote { note_id } => self.restore_note(note_id),

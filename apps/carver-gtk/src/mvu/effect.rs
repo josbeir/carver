@@ -228,6 +228,22 @@ pub enum Effect {
         /// Note to open.
         note_id: NoteId,
     },
+    /// Refresh an already open note without navigating.
+    RefreshEditorNote {
+        /// Identity of this refresh.
+        request_id: RequestId,
+        /// Editor lifetime that requested the refresh.
+        session: EditorSessionId,
+        /// Revision and source at the start of the read.
+        snapshot: EditorSaveRequest,
+        /// Whether the user explicitly authorized discarding local edits.
+        discard_local: bool,
+    },
+    /// Offer an explicit reload after an external edit conflicts with local work.
+    ShowExternalEdit {
+        /// Editor lifetime affected by the conflict.
+        session: EditorSessionId,
+    },
     /// Load recoverable deleted content.
     LoadTrash {
         /// Identity for stale-completion protection.

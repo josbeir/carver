@@ -1,3 +1,6 @@
+use gtk::prelude::*;
+use libadwaita::prelude::*;
+
 use super::*;
 
 pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
@@ -140,13 +143,20 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
     for name in ["browser", "editor", "trash"] {
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
     }
+    let window = libadwaita::Window::new();
+    let overlay = libadwaita::ToastOverlay::new();
+    overlay.set_child(Some(&stack));
+    window.set_content(Some(&overlay));
+    window.present();
+    let dispatcher = AppDispatcher::default();
     let browser_status = libadwaita::StatusPage::new();
     let runtime = AppRuntime::new(
         client,
         AppModel::new(&Config::default()),
-        crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new()),
+        crate::view::ViewRefs::new(stack, browser_status, libadwaita::StatusPage::new())
+            .with_toast_overlay(overlay)
+            .with_dispatcher(dispatcher.clone()),
     );
-    let dispatcher = AppDispatcher::default();
     runtime.bind_dispatcher(&dispatcher);
     runtime.monitor_library(&paths.database_file(), dispatcher)?;
     runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
@@ -173,6 +183,24 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
             LoadState::Ready(ref notes) if notes.iter().any(|summary| summary.id == note.id)
         )
     }) {
+        runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+        if !crate::ui::tests::support::run_main_context_until(|| runtime.model().editor.is_some()) {
+            return Err("editor did not load".into());
+        }
+        let session = runtime.model().editor.ok_or("editor")?.session;
+        let saved = agent_client.save_note(note.id, note.revision, "# Updated by agent")?;
+        if !crate::ui::tests::support::run_main_context_until(|| {
+            runtime.model().editor.is_some_and(|document| {
+                document.session == session
+                    && document.revision == saved.revision
+                    && document.source == saved.source
+                    && document.save_state == super::EditorSaveState::Clean
+            })
+        }) {
+            return Err("separate client save did not refresh the open editor".into());
+        }
+        assert_external_conflict(&runtime, &agent_client, &saved, &window)?;
+        window.close();
         Ok(())
     } else {
         Err("separate client mutation did not refresh visible resources".into())
@@ -207,4 +235,88 @@ fn runtime_should_write_the_current_carve_snapshot<B: LibraryBackend>(
             .is_ok_and(|source| source == "# Exported draft\n\nUnsaved body")
     }));
     Ok(())
+}
+
+fn assert_external_conflict(
+    runtime: &AppRuntime<SqliteLibrary>,
+    agent: &LibraryClient<SqliteLibrary>,
+    note: &Note,
+    window: &libadwaita::Window,
+) -> Result<(), Box<dyn std::error::Error>> {
+    runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(
+        "Local draft".into(),
+    )));
+    let saved = agent.save_note(note.id, note.revision, "# Another agent edit")?;
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime
+            .model()
+            .editor
+            .is_some_and(|document| document.external_revision.is_some())
+    }));
+    assert_eq!(
+        runtime.model().editor.ok_or("editor")?.source,
+        "Local draft"
+    );
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        find_button(window.upcast_ref(), "Reload…").is_some()
+    }));
+    find_button(window.upcast_ref(), "Reload…")
+        .ok_or("reload button")?
+        .emit_clicked();
+    let dialog = window
+        .visible_dialog()
+        .ok_or("reload confirmation")?
+        .downcast::<libadwaita::AlertDialog>()
+        .map_err(|_| "alert dialog")?;
+    assert_eq!(dialog.default_response().as_deref(), Some("cancel"));
+    find_button(dialog.upcast_ref(), "Cancel")
+        .ok_or("cancel button")?
+        .emit_clicked();
+    assert_eq!(
+        runtime.model().editor.ok_or("editor")?.source,
+        "Local draft"
+    );
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        window.visible_dialog().is_none() && find_button(window.upcast_ref(), "Reload…").is_some()
+    }));
+    find_button(window.upcast_ref(), "Reload…")
+        .ok_or("reload button")?
+        .emit_clicked();
+    let dialog = window
+        .visible_dialog()
+        .ok_or("reload confirmation")?
+        .downcast::<libadwaita::AlertDialog>()
+        .map_err(|_| "alert dialog")?;
+    find_button(dialog.upcast_ref(), "Discard Edits and Reload")
+        .ok_or("confirm button")?
+        .emit_clicked();
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().editor.is_some_and(|document| {
+            document.source == saved.source
+                && document.revision == saved.revision
+                && document.external_revision.is_none()
+        })
+    }));
+    let persisted = agent.note(note.id)?.ok_or("persisted note")?;
+    assert_eq!(
+        (persisted.revision, persisted.updated_at),
+        (saved.revision, saved.updated_at)
+    );
+    Ok(())
+}
+
+fn find_button(root: &gtk::Widget, label: &str) -> Option<gtk::Button> {
+    if let Some(button) = root.downcast_ref::<gtk::Button>()
+        && button.label().as_deref() == Some(label)
+    {
+        return Some(button.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(button) = find_button(&widget, label) {
+            return Some(button);
+        }
+        child = widget.next_sibling();
+    }
+    None
 }
