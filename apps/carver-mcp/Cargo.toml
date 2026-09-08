@@ -7,8 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.2.0" }
-carver-sdk = { path = "../../crates/carver-sdk", version = "0.2.0", features = ["json-schema"] }
+carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.2.1" }
+carver-sdk = { path = "../../crates/carver-sdk", version = "0.2.1", features = ["json-schema"] }
 carve-lang.workspace = true
 rmcp.workspace = true
 schemars.workspace = true

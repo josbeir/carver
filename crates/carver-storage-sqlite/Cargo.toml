@@ -7,8 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-domain = { path = "../carver-domain", version = "0.2.0" }
-carver-library-port = { path = "../carver-library-port", version = "0.2.0" }
+carver-domain = { path = "../carver-domain", version = "0.2.1" }
+carver-library-port = { path = "../carver-library-port", version = "0.2.1" }
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
 sha2.workspace = true
