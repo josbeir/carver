@@ -12,6 +12,9 @@ if ! command -v flatpak-node-generator >/dev/null; then
   exit 1
 fi
 
+workspace_root="${WORKSPACE_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+cd "$workspace_root"
+
 flatpak-cargo-generator Cargo.lock -o packaging/flatpak/cargo-sources.json
 flatpak-node-generator npm apps/carver-gtk/web/package-lock.json \
   -o packaging/flatpak/node-sources.json
