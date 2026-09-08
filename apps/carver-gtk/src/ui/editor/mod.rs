@@ -1718,9 +1718,7 @@ pub(crate) fn export_rendered_snapshot(
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI, Some(&target_uri));
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
         operation.set_print_settings(&settings);
-        let page_setup = gtk::PageSetup::new();
-        page_setup.set_paper_size(&gtk::PaperSize::new(Some("iso_a4")));
-        page_setup.set_orientation(gtk::PageOrientation::Portrait);
+        let page_setup = pdf_page_setup();
         operation.set_page_setup(&page_setup);
         // The printing operation is asynchronous. Retain it until it reports completion;
         // otherwise the Rust wrapper can be dropped before GTK writes the file.
@@ -1754,6 +1752,17 @@ pub(crate) fn export_rendered_snapshot(
         operation.print();
     });
     load_preview(&preview, &source, allow_remote_images);
+}
+
+pub(crate) fn pdf_page_setup() -> gtk::PageSetup {
+    let page_setup = gtk::PageSetup::new();
+    page_setup.set_paper_size(&gtk::PaperSize::new(Some("iso_a4")));
+    page_setup.set_orientation(gtk::PageOrientation::Portrait);
+    page_setup.set_top_margin(18.0, gtk::Unit::Mm);
+    page_setup.set_bottom_margin(18.0, gtk::Unit::Mm);
+    page_setup.set_left_margin(18.0, gtk::Unit::Mm);
+    page_setup.set_right_margin(18.0, gtk::Unit::Mm);
+    page_setup
 }
 
 fn run_native_print_dialog(

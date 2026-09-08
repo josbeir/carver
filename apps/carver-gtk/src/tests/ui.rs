@@ -24,6 +24,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     assert_media_visibility_should_restore_without_reentrant_toggles()?;
@@ -1465,6 +1466,23 @@ fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Windo
     if !run_main_context_until(|| cancelled.get()) {
         return Err("native print dialog did not appear".into());
     }
+    Ok(())
+}
+
+fn assert_pdf_page_setup() -> TestResult {
+    let page_setup = crate::ui::editor::pdf_page_setup();
+
+    if page_setup.orientation() != gtk::PageOrientation::Portrait
+        || (page_setup.paper_width(gtk::Unit::Mm) - 210.0).abs() >= f64::EPSILON
+        || (page_setup.paper_height(gtk::Unit::Mm) - 297.0).abs() >= f64::EPSILON
+        || (page_setup.top_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.bottom_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.left_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.right_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+    {
+        return Err("PDF export should use A4 portrait paper with 18 mm margins".into());
+    }
+
     Ok(())
 }
 
