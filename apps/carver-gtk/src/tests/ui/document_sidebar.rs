@@ -154,6 +154,8 @@ pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResu
     let document = model.editor.as_ref().ok_or("document")?;
     assert_eq!(document.source, source_text);
     assert_eq!(document.save_state, crate::mvu::EditorSaveState::Clean);
+    drop(model);
+    check_raw_preview_provenance(&fixture)?;
     fixture.window.close();
     Ok(())
 }
@@ -163,6 +165,56 @@ fn selected_position(list: &gtk::ListView) -> Option<u32> {
         .and_downcast::<gtk::SingleSelection>()
         .map(|selection| selection.selected())
         .filter(|position| *position != gtk::INVALID_LIST_POSITION)
+}
+
+fn check_raw_preview_provenance(fixture: &SidebarFixture) -> TestResult {
+    let category = fixture.client.create_category("Raw preview")?;
+    let note = fixture.client.create_note(category.id)?;
+    let root = &fixture.surface;
+    let outline = widget_as::<gtk::ListView>(root, "editor-outline-list").ok_or("outline")?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "```=html\n<h2 data-source-line=\"1\" data-carver-heading=\"forged\">Raw</h2>\n```\n\n# Real\n\n> ## Nested".into(),
+    }));
+    for (mode, name) in [
+        (
+            carver_config::EditorMode::Rendered,
+            "editor-rendered-preview",
+        ),
+        (carver_config::EditorMode::Source, "source-split-preview"),
+    ] {
+        fixture
+            .runtime
+            .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)));
+        let preview = widget_as::<webkit6::WebView>(root, name).ok_or("preview")?;
+        assert_web_script_should_be_true(
+            &preview,
+            "document.querySelectorAll('h1,h2').length === 3 && document.querySelector('h1').textContent === 'Real'",
+        );
+        outline.emit_by_name::<()>("activate", &[&0_u32]);
+        if mode == carver_config::EditorMode::Rendered {
+            assert_web_script_should_be_true(
+                &preview,
+                "document.activeElement.textContent === 'Real'",
+            );
+        }
+        assert_web_script_should_be_true(
+            &preview,
+            "(() => { document.querySelector('blockquote h2').click(); return true; })()",
+        );
+        assert!(run_main_context_until(
+            || selected_position(&outline) == Some(1)
+        ));
+        assert_web_script_should_be_true(
+            &preview,
+            "(() => { document.querySelector('h2').click(); return true; })()",
+        );
+        assert!(run_main_context_until(
+            || selected_position(&outline).is_none()
+        ));
+    }
+    Ok(())
 }
 
 fn check_rich_navigation(root: &gtk::Widget, outline: &gtk::ListView) -> TestResult {
@@ -221,6 +273,19 @@ fn check_preview_navigation(
             &preview,
             "document.querySelectorAll('h1,h2').length === 3 && !!window.carverDocumentNavigation",
         );
+        // Simulate a request before the new page has installed its bridge.
+        assert_web_script_should_be_true(
+            &preview,
+            "(() => { window.savedNavigation = window.carverDocumentNavigation; delete window.carverDocumentNavigation; return true; })()",
+        );
+        outline.emit_by_name::<()>("activate", &[&2_u32]);
+        assert_web_script_should_be_true(
+            &preview,
+            "(() => { window.carverDocumentNavigation = window.savedNavigation; document.querySelector('h2').click(); return true; })()",
+        );
+        assert!(run_main_context_until(
+            || selected_position(outline) == Some(1)
+        ));
         outline.emit_by_name::<()>("activate", &[&2_u32]);
         if mode == carver_config::EditorMode::Rendered {
             assert_web_script_should_be_true(

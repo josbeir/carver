@@ -7,7 +7,10 @@ use webkit6::prelude::*;
 
 struct Snapshot {
     load: u64,
+    // Only acknowledged requests change the epoch accepted from the page.
     navigation_epoch: u64,
+    requested_epoch: u64,
+    pending: bool,
     session: EditorSessionId,
     source: Rc<str>,
 }
@@ -27,6 +30,8 @@ impl PreviewNavigation {
         let snapshot = Rc::new(RefCell::new(Snapshot {
             load: 0,
             navigation_epoch: 0,
+            requested_epoch: 0,
+            pending: false,
             session: EditorSessionId(0),
             source: Rc::from(""),
         }));
@@ -46,6 +51,7 @@ impl PreviewNavigation {
                 let source = {
                     let snapshot = current.borrow();
                     if snapshot.session.0 != session
+                        || snapshot.pending
                         || snapshot.load != state.revision
                         || snapshot.navigation_epoch != state.navigation_epoch
                     {
@@ -74,6 +80,8 @@ impl PreviewNavigation {
             snapshot.load = snapshot.load.wrapping_add(1);
             snapshot.session = session;
             snapshot.navigation_epoch = 0;
+            snapshot.requested_epoch = 0;
+            snapshot.pending = false;
             snapshot.source = Rc::from(source);
             snapshot.load
         };
@@ -94,16 +102,17 @@ impl PreviewNavigation {
     }
 
     pub fn focus(&self, target: &DocumentTarget, source: &str, focus: bool) {
+        let Ok(target) = serde_json::to_string(target) else {
+            return;
+        };
         let (load, epoch) = {
             let mut snapshot = self.snapshot.borrow_mut();
             if snapshot.source.as_ref() != source {
                 return;
             }
-            snapshot.navigation_epoch = snapshot.navigation_epoch.wrapping_add(1);
-            (snapshot.load, snapshot.navigation_epoch)
-        };
-        let Ok(target) = serde_json::to_string(target) else {
-            return;
+            snapshot.requested_epoch = snapshot.requested_epoch.wrapping_add(1);
+            snapshot.pending = true;
+            (snapshot.load, snapshot.requested_epoch)
         };
         let snapshot = Rc::clone(&self.snapshot);
         let view = self.view.clone();
@@ -113,15 +122,22 @@ impl PreviewNavigation {
             Some("carver-editor:///bridge"),
             None::<&gtk::gio::Cancellable>,
             move |result| {
+                let succeeded = result.is_ok_and(|value| value.to_boolean());
                 let current = {
-                    let current = snapshot.borrow();
-                    current.load == load && current.navigation_epoch == epoch
+                    let mut current = snapshot.borrow_mut();
+                    if current.load != load {
+                        return;
+                    }
+                    if succeeded {
+                        current.navigation_epoch = current.navigation_epoch.max(epoch);
+                    }
+                    let latest = current.requested_epoch == epoch;
+                    if latest {
+                        current.pending = false;
+                    }
+                    latest
                 };
-                if focus
-                    && current
-                    && view.is_mapped()
-                    && result.is_ok_and(|value| value.to_boolean())
-                {
+                if focus && current && view.is_mapped() && succeeded {
                     view.grab_focus();
                     if let Some(root) = view.root() {
                         root.set_focus(Some(&view));

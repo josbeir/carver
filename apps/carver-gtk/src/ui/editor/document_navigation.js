@@ -2,7 +2,8 @@
     const session = __SESSION__;
     const revision = __LOAD__;
     let navigation_epoch = 0;
-    const headings = () => [...document.querySelectorAll('h1[data-source-line],h2[data-source-line],h3[data-source-line],h4[data-source-line],h5[data-source-line],h6[data-source-line]')];
+    const headings = () => [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')]
+        .filter(node => node.getAttribute('data-carver-heading') === document.body.dataset.carverHeadingToken);
     const pathFor = node => (node.getAttribute('src') ?? node.getAttribute('href') ?? '')
         .replace(/^carver-asset:\/\/\//, '');
     const mediaFor = path => [...document.querySelectorAll('img,a[href]')]
@@ -26,10 +27,10 @@
     window.carverDocumentNavigation = {
         focus(target, expectedRevision, focus, epoch) {
             if (expectedRevision !== revision) return false;
-            navigation_epoch = epoch;
             const node = target.kind === 'heading' ? headings()[target.occurrence]
                 : mediaFor(target.path)[target.occurrence];
             if (!node) return false;
+            navigation_epoch = epoch;
             if (focus) {
                 node.setAttribute('tabindex', '-1');
                 node.focus({preventScroll: true});
