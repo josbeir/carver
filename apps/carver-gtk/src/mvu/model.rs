@@ -241,6 +241,15 @@ pub struct EditorSaveRequest {
     pub source: String,
 }
 
+/// A persisted change that must be resolved before saving the local draft.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExternalChange {
+    /// Another client saved a different revision.
+    Edited(Revision),
+    /// Another client trashed or removed the note.
+    Deleted,
+}
+
 /// The UI-neutral, canonical representation of one note being edited.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorDocument {
@@ -272,8 +281,8 @@ pub struct EditorDocument {
     pub(crate) favorite_mutation_in_flight: bool,
     /// Current persistence state of the document.
     pub save_state: EditorSaveState,
-    /// External revision awaiting an explicit reload before saving local edits.
-    pub external_revision: Option<Revision>,
+    /// External conflict awaiting explicit resolution before saving local edits.
+    pub external_change: Option<ExternalChange>,
     save_timer: Option<TimerId>,
     close_requested: bool,
 }
@@ -373,7 +382,7 @@ impl EditorDocument {
             pending_favorite: None,
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
-            external_revision: None,
+            external_change: None,
             save_timer: None,
             close_requested: false,
         }
@@ -397,7 +406,7 @@ impl EditorDocument {
         self.revision = note.revision;
         self.is_favorite = note.is_favorite;
         self.save_state = EditorSaveState::Clean;
-        self.external_revision = None;
+        self.external_change = None;
         self.save_timer = None;
         self.close_requested = false;
         self.pending_favorite = None;
@@ -408,7 +417,7 @@ impl EditorDocument {
     }
 
     pub(super) fn begin_save(&mut self) -> Option<EditorSaveRequest> {
-        if self.external_revision.is_some()
+        if self.external_change.is_some()
             || !matches!(
                 self.save_state,
                 EditorSaveState::Dirty | EditorSaveState::Failed(_)

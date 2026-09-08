@@ -301,9 +301,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 let client = self.inner.client.clone();
                 let runtime = self.clone();
                 glib::spawn_future_local(async move {
-                    let result = client.note_async(snapshot.note_id).await.map_err(display_error)
-                        .and_then(|note| note.filter(|note| note.trashed_at.is_none())
-                            .ok_or_else(|| UiError::new("The note was deleted outside this window. Your open text has been preserved.")));
+                    let result = client
+                        .note_async(snapshot.note_id)
+                        .await
+                        .map_err(display_error);
                     runtime.dispatch(AppMsg::Library(LibraryReply::EditorRefreshed {
                         request_id,
                         session,

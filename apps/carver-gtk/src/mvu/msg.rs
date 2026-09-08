@@ -146,6 +146,11 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// Discard the local draft of an externally deleted note after confirmation.
+    CloseDeleted {
+        /// Editor lifetime authorized by the user.
+        session: EditorSessionId,
+    },
     /// Keep the local draft and offer reload again after cancelling confirmation.
     KeepExternalDraft {
         /// Editor lifetime displayed by the confirmation.
@@ -568,8 +573,8 @@ pub enum LibraryReply {
         snapshot: EditorSaveRequest,
         /// Whether the user explicitly authorized discarding local edits.
         discard_local: bool,
-        /// Latest active note, or a displayable failure.
-        result: Result<carver_sdk::Note, UiError>,
+        /// Latest active or trashed note, absent after permanent removal, or a read failure.
+        result: Result<Option<carver_sdk::Note>, UiError>,
     },
     /// Trash contents completed loading.
     TrashLoaded {

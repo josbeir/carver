@@ -32,18 +32,9 @@ fn refresh(model: &mut AppModel) -> Effect {
         .unwrap_or_else(|| panic!("refresh"))
 }
 
-fn complete(model: &mut AppModel, effect: Effect, revision: Revision) -> Vec<Effect> {
-    let Effect::RefreshEditorNote {
-        request_id,
-        session,
-        snapshot,
-        discard_local,
-    } = effect
-    else {
-        panic!("refresh")
-    };
-    let note = Note {
-        id: snapshot.note_id,
+fn saved_note(note_id: NoteId, revision: Revision) -> Note {
+    Note {
+        id: note_id,
         category_id: CategoryId::new(),
         source: "From agent".into(),
         title: "From agent".into(),
@@ -53,6 +44,30 @@ fn complete(model: &mut AppModel, effect: Effect, revision: Revision) -> Vec<Eff
         created_at: OffsetDateTime::UNIX_EPOCH,
         updated_at: OffsetDateTime::UNIX_EPOCH,
         trashed_at: None,
+    }
+}
+
+fn complete(model: &mut AppModel, effect: Effect, revision: Revision) -> Vec<Effect> {
+    let Effect::RefreshEditorNote { ref snapshot, .. } = effect else {
+        panic!("refresh")
+    };
+    let note = saved_note(snapshot.note_id, revision);
+    complete_result(model, effect, Ok(Some(note)))
+}
+
+fn complete_result(
+    model: &mut AppModel,
+    effect: Effect,
+    result: Result<Option<Note>, UiError>,
+) -> Vec<Effect> {
+    let Effect::RefreshEditorNote {
+        request_id,
+        session,
+        snapshot,
+        discard_local,
+    } = effect
+    else {
+        panic!("refresh")
     };
     update(
         model,
@@ -61,7 +76,7 @@ fn complete(model: &mut AppModel, effect: Effect, revision: Revision) -> Vec<Eff
             session,
             snapshot,
             discard_local,
-            result: Ok(note),
+            result,
         }),
     )
 }
@@ -121,7 +136,7 @@ fn external_edit_should_preserve_typing_started_during_refresh() {
         .unwrap_or_else(|| panic!("missing fixture value"));
     assert_eq!(document.source, "Local draft");
     assert_eq!(document.revision, Revision(1));
-    assert!(document.external_revision.is_some());
+    assert!(document.external_change.is_some());
     assert!(document.begin_save().is_none());
     assert!(matches!(
         effects.as_slice(),
@@ -153,7 +168,7 @@ fn confirmed_reload_should_replace_conflicting_draft() {
         .as_ref()
         .unwrap_or_else(|| panic!("missing fixture value"));
     assert_eq!(document.source, "From agent");
-    assert!(document.external_revision.is_none());
+    assert!(document.external_change.is_none());
     assert_eq!(document.save_state, EditorSaveState::Clean);
 }
 
@@ -234,7 +249,7 @@ fn refresh_completing_during_save_should_wait_for_save_completion() {
             .editor
             .as_ref()
             .unwrap_or_else(|| panic!("missing fixture value"))
-            .external_revision
+            .external_change
             .is_none()
     );
     let effects = update(
@@ -356,5 +371,157 @@ fn confirmed_reload_should_cancel_a_previously_requested_close() {
             .as_ref()
             .unwrap_or_else(|| panic!("editor"))
             .close_is_requested()
+    );
+}
+
+#[test]
+fn externally_trashed_note_should_preserve_draft_and_block_autosaves() {
+    let mut model = open_note();
+    let document = model.editor.as_mut().unwrap_or_else(|| panic!("editor"));
+    let mut note = saved_note(document.note_id, Revision(2));
+    note.trashed_at = Some(OffsetDateTime::UNIX_EPOCH);
+    document.source_changed("Local draft".into());
+    let effect = refresh(&mut model);
+    let effects = complete_result(&mut model, effect, Ok(Some(note)));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowExternalEdit { deleted: true, .. }]
+    ));
+    let document = model.editor.as_mut().unwrap_or_else(|| panic!("editor"));
+    assert_eq!(document.source, "Local draft");
+    assert!(document.begin_save().is_none());
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowExternalEdit { deleted: true, .. }]
+    ));
+}
+
+#[test]
+fn missing_note_should_offer_confirmed_discard_to_reach_trash() {
+    let mut model = open_note();
+    let effect = refresh(&mut model);
+    let _ = complete_result(&mut model, effect, Ok(None));
+    let session = model
+        .editor
+        .as_ref()
+        .unwrap_or_else(|| panic!("editor"))
+        .session;
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::KeepExternalDraft { session }),
+    );
+    assert!(model.editor.is_some());
+    model.trash = super::super::Resource::default();
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::CloseDeleted { session }),
+    );
+    assert!(model.editor.is_none());
+    assert_eq!(model.route, Route::Trash);
+    assert!(matches!(effects.as_slice(), [Effect::LoadTrash { .. }]));
+}
+
+#[test]
+fn deletion_confirmation_should_not_close_a_new_editor_session() {
+    let mut model = open_note();
+    let session = model
+        .editor
+        .as_ref()
+        .unwrap_or_else(|| panic!("editor"))
+        .session;
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "New note".into(),
+        }),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::CloseDeleted { session })
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .unwrap_or_else(|| panic!("editor"))
+            .source,
+        "New note"
+    );
+}
+
+#[test]
+fn refresh_read_failure_should_preserve_draft_without_claiming_deletion() {
+    let mut model = open_note();
+    let effect = refresh(&mut model);
+    let _ = complete_result(&mut model, effect, Err(UiError::new("Read failed")));
+    let document = model.editor.as_ref().unwrap_or_else(|| panic!("editor"));
+    assert_eq!(document.source, "Before");
+    assert!(document.external_change.is_none());
+    assert_eq!(model.notice, Some(UiError::new("Read failed")));
+}
+
+#[test]
+fn first_external_revision_should_refresh_after_initial_revision_read_failed() {
+    let mut model = open_note();
+    model.library_revision = None;
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+    let Effect::LoadLibraryRevision { request_id } = effects[0] else {
+        panic!("revision")
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id,
+            result: Err(UiError::new("Read failed")),
+        }),
+    );
+    let effect = refresh(&mut model);
+    let _ = complete(&mut model, effect, Revision(2));
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .unwrap_or_else(|| panic!("editor"))
+            .source,
+        "From agent"
+    );
+}
+
+#[test]
+fn startup_revision_should_refresh_when_external_wakeup_arrives_during_initial_read() {
+    use super::super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest};
+    let mut model = open_note();
+    model.library_revision = None;
+    model.library_revision_request = Some(LibraryRevisionRequest {
+        request_id: RequestId(100),
+        reason: LibraryRevisionCheckReason::InitialLoad,
+    });
+    assert!(update(&mut model, AppMsg::LibraryChangedExternally).is_empty());
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id: RequestId(100),
+            result: Ok(LibraryRevision(2)),
+        }),
+    );
+    let effect = effects
+        .iter()
+        .find(|effect| matches!(effect, Effect::RefreshEditorNote { .. }))
+        .unwrap_or_else(|| panic!("refresh"))
+        .clone();
+    let _ = complete(&mut model, effect, Revision(2));
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .unwrap_or_else(|| panic!("editor"))
+            .source,
+        "From agent"
     );
 }

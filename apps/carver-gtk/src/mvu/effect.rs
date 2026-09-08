@@ -243,6 +243,8 @@ pub enum Effect {
     ShowExternalEdit {
         /// Editor lifetime affected by the conflict.
         session: EditorSessionId,
+        /// Whether the note was deleted rather than edited.
+        deleted: bool,
     },
     /// Load recoverable deleted content.
     LoadTrash {

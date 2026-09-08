@@ -1,6 +1,8 @@
 //! Pure state transitions for the application model.
 
-use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection};
+use super::model::{
+    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection,
+};
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
     LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, SourceEdit, TrashMsg,
@@ -270,11 +272,28 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
 #[expect(clippy::too_many_lines)]
 fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
     match message {
+        EditorMsg::CloseDeleted { session } => {
+            if model.editor.as_ref().is_some_and(|document| {
+                document.session == session
+                    && document.external_change == Some(ExternalChange::Deleted)
+                    && !matches!(document.save_state, super::EditorSaveState::Saving(_))
+            }) {
+                let _ = close_editor(model, session);
+                model.pending_category_selection = None;
+                model.route = super::Route::Trash;
+                reload_trash(model).into_iter().collect()
+            } else {
+                Vec::new()
+            }
+        }
         EditorMsg::KeepExternalDraft { session } => model
             .editor
             .as_ref()
-            .filter(|document| document.session == session && document.external_revision.is_some())
-            .map(|_| Effect::ShowExternalEdit { session })
+            .filter(|document| document.session == session && document.external_change.is_some())
+            .map(|document| Effect::ShowExternalEdit {
+                session,
+                deleted: document.external_change == Some(ExternalChange::Deleted),
+            })
             .into_iter()
             .collect(),
         EditorMsg::ReloadExternal { session } => {
@@ -1607,9 +1626,10 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
-    if document.external_revision.is_some() {
+    if document.external_change.is_some() {
         return vec![Effect::ShowExternalEdit {
             session: document.session,
+            deleted: document.external_change == Some(ExternalChange::Deleted),
         }];
     }
     document.request_close();
@@ -1727,7 +1747,7 @@ fn update_library_revision(
         Ok(revision) => {
             let changed = model
                 .library_revision
-                .is_some_and(|current| current != revision);
+                .is_none_or(|current| current != revision);
             model.library_revision = Some(revision);
             if changed {
                 let mut effects = if request.reason == LibraryRevisionCheckReason::ExternalWakeup {
@@ -1787,7 +1807,7 @@ fn update_editor_refresh(
     session: super::EditorSessionId,
     snapshot: &EditorSaveRequest,
     discard_local: bool,
-    result: Result<carver_sdk::Note, UiError>,
+    result: Result<Option<carver_sdk::Note>, UiError>,
 ) -> Vec<Effect> {
     if model.editor_refresh_request != Some(request_id) {
         return Vec::new();
@@ -1814,16 +1834,35 @@ fn update_editor_refresh(
             return Vec::new();
         }
     };
-    if note.revision == document.revision {
+    let Some(note) = note.filter(|note| note.trashed_at.is_none()) else {
+        if document.external_change.replace(ExternalChange::Deleted)
+            == Some(ExternalChange::Deleted)
+        {
+            return Vec::new();
+        }
+        return vec![Effect::ShowExternalEdit {
+            session,
+            deleted: true,
+        }];
+    };
+    if note.revision == document.revision && document.external_change.is_none() {
         return Vec::new();
     }
     let safe = document.source == snapshot.source
         && (discard_local || document.save_state == super::EditorSaveState::Clean);
     if !safe {
-        if document.external_revision.replace(note.revision).is_some() {
+        if matches!(
+            document
+                .external_change
+                .replace(ExternalChange::Edited(note.revision)),
+            Some(ExternalChange::Edited(_))
+        ) {
             return Vec::new();
         }
-        return vec![Effect::ShowExternalEdit { session }];
+        return vec![Effect::ShowExternalEdit {
+            session,
+            deleted: false,
+        }];
     }
     document.accept_external_note(&note);
     model.editor_preview = Some(super::EditorPreview {

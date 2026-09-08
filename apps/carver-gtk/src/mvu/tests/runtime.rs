@@ -200,6 +200,7 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
             return Err("separate client save did not refresh the open editor".into());
         }
         assert_external_conflict(&runtime, &agent_client, &saved, &window)?;
+        assert_external_deletion(&runtime, &agent_client, note.id, &window)?;
         window.close();
         Ok(())
     } else {
@@ -251,7 +252,7 @@ fn assert_external_conflict(
         runtime
             .model()
             .editor
-            .is_some_and(|document| document.external_revision.is_some())
+            .is_some_and(|document| document.external_change.is_some())
     }));
     assert_eq!(
         runtime.model().editor.ok_or("editor")?.source,
@@ -294,7 +295,7 @@ fn assert_external_conflict(
         runtime.model().editor.is_some_and(|document| {
             document.source == saved.source
                 && document.revision == saved.revision
-                && document.external_revision.is_none()
+                && document.external_change.is_none()
         })
     }));
     let persisted = agent.note(note.id)?.ok_or("persisted note")?;
@@ -319,4 +320,61 @@ fn find_button(root: &gtk::Widget, label: &str) -> Option<gtk::Button> {
         child = widget.next_sibling();
     }
     None
+}
+
+fn assert_external_deletion(
+    runtime: &AppRuntime<SqliteLibrary>,
+    agent: &LibraryClient<SqliteLibrary>,
+    note_id: NoteId,
+    window: &libadwaita::Window,
+) -> Result<(), Box<dyn std::error::Error>> {
+    runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(
+        "Draft before deletion".into(),
+    )));
+    agent.trash_note(note_id)?;
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().editor.is_some_and(|document| {
+            document.external_change == Some(super::super::model::ExternalChange::Deleted)
+        })
+    }));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        window.visible_dialog().is_none()
+            && find_button(window.upcast_ref(), "Close Note…").is_some()
+    }));
+    find_button(window.upcast_ref(), "Close Note…")
+        .ok_or("close note")?
+        .emit_clicked();
+    let dialog = window.visible_dialog().ok_or("deletion confirmation")?;
+    find_button(dialog.upcast_ref(), "Cancel")
+        .ok_or("cancel")?
+        .emit_clicked();
+    assert_eq!(
+        runtime.model().editor.ok_or("editor")?.source,
+        "Draft before deletion"
+    );
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        window.visible_dialog().is_none()
+            && find_button(window.upcast_ref(), "Close Note…").is_some()
+    }));
+    find_button(window.upcast_ref(), "Close Note…")
+        .ok_or("close note")?
+        .emit_clicked();
+    let dialog = window.visible_dialog().ok_or("deletion confirmation")?;
+    find_button(dialog.upcast_ref(), "Discard Draft and Open Trash")
+        .ok_or("discard")?
+        .emit_clicked();
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        let model = runtime.model();
+        model.editor.is_none()
+            && model.route == Route::Trash
+            && matches!(model.trash.state, LoadState::Ready(_))
+    }));
+    assert!(
+        agent
+            .note(note_id)?
+            .ok_or("trashed note")?
+            .trashed_at
+            .is_some()
+    );
+    Ok(())
 }
