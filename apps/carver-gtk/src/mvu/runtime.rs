@@ -730,6 +730,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             let format = match format {
                 EditorExportFormat::Carve => carver_export::ExportFormat::Carve,
                 EditorExportFormat::Markdown => carver_export::ExportFormat::Markdown,
+                EditorExportFormat::Html => carver_export::ExportFormat::Html,
                 EditorExportFormat::Pdf => {
                     runtime.dispatch(AppMsg::Library(LibraryReply::EditorExportPrepared {
                         request_id,

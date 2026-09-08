@@ -61,10 +61,18 @@ fn rendered_document_uses_the_native_view_background_when_provided() {
 }
 
 #[test]
-fn preview_stylesheet_should_use_a_document_specific_print_palette() {
+fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     assert!(PREVIEW_STYLESHEET.contains("@media print"));
     assert!(PREVIEW_STYLESHEET.contains("background: #ffffff !important"));
-    assert!(PREVIEW_STYLESHEET.contains("break-inside: avoid"));
+    assert!(PREVIEW_STYLESHEET.contains("font-size: 10.5pt"));
+    assert!(PREVIEW_STYLESHEET.contains("font-size: 21pt"));
+    assert!(
+        PREVIEW_STYLESHEET.contains("body[data-preview] {\n    padding: 0;\n    line-height: 1.4")
+    );
+    assert!(PREVIEW_STYLESHEET.contains("display: table-header-group"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] ul.task-list li"));
+    assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
+    assert!(PREVIEW_STYLESHEET.contains("padding: 4pt 5pt"));
 }
 
 #[test]

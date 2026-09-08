@@ -26,6 +26,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
@@ -779,16 +780,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some(&gtk_window),
         crate::mvu::AppDispatcher::default(),
     );
-    assert_eq!(
+    let export_format =
         widget_as::<adw::ComboRow>(export_options.upcast_ref(), "export-format-setting")
-            .map(|row| row.title()),
-        Some("Format".into())
-    );
-    assert_eq!(
+            .ok_or("export format")?;
+    let export_assets =
         widget_as::<adw::SwitchRow>(export_options.upcast_ref(), "export-assets-setting")
-            .map(|row| row.title()),
-        Some("Include managed files".into())
-    );
+            .ok_or("export assets")?;
+    assert_eq!(export_format.title(), "Format");
+    assert_eq!(export_format.model().map(|model| model.n_items()), Some(4));
+    assert_eq!(export_assets.title(), "Include managed files");
+    export_format.set_selected(2);
+    export_assets.set_active(true);
+    assert!(export_assets.is_sensitive());
+    export_format.set_selected(3);
+    assert!(!export_assets.is_sensitive());
+    assert!(!export_assets.is_active());
     export_options.emit_by_name::<()>("response", &[&"cancel"]);
     let export_warning = crate::ui::editor::show_export_warning_dialog(
         &crate::mvu::EditorExportWarningRequest {
@@ -1468,6 +1474,23 @@ fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Windo
     if !run_main_context_until(|| cancelled.get()) {
         return Err("native print dialog did not appear".into());
     }
+    Ok(())
+}
+
+fn assert_pdf_page_setup() -> TestResult {
+    let page_setup = crate::ui::editor::pdf_page_setup();
+
+    if page_setup.orientation() != gtk::PageOrientation::Portrait
+        || (page_setup.paper_width(gtk::Unit::Mm) - 210.0).abs() >= f64::EPSILON
+        || (page_setup.paper_height(gtk::Unit::Mm) - 297.0).abs() >= f64::EPSILON
+        || (page_setup.top_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.bottom_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.left_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+        || (page_setup.right_margin(gtk::Unit::Mm) - 18.0).abs() >= f64::EPSILON
+    {
+        return Err("PDF export should use A4 portrait paper with 18 mm margins".into());
+    }
+
     Ok(())
 }
 

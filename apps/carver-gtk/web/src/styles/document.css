@@ -245,7 +245,7 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
  * current desktop theme. Keep the reader-facing preview intact while making
  * PDF and printer output high-contrast, ink-friendly, and page-aware. */
 @page {
-  margin: 18mm;
+  margin: 0;
 }
 
 @media print {
@@ -264,10 +264,13 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
     min-height: 0;
     background: #ffffff !important;
     color: var(--document-foreground) !important;
+    font-size: 10.5pt;
+    line-height: 1.4;
   }
 
   body[data-preview] {
     padding: 0;
+    line-height: 1.4;
   }
 
   :where(.ProseMirror, body[data-preview]) a {
@@ -275,15 +278,13 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
     text-decoration: underline;
   }
 
-  :where(.ProseMirror, body[data-preview]) pre {
-    overflow: visible;
-    border: 1px solid var(--border-color);
-    border-radius: 0;
-    background: var(--code-background) !important;
-  }
-
-  :where(.ProseMirror, body[data-preview]) th {
-    background: var(--table-header-background) !important;
+  :where(.ProseMirror, body[data-preview]) p,
+  :where(.ProseMirror, body[data-preview]) pre,
+  :where(.ProseMirror, body[data-preview]) blockquote,
+  :where(.ProseMirror, body[data-preview]) ul,
+  :where(.ProseMirror, body[data-preview]) ol,
+  :where(.ProseMirror, body[data-preview]) table {
+    margin-bottom: 6pt;
   }
 
   :where(.ProseMirror, body[data-preview]) h1,
@@ -291,11 +292,106 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
   :where(.ProseMirror, body[data-preview]) h3,
   :where(.ProseMirror, body[data-preview]) h4,
   :where(.ProseMirror, body[data-preview]) h5,
-  :where(.ProseMirror, body[data-preview]) h6,
-  :where(.ProseMirror, body[data-preview]) pre,
-  :where(.ProseMirror, body[data-preview]) blockquote,
-  :where(.ProseMirror, body[data-preview]) img,
-  :where(.ProseMirror, body[data-preview]) table {
+  :where(.ProseMirror, body[data-preview]) h6 {
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 14pt 0 5pt;
+    orphans: 3;
+    widows: 3;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h1 {
+    font-size: 21pt;
+    margin-top: 0;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h2 {
+    font-size: 16pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h3 {
+    font-size: 13pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h4 {
+    font-size: 11.5pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h5 {
+    font-size: 11pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h6 {
+    font-size: 10.5pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) p,
+  :where(.ProseMirror, body[data-preview]) li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  :where(.ProseMirror, body[data-preview]) ul,
+  :where(.ProseMirror, body[data-preview]) ol {
+    padding-inline-start: 1.25rem;
+  }
+
+  :where(.ProseMirror, body[data-preview]) ul li,
+  :where(.ProseMirror, body[data-preview]) ol li {
+    margin-block: 2pt;
+  }
+
+  body[data-preview] ul.task-list li,
+  body[data-preview] ul:has(> li > input[type="checkbox"]) li {
+    margin-block: 2pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) pre {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--code-background) !important;
+    font-size: 9pt;
+    line-height: 1.3;
+    padding: 6pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) th {
+    background: var(--table-header-background) !important;
+  }
+
+  :where(.ProseMirror, body[data-preview]) th,
+  :where(.ProseMirror, body[data-preview]) td {
+    padding: 4pt 5pt;
+    line-height: 1.3;
+  }
+
+  body[data-preview] th,
+  body[data-preview] td {
+    padding: 4pt 5pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) thead {
+    display: table-header-group;
+  }
+
+  :where(.ProseMirror, body[data-preview]) tr {
+    break-inside: avoid;
+  }
+
+  :where(.ProseMirror, body[data-preview]) blockquote {
+    border-inline-start: 2pt solid var(--border-color);
+    margin-inline: 0;
+    padding-inline-start: 8pt;
+  }
+
+  :where(.ProseMirror, body[data-preview]) h1,
+  :where(.ProseMirror, body[data-preview]) h2,
+  :where(.ProseMirror, body[data-preview]) h3,
+  :where(.ProseMirror, body[data-preview]) h4,
+  :where(.ProseMirror, body[data-preview]) h5,
+  :where(.ProseMirror, body[data-preview]) h6 {
     break-inside: avoid;
   }
 
@@ -306,5 +402,10 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
   :where(.ProseMirror, body[data-preview]) h5,
   :where(.ProseMirror, body[data-preview]) h6 {
     break-after: avoid;
+  }
+
+  :where(.ProseMirror, body[data-preview]) img {
+    max-inline-size: 100%;
+    block-size: auto;
   }
 }
