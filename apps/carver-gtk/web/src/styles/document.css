@@ -270,6 +270,7 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
 
   body[data-preview] {
     padding: 0;
+    line-height: 1.4;
   }
 
   :where(.ProseMirror, body[data-preview]) a {
