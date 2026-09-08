@@ -219,16 +219,20 @@ fn export_should_prepare_the_unsaved_editor_snapshot_before_writing() {
         &mut model,
         AppMsg::Editor(EditorMsg::ExportRequested {
             request_id: dialog.request_id,
-            format: EditorExportFormat::Carve,
+            format: EditorExportFormat::Html,
             include_assets: false,
-            target_uri: String::from("file:///tmp/draft.carve"),
+            target_uri: String::from("file:///tmp/draft.html"),
         }),
     );
 
     assert!(matches!(
         effects.as_slice(),
-        [Effect::PrepareEditorExport { source, note_id: effect_note_id, .. }]
-            if source == "# Unsaved draft" && effect_note_id == &note_id
+        [Effect::PrepareEditorExport {
+            source,
+            note_id: effect_note_id,
+            format: EditorExportFormat::Html,
+            ..
+        }] if source == "# Unsaved draft" && effect_note_id == &note_id
     ));
     let effects = update(
         &mut model,

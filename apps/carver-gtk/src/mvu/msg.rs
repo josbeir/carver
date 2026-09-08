@@ -20,6 +20,8 @@ pub enum EditorExportFormat {
     Carve,
     /// Markdown converted by Carve's native codec.
     Markdown,
+    /// A styled, browser-ready HTML document.
+    Html,
     /// A rendered PDF generated through the native `WebKit` print pipeline.
     Pdf,
 }
@@ -34,6 +36,7 @@ impl EditorExportFormat {
         match self {
             Self::Carve => "crv",
             Self::Markdown => "md",
+            Self::Html => "html",
             Self::Pdf => "pdf",
         }
     }
