@@ -24,7 +24,7 @@ authors = ["Carver contributors"]
 [workspace.dependencies]
 async-channel = "2.5"
 base64 = "0.22"
-carve-lang = "0.1.4"
+carve-lang = "0.1.5"
 directories = "6.0"
 glib = "0.22"
 gdk-pixbuf = "0.22"
