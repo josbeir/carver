@@ -204,6 +204,26 @@ textview text {
   opacity: 0.72;
 }
 
+.media-filename {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+#editor-media-size {
+  font-size: 0.82em;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.media-thumbnail {
+  border-radius: 6px;
+}
+
+#editor-media-list {
+  /* Keep the card shadow inside the scroller's clipping boundary. */
+  margin: 6px 4px;
+}
+
 #editor-mode-switcher {
   background: @headerbar_bg_color;
   border: 1px solid alpha(currentColor, 0.14);

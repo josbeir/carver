@@ -1643,7 +1643,10 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
     );
     let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
     let content = button.child().ok_or("card contents")?;
-    let thumbnail = content
+    let thumbnail_frame = content.first_child().ok_or("thumbnail frame")?;
+    assert!(thumbnail_frame.has_css_class("media-thumbnail"));
+    assert_eq!(thumbnail_frame.overflow(), gtk::Overflow::Hidden);
+    let thumbnail = thumbnail_frame
         .first_child()
         .and_then(|widget| widget.downcast::<gtk::Image>().ok())
         .ok_or("thumbnail")?;
@@ -2081,6 +2084,8 @@ fn assert_thumbnail_should_follow_markup_kind(
     let has_thumbnail = || {
         widget_as::<gtk::Button>(root, "editor-media-item")
             .and_then(|button| button.child())
+            .and_then(|child| child.first_child())
+            .filter(|child| child.has_css_class("media-thumbnail"))
             .and_then(|child| child.first_child())
             .and_downcast::<gtk::Image>()
             .is_some_and(|image| image.paintable().is_some())
