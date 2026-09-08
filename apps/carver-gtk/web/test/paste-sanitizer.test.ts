@@ -57,18 +57,6 @@ const schema = new Schema({
 });
 
 describe('sanitizePastedSlice', () => {
-  it('creates an opaque marker for editor-owned clipboard HTML', () => {
-    const sanitizer = new ClipboardPasteSanitizer();
-    const heading = schema.nodes.heading.create(
-      { level: 2 },
-      schema.text('Internal'),
-    );
-
-    sanitizer.recordCopiedSlice(new Slice(Fragment.from(heading), 0, 0));
-
-    expect(sanitizer.copiedHtmlMarker()).toMatch(/^carver-copy:[0-9a-f]{32}$/);
-  });
-
   it('removes foreign presentation attributes from pasted block nodes', () => {
     const heading = schema.nodes.heading.create(
       {
@@ -171,7 +159,7 @@ describe('sanitizePastedSlice', () => {
     );
 
     const copied = new Slice(Fragment.from(heading), 0, 0);
-    const sanitizer = new ClipboardPasteSanitizer(() => 'internal-copy');
+    const sanitizer = new ClipboardPasteSanitizer();
     sanitizer.recordCopiedSlice(copied);
     const pastedLink = schema.marks.link.create({
       ...link.attrs,
@@ -199,10 +187,9 @@ describe('sanitizePastedSlice', () => {
       0,
       0,
     );
-    expect(sanitizer.copiedHtmlMarker()).toBe('carver-copy:internal-copy');
     expect(
       sanitizer.preparePastedHtml(
-        '<h2>Reference</h2><!--carver-copy:internal-copy-->',
+        '<h2>Reference</h2><!--carver-internal-copy-->',
       ),
     ).toBe('<h2>Reference</h2>');
     const sanitized = sanitizer.sanitizePastedSlice(
@@ -249,10 +236,10 @@ describe('sanitizePastedSlice', () => {
       0,
       0,
     );
-    const sanitizer = new ClipboardPasteSanitizer(() => 'block-copy');
+    const sanitizer = new ClipboardPasteSanitizer();
     sanitizer.recordCopiedSlice(copied);
     sanitizer.preparePastedHtml(
-      '<p>Introduction</p><!--carver-copy:block-copy-->',
+      '<p>Introduction</p><!--carver-internal-copy-->',
     );
 
     expect(sanitizer.sanitizePastedSlice(parsed)).toEqual(copied);
@@ -326,7 +313,7 @@ describe('sanitizePastedSlice', () => {
       0,
       0,
     );
-    const sanitizer = new ClipboardPasteSanitizer(() => 'internal-copy');
+    const sanitizer = new ClipboardPasteSanitizer();
     sanitizer.recordCopiedSlice(copied);
     sanitizer.preparePastedHtml('<h2>Internal</h2>');
 

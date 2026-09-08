@@ -1,6 +1,5 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
-import { DOMSerializer, type Fragment } from '@tiptap/pm/model';
 import { mediaOccurrences, selectedMedia } from './media-selection';
 import {
   CarveKit,
@@ -12,6 +11,7 @@ import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
 import { ClipboardPasteSanitizer } from './paste-sanitizer';
+import { selectedCarveSource } from './selection-copy';
 import type {
   EditorEvent,
   LinkCommand,
@@ -84,26 +84,8 @@ export class EditorController implements RichEditorApi {
       editorProps: {
         handlePaste: (_view, event) => this.pasteImage(event) ?? false,
         handleDrop: (_view, event) => this.dropImages(event),
-        transformCopied: (slice) =>
-          this.pasteSanitizer.recordCopiedSlice(slice),
-        clipboardSerializer: {
-          serializeFragment: (
-            fragment: Fragment,
-            options?: { document?: Document },
-            target?: HTMLElement | DocumentFragment,
-          ) => {
-            const schema = fragment.firstChild?.type.schema;
-            const document = options?.document ?? globalThis.document;
-            if (!schema) return target ?? document.createDocumentFragment();
-            const serialized = DOMSerializer.fromSchema(
-              schema,
-            ).serializeFragment(fragment, options, target);
-            const marker = this.pasteSanitizer.copiedHtmlMarker();
-            if (marker) {
-              serialized.appendChild(document.createComment(marker));
-            }
-            return serialized;
-          },
+        handleDOMEvents: {
+          copy: (_view, event) => this.copySelection(event),
         },
         transformPastedHTML: (html) =>
           this.pasteSanitizer.preparePastedHtml(html),
@@ -369,6 +351,17 @@ export class EditorController implements RichEditorApi {
     if (!transaction) return false;
     editor.view.dispatch(transaction);
     editor.commands.focus();
+    return true;
+  }
+
+  private copySelection(event: ClipboardEvent): boolean {
+    const editor = this.editor;
+    if (!editor) return false;
+    const source = selectedCarveSource(editor.state);
+    if (source == null) return false;
+    this.pasteSanitizer.recordCopiedSlice(editor.state.selection.content());
+    event.preventDefault();
+    this.send({ type: 'copy-selection', session: this.session, source });
     return true;
   }
 

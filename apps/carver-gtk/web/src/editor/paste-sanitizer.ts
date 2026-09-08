@@ -4,15 +4,7 @@ type AttributeTransform = (
   attributes: Record<string, unknown>,
 ) => Record<string, unknown>;
 
-const COPY_MARKER_PREFIX = 'carver-copy:';
-
-function createCopyMarker(): string {
-  const values = new Uint32Array(4);
-  globalThis.crypto.getRandomValues(values);
-  return Array.from(values, (value) =>
-    value.toString(16).padStart(8, '0'),
-  ).join('');
-}
+export const INTERNAL_COPY_MARKER = '<!--carver-internal-copy-->';
 
 function sanitizedAttributes(attributes: Record<string, unknown>) {
   const sanitized = { ...attributes };
@@ -63,31 +55,19 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 /** Distinguishes exact editor-owned copies from untrusted clipboard HTML. */
 export class ClipboardPasteSanitizer {
   private copiedSlice: Slice | null = null;
-  private copyMarker: string | null = null;
   private pasteIsInternal = false;
-
-  public constructor(
-    private readonly createMarker: () => string = createCopyMarker,
-  ) {}
 
   /** Records the exact slice passed to ProseMirror's clipboard serializer. */
   public recordCopiedSlice(slice: Slice): Slice {
     this.copiedSlice = slice;
-    this.copyMarker = this.createMarker();
     return slice;
   }
 
-  /** Returns the private marker to append to editor-owned clipboard HTML. */
-  public copiedHtmlMarker(): string | null {
-    return this.copyMarker ? `${COPY_MARKER_PREFIX}${this.copyMarker}` : null;
-  }
-
-  /** Recognizes and removes the private marker before clipboard HTML is parsed. */
+  /** Recognizes and removes the native selection marker before HTML is parsed. */
   public preparePastedHtml(html: string): string {
-    const marker = this.copiedHtmlMarker();
-    const comment = marker ? `<!--${marker}-->` : null;
-    this.pasteIsInternal = comment !== null && html.includes(comment);
-    return comment ? html.replace(comment, '') : html;
+    this.pasteIsInternal =
+      this.copiedSlice !== null && html.includes(INTERNAL_COPY_MARKER);
+    return html.replace(INTERNAL_COPY_MARKER, '');
   }
 
   /** Preserves plain-text context or an editor-owned copy; sanitizes rich text. */

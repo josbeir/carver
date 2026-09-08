@@ -38,7 +38,10 @@ function controllerFixture() {
     commands: { setContent: vi.fn(), focus: vi.fn() },
     getAttributes: vi.fn(() => ({})),
     isActive: vi.fn(() => false),
-    state: { doc: { descendants: vi.fn() } },
+    state: {
+      doc: { descendants: vi.fn() },
+      selection: { empty: true },
+    },
     view: { dispatch: vi.fn() },
   };
   const createEditor = vi.fn((_options: Record<string, unknown>) => editor);
@@ -59,10 +62,7 @@ describe('EditorController', () => {
 
     expect(createEditor).toHaveBeenCalledOnce();
     expect(createEditor.mock.calls[0][0].editorProps).toMatchObject({
-      clipboardSerializer: expect.objectContaining({
-        serializeFragment: expect.any(Function),
-      }),
-      transformCopied: expect.any(Function),
+      handleDOMEvents: expect.objectContaining({ copy: expect.any(Function) }),
       transformPasted: expect.any(Function),
       transformPastedHTML: expect.any(Function),
     });
@@ -72,6 +72,62 @@ describe('EditorController', () => {
       'pointerdown',
     ]);
     expect(messages).toEqual([JSON.stringify({ type: 'ready' })]);
+  });
+
+  it('routes a non-empty copy selection through the native clipboard bridge', () => {
+    const { controller, createEditor, editor, messages } = controllerFixture();
+    const selectedSlice = {
+      content: {
+        forEach: (visit) =>
+          visit({
+            isInline: false,
+            toJSON: () => ({
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Selected' }],
+            }),
+          }),
+      },
+    };
+    Object.assign(editor.state, {
+      selection: {
+        empty: false,
+        content: () => selectedSlice,
+      },
+    });
+    controller.initialize();
+    controller.load('Document', 9);
+    const options = createEditor.mock.calls[0]?.[0] as {
+      editorProps: {
+        handleDOMEvents: {
+          copy: (view: unknown, event: ClipboardEvent) => boolean;
+        };
+        transformPasted: (
+          slice: unknown,
+          view: unknown,
+          plain: boolean,
+        ) => unknown;
+        transformPastedHTML: (html: string) => string;
+      };
+    };
+    const event = { preventDefault: vi.fn() } as unknown as ClipboardEvent;
+
+    expect(options.editorProps.handleDOMEvents.copy(null, event)).toBe(true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(messages).toContain(
+      JSON.stringify({
+        type: 'copy-selection',
+        session: 9,
+        source: 'Selected',
+      }),
+    );
+    expect(
+      options.editorProps.transformPastedHTML(
+        '<p>Selected</p><!--carver-internal-copy-->',
+      ),
+    ).toBe('<p>Selected</p>');
+    expect(
+      options.editorProps.transformPasted({ foreign: true }, null, false),
+    ).toBe(selectedSlice);
   });
 
   it('routes named commands through its current editor chain', () => {

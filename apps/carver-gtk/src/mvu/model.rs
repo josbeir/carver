@@ -285,7 +285,16 @@ pub struct EditorPreview {
     pub source: String,
 }
 
-/// A one-shot request to copy the active canonical document through the GTK adapter.
+/// The source of a native clipboard request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EditorCopyScope {
+    /// The dedicated action requested the complete note.
+    Note,
+    /// The rich editor requested its current selection.
+    Selection,
+}
+
+/// A one-shot request to copy canonical content through the GTK adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorCopyRequest {
     /// Monotonic identity that allows identical repeated copy requests.
@@ -294,6 +303,8 @@ pub struct EditorCopyRequest {
     pub session: EditorSessionId,
     /// Canonical source to copy, including unsaved edits.
     pub source: String,
+    /// Content scope used for user-facing completion feedback.
+    pub scope: EditorCopyScope,
 }
 
 /// A requested native export dialog for the active editor snapshot.

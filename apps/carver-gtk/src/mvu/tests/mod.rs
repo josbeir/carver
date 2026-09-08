@@ -6,7 +6,7 @@ use gtk::gio::prelude::FileExt;
 use time::OffsetDateTime;
 
 use super::{
-    ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg,
+    ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BrowserMsg, EditorCopyScope,
     EditorExportFormat, EditorMsg, EditorSaveRequest, EditorSaveState, EditorSessionId, Effect,
     LibraryReply, LoadState, MoveUndo, NavigationMsg, PreferencesMsg, RequestId, Route, SidebarMsg,
     SourceCommand, SourceImageTarget, TimerId, TrashMsg, TrashMutation, UiError, WindowMsg, update,

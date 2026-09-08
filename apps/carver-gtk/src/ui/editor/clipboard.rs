@@ -7,6 +7,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 const MAX_EMBEDDED_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 const MAX_TOTAL_EMBEDDED_IMAGE_BYTES: usize = 15 * 1024 * 1024;
+const INTERNAL_COPY_MARKER: &str = "<!--carver-internal-copy-->";
 
 /// Rendered clipboard representations for a complete note.
 #[derive(Debug, Eq, PartialEq)]
@@ -38,8 +39,9 @@ pub(crate) fn publish_note(
     clipboard: &gtk::gdk::Clipboard,
     source: &str,
     assets_dir: Option<&Path>,
+    mark_internal_selection: bool,
 ) -> Result<ClipboardDocument, glib::BoolError> {
-    let document = clipboard_document(source, assets_dir);
+    let document = clipboard_document_for_publish(source, assets_dir, mark_internal_selection);
     let html = gtk::gdk::ContentProvider::for_bytes(
         "text/html",
         &glib::Bytes::from(document.html.as_bytes()),
@@ -51,6 +53,18 @@ pub(crate) fn publish_note(
     let content = gtk::gdk::ContentProvider::new_union(&[html, plain_text]);
     clipboard.set_content(Some(&content))?;
     Ok(document)
+}
+
+fn clipboard_document_for_publish(
+    source: &str,
+    assets_dir: Option<&Path>,
+    mark_internal_selection: bool,
+) -> ClipboardDocument {
+    let mut document = clipboard_document(source, assets_dir);
+    if mark_internal_selection {
+        document.html.push_str(INTERNAL_COPY_MARKER);
+    }
+    document
 }
 
 fn embed_managed_images(html: &str, assets_dir: Option<&Path>) -> (String, usize) {
@@ -160,6 +174,14 @@ mod tests {
     use std::fs;
 
     use super::*;
+
+    #[test]
+    fn selection_clipboard_document_should_include_internal_copy_marker() {
+        let document = clipboard_document_for_publish("Selected", None, true);
+
+        assert!(document.html.ends_with(INTERNAL_COPY_MARKER));
+        assert_eq!(document.plain_text.trim(), "Selected");
+    }
 
     #[test]
     fn clipboard_document_should_embed_a_small_managed_image()
