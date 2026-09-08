@@ -10,18 +10,8 @@ connection lets an AI agent work with the plans, ideas, and project notes you al
 Carver—turning them into a useful, organized project context instead of an isolated chat.
 
 <p align="center">
-  <img src="docs/Screenshot%20From%202026-09-05%2016-43-51.png" alt="Carver editing Carve source in dark mode" width="49%" />
-  <img src="docs/Screenshot%20From%202026-09-05%2016-44-25.png" alt="Carver rich-text editing view in dark mode" width="49%" />
-</p>
-
-<p align="center">
-  <img src="docs/Screenshot%20From%202026-09-05%2016-45-29.png" alt="Carver Agents and MCP connection panel" width="49%" />
-  <img src="docs/Screenshot%20From%202026-09-05%2016-45-35.png" alt="Carver preferences dialog" width="49%" />
-</p>
-
-<p align="center">
-  <img src="docs/Screenshot%20From%202026-09-05%2016-45-50.png" alt="Carver editing Carve source in light mode" width="49%" />
-  <img src="docs/Screenshot%20From%202026-09-05%2016-46-44.png" alt="Carver split source and preview view" width="49%" />
+  <img src="docs/Screenshot From 2026-09-08 19-36-38.png" alt="Carver editing in light mode" />
+  <img src="docs/Screenshot From 2026-09-08 19-41-07.png" alt="Carver editing in dark mode" />
 </p>
 
 ## Noteworthy features
