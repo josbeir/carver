@@ -97,9 +97,12 @@ fn assert_portal_export(
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("Brief.pdf");
     std::fs::write(&path, b"preview bytes")?;
-    let uri = context.block_on(export_document(connection, &gio::File::for_path(&path)))?;
+    let file = context.block_on(shared_file_for_viewer(
+        &gio::File::for_path(&path),
+        Some(connection),
+    ))?;
     assert_eq!(received.borrow().as_slice(), b"preview bytes");
-    assert_eq!(uri, "file:///tmp/portal/test-copy/Brief.pdf");
+    assert_eq!(file.uri(), "file:///tmp/portal/test-copy/Brief.pdf");
     connection.unregister_object(registration)?;
     Ok(())
 }

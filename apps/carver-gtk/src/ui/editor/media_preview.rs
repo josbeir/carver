@@ -24,6 +24,7 @@ pub(super) fn launch(
     let parent = parent.cloned();
     let dispatcher = dispatcher.clone();
     glib::spawn_future_local(async move {
+        let file = share_for_external_viewer(&file).await.unwrap_or(file);
         let launcher = gtk::FileLauncher::new(Some(&file));
         launcher.set_writable(false);
         if let Err(error) =
@@ -49,14 +50,20 @@ async fn preview_with_fallback(
 
 async fn try_sushi(file: &gio::File) -> Result<(), glib::Error> {
     let connection = gio::bus_get_future(gio::BusType::Session).await?;
-    // Export only this user-requested copy; host viewers cannot resolve sandbox-private paths.
-    let uri =
-        if std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("SNAP").is_some() {
-            export_document(&connection, file).await?
-        } else {
-            file.uri().to_string()
-        };
+    let uri = file.uri();
     request_sushi(&connection, &uri).await
+}
+
+async fn share_for_external_viewer(file: &gio::File) -> Result<gio::File, glib::Error> {
+    if !is_sandboxed() {
+        return shared_file_for_viewer(file, None).await;
+    }
+    let connection = gio::bus_get_future(gio::BusType::Session).await?;
+    shared_file_for_viewer(file, Some(&connection)).await
+}
+
+fn is_sandboxed() -> bool {
+    std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("SNAP").is_some()
 }
 
 async fn request_sushi(connection: &gio::DBusConnection, uri: &str) -> Result<(), glib::Error> {
@@ -141,6 +148,24 @@ async fn export_document(
         .join(id)
         .join(filename);
     Ok(gio::File::for_path(path).uri().to_string())
+}
+
+async fn export_document_file(
+    connection: &gio::DBusConnection,
+    file: &gio::File,
+) -> Result<gio::File, glib::Error> {
+    let uri = export_document(connection, file).await?;
+    Ok(gio::File::for_uri(&uri))
+}
+
+async fn shared_file_for_viewer(
+    file: &gio::File,
+    documents: Option<&gio::DBusConnection>,
+) -> Result<gio::File, glib::Error> {
+    match documents {
+        Some(connection) => export_document_file(connection, file).await,
+        None => Ok(file.clone()),
+    }
 }
 
 fn invalid_response() -> glib::Error {
