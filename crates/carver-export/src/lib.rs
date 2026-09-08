@@ -7,7 +7,7 @@ use std::{
     io::{Cursor, Seek, Write},
 };
 
-use carve::{CheckedRenderOptions, to_markdown_with_report};
+use carve::{CheckedRenderOptions, to_html_with_report, to_markdown_with_report};
 use carver_domain::source_analysis::SourceAnalysis;
 use thiserror::Error;
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
@@ -52,6 +52,11 @@ pub enum ExportWarning {
         /// Number of omitted constructs.
         count: usize,
     },
+    /// Carve conversion omitted constructs unsupported by HTML.
+    HtmlLoss {
+        /// Number of omitted constructs.
+        count: usize,
+    },
     /// A portable archive could not include one referenced managed file.
     MissingManagedAsset {
         /// Source-relative managed asset location.
@@ -65,6 +70,11 @@ impl std::fmt::Display for ExportWarning {
             Self::MarkdownLoss { count } => write!(
                 formatter,
                 "Markdown cannot represent {count} Carve construct{} exactly.",
+                if *count == 1 { "" } else { "s" }
+            ),
+            Self::HtmlLoss { count } => write!(
+                formatter,
+                "HTML cannot represent {count} Carve construct{} exactly.",
                 if *count == 1 { "" } else { "s" }
             ),
             Self::MissingManagedAsset { path } => {
@@ -101,6 +111,9 @@ pub enum ExportError {
     /// The Markdown renderer failed before producing an artifact.
     #[error("Could not convert the note to Markdown: {0}")]
     Markdown(#[from] carve::RenderLossError),
+    /// The HTML renderer failed before producing an artifact.
+    #[error("Could not convert the note to HTML: {0}")]
+    Html(carve::RenderLossError),
     /// A ZIP archive could not be completed.
     #[error("Could not create the portable archive: {0}")]
     Archive(#[from] zip::result::ZipError),
@@ -132,7 +145,7 @@ pub fn managed_asset_paths(source: &str) -> Vec<String> {
 ///
 /// # Errors
 ///
-/// Returns an error when Markdown conversion or archive construction fails.
+/// Returns an error when document conversion or archive construction fails.
 pub fn prepare_export(
     source: &str,
     document_stem: &str,
@@ -141,7 +154,7 @@ pub fn prepare_export(
     assets: &[ManagedAsset],
 ) -> Result<ExportArtifact, ExportError> {
     if !include_assets {
-        let (document, warnings) = document_bytes(source, document_stem, format)?;
+        let (document, warnings) = document_bytes(source, format)?;
         return Ok(ExportArtifact {
             bytes: document,
             extension: format.extension(),
@@ -179,7 +192,7 @@ pub fn begin_portable_export<W>(
 where
     W: Write + Seek,
 {
-    let (document, warnings) = document_bytes(source, document_stem, format)?;
+    let (document, warnings) = document_bytes(source, format)?;
     let document_name = archive_document_name(document_stem, format)?;
     let mut writer = ZipWriter::new(destination);
     writer.start_file(document_name, portable_file_options())?;
@@ -232,7 +245,6 @@ fn portable_file_options() -> SimpleFileOptions {
 
 fn document_bytes(
     source: &str,
-    document_stem: &str,
     format: ExportFormat,
 ) -> Result<(Vec<u8>, Vec<ExportWarning>), ExportError> {
     match format {
@@ -247,14 +259,22 @@ fn document_bytes(
                 .collect();
             Ok((result.value.into_bytes(), warnings))
         }
-        ExportFormat::Html => Ok((
-            html_document(source, document_stem).into_bytes(),
-            Vec::new(),
-        )),
+        ExportFormat::Html => {
+            let result = to_html_with_report(source, CheckedRenderOptions::default())
+                .map_err(ExportError::Html)?;
+            let warnings = (result.total_losses > 0)
+                .then_some(ExportWarning::HtmlLoss {
+                    count: result.total_losses,
+                })
+                .into_iter()
+                .collect();
+            let title = carver_domain::derive_content(source).title;
+            Ok((html_document(&result.value, &title).into_bytes(), warnings))
+        }
     }
 }
 
-fn html_document(source: &str, title: &str) -> String {
+fn html_document(body: &str, title: &str) -> String {
     const HEAD_BEFORE_TITLE: &str = r#"<!doctype html>
 <html>
 <head>
@@ -262,7 +282,7 @@ fn html_document(source: &str, title: &str) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: https: http:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
 <title>"#;
-    const HEAD_AFTER_TITLE: &str = r#"</title>
+    const HEAD_AFTER_TITLE: &str = r"</title>
 <style>
 :root { color-scheme: light; font-family: system-ui, sans-serif; line-height: 1.6; }
 body { max-width: 48rem; margin: 0 auto; padding: 3rem 1.5rem; color: #202124; background: #fff; }
@@ -280,14 +300,13 @@ th, td { padding: 0.5rem; border: 1px solid #d1d5db; text-align: start; }
 </style>
 </head>
 <body>
-"#;
+";
     const DOCUMENT_END: &str = "\n</body>\n</html>\n";
-    let body = carve::to_html(source);
     [
         HEAD_BEFORE_TITLE,
         &escape_html_text(title),
         HEAD_AFTER_TITLE,
-        &body,
+        body,
         DOCUMENT_END,
     ]
     .concat()
@@ -388,8 +407,8 @@ mod tests {
     #[test]
     fn html_export_should_create_a_styled_browser_document() -> Result<(), ExportError> {
         let artifact = prepare_export(
-            "# Draft\n\n/Emphasis/\n\n![Diagram](assets/diagram.png)",
-            "Draft & <Review>",
+            "# Meeting: Q3 & Review\n\n/Emphasis/\n\n![Diagram](assets/diagram.png)",
+            "Meeting- Q3 & Review",
             ExportFormat::Html,
             false,
             &[],
@@ -398,11 +417,29 @@ mod tests {
 
         assert_eq!(artifact.extension, "html");
         assert!(document.starts_with("<!doctype html>"));
-        assert!(document.contains("<title>Draft &amp; &lt;Review&gt;</title>"));
+        assert!(document.contains("<title>Meeting: Q3 &amp; Review</title>"));
         assert!(document.contains("<style>"));
         assert!(document.contains("<h1"));
         assert!(document.contains("src=\"assets/diagram.png\""));
         assert!(artifact.warnings.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn html_export_should_warn_for_dropped_target_specific_raw_content() -> Result<(), ExportError>
+    {
+        let artifact = prepare_export(
+            "```=latex\n\\textbf{only LaTeX}\n```",
+            "Draft",
+            ExportFormat::Html,
+            false,
+            &[],
+        )?;
+
+        assert!(matches!(
+            artifact.warnings.as_slice(),
+            [ExportWarning::HtmlLoss { count }] if *count > 0
+        ));
         Ok(())
     }
 
@@ -415,6 +452,10 @@ mod tests {
         assert_eq!(
             ExportWarning::MarkdownLoss { count: 2 }.to_string(),
             "Markdown cannot represent 2 Carve constructs exactly."
+        );
+        assert_eq!(
+            ExportWarning::HtmlLoss { count: 1 }.to_string(),
+            "HTML cannot represent 1 Carve construct exactly."
         );
         assert_eq!(
             ExportWarning::MissingManagedAsset {
