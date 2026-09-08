@@ -680,6 +680,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Button>(&root, "copy-note-button")
             .is_some_and(|button| !button.is_visible())
     );
+    assert!(
+        widget_as::<gtk::Button>(&root, "back-to-notes-button")
+            .is_some_and(|button| !button.is_visible())
+    );
     window.set_default_size(390, 844);
     assert!(run_main_context_until(|| responsive_editor.width() >= 360));
     window.set_default_size(1120, 760);
@@ -730,7 +734,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let gtk_window = window.clone().upcast::<gtk::Window>();
     assert_eq!(
         options_menu.menu_model().map(|model| model.n_items()),
-        Some(6)
+        Some(7)
     );
     assert!(
         options_menu

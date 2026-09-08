@@ -807,6 +807,7 @@ pub(crate) fn build_editor(
     compact_breakpoint.add_setters(&[(&rendered_mode_label, "visible", false)]);
     compact_breakpoint.add_setters(&[(&favorite, "visible", false)]);
     compact_breakpoint.add_setters(&[(&copy_note, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&back, "visible", false)]);
     compact_breakpoint.add_setters(&[(&split_toggle, "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.desktop_widget(), "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.compact_widget(), "visible", true)]);
@@ -1429,6 +1430,7 @@ fn editor_options_menu() -> gtk::MenuButton {
     menu.add_css_class("flat");
     menu.set_widget_name("editor-options-menu");
     let actions = gtk::gio::Menu::new();
+    actions.append(Some("Back to notes"), Some("editor.back"));
     actions.append(Some("Copy note"), Some("editor.copy-note"));
     actions.append(Some("Favorite"), Some(TOGGLE_FAVORITE_ACTION));
     actions.append(
@@ -1448,6 +1450,12 @@ fn install_compact_editor_actions(
     split_toggle: &gtk::ToggleButton,
 ) {
     let actions = gtk::gio::SimpleActionGroup::new();
+    let back = gtk::gio::SimpleAction::new("back", None);
+    let back_dispatcher = dispatcher.clone();
+    back.connect_activate(move |_, _| {
+        let _ = back_dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+    });
+    actions.add_action(&back);
     let copy_note = gtk::gio::SimpleAction::new("copy-note", None);
     let copy_dispatcher = dispatcher.clone();
     copy_note.connect_activate(move |_, _| {

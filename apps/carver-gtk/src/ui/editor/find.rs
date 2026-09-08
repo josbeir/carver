@@ -46,6 +46,7 @@ impl FindController {
         let entry = gtk::SearchEntry::new();
         entry.set_widget_name("editor-find-entry");
         entry.set_placeholder_text(Some("Find in note"));
+        entry.set_width_chars(1);
         entry.set_hexpand(true);
         let count = gtk::Label::new(None);
         count.set_widget_name("editor-find-count");
