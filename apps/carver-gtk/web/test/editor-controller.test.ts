@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
-import type { Slice } from '@tiptap/pm/model';
+import { Fragment, Slice } from '@tiptap/pm/model';
 
 import { EditorController } from '../src/editor/editor-controller';
 
@@ -150,6 +150,11 @@ describe('EditorController', () => {
     controller.initialize();
     const options = createEditor.mock.calls[0]?.[0] as {
       editorProps: {
+        handlePaste: (
+          view: unknown,
+          event: ClipboardEvent,
+          slice: Slice,
+        ) => boolean;
         handleDOMEvents: {
           paste: (view: unknown, event: ClipboardEvent) => boolean;
         };
@@ -170,13 +175,24 @@ describe('EditorController', () => {
     } as unknown as ClipboardEvent;
 
     options.editorProps.handleDOMEvents.paste(null, pasteEvent);
+    const schema = getSchema([CarveKit]);
+    const parsed = new Slice(
+      Fragment.from(
+        schema.nodes.paragraph.create(null, schema.text('Rendered fallback')),
+      ),
+      0,
+      0,
+    );
     const restored = options.editorProps.transformPasted(
-      { foreign: true },
-      { state: { schema: getSchema([CarveKit]) } },
+      parsed,
+      { state: { schema } },
       false,
     );
 
-    expect(restored.size).toBe(0);
+    expect(restored).toBe(parsed);
+    expect(options.editorProps.handlePaste(null, pasteEvent, restored)).toBe(
+      true,
+    );
   });
 
   it('routes named commands through its current editor chain', () => {

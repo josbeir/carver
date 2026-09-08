@@ -84,7 +84,10 @@ export class EditorController implements RichEditorApi {
       extensions: [CarveKit.configure({ image: false }), CarveImage],
       content: { type: 'doc', content: [{ type: 'paragraph' }] },
       editorProps: {
-        handlePaste: (_view, event) => this.pasteImage(event) ?? false,
+        handlePaste: (_view, event) => {
+          const rejected = this.pasteSanitizer.takePasteRejection();
+          return rejected || (this.pasteImage(event) ?? false);
+        },
         handleDrop: (_view, event) => this.dropImages(event),
         handleDOMEvents: {
           copy: (_view, event) => this.copySelection(event),

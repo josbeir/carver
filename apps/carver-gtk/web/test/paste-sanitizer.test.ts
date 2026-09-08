@@ -163,9 +163,11 @@ describe('sanitizePastedSlice', () => {
     const sanitizer = new ClipboardPasteSanitizer();
     sanitizer.capturePastedSource('Unsupported canonical source');
 
-    expect(sanitizer.resolvePastedSlice(parsed, false, () => null)).toEqual(
-      Slice.empty,
+    expect(sanitizer.resolvePastedSlice(parsed, false, () => null)).toBe(
+      parsed,
     );
+    expect(sanitizer.takePasteRejection()).toBe(true);
+    expect(sanitizer.takePasteRejection()).toBe(false);
   });
 
   it('keeps plain-text paste semantics when the custom format is present', () => {

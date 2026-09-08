@@ -53,10 +53,12 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 /** Distinguishes exact editor-owned copies from untrusted clipboard HTML. */
 export class ClipboardPasteSanitizer {
   private pastedSource: string | null = null;
+  private rejectPaste = false;
 
   /** Captures canonical Carve from the native clipboard format before parsing. */
   public capturePastedSource(source: string | null): void {
     this.pastedSource = source;
+    this.rejectPaste = false;
   }
 
   /** Consumes canonical Carve carried by the current native clipboard paste. */
@@ -66,12 +68,19 @@ export class ClipboardPasteSanitizer {
     return source;
   }
 
+  /** Consumes whether the current paste must be cancelled without editing. */
+  public takePasteRejection(): boolean {
+    const rejected = this.rejectPaste;
+    this.rejectPaste = false;
+    return rejected;
+  }
+
   /** Preserves plain-text context and sanitizes foreign rich text. */
   public sanitizePastedSlice(slice: Slice, plain = false): Slice {
     return plain ? slice : sanitizePastedSlice(slice);
   }
 
-  /** Restores typed Carver content or refuses an unsupported internal paste. */
+  /** Restores typed Carver content and marks unsupported content for refusal. */
   public resolvePastedSlice(
     slice: Slice,
     plain: boolean,
@@ -79,7 +88,12 @@ export class ClipboardPasteSanitizer {
   ): Slice {
     const source = this.takePastedSource();
     if (plain) return slice;
-    if (source !== null) return restore(source) ?? Slice.empty;
+    if (source !== null) {
+      const restored = restore(source);
+      if (restored) return restored;
+      this.rejectPaste = true;
+      return slice;
+    }
     return sanitizePastedSlice(slice);
   }
 }
