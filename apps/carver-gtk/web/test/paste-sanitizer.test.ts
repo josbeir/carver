@@ -163,11 +163,13 @@ describe('sanitizePastedSlice', () => {
       Fragment.from(
         schema.nodes.heading.create(
           {
-            ...heading.attrs,
+            level: 2,
+            id: null,
             carveKeyValues: {
-              ...heading.attrs.carveKeyValues,
+              role: 'bibliography',
               'data-carve-attr-order': '#id role',
             },
+            carveAttrOrder: ['#id', 'role'],
           },
           schema.text('Reference', [pastedLink]),
         ),

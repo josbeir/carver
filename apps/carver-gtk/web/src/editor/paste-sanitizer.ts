@@ -2,6 +2,7 @@ import { Fragment, type Mark, type Node, Slice } from '@tiptap/pm/model';
 
 type AttributeTransform = (
   attributes: Record<string, unknown>,
+  typeName: string,
 ) => Record<string, unknown>;
 
 const CLIPBOARD_METADATA_ATTRIBUTES = new Set([
@@ -41,8 +42,19 @@ function withoutClipboardMetadata(attributes: Record<string, unknown>) {
   return sanitized;
 }
 
+function withoutClipboardSerializationDifferences(
+  attributes: Record<string, unknown>,
+  typeName: string,
+) {
+  const normalized = withoutClipboardMetadata(attributes);
+  if (typeName === 'heading' && 'carveAttrOrder' in normalized) {
+    normalized.id = null;
+  }
+  return normalized;
+}
+
 function transformedMark(mark: Mark, transform: AttributeTransform) {
-  return mark.type.create(transform(mark.attrs));
+  return mark.type.create(transform(mark.attrs, mark.type.name));
 }
 
 function transformedNode(node: Node, transform: AttributeTransform): Node {
@@ -54,7 +66,7 @@ function transformedNode(node: Node, transform: AttributeTransform): Node {
     children.push(transformedNode(child, transform));
   });
   return node.type.create(
-    transform(node.attrs),
+    transform(node.attrs, node.type.name),
     Fragment.fromArray(children),
     marks,
   );
@@ -79,25 +91,31 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 
 /** Distinguishes exact editor-owned copies from untrusted clipboard HTML. */
 export class ClipboardPasteSanitizer {
-  private copiedSlice: string | null = null;
+  private copiedSlice: Slice | null = null;
+  private copiedSignature: string | null = null;
 
   /** Records the exact slice passed to ProseMirror's clipboard serializer. */
   public recordCopiedSlice(slice: Slice): Slice {
-    this.copiedSlice = this.signature(slice);
+    this.copiedSlice = slice;
+    this.copiedSignature = this.signature(slice);
     return slice;
   }
 
   /** Preserves plain-text context or an exact internal copy; sanitizes rich text. */
   public sanitizePastedSlice(slice: Slice, plain = false): Slice {
     const content = transformedSlice(slice, withoutClipboardMetadata);
-    return plain || this.signature(content) === this.copiedSlice
-      ? content
+    if (plain) return content;
+    return this.copiedSlice && this.signature(content) === this.copiedSignature
+      ? this.copiedSlice
       : sanitizePastedSlice(content);
   }
 
   private signature(slice: Slice): string {
     return JSON.stringify(
-      transformedSlice(slice, withoutClipboardMetadata).toJSON(),
+      transformedSlice(
+        slice,
+        withoutClipboardSerializationDifferences,
+      ).toJSON(),
     );
   }
 }
