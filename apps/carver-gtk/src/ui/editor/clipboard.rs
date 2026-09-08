@@ -7,6 +7,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 const MAX_EMBEDDED_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 const MAX_TOTAL_EMBEDDED_IMAGE_BYTES: usize = 15 * 1024 * 1024;
+pub(crate) const CARVER_CLIPBOARD_MIME: &str = "application/x-carver-source";
 
 /// Rendered clipboard representations for a complete note.
 #[derive(Debug, Eq, PartialEq)]
@@ -48,7 +49,11 @@ pub(crate) fn publish_note(
         "text/plain;charset=utf-8",
         &glib::Bytes::from(document.plain_text.as_bytes()),
     );
-    let content = gtk::gdk::ContentProvider::new_union(&[html, plain_text]);
+    let canonical_source = gtk::gdk::ContentProvider::for_bytes(
+        CARVER_CLIPBOARD_MIME,
+        &glib::Bytes::from(source.as_bytes()),
+    );
+    let content = gtk::gdk::ContentProvider::new_union(&[html, plain_text, canonical_source]);
     clipboard.set_content(Some(&content))?;
     Ok(document)
 }

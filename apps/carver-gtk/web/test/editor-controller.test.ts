@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getSchema } from '@tiptap/core';
+import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
+import { Fragment, Slice } from '@tiptap/pm/model';
 
 import { EditorController } from '../src/editor/editor-controller';
 
@@ -61,6 +64,13 @@ describe('EditorController', () => {
     controller.initialize();
 
     expect(createEditor).toHaveBeenCalledOnce();
+    expect(createEditor.mock.calls[0][0].editorProps).toMatchObject({
+      handleDOMEvents: expect.objectContaining({
+        copy: expect.any(Function),
+        paste: expect.any(Function),
+      }),
+      transformPasted: expect.any(Function),
+    });
     expect([...listeners.keys()].sort()).toEqual([
       'drop',
       'paste',
@@ -71,21 +81,22 @@ describe('EditorController', () => {
 
   it('routes a non-empty copy selection through the native clipboard bridge', () => {
     const { controller, createEditor, editor, messages } = controllerFixture();
+    const selectedSlice = {
+      content: {
+        forEach: (visit) =>
+          visit({
+            isInline: false,
+            toJSON: () => ({
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Selected' }],
+            }),
+          }),
+      },
+    };
     Object.assign(editor.state, {
       selection: {
         empty: false,
-        content: () => ({
-          content: {
-            forEach: (visit) =>
-              visit({
-                isInline: false,
-                toJSON: () => ({
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: 'Selected' }],
-                }),
-              }),
-          },
-        }),
+        content: () => selectedSlice,
       },
     });
     controller.initialize();
@@ -94,7 +105,13 @@ describe('EditorController', () => {
       editorProps: {
         handleDOMEvents: {
           copy: (view: unknown, event: ClipboardEvent) => boolean;
+          paste: (view: unknown, event: ClipboardEvent) => boolean;
         };
+        transformPasted: (
+          slice: unknown,
+          view: unknown,
+          plain: boolean,
+        ) => unknown;
       };
     };
     const event = { preventDefault: vi.fn() } as unknown as ClipboardEvent;
@@ -107,6 +124,74 @@ describe('EditorController', () => {
         session: 9,
         source: 'Selected',
       }),
+    );
+    const pasteEvent = {
+      clipboardData: {
+        types: ['text/html', 'application/x-carver-source'],
+        getData: (type: string) =>
+          type === 'application/x-carver-source' ? 'Selected' : '',
+      },
+    } as unknown as ClipboardEvent;
+    expect(options.editorProps.handleDOMEvents.paste(null, pasteEvent)).toBe(
+      false,
+    );
+    const restored = options.editorProps.transformPasted(
+      { foreign: true },
+      { state: { schema: getSchema([CarveKit]) } },
+      false,
+    ) as Slice;
+    expect(restored.content.textBetween(0, restored.content.size)).toBe(
+      'Selected',
+    );
+  });
+
+  it('refuses a Carver paste that depends on document-level source metadata', () => {
+    const { controller, createEditor } = controllerFixture();
+    controller.initialize();
+    const options = createEditor.mock.calls[0]?.[0] as {
+      editorProps: {
+        handlePaste: (
+          view: unknown,
+          event: ClipboardEvent,
+          slice: Slice,
+        ) => boolean;
+        handleDOMEvents: {
+          paste: (view: unknown, event: ClipboardEvent) => boolean;
+        };
+        transformPasted: (
+          slice: unknown,
+          view: unknown,
+          plain: boolean,
+        ) => Slice;
+      };
+    };
+    const source =
+      '![First](assets/first.png){width="50%"}![Second](assets/second.png)';
+    const pasteEvent = {
+      clipboardData: {
+        types: ['application/x-carver-source'],
+        getData: () => source,
+      },
+    } as unknown as ClipboardEvent;
+
+    options.editorProps.handleDOMEvents.paste(null, pasteEvent);
+    const schema = getSchema([CarveKit]);
+    const parsed = new Slice(
+      Fragment.from(
+        schema.nodes.paragraph.create(null, schema.text('Rendered fallback')),
+      ),
+      0,
+      0,
+    );
+    const restored = options.editorProps.transformPasted(
+      parsed,
+      { state: { schema } },
+      false,
+    );
+
+    expect(restored).toBe(parsed);
+    expect(options.editorProps.handlePaste(null, pasteEvent, restored)).toBe(
+      true,
     );
   });
 

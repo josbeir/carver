@@ -41,6 +41,8 @@ mod source_context;
 mod toolbar;
 mod web;
 
+#[cfg(test)]
+pub(crate) use clipboard::CARVER_CLIPBOARD_MIME;
 use clipboard::publish_note;
 use find::FindController;
 use preview::{build_preview, load_preview};

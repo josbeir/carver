@@ -1,15 +1,17 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
+import { Slice } from '@tiptap/pm/model';
 import { mediaOccurrences, selectedMedia } from './media-selection';
 import {
   CarveKit,
   carveToProseMirrorWithReport,
   serializeToCarve,
 } from '@markup-carve/carve-grammars/tiptap';
-import { unsupportedForEditing } from './editability';
+import { unsupportedForEditing, unsupportedForPasting } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
+import { ClipboardPasteSanitizer } from './paste-sanitizer';
 import { selectedCarveSource } from './selection-copy';
 import type {
   EditorEvent,
@@ -27,6 +29,7 @@ import { resizeSelectedTable, tableSize } from './table-resize';
 // biome-ignore lint/suspicious/noExplicitAny: Tiptap augments its command API at runtime.
 type RuntimeEditor = any;
 type EditorFactory = (options: Record<string, unknown>) => RuntimeEditor;
+const CARVER_CLIPBOARD_TYPE = 'application/x-carver-source';
 
 const CarveImage = Image.extend({
   addAttributes() {
@@ -65,6 +68,7 @@ export class EditorController implements RichEditorApi {
   private session = 0;
   private revision = 0;
   private readonly pendingBlobSources = new Set<string>();
+  private readonly pasteSanitizer = new ClipboardPasteSanitizer();
 
   public constructor(
     private readonly root: HTMLElement,
@@ -80,11 +84,32 @@ export class EditorController implements RichEditorApi {
       extensions: [CarveKit.configure({ image: false }), CarveImage],
       content: { type: 'doc', content: [{ type: 'paragraph' }] },
       editorProps: {
-        handlePaste: (_view, event) => this.pasteImage(event) ?? false,
+        handlePaste: (_view, event) => {
+          const rejected = this.pasteSanitizer.takePasteRejection();
+          return rejected || (this.pasteImage(event) ?? false);
+        },
         handleDrop: (_view, event) => this.dropImages(event),
         handleDOMEvents: {
           copy: (_view, event) => this.copySelection(event),
+          paste: (_view, event) => {
+            const clipboard = event.clipboardData;
+            const source =
+              clipboard && [...clipboard.types].includes(CARVER_CLIPBOARD_TYPE)
+                ? clipboard.getData(CARVER_CLIPBOARD_TYPE)
+                : null;
+            this.pasteSanitizer.capturePastedSource(source);
+            return false;
+          },
         },
+        transformPasted: (slice, view, plain) =>
+          this.pasteSanitizer.resolvePastedSlice(slice, plain, (source) => {
+            const result = carveToProseMirrorWithReport(source, {
+              unsupported: 'preserve',
+            });
+            if (unsupportedForPasting(result).length) return null;
+            const document = view.state.schema.nodeFromJSON(result.doc);
+            return Slice.maxOpen(document.content, true);
+          }),
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),
