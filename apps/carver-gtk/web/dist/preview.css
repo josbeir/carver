@@ -275,6 +275,10 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
   :where(.ProseMirror, body[data-preview]) ol li {
     margin-block: 2pt;
   }
+  body[data-preview] ul.task-list li,
+  body[data-preview] ul:has(> li > input[type=checkbox]) li {
+    margin-block: 2pt;
+  }
   :where(.ProseMirror, body[data-preview]) pre {
     overflow-wrap: anywhere;
     white-space: pre-wrap;

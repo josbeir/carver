@@ -1776,6 +1776,8 @@ fn run_native_print_dialog(
     // cancelled. Use GTK's supported print dialog to collect the native settings, then let
     // WebKit render the accepted document with those settings.
     let native_dialog = gtk::PrintOperation::new();
+    let page_setup = pdf_page_setup();
+    native_dialog.set_default_page_setup(Some(&page_setup));
     native_dialog.set_embed_page_setup(true);
     native_dialog.set_n_pages(1);
     let accepted = Rc::new(Cell::new(false));
