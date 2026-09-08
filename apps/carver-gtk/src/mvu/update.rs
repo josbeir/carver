@@ -748,6 +748,7 @@ fn open_editor(
     }
     model.editor_refresh_request = None;
     model.editor_refresh_pending = false;
+    model.editor_refresh_retry = None;
     model.editor = Some(document);
     model.editor_preview = Some(super::EditorPreview { session, source });
     model.editor_copy_request = None;
@@ -955,6 +956,16 @@ fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
 }
 
 fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
+    if let ActionMsg::TrashNote(note_id) = action
+        && let Some(document) = model.editor.as_ref().filter(|document| {
+            document.note_id == note_id && document.external_change == Some(ExternalChange::Deleted)
+        })
+    {
+        return vec![Effect::ShowExternalEdit {
+            session: document.session,
+            deleted: true,
+        }];
+    }
     if matches!(action, ActionMsg::UndoMove) {
         return update_undo_move(model);
     }
@@ -1749,12 +1760,19 @@ fn update_library_revision(
                 .library_revision
                 .is_none_or(|current| current != revision);
             model.library_revision = Some(revision);
-            if changed {
-                let mut effects = if request.reason == LibraryRevisionCheckReason::ExternalWakeup {
-                    reload_all_resources(model)
-                } else {
-                    Vec::new()
-                };
+            let retry = model.editor_refresh_retry.is_some_and(|session| {
+                model
+                    .editor
+                    .as_ref()
+                    .is_some_and(|document| document.session == session)
+            });
+            if changed || retry {
+                let mut effects =
+                    if changed && request.reason == LibraryRevisionCheckReason::ExternalWakeup {
+                        reload_all_resources(model)
+                    } else {
+                        Vec::new()
+                    };
                 effects.extend(refresh_open_editor(model, false));
                 effects
             } else {
@@ -1787,6 +1805,7 @@ fn refresh_open_editor(model: &mut AppModel, discard_local: bool) -> Option<Effe
     }
     let request_id = model.next_request_id();
     let document = model.editor.as_ref()?;
+    model.editor_refresh_retry = None;
     model.editor_refresh_request = Some(request_id);
     Some(Effect::RefreshEditorNote {
         request_id,
@@ -1830,6 +1849,7 @@ fn update_editor_refresh(
     let note = match result {
         Ok(note) => note,
         Err(error) => {
+            model.editor_refresh_retry = Some(session);
             model.notice = Some(error);
             return Vec::new();
         }

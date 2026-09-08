@@ -525,3 +525,70 @@ fn startup_revision_should_refresh_when_external_wakeup_arrives_during_initial_r
         "From agent"
     );
 }
+
+#[test]
+fn trash_requested_should_preserve_a_draft_when_note_was_deleted_externally() {
+    let mut model = open_note();
+    model
+        .editor
+        .as_mut()
+        .unwrap_or_else(|| panic!("editor"))
+        .source_changed("Local draft".into());
+    let effect = refresh(&mut model);
+    let _ = complete_result(&mut model, effect, Ok(None));
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::TrashRequested));
+    assert!(
+        model.editor.is_some(),
+        "TrashRequested discarded the conflicted draft"
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowExternalEdit { deleted: true, .. }]
+    ));
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .unwrap_or_else(|| panic!("editor"))
+            .source,
+        "Local draft"
+    );
+}
+
+#[test]
+fn failed_refresh_should_retry_on_next_wakeup_with_unchanged_library_revision() {
+    let mut model = open_note();
+    let effect = refresh(&mut model);
+    assert!(
+        complete_result(
+            &mut model,
+            effect,
+            Err(UiError::new("Temporary read failure"))
+        )
+        .is_empty()
+    );
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+    let Effect::LoadLibraryRevision { request_id } = effects[0] else {
+        panic!("revision")
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id,
+            result: Ok(LibraryRevision(2)),
+        }),
+    );
+    let effect = effects
+        .into_iter()
+        .find(|effect| matches!(effect, Effect::RefreshEditorNote { .. }))
+        .unwrap_or_else(|| panic!("unchanged revision suppressed the failed editor read"));
+    let _ = complete(&mut model, effect, Revision(2));
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .unwrap_or_else(|| panic!("editor"))
+            .source,
+        "From agent"
+    );
+}

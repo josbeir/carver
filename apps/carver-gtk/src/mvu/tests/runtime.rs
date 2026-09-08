@@ -338,6 +338,15 @@ fn assert_external_deletion(
             document.external_change == Some(super::super::model::ExternalChange::Deleted)
         })
     }));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::TrashRequested));
+    assert_eq!(
+        runtime
+            .model()
+            .editor
+            .ok_or("draft after redundant trash")?
+            .source,
+        "Draft before deletion"
+    );
     assert!(crate::ui::tests::support::run_main_context_until(|| {
         window.visible_dialog().is_none()
             && find_button(window.upcast_ref(), "Close Note…").is_some()
