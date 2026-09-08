@@ -23,6 +23,11 @@ const schema = new Schema({
       group: 'block',
     },
     text: { group: 'inline' },
+    mention: {
+      attrs: { id: {} },
+      group: 'inline',
+      inline: true,
+    },
   },
   marks: {
     bold: {},
@@ -49,7 +54,7 @@ describe('sanitizePastedSlice', () => {
           style: 'color: rgb(255, 255, 255)',
           'data-pm-slice': '0 0 []',
         },
-        carveAttrOrder: ['style', 'data-pm-slice'],
+        carveAttrOrder: null,
       },
       schema.text('Meeting notes'),
     );
@@ -73,7 +78,7 @@ describe('sanitizePastedSlice', () => {
       id: 'foreign-id',
       class: 'foreign-link',
       carveKeyValues: { style: 'color: blue' },
-      carveAttrOrder: ['style'],
+      carveAttrOrder: null,
     });
     const bold = schema.marks.bold.create();
     const heading = schema.nodes.heading.create(
@@ -104,6 +109,51 @@ describe('sanitizePastedSlice', () => {
     expect([sanitized.openStart, sanitized.openEnd]).toEqual([1, 1]);
   });
 
+  it('preserves semantic attributes that are not Carve attribute slots', () => {
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.nodes.mention.create({ id: 'project' }),
+    );
+
+    const sanitized = sanitizePastedSlice(
+      new Slice(Fragment.from(heading), 0, 0),
+    );
+
+    expect(sanitized.content.firstChild?.firstChild?.attrs).toEqual({
+      id: 'project',
+    });
+  });
+
+  it('preserves authored Carve attributes on internal paste', () => {
+    const link = schema.marks.link.create({
+      href: 'https://example.com',
+      id: 'reference',
+      class: 'document-link',
+      carveKeyValues: {
+        role: 'citation',
+        style: 'color: red',
+        'data-pm-slice': '0 0 []',
+      },
+      carveAttrOrder: ['#id', '.class', 'role', 'style'],
+    });
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.text('Reference', [link]),
+    );
+
+    const sanitized = sanitizePastedSlice(
+      new Slice(Fragment.from(heading), 0, 0),
+    );
+
+    expect(sanitized.content.firstChild?.firstChild?.marks[0].attrs).toEqual({
+      href: 'https://example.com',
+      id: 'reference',
+      class: 'document-link',
+      carveKeyValues: { role: 'citation', style: 'color: red' },
+      carveAttrOrder: ['#id', '.class', 'role', 'style'],
+    });
+  });
+
   it('serializes pasted rich text without foreign clipboard attributes', () => {
     const carveSchema = getSchema([CarveKit]);
     const document = carveSchema.nodeFromJSON({
@@ -118,7 +168,7 @@ describe('sanitizePastedSlice', () => {
               style: 'color: rgb(255, 255, 255)',
               'data-pm-slice': '0 0 []',
             },
-            carveAttrOrder: ['style', 'data-pm-slice'],
+            carveAttrOrder: null,
           },
           content: [
             { type: 'text', marks: [{ type: 'bold' }], text: 'Meeting notes' },
