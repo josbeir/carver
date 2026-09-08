@@ -71,16 +71,16 @@ pub enum Effect {
         /// Canonical asset path.
         path: String,
     },
-    /// Focus a media occurrence through the active editor projection.
-    FocusEditorMedia {
-        /// Active editor lifetime that owns the occurrence.
+    /// Focus a document occurrence through the active projection.
+    FocusDocumentTarget {
+        /// Document lifetime that owns the occurrence.
         session: EditorSessionId,
-        /// Unicode code-point range of the authored occurrence.
+        /// Current canonical source generation.
+        generation: u64,
+        /// Source range to focus, or an empty range for a heading caret.
         selection: std::ops::Range<usize>,
-        /// Managed asset path used to locate the rendered occurrence.
-        path: String,
-        /// Index among occurrences referencing the same asset.
-        occurrence: usize,
+        /// Projection-neutral occurrence address.
+        target: carver_editor_protocol::DocumentTarget,
     },
     /// Publish a canonical editor snapshot through the native clipboard adapter.
     CopyEditorDocument {

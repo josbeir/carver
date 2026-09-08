@@ -76,10 +76,10 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     };
     resume_editor_refresh(model, &mut effects);
     if let Some(document) = model.editor.as_mut()
-        && document.media_sidebar.is_visible()
+        && document.document_sidebar.is_visible()
     {
         let mut requested = std::collections::BTreeMap::new();
-        for media in &document.media {
+        for media in document.analysis.media() {
             let image = media.kind == carver_domain::source_analysis::MediaKind::Image;
             requested
                 .entry(media.path.clone())
@@ -436,18 +436,24 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             name,
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, name, source_target, false),
-        EditorMsg::MediaSelected {
+        EditorMsg::DocumentSelectionChanged {
             session,
             mode,
             media,
+            heading,
+            source,
         } => {
             if let Some(document) = model.editor.as_mut()
                 && document.session == session
                 && document.mode == mode
+                && document.source == source.as_ref()
             {
+                document.selected_heading =
+                    heading.filter(|index| *index < document.analysis.headings().len());
                 document.selected_media = media.and_then(|selected| {
                     document
-                        .media
+                        .analysis
+                        .media()
                         .iter()
                         .filter(|item| item.path == selected.path)
                         .nth(selected.occurrence)
@@ -460,8 +466,14 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             if let Some(document) = model.editor.as_mut()
                 && document.mode == carver_config::EditorMode::Source
             {
+                document.selected_heading = document.analysis.headings().iter().position(|item| {
+                    item.range.start <= selection.start
+                        && selection.start <= item.range.end
+                        && selection.end <= item.range.end
+                });
                 document.selected_media = document
-                    .media
+                    .analysis
+                    .media()
                     .iter()
                     .find(|item| {
                         item.range.start <= selection.start
@@ -477,7 +489,8 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .as_ref()
             .and_then(|document| {
                 document
-                    .media
+                    .analysis
+                    .media()
                     .iter()
                     .find(|media| media.range == selection && media.path.starts_with("assets/"))
                     .map(|media| Effect::PrepareMediaPreview {
@@ -531,39 +544,55 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
-        EditorMsg::ToggleMediaSidebar => {
+        EditorMsg::ToggleDocumentSidebar => {
             if let Some(document) = model.editor.as_mut() {
-                document.media_sidebar = document.media_sidebar.toggled();
-                model.config.editor.show_media_sidebar = document.media_sidebar.is_visible();
+                document.document_sidebar = document.document_sidebar.toggled();
+                model.config.editor.show_document_sidebar = document.document_sidebar.is_visible();
                 return persist_config_effect(model);
             }
             Vec::new()
         }
-        EditorMsg::FocusMedia { selection } => model
-            .editor
-            .as_mut()
-            .and_then(|document| {
-                document
-                    .media
-                    .iter()
-                    .find(|media| media.range == selection)
-                    .map(|media| {
-                        document.selected_media = Some(selection.clone());
-                        Effect::FocusEditorMedia {
-                            session: document.session,
-                            selection: selection.clone(),
-                            path: media.path.clone(),
-                            occurrence: document
-                                .media
-                                .iter()
-                                .take_while(|item| item.range != selection)
-                                .filter(|item| item.path == media.path)
-                                .count(),
-                        }
-                    })
-            })
-            .into_iter()
-            .collect(),
+        EditorMsg::FocusDocumentTarget {
+            session,
+            generation,
+            target,
+        } => {
+            let Some(document) = model.editor.as_mut().filter(|document| {
+                document.session == session && document.source_generation == generation
+            }) else {
+                return Vec::new();
+            };
+            let selection = match &target {
+                carver_editor_protocol::DocumentTarget::Heading { occurrence } => {
+                    let Some(heading) = document.analysis.headings().get(*occurrence) else {
+                        return Vec::new();
+                    };
+                    document.selected_heading = Some(*occurrence);
+                    document.selected_media = None;
+                    heading.text_start..heading.text_start
+                }
+                carver_editor_protocol::DocumentTarget::Media { path, occurrence } => {
+                    let Some(media) = document
+                        .analysis
+                        .media()
+                        .iter()
+                        .filter(|item| &item.path == path)
+                        .nth(*occurrence)
+                    else {
+                        return Vec::new();
+                    };
+                    document.selected_media = Some(media.range.clone());
+                    document.selected_heading = None;
+                    media.range.clone()
+                }
+            };
+            vec![Effect::FocusDocumentTarget {
+                session,
+                generation,
+                selection,
+                target,
+            }]
+        }
         EditorMsg::Close(session_id) => close_editor(model, session_id),
         EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
@@ -746,8 +775,8 @@ fn open_editor(
         source.clone(),
         model.preferences.editor_mode,
     );
-    if model.config.editor.show_media_sidebar {
-        document.media_sidebar = super::model::MediaSidebarVisibility::Visible;
+    if model.config.editor.show_document_sidebar {
+        document.document_sidebar = super::model::DocumentSidebarVisibility::Visible;
     }
     model.editor_refresh_request = None;
     model.editor_refresh_pending = false;

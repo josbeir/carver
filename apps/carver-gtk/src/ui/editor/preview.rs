@@ -7,6 +7,8 @@ use std::{
 
 use webkit6::prelude::*;
 
+mod heading_provenance;
+
 const PREVIEW_STYLESHEET: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/preview.css"));
 
@@ -197,7 +199,12 @@ fn rendered_document_with_theme(
     } else {
         "img-src data: carver-asset:"
     };
-    let body = carve::to_html(source).replace("src=\"assets/", "src=\"carver-asset:///assets/");
+    let provenance = heading_provenance::HeadingProvenance(uuid::Uuid::now_v7().to_string());
+    let body = carve::to_html_with_options(
+        source,
+        &carve::Options::default().with_extension(&provenance),
+    )
+    .replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let selection_style = format!(
         "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
         theme.selection.accent,
@@ -208,7 +215,8 @@ fn rendered_document_with_theme(
         theme.selection.foreground,
     );
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview>{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
+        heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )
 }

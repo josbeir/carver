@@ -1,5 +1,7 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
+mod document_sidebar;
+
 use std::{cell::Cell, rc::Rc, time::Duration};
 
 use carver_config::{Config, SourceSyntaxStyle};
@@ -27,7 +29,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
-    assert_media_visibility_should_restore_without_reentrant_toggles()?;
+    assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
+    document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
@@ -1108,7 +1111,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
     }));
-    assert_media_sidebar_should_focus_and_show_file_details(
+    assert_document_sidebar_should_focus_and_show_file_details(
         &root,
         &source,
         &source_mode,
@@ -1634,7 +1637,7 @@ fn assert_split_preview_tracks_source_scroll(
     Ok(())
 }
 
-fn assert_media_sidebar_should_focus_and_show_file_details(
+fn assert_document_sidebar_should_focus_and_show_file_details(
     root: &gtk::Widget,
     source: &gtk::TextView,
     source_mode: &gtk::ToggleButton,
@@ -1651,8 +1654,8 @@ fn assert_media_sidebar_should_focus_and_show_file_details(
     let text = format!("Before\n\n![Diagram]({path})\n\nAfter");
     source_mode.set_active(true);
     source.buffer().set_text(&text);
-    let toggle = widget_as::<gtk::ToggleButton>(root, "editor-media-sidebar-toggle")
-        .ok_or("media toggle")?;
+    let toggle = widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle")
+        .ok_or("document sidebar toggle")?;
     toggle.set_active(true);
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(root, "editor-media-size")
@@ -1905,50 +1908,18 @@ fn assert_rich_selection_copy_should_publish_portable_content(
     Ok(())
 }
 
-fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestResult {
-    use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, EditorMsg};
-    let (directory, client) = test_state()?;
-    let syntax = crate::ui::editor::install_syntax_assets(directory.path())?;
-    let config_path = directory.path().join("media-settings.toml");
-    let mut config = Config::default();
-    config.editor.show_media_sidebar = true;
-    config.editor.last_mode = carver_config::EditorMode::Source;
-    carver_config::save(&config_path, &config)?;
-    let config = carver_config::load(&config_path)?;
-    let dispatcher = AppDispatcher::default();
-    let overlay = adw::ToastOverlay::new();
-    let editor = crate::ui::editor::build_editor(
-        &dispatcher,
-        &config,
-        None,
-        &syntax,
-        &overlay,
-        &adw::NavigationSplitView::new(),
-        &Rc::new(Cell::new(false)),
-    )?;
-    let (surface, refs) = editor.into_parts();
-    let stack = gtk::Stack::new();
-    stack.add_named(
-        &gtk::Box::new(gtk::Orientation::Vertical, 0),
-        Some("browser"),
-    );
-    stack.add_named(&surface, Some("editor"));
-    let window = gtk::Window::builder()
-        .default_width(1200)
-        .default_height(800)
-        .child(&stack)
-        .build();
-    let runtime = AppRuntime::new_with_config_path(
-        client,
-        AppModel::new(&config),
-        crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
-            .with_editor(refs),
-        Some(config_path.clone()),
-    );
-    runtime.bind_dispatcher(&dispatcher);
-    window.present();
-    let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-media-sidebar-toggle")
-        .ok_or("media toggle")?;
+fn assert_document_sidebar_visibility_should_restore_without_reentrant_toggles() -> TestResult {
+    use crate::mvu::{AppMsg, EditorMsg};
+    let document_sidebar::SidebarFixture {
+        _directory,
+        surface,
+        runtime,
+        window,
+        config_path,
+        ..
+    } = document_sidebar::fixture()?;
+    let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-document-sidebar-toggle")
+        .ok_or("document sidebar toggle")?;
     let editor_view =
         widget_as::<adw::ToolbarView>(&surface, "editor-surface").ok_or("editor view")?;
     let controllers = editor_view.observe_controllers();
@@ -1968,7 +1939,7 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
             source: source.to_owned(),
         }));
         assert!(toggle.is_active());
-        assert!(runtime.model().config.editor.show_media_sidebar);
+        assert!(runtime.model().config.editor.show_document_sidebar);
         let pages = widget_as::<gtk::Stack>(&surface, "editor-media-pages").ok_or("media pages")?;
         assert_eq!(
             pages.visible_child_name().as_deref(),
@@ -1979,21 +1950,32 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
             })
         );
     }
-    let sidebar = find_widget(&surface, "editor-media-sidebar").ok_or("media sidebar")?;
+    let sidebar = find_widget(&surface, "editor-document-sidebar").ok_or("document sidebar")?;
     assert!(run_main_context_until(|| sidebar.width() > 0));
     assert!(sidebar.width() <= 320, "sidebar width: {}", sidebar.width());
-    let media_split = widget_as::<adw::OverlaySplitView>(&surface, "editor-media-split-view")
-        .ok_or("media split")?;
-    assert_media_split_configuration(&media_split);
-    assert!(media_split.shows_sidebar());
+    let document_sidebar_split =
+        widget_as::<adw::OverlaySplitView>(&surface, "editor-document-sidebar-split-view")
+            .ok_or("media split")?;
+    assert_document_sidebar_split_configuration(&document_sidebar_split);
+    assert!(document_sidebar_split.shows_sidebar());
     window.set_default_size(700, 800);
-    assert!(run_main_context_until(|| media_split.is_collapsed()));
+    assert!(run_main_context_until(
+        || document_sidebar_split.is_collapsed()
+    ));
     window.set_default_size(1200, 800);
-    assert!(run_main_context_until(|| !media_split.is_collapsed()));
-    assert_media_sidebar_shortcut(&editor_shortcuts, &config_path, &media_split)?;
+    assert!(run_main_context_until(
+        || !document_sidebar_split.is_collapsed()
+    ));
+    assert_document_sidebar_shortcut(&editor_shortcuts, &config_path, &document_sidebar_split)?;
     toggle.set_active(false);
-    assert!(!carver_config::load(&config_path)?.editor.show_media_sidebar);
-    assert!(run_main_context_until(|| !media_split.shows_sidebar()));
+    assert!(
+        !carver_config::load(&config_path)?
+            .editor
+            .show_document_sidebar
+    );
+    assert!(run_main_context_until(
+        || !document_sidebar_split.shows_sidebar()
+    ));
     runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
         note_id: carver_sdk::NoteId::new(),
         revision: carver_sdk::Revision(1),
@@ -2001,16 +1983,20 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
     }));
     assert!(!toggle.is_active());
     toggle.set_active(true);
-    assert!(carver_config::load(&config_path)?.editor.show_media_sidebar);
+    assert!(
+        carver_config::load(&config_path)?
+            .editor
+            .show_document_sidebar
+    );
     assert_missing_media_preview_should_report_error(&surface, &runtime)?;
     window.close();
     Ok(())
 }
 
-fn assert_media_sidebar_shortcut(
+fn assert_document_sidebar_shortcut(
     shortcuts: &gtk::EventControllerKey,
     config_path: &std::path::Path,
-    media_split: &adw::OverlaySplitView,
+    document_sidebar_split: &adw::OverlaySplitView,
 ) -> TestResult {
     let modifiers = gtk::gdk::ModifierType::empty();
     for expected_visible in [false, true] {
@@ -2018,21 +2004,26 @@ fn assert_media_sidebar_shortcut(
             .emit_by_name::<bool>("key-pressed", &[&gtk::gdk::Key::F9, &0_u32, &modifiers]);
         assert!(handled);
         assert_eq!(
-            carver_config::load(config_path)?.editor.show_media_sidebar,
+            carver_config::load(config_path)?
+                .editor
+                .show_document_sidebar,
             expected_visible
         );
-        assert!(run_main_context_until(
-            || media_split.shows_sidebar() == expected_visible
-        ));
+        assert!(run_main_context_until(|| document_sidebar_split
+            .shows_sidebar()
+            == expected_visible));
     }
     Ok(())
 }
 
-fn assert_media_split_configuration(media_split: &adw::OverlaySplitView) {
-    assert_eq!(media_split.sidebar_position(), gtk::PackType::End);
-    assert!(media_split.is_pin_sidebar());
-    assert!(!media_split.property::<bool>("enable-hide-gesture"));
-    assert!(!media_split.property::<bool>("enable-show-gesture"));
+fn assert_document_sidebar_split_configuration(document_sidebar_split: &adw::OverlaySplitView) {
+    assert_eq!(
+        document_sidebar_split.sidebar_position(),
+        gtk::PackType::End
+    );
+    assert!(document_sidebar_split.is_pin_sidebar());
+    assert!(!document_sidebar_split.property::<bool>("enable-hide-gesture"));
+    assert!(!document_sidebar_split.property::<bool>("enable-show-gesture"));
 }
 
 fn assert_missing_media_preview_should_report_error(

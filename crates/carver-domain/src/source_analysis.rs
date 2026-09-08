@@ -151,10 +151,24 @@ impl SourceContext {
 }
 
 /// A cached, position-aware Carve parse suitable for an editor buffer.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SourceAnalysis {
     nodes: Vec<AnalyzedNode>,
     media: Vec<MediaOccurrence>,
+    headings: Vec<HeadingOccurrence>,
+}
+
+/// One positioned heading in authored document order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HeadingOccurrence {
+    /// Authored heading level.
+    pub level: u8,
+    /// Plain-text heading label.
+    pub label: String,
+    /// Unicode code-point range of the complete heading markup.
+    pub range: Range<usize>,
+    /// Unicode code-point offset at which heading text begins.
+    pub text_start: usize,
 }
 
 /// One positioned image or managed-file link in a Carve document.
@@ -179,7 +193,7 @@ pub enum MediaKind {
     Attachment,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct AnalyzedNode {
     range: Range<usize>,
     path: Vec<SourceNodeKind>,
@@ -202,6 +216,19 @@ impl SourceAnalysis {
         for block in &document.children {
             analysis.visit_block(block, &mut path);
         }
+        let chars: Vec<char> = source.chars().collect();
+        for heading in &mut analysis.headings {
+            let mut start = heading.range.start;
+            while start < heading.range.end && chars.get(start) == Some(&'#') {
+                start += 1;
+            }
+            while start < heading.range.end
+                && chars.get(start).is_some_and(|c| *c == ' ' || *c == '\t')
+            {
+                start += 1;
+            }
+            heading.text_start = start;
+        }
         analysis
     }
 
@@ -221,6 +248,12 @@ impl SourceAnalysis {
     #[must_use]
     pub fn media(&self) -> &[MediaOccurrence] {
         &self.media
+    }
+
+    /// Returns headings in authored document order, including nested headings.
+    #[must_use]
+    pub fn headings(&self) -> &[HeadingOccurrence] {
+        &self.headings
     }
 
     fn push(&mut self, pos: Option<&Pos>, kind: SourceNodeKind, path: &mut Vec<SourceNodeKind>) {
@@ -243,6 +276,19 @@ impl SourceAnalysis {
     fn visit_block(&mut self, block: &BlockNode, path: &mut Vec<SourceNodeKind>) {
         match block {
             BlockNode::Heading(node) => {
+                if let Some(range) = node.pos.as_ref().and_then(pos_range) {
+                    let label = inline_label(&node.children);
+                    self.headings.push(HeadingOccurrence {
+                        level: node.level,
+                        label: if label.trim().is_empty() {
+                            String::from("Untitled heading")
+                        } else {
+                            label.trim().to_owned()
+                        },
+                        text_start: range.start,
+                        range,
+                    });
+                }
                 self.push(node.pos.as_ref(), SourceNodeKind::Heading(node.level), path);
                 self.visit_inlines(&node.children, path);
                 Self::pop(path);
@@ -546,9 +592,20 @@ fn inline_label(nodes: &[InlineNode]) -> String {
             InlineNode::EscapedText(node) => node.value.clone(),
             InlineNode::Emphasis(node) => inline_label(&node.children),
             InlineNode::Span(node) => inline_label(&node.children),
+            InlineNode::Link(node) => inline_label(&node.children),
+            InlineNode::Image(node) => node.alt.clone(),
+            InlineNode::Extension(node) => inline_label(&node.children),
             InlineNode::CriticInsert(node) => inline_label(&node.children),
             InlineNode::CriticDelete(node) => inline_label(&node.children),
             InlineNode::Code(node) => node.value.clone(),
+            InlineNode::SmartPunctuation(node) => {
+                node.glyph.as_ref().unwrap_or(&node.value).clone()
+            }
+            InlineNode::AutoLink(node) => node.text.clone(),
+            InlineNode::Math(node) => node.content.clone(),
+            InlineNode::LiteralInline(node) => node.content.clone(),
+            InlineNode::Abbreviation(node) => node.abbr.clone(),
+            InlineNode::SoftBreak(_) | InlineNode::HardBreak(_) => String::from(" "),
             _ => String::new(),
         })
         .collect()

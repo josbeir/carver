@@ -164,14 +164,18 @@ pub enum EditorMsg {
         /// Editor lifetime authorized by the user.
         session: EditorSessionId,
     },
-    /// A web projection selected a media occurrence without changing source.
-    MediaSelected {
+    /// A web projection selected an occurrence without changing source.
+    DocumentSelectionChanged {
         /// Editor lifetime that emitted this event.
         session: EditorSessionId,
         /// Projection that emitted this event.
         mode: carver_config::EditorMode,
         /// Selected occurrence, or none when selection leaves media.
         media: Option<carver_editor_protocol::MediaSelection>,
+        /// Heading enclosing the selection.
+        heading: Option<usize>,
+        /// Canonical source snapshot represented by this projection.
+        source: std::rc::Rc<str>,
     },
     /// The source cursor moved.
     SourceSelectionChanged {
@@ -366,12 +370,16 @@ pub enum EditorMsg {
         /// Source target to replace after storage completes, when applicable.
         source_target: Option<SourceImageTarget>,
     },
-    /// Show or hide the editor's AST-derived media navigation sidebar.
-    ToggleMediaSidebar,
-    /// Focus one current media occurrence without mutating canonical source.
-    FocusMedia {
-        /// Unicode code-point range of the occurrence's Carve markup.
-        selection: std::ops::Range<usize>,
+    /// Show or hide the editor's AST-derived document sidebar.
+    ToggleDocumentSidebar,
+    /// Focus an occurrence in the current canonical document without editing it.
+    FocusDocumentTarget {
+        /// Document lifetime represented by the activated row.
+        session: EditorSessionId,
+        /// Canonical source generation represented by the activated row.
+        generation: u64,
+        /// Format-neutral projection target.
+        target: carver_editor_protocol::DocumentTarget,
     },
     /// Close the active editor lifetime.
     Close(EditorSessionId),

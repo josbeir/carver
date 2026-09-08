@@ -13,6 +13,7 @@ use super::{
 };
 
 mod browser;
+mod document_sidebar;
 mod editor_assets;
 mod editor_commands;
 mod editor_navigation;

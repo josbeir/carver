@@ -30,6 +30,9 @@ pub(crate) struct RichEditor {
     session: Rc<Cell<u64>>,
     document_session: Rc<Cell<Option<crate::mvu::EditorSessionId>>>,
     ready: Rc<Cell<bool>>,
+    revision: Rc<Cell<u64>>,
+    navigation_epoch: Rc<Cell<u64>>,
+    canonical_source: Rc<RefCell<Rc<str>>>,
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
     current_theme: Rc<RefCell<Option<EditorTheme>>>,
     unsupported_handler: UnsupportedHandler,
@@ -82,6 +85,9 @@ impl RichEditor {
             session: Rc::new(Cell::new(0)),
             document_session: Rc::new(Cell::new(None)),
             ready: Rc::new(Cell::new(false)),
+            revision: Rc::new(Cell::new(0)),
+            navigation_epoch: Rc::new(Cell::new(0)),
+            canonical_source: Rc::new(RefCell::new(Rc::from(""))),
             pending_source: Rc::new(RefCell::new(None)),
             current_theme: Rc::new(RefCell::new(None)),
             unsupported_handler: Rc::new(RefCell::new(None)),
@@ -115,6 +121,9 @@ impl RichEditor {
     pub(crate) fn load_source(&self, source: &str) {
         let next_session = self.session.get().saturating_add(1);
         self.session.set(next_session);
+        self.revision.set(0);
+        self.navigation_epoch.set(0);
+        self.canonical_source.replace(Rc::from(source));
         self.pending_source
             .replace(Some((next_session, source.to_owned())));
         self.flush_pending_source();
@@ -160,16 +169,44 @@ impl RichEditor {
         ));
     }
 
-    /// Scrolls a rendered managed asset into view without changing its source.
-    pub(crate) fn focus_media(&self, path: &str, occurrence: usize) {
-        self.view.grab_focus();
-        if let Some(root) = self.view.root() {
-            root.set_focus(Some(&self.view));
+    /// Focuses a document occurrence without changing its source.
+    pub(crate) fn focus_document_target(&self, target: &carver_editor_protocol::DocumentTarget) {
+        if !self.ready.get() || self.pending_source.borrow().is_some() {
+            return;
         }
-        self.evaluate(&format!(
-            "window.carverEditor.focusMedia({}, {occurrence});",
-            json(path)
-        ));
+        let Ok(target) = serde_json::to_string(target) else {
+            return;
+        };
+        let epoch = self.navigation_epoch.get().wrapping_add(1);
+        self.navigation_epoch.set(epoch);
+        let session = self.session.get();
+        let revision = self.revision.get();
+        let editor = self.clone();
+        // Restore native focus only after the projection has selected its target. Focusing
+        // WebKit first can report the old caret while this asynchronous command is queued.
+        self.view.evaluate_javascript(
+            &format!(
+                "window.carverEditor.focusDocumentTarget({target}, {session}, {revision}, {epoch});"
+            ),
+            None,
+            Some("carver-editor:///bridge"),
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                if editor.session.get() != session
+                    || editor.revision.get() != revision
+                    || editor.navigation_epoch.get() != epoch
+                    || !editor.view.is_mapped()
+                {
+                    return;
+                }
+                if result.is_ok_and(|value| value.to_boolean()) {
+                    editor.view.grab_focus();
+                    if let Some(root) = editor.view.root() {
+                        root.set_focus(Some(&editor.view));
+                    }
+                }
+            },
+        );
     }
 
     /// Opens the Rich editor's contextual link dialog from the shared toolbar.
@@ -210,6 +247,12 @@ impl RichEditor {
         });
     }
 
+    fn accepts_selection(&self, session: u64, selection: &SelectionState) -> bool {
+        session == self.session.get()
+            && selection.revision == self.revision.get()
+            && selection.navigation_epoch == self.navigation_epoch.get()
+    }
+
     fn connect_messages(
         &self,
         manager: &webkit6::UserContentManager,
@@ -236,8 +279,12 @@ impl RichEditor {
                     editor.apply_theme();
                 }
                 EditorEvent::Changed {
-                    session, source, ..
+                    session,
+                    source,
+                    revision,
                 } if session == editor.session.get() => {
+                    editor.revision.set(revision);
+                    editor.canonical_source.replace(Rc::from(source.as_str()));
                     for message in rich_source_change_messages(source) {
                         let _ = dispatcher.dispatch(message);
                     }
@@ -287,13 +334,18 @@ impl RichEditor {
                 EditorEvent::Selection {
                     session,
                     state: selection,
-                } if session == editor.session.get() => {
+                } if editor.accepts_selection(session, &selection) => {
                     if let Some(session) = editor.document_session.get() {
-                        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::MediaSelected {
-                            session,
-                            mode: carver_config::EditorMode::Rich,
-                            media: selection.media.clone(),
-                        }));
+                        let source = Rc::clone(&editor.canonical_source.borrow());
+                        let _ = dispatcher.dispatch(AppMsg::Editor(
+                            EditorMsg::DocumentSelectionChanged {
+                                session,
+                                mode: carver_config::EditorMode::Rich,
+                                media: selection.media.clone(),
+                                heading: selection.heading_occurrence,
+                                source,
+                            },
+                        ));
                     }
                     if let Some(handler) = selection_handler.borrow().as_ref() {
                         handler(selection);

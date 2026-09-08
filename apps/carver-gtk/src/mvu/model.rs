@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use carver_config::{Config, EditorMode, SourceSyntaxStyle};
-use carver_domain::source_analysis::{MediaOccurrence, SourceAnalysis};
+use carver_domain::source_analysis::SourceAnalysis;
 use carver_sdk::{
     CategoryId, CategorySummary, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
 };
@@ -265,16 +265,20 @@ pub struct EditorDocument {
     pub source: String,
     /// Currently selected editor surface.
     pub mode: EditorMode,
-    /// Positioned images and managed attachments in the current canonical source.
-    pub media: Vec<MediaOccurrence>,
+    /// Shared AST analysis for the current canonical document.
+    pub analysis: std::sync::Arc<SourceAnalysis>,
+    /// Monotonic identity of the current source snapshot.
+    pub source_generation: u64,
+    /// Heading currently selected in the editor.
+    pub selected_heading: Option<usize>,
     /// Source range of the media currently selected in the editor.
     pub selected_media: Option<std::ops::Range<usize>>,
     /// Requested asset bytes; absent results represent unavailable files.
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Thumbnail requirements of in-flight and cached asset detail requests.
     pub media_file_kinds: std::collections::BTreeMap<String, bool>,
-    /// Current visibility of the editor's media navigation sidebar.
-    pub media_sidebar: MediaSidebarVisibility,
+    /// Current visibility of the editor's document navigation sidebar.
+    pub document_sidebar: DocumentSidebarVisibility,
     /// Latest favorite state requested before the current mutation completes.
     pub(crate) pending_favorite: Option<bool>,
     /// Whether a favorite mutation is in flight for this editor document.
@@ -377,7 +381,7 @@ impl EditorDocument {
         source: String,
         mode: EditorMode,
     ) -> Self {
-        let media = SourceAnalysis::parse(&source).media().to_vec();
+        let analysis = std::sync::Arc::new(SourceAnalysis::parse(&source));
         Self {
             session,
             note_id,
@@ -385,11 +389,13 @@ impl EditorDocument {
             is_favorite,
             source,
             mode,
-            media,
+            analysis,
+            source_generation: 0,
+            selected_heading: None,
             selected_media: None,
             media_files: std::collections::BTreeMap::new(),
             media_file_kinds: std::collections::BTreeMap::new(),
-            media_sidebar: MediaSidebarVisibility::Hidden,
+            document_sidebar: DocumentSidebarVisibility::Hidden,
             pending_favorite: None,
             favorite_mutation_in_flight: false,
             save_state: EditorSaveState::Clean,
@@ -402,7 +408,9 @@ impl EditorDocument {
     pub(super) fn source_changed(&mut self, source: String) -> bool {
         if self.source != source {
             self.source = source;
-            self.media = SourceAnalysis::parse(&self.source).media().to_vec();
+            self.analysis = std::sync::Arc::new(SourceAnalysis::parse(&self.source));
+            self.source_generation = self.source_generation.wrapping_add(1);
+            self.selected_heading = None;
             self.selected_media = None;
             if !matches!(self.save_state, EditorSaveState::Saving(_)) {
                 self.save_state = EditorSaveState::Dirty;
@@ -460,9 +468,9 @@ impl EditorDocument {
     }
 }
 
-/// Visibility state for the editor's media navigation sidebar.
+/// Visibility state for the editor's document navigation sidebar.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum MediaSidebarVisibility {
+pub enum DocumentSidebarVisibility {
     /// The sidebar is not taking editor space.
     #[default]
     Hidden,
@@ -470,7 +478,7 @@ pub enum MediaSidebarVisibility {
     Visible,
 }
 
-impl MediaSidebarVisibility {
+impl DocumentSidebarVisibility {
     /// Toggles visibility.
     pub const fn toggled(self) -> Self {
         match self {
@@ -648,7 +656,7 @@ pub(crate) enum LibraryRevisionCheckReason {
     ExternalWakeup,
 }
 
-/// Resolved file details used by the Media sidebar.
+/// Resolved file details used by the sidebar’s Media section.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MediaFile {
     /// Original file size in bytes.

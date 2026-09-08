@@ -30,7 +30,7 @@ fn partial_config_keeps_defaults_for_unset_sections() -> Result<(), Box<dyn std:
     assert_eq!(config.editor.last_mode, EditorMode::Source);
     assert_eq!(config.editor.autosave_delay_ms, 500);
     assert!(!config.editor.source_split_view);
-    assert!(!config.editor.show_media_sidebar);
+    assert!(!config.editor.show_document_sidebar);
     assert!(!config.editor.source_line_numbers);
     assert!(!config.editor.source_highlight_current_line);
     assert_eq!(
@@ -81,7 +81,7 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = Config::default();
     config.window.sidebar_collapsed = true;
     config.editor.source_split_view = true;
-    config.editor.show_media_sidebar = true;
+    config.editor.show_document_sidebar = true;
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
@@ -175,5 +175,16 @@ fn load_rejects_unknown_editor_mode() -> Result<(), Box<dyn std::error::Error>> 
     fs::write(&path, "[editor]\nlast_mode = 'not-a-mode'\n")?;
     let result = load(&path);
     assert!(matches!(result, Err(ConfigError::InvalidToml(_))));
+    Ok(())
+}
+
+#[test]
+fn document_sidebar_preference_should_keep_the_legacy_toml_key()
+-> Result<(), Box<dyn std::error::Error>> {
+    let config: Config = toml::from_str("[editor]\nshow_media_sidebar = true\n")?;
+    assert!(config.editor.show_document_sidebar);
+    let serialized = toml::to_string(&config)?;
+    assert!(serialized.contains("show_media_sidebar = true"));
+    assert!(!serialized.contains("show_document_sidebar"));
     Ok(())
 }

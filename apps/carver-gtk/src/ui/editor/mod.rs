@@ -32,7 +32,8 @@ pub(crate) mod focus;
 mod media_preview;
 #[cfg(test)]
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
-mod media_selection;
+mod document_navigation;
+mod document_sidebar;
 mod preview;
 mod render;
 mod source;
@@ -60,22 +61,11 @@ use web::RichEditor;
 type PreviewSource = (EditorSessionId, String);
 type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
 
-type ThumbnailCache =
-    std::collections::BTreeMap<String, (std::sync::Arc<Vec<u8>>, gtk::gdk::Texture)>;
-
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
     compact_options: gtk::gio::Menu,
-    media_toggle: gtk::ToggleButton,
-    add_files: gtk::Button,
-    media_split: adw::OverlaySplitView,
-    media_list: gtk::ListBox,
-    media_pages: gtk::Stack,
-    thumbnails: RefCell<ThumbnailCache>,
-    rendered_media_files:
-        RefCell<std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>>,
-    rendered_media: RefCell<Option<Vec<carver_domain::source_analysis::MediaOccurrence>>>,
+    sidebar: document_sidebar::DocumentSidebar,
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
     rendered_mode: gtk::ToggleButton,
@@ -88,6 +78,8 @@ pub(crate) struct EditorViewRefs {
     source_buffer: gtk::TextBuffer,
     source_editor: SourceEditor,
     split_preview: webkit6::WebView,
+    split_navigation: document_navigation::PreviewNavigation,
+    rendered_navigation: document_navigation::PreviewNavigation,
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
@@ -97,41 +89,12 @@ pub(crate) struct EditorViewRefs {
     rendered_preview_source: RefCell<Option<PreviewSource>>,
     rendered_theme_revision: RefCell<Option<u64>>,
     loaded_session: RefCell<Option<EditorSessionId>>,
+    source_generation: Cell<u64>,
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
 }
 
 impl EditorViewRefs {
-    fn update_thumbnails(
-        &self,
-        files: &std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>,
-    ) {
-        self.thumbnails
-            .borrow_mut()
-            .retain(|path, _| files.contains_key(path));
-        for (path, file) in files {
-            let Some(bytes) = file.as_ref().and_then(|file| file.preview.as_ref()) else {
-                self.thumbnails.borrow_mut().remove(path);
-                continue;
-            };
-            if self
-                .thumbnails
-                .borrow()
-                .get(path)
-                .is_some_and(|(cached, _)| std::sync::Arc::ptr_eq(cached, bytes))
-            {
-                continue;
-            }
-            if let Ok(texture) =
-                gtk::gdk::Texture::from_bytes(&glib::Bytes::from_owned(bytes.as_ref().clone()))
-            {
-                self.thumbnails
-                    .borrow_mut()
-                    .insert(path.clone(), (std::sync::Arc::clone(bytes), texture));
-            }
-        }
-    }
-
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     // CONTEXT: Rendering all projections together prevents GTK widgets from becoming a second
     // document state store.
@@ -146,6 +109,7 @@ impl EditorViewRefs {
             return;
         };
         self.rendering.set(true);
+        self.source_generation.set(document.source_generation);
         self.favorite.set_active(document.is_favorite);
         self.compact_options.remove(2);
         self.compact_options.insert(
@@ -157,46 +121,7 @@ impl EditorViewRefs {
             }),
             Some("editor.toggle-favorite"),
         );
-        self.add_files
-            .set_sensitive(document.mode != EditorMode::Rendered);
-        self.media_toggle
-            .set_active(document.media_sidebar.is_visible());
-        self.media_split
-            .set_show_sidebar(document.media_sidebar.is_visible());
-        self.media_pages
-            .set_visible_child_name(if document.media.is_empty() {
-                "empty"
-            } else {
-                "files"
-            });
-        if self.rendered_media.borrow().as_deref() != Some(document.media.as_slice())
-            || *self.rendered_media_files.borrow() != document.media_files
-        {
-            self.update_thumbnails(&document.media_files);
-            let thumbnails = self
-                .thumbnails
-                .borrow()
-                .iter()
-                .map(|(path, (_, texture))| (path.clone(), texture.clone()))
-                .collect();
-            render_media_list(
-                &self.media_list,
-                &document.media,
-                &self.dispatcher,
-                &document.media_files,
-                &thumbnails,
-            );
-            self.rendered_media_files
-                .replace(document.media_files.clone());
-            self.rendered_media.replace(Some(document.media.clone()));
-        }
-        let selected_row = document
-            .selected_media
-            .as_ref()
-            .and_then(|range| document.media.iter().position(|item| &item.range == range))
-            .and_then(|index| i32::try_from(index).ok())
-            .and_then(|index| self.media_list.row_at_index(index));
-        self.media_list.select_row(selected_row.as_ref());
+        self.sidebar.render(document, &self.dispatcher);
         self.favorite
             .set_tooltip_text(Some(if document.is_favorite {
                 "Remove from Favorites"
@@ -224,8 +149,6 @@ impl EditorViewRefs {
             .cloned();
         if new_document {
             self.rich.set_document_session(document.session);
-            media_selection::set_session(&self.rendered_preview, document.session);
-            media_selection::set_session(&self.split_preview, document.session);
             self.find.reset();
         }
         if source_changed {
@@ -322,6 +245,12 @@ impl EditorViewRefs {
             &preview.source,
         );
         if source_changed || presentation_changed {
+            let navigation = if rendered {
+                &self.rendered_navigation
+            } else {
+                &self.split_navigation
+            };
+            navigation.set_document(preview.session, &preview.source);
             preview::load_preview_with_theme(view, &preview.source, allow_remote_images, theme);
             rendered_source.replace(Some((preview.session, preview.source.clone())));
         }
@@ -361,25 +290,31 @@ impl EditorViewRefs {
         }
     }
 
-    /// Focuses a media occurrence while retaining the current editor mode.
-    pub(crate) fn focus_media(
+    /// Focuses a validated occurrence while retaining the current editor mode.
+    pub(crate) fn focus_document_target(
         &self,
         session: EditorSessionId,
+        generation: u64,
         selection: std::ops::Range<usize>,
-        path: &str,
-        occurrence: usize,
+        target: &carver_editor_protocol::DocumentTarget,
     ) {
-        if self.loaded_session.borrow().as_ref() != Some(&session) {
+        if self.loaded_session.borrow().as_ref() != Some(&session)
+            || self.source_generation.get() != generation
+        {
             return;
         }
-        let mut start = self
-            .source_buffer
-            .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
-        let end = self
-            .source_buffer
-            .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
-        self.source_buffer.select_range(&start, &end);
         if self.source_mode.is_active() {
+            let mut start = self
+                .source_buffer
+                .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
+            let end = self
+                .source_buffer
+                .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
+            if selection.is_empty() {
+                self.source_buffer.place_cursor(&start);
+            } else {
+                self.source_buffer.select_range(&start, &end);
+            }
             self.source_editor.view().grab_focus();
             if let Some(root) = self.source_editor.view().root() {
                 root.set_focus(Some(self.source_editor.view()));
@@ -387,10 +322,15 @@ impl EditorViewRefs {
             self.source_editor
                 .view()
                 .scroll_to_iter(&mut start, 0.2, false, 0.0, 0.0);
+            if self.split_toggle.is_active() {
+                self.split_navigation
+                    .focus(target, &buffer_text(&self.source_buffer), false);
+            }
         } else if self.rich_mode.is_active() {
-            self.rich.focus_media(path, occurrence);
+            self.rich.focus_document_target(target);
         } else {
-            focus_preview_media(&self.rendered_preview, path, occurrence);
+            self.rendered_navigation
+                .focus(target, &buffer_text(&self.source_buffer), true);
         }
     }
 
@@ -399,7 +339,7 @@ impl EditorViewRefs {
         if self.loaded_session.borrow().as_ref() != Some(&session) {
             return;
         }
-        let parent = self.media_list.root().and_downcast::<gtk::Window>();
+        let parent = self.sidebar.root.root().and_downcast::<gtk::Window>();
         media_preview::launch(path, parent.as_ref(), session, &self.dispatcher);
     }
 
@@ -462,23 +402,6 @@ impl EditorViewRefs {
     }
 }
 
-fn focus_preview_media(view: &webkit6::WebView, path: &str, occurrence: usize) {
-    view.grab_focus();
-    if let Some(root) = view.root() {
-        root.set_focus(Some(view));
-    }
-    let path = serde_json::to_string(path).unwrap_or_else(|_| String::from("\"\""));
-    view.evaluate_javascript(
-        &format!(
-            "(() => {{ const path = {path}; const node = [...document.querySelectorAll('img,a')].filter((node) => (node.getAttribute('src') ?? node.getAttribute('href') ?? '').replace(/^carver-asset:\\/\\/\\//, '') === path)[{occurrence}]; if (node) {{ node.setAttribute('tabindex', '-1'); node.focus({{preventScroll: true}}); node.animate([{{outline: '2px solid currentColor'}}, {{outline: '2px solid transparent'}}], {{duration: 1800}}); }} node?.scrollIntoView({{block: 'center', behavior: 'smooth'}}); }})();"
-        ),
-        None,
-        Some("carver-editor:///bridge"),
-        None::<&gtk::gio::Cancellable>,
-        |_| {},
-    );
-}
-
 fn invalidate_preview_sources(
     split_preview_source: &RefCell<Option<PreviewSource>>,
     rendered_preview_source: &RefCell<Option<PreviewSource>>,
@@ -518,6 +441,7 @@ fn refresh_split_preview(
     latest: &PreviewSourceCache,
     loaded: &PreviewSourceCache,
     allow_remote_images: bool,
+    navigation: &document_navigation::PreviewNavigation,
 ) {
     let Some((session, source)) = latest.borrow().clone() else {
         return;
@@ -525,6 +449,7 @@ fn refresh_split_preview(
     if !preview_source_needs_load(loaded.borrow().as_ref(), session, &source) {
         return;
     }
+    navigation.set_document(session, &source);
     preview::load_preview_with_theme(view, &source, allow_remote_images, &editor_theme());
     loaded.replace(Some((session, source)));
 }
@@ -602,18 +527,18 @@ pub(crate) fn build_editor(
     favorite.set_widget_name("favorite-note-button");
     favorite.set_tooltip_text(Some("Add to Favorites"));
     favorite.add_css_class("flat");
-    let media_toggle = gtk::ToggleButton::new();
-    media_toggle.set_icon_name("folder-pictures-symbolic");
-    media_toggle.set_widget_name("editor-media-sidebar-toggle");
-    media_toggle.set_tooltip_text(Some("Show media (F9)"));
-    media_toggle.add_css_class("flat");
+    let document_sidebar_toggle = gtk::ToggleButton::new();
+    document_sidebar_toggle.set_icon_name("sidebar-show-right-symbolic");
+    document_sidebar_toggle.set_widget_name("editor-document-sidebar-toggle");
+    document_sidebar_toggle.set_tooltip_text(Some("Show document sidebar"));
+    document_sidebar_toggle.add_css_class("flat");
     let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
     let (options_menu, compact_options) = editor_options_menu();
     header.pack_end(&options_menu);
-    header.pack_end(&media_toggle);
+    header.pack_end(&document_sidebar_toggle);
     header.pack_end(&copy_note);
     header.pack_end(&favorite);
     view.add_top_bar(&header);
@@ -650,8 +575,13 @@ pub(crate) fn build_editor(
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     rendered_preview.set_widget_name("editor-rendered-preview");
-    media_selection::connect(&rendered_preview, dispatcher, EditorMode::Rendered);
-    media_selection::connect(&split_preview, dispatcher, EditorMode::Source);
+    let rendered_navigation = document_navigation::PreviewNavigation::new(
+        &rendered_preview,
+        dispatcher,
+        EditorMode::Rendered,
+    );
+    let split_navigation =
+        document_navigation::PreviewNavigation::new(&split_preview, dispatcher, EditorMode::Source);
     let find = FindController::new(&source_editor, rich.view(), &view);
     view.add_top_bar(find.widget());
     install_editor_window_shortcuts(&view, dispatcher);
@@ -690,6 +620,7 @@ pub(crate) fn build_editor(
             source: source.upcast_ref(),
             split_preview: &split_preview,
             rendered_preview: &rendered_preview,
+            split_navigation: &split_navigation,
         },
         &split_toggle,
         &source_mode,
@@ -700,70 +631,9 @@ pub(crate) fn build_editor(
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
     toolbar_bar.append(toolbar.widget());
     view.add_bottom_bar(&toolbar_bar);
-    let media_list = gtk::ListBox::new();
-    media_list.set_widget_name("editor-media-list");
-    media_list.set_selection_mode(gtk::SelectionMode::Single);
-    media_list.set_valign(gtk::Align::Start);
-    media_list.add_css_class("boxed-list");
-    let media_scroller = gtk::ScrolledWindow::new();
-    media_scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-    media_scroller.set_vexpand(true);
-    media_scroller.set_child(Some(&media_list));
-    let media_panel = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    media_panel.set_widget_name("editor-media-sidebar");
-    media_panel.set_margin_top(12);
-    media_panel.set_margin_bottom(12);
-    media_panel.set_margin_start(12);
-    media_panel.set_margin_end(12);
-    let media_title = gtk::Label::new(Some("Media"));
-    media_title.add_css_class("title-4");
-    media_title.set_halign(gtk::Align::Start);
-    media_title.set_hexpand(true);
-    let add_files = gtk::Button::from_icon_name("list-add-symbolic");
-    add_files.set_widget_name("editor-media-add-files");
-    add_files.add_css_class("flat");
-    add_files.set_valign(gtk::Align::Center);
-    add_files.set_tooltip_text(Some("Add files…"));
-    add_files.update_property(&[gtk::accessible::Property::Label("Add files")]);
-    let media_header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    media_header.append(&media_title);
-    media_header.append(&add_files);
-    media_panel.append(&media_header);
-    let media_pages = gtk::Stack::new();
-    media_pages.set_widget_name("editor-media-pages");
-    media_pages.set_vexpand(true);
-    media_pages.set_hhomogeneous(false);
-    media_pages.add_named(&media_scroller, Some("files"));
-    media_pages.add_named(&media_empty_state(), Some("empty"));
-    media_panel.append(&media_pages);
-    editor_stack.set_hexpand(true);
-    editor_stack.set_vexpand(true);
-    let media_split = adw::OverlaySplitView::new();
-    media_split.set_widget_name("editor-media-split-view");
-    media_split.set_sidebar_position(gtk::PackType::End);
-    media_split.set_min_sidebar_width(240.0);
-    media_split.set_max_sidebar_width(320.0);
-    media_split.set_sidebar_width_fraction(0.25);
-    media_split.set_pin_sidebar(true);
-    // Sidebar visibility is owned by the MVU document state. Leave gestures
-    // disabled because `OverlaySplitView` changes this property directly,
-    // bypassing the reducer and persisted user preference.
-    media_split.set_enable_hide_gesture(false);
-    media_split.set_enable_show_gesture(false);
-    media_split.set_content(Some(&editor_stack));
-    media_split.set_sidebar(Some(&media_panel));
-    let media_container = adw::BreakpointBin::new();
-    // `BreakpointBin` needs a minimum allocation while the editor surface is mapped.
-    media_container.set_size_request(360, 240);
-    media_container.set_child(Some(&media_split));
-    let media_breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
-        adw::BreakpointConditionLengthType::MaxWidth,
-        900.0,
-        adw::LengthUnit::Px,
-    ));
-    media_breakpoint.add_setters(&[(&media_split, "collapsed", true)]);
-    media_container.add_breakpoint(media_breakpoint);
-    view.set_content(Some(&media_container));
+    let sidebar =
+        document_sidebar::DocumentSidebar::new(&editor_stack, document_sidebar_toggle, dispatcher);
+    view.set_content(Some(&sidebar.container));
     install_compact_editor_actions(&view, dispatcher, &split_toggle);
 
     connect_mode_buttons(
@@ -800,8 +670,14 @@ pub(crate) fn build_editor(
     connect_theme_changes(dispatcher);
     connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
-    connect_media_toggle(dispatcher, &media_toggle, &rendering);
-    connect_add_files(dispatcher, &add_files, &source_buffer, &source_mode, &rich);
+    connect_document_sidebar_toggle(dispatcher, &sidebar.toggle, &rendering);
+    connect_add_files(
+        dispatcher,
+        &sidebar.add_files,
+        &source_buffer,
+        &source_mode,
+        &rich,
+    );
     connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher, &rich);
@@ -829,14 +705,7 @@ pub(crate) fn build_editor(
     let refs = EditorViewRefs {
         favorite,
         compact_options,
-        add_files,
-        media_toggle,
-        media_split,
-        media_list,
-        media_pages,
-        thumbnails: RefCell::new(std::collections::BTreeMap::new()),
-        rendered_media_files: RefCell::new(std::collections::BTreeMap::new()),
-        rendered_media: RefCell::new(None),
+        sidebar,
         rich_mode,
         source_mode,
         rendered_mode,
@@ -849,6 +718,8 @@ pub(crate) fn build_editor(
         source_buffer,
         source_editor,
         split_preview,
+        split_navigation,
+        rendered_navigation,
         rendered_preview,
         rendering,
         remote_images,
@@ -858,6 +729,7 @@ pub(crate) fn build_editor(
         rendered_preview_source: RefCell::new(None),
         rendered_theme_revision: RefCell::new(Some(0)),
         loaded_session: RefCell::new(None),
+        source_generation: Cell::new(0),
         dispatcher: dispatcher.clone(),
         assets_dir,
     };
@@ -867,7 +739,7 @@ pub(crate) fn build_editor(
     })
 }
 
-fn connect_media_toggle(
+fn connect_document_sidebar_toggle(
     dispatcher: &AppDispatcher,
     toggle: &gtk::ToggleButton,
     rendering: &Rc<Cell<bool>>,
@@ -878,7 +750,7 @@ fn connect_media_toggle(
         if rendering.get() {
             return;
         }
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
     });
 }
 
@@ -909,119 +781,6 @@ fn connect_add_files(
             crate::mvu::ImportTarget { session, source },
         );
     });
-}
-
-fn media_empty_state() -> gtk::Box {
-    let empty = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    empty.set_widget_name("editor-media-empty");
-    empty.set_valign(gtk::Align::Center);
-    empty.set_margin_start(20);
-    empty.set_margin_end(20);
-    let icon = gtk::Image::from_icon_name("mail-attachment-symbolic");
-    icon.set_pixel_size(48);
-    icon.add_css_class("dim-label");
-    let title = gtk::Label::new(Some("No media yet"));
-    title.add_css_class("heading");
-    let hint = gtk::Label::new(Some("Use + to add files, or drag them into the document."));
-    hint.set_wrap(true);
-    hint.set_max_width_chars(28);
-    hint.set_justify(gtk::Justification::Center);
-    hint.add_css_class("dim-label");
-    empty.append(&icon);
-    empty.append(&title);
-    empty.append(&hint);
-    empty
-}
-
-fn render_media_list(
-    list: &gtk::ListBox,
-    media: &[carver_domain::source_analysis::MediaOccurrence],
-    dispatcher: &AppDispatcher,
-    files: &std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>,
-    thumbnails: &std::collections::BTreeMap<String, gtk::gdk::Texture>,
-) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    for item in media {
-        let row = gtk::ListBoxRow::new();
-        row.set_activatable(false);
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        content.set_margin_top(8);
-        content.set_margin_bottom(8);
-        content.set_margin_start(8);
-        content.set_margin_end(8);
-        let icon = gtk::Image::new();
-        icon.set_pixel_size(48);
-        icon.set_size_request(48, 48);
-        let (content_type, _) = gtk::gio::content_type_guess(Some(Path::new(&item.path)), None);
-        icon.set_from_gicon(&gtk::gio::content_type_get_symbolic_icon(&content_type));
-        let file = files.get(&item.path).and_then(Option::as_ref);
-        if item.kind == carver_domain::source_analysis::MediaKind::Image
-            && let Some(texture) = thumbnails.get(&item.path)
-        {
-            icon.set_paintable(Some(texture));
-            let thumbnail = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            thumbnail.add_css_class("media-thumbnail");
-            thumbnail.set_overflow(gtk::Overflow::Hidden);
-            thumbnail.set_valign(gtk::Align::Center);
-            thumbnail.append(&icon);
-            content.append(&thumbnail);
-        } else {
-            content.append(&icon);
-        }
-        let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
-        labels.set_valign(gtk::Align::Center);
-        labels.set_hexpand(true);
-        let title = gtk::Label::new(Some(&item.label));
-        title.add_css_class("media-filename");
-        title.set_halign(gtk::Align::Start);
-        title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        title.set_hexpand(true);
-        let size = file.map_or_else(
-            || String::from("Unavailable"),
-            |file| glib::format_size(file.size).to_string(),
-        );
-        let subtitle = gtk::Label::new(Some(&size));
-        subtitle.set_widget_name("editor-media-size");
-        subtitle.add_css_class("dim-label");
-        subtitle.set_halign(gtk::Align::Start);
-        subtitle.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
-        labels.append(&title);
-        labels.append(&subtitle);
-        content.append(&labels);
-        let button = gtk::Button::new();
-        button.set_widget_name("editor-media-item");
-        button.add_css_class("flat");
-        button.set_child(Some(&content));
-        button.set_hexpand(true);
-        let preview = gtk::Button::from_icon_name("view-reveal-symbolic");
-        preview.set_widget_name("editor-media-preview");
-        preview.add_css_class("flat");
-        preview.set_valign(gtk::Align::Center);
-        preview.set_tooltip_text(Some("Preview file"));
-        preview.update_property(&[gtk::accessible::Property::Label("Preview file")]);
-        preview.set_sensitive(item.path.starts_with("assets/"));
-        let preview_dispatcher = dispatcher.clone();
-        let preview_selection = item.range.clone();
-        preview.connect_clicked(move |_| {
-            let _ = preview_dispatcher.dispatch(AppMsg::Editor(EditorMsg::PreviewMedia {
-                selection: preview_selection.clone(),
-            }));
-        });
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        actions.append(&button);
-        actions.append(&preview);
-        row.set_child(Some(&actions));
-        let dispatcher = dispatcher.clone();
-        let selection = item.range.clone();
-        button.connect_clicked(move |_| {
-            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::FocusMedia {
-                selection: selection.clone(),
-            }));
-        });
-        list.append(&row);
-    }
 }
 
 /// Falls back to the lossless read-only renderer when the web adapter reports
@@ -1081,6 +840,7 @@ struct EditorPageViews<'a> {
     source: &'a gtk::TextView,
     split_preview: &'a webkit6::WebView,
     rendered_preview: &'a webkit6::WebView,
+    split_navigation: &'a document_navigation::PreviewNavigation,
 }
 
 struct SplitPreviewState {
@@ -1149,6 +909,7 @@ fn add_editor_pages(
     let split_preview_source_for_unapply = Rc::clone(&split_preview_state.loaded_source);
     let latest_split_preview_source_for_unapply = Rc::clone(&split_preview_state.latest_source);
     let remote_images_for_unapply = Rc::clone(remote_images);
+    let navigation = views.split_navigation.clone();
     breakpoint.connect_unapply(move |_| {
         split_supported_for_unapply.set(true);
         let source_active = source_mode_for_unapply.is_active();
@@ -1161,6 +922,7 @@ fn add_editor_pages(
                 &latest_split_preview_source_for_unapply,
                 &split_preview_source_for_unapply,
                 remote_images_for_unapply.get(),
+                &navigation,
             );
         }
     });
@@ -1515,7 +1277,7 @@ fn install_editor_window_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDisp
     let dispatcher = dispatcher.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
         if key == gtk::gdk::Key::F9 {
-            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
             return glib::Propagation::Stop;
         }
         if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {

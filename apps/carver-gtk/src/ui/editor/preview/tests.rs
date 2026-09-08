@@ -74,3 +74,31 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
     assert!(PREVIEW_STYLESHEET.contains("padding: 4pt 5pt"));
 }
+
+#[test]
+fn rendered_headings_should_carry_per_render_provenance() {
+    let html = rendered_document("# First\n\n> ## Nested", false);
+    let token = html
+        .split("data-carver-heading-token=\"")
+        .nth(1)
+        .and_then(|tail| tail.split('"').next())
+        .unwrap_or_default();
+    assert!(!token.is_empty());
+    assert_eq!(
+        html.matches(&format!("data-carver-heading=\"{token}\""))
+            .count(),
+        2
+    );
+    assert!(!rendered_document("# First", false).contains(token));
+}
+
+#[test]
+fn raw_html_headings_should_not_share_renderer_provenance() {
+    let html = rendered_document(
+        "```=html\n<h2 data-source-line=\"1\" data-carver-heading=\"forged\">Raw</h2>\n```\n\n# Authored",
+        false,
+    );
+    assert!(html.contains("data-carver-heading=\"forged\">Raw</h2>"));
+    assert_eq!(html.matches("data-carver-heading=\"").count(), 2);
+    assert!(!html.contains("data-carver-heading-token=\"forged\""));
+}

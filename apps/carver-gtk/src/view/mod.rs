@@ -244,13 +244,13 @@ impl ViewRefs {
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);
             }
-            Effect::FocusEditorMedia {
+            Effect::FocusDocumentTarget {
                 session,
                 selection,
-                path,
-                occurrence,
+                generation,
+                target,
             } => {
-                editor.focus_media(session, selection, &path, occurrence);
+                editor.focus_document_target(session, generation, selection, &target);
             }
             Effect::ShowMediaPreview { session, path } => editor.preview_media(session, &path),
             Effect::CopyEditorDocument { request } => editor.copy_document(&request),
