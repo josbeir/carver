@@ -201,6 +201,7 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
         }
         assert_external_conflict(&runtime, &agent_client, &saved, &window)?;
         assert_external_deletion(&runtime, &agent_client, note.id, &window)?;
+        assert_external_category_deletion(&runtime, &agent_client, &window)?;
         window.close();
         Ok(())
     } else {
@@ -376,5 +377,85 @@ fn assert_external_deletion(
             .trashed_at
             .is_some()
     );
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        window.visible_dialog().is_none()
+            && find_button(window.upcast_ref(), "Close Note…").is_none()
+    }));
+    Ok(())
+}
+
+fn assert_external_category_deletion(
+    runtime: &AppRuntime<SqliteLibrary>,
+    agent: &LibraryClient<SqliteLibrary>,
+    window: &libadwaita::Window,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let category = agent.create_category("Category to trash")?;
+    let note = agent.create_note_with_source(category.id, "# Saved before category deletion")?;
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime
+            .model()
+            .editor
+            .is_some_and(|document| document.note_id == note.id)
+    }));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(
+        "Draft before category deletion".into(),
+    )));
+    agent.trash_category(category.id)?;
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().editor.is_some_and(|document| {
+            document.external_change == Some(super::super::model::ExternalChange::Deleted)
+        })
+    }));
+    let mut document = runtime.model().editor.ok_or("editor")?;
+    assert_eq!(document.source, "Draft before category deletion");
+    assert!(document.begin_save().is_none());
+    let persisted = agent.note(note.id)?.ok_or("note")?;
+    assert_eq!(
+        (
+            persisted.revision,
+            persisted.updated_at,
+            persisted.trashed_at
+        ),
+        (note.revision, note.updated_at, None)
+    );
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        window.visible_dialog().is_none()
+            && find_button(window.upcast_ref(), "Close Note…").is_some()
+    }));
+    find_button(window.upcast_ref(), "Close Note…")
+        .ok_or("close note")?
+        .emit_clicked();
+    let dialog = window.visible_dialog().ok_or("deletion confirmation")?;
+    find_button(dialog.upcast_ref(), "Discard Draft and Open Trash")
+        .ok_or("discard")?
+        .emit_clicked();
+    let reached_trash = crate::ui::tests::support::run_main_context_until(|| {
+        let model = runtime.model();
+        model.route == Route::Trash
+            && model.editor.is_none()
+            && matches!(model.trash.state, LoadState::Ready(ref contents)
+                if contents.categories.iter().any(|item| item.category.id == category.id))
+    });
+    let model = runtime.model();
+    assert!(
+        reached_trash,
+        "route: {:?}, editor: {:?}, trash: {:?}",
+        model.route, model.editor, model.trash
+    );
+    runtime.dispatch(AppMsg::Trash(TrashMsg::RestoreCategory(category.id)));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        matches!(runtime.model().sidebar.state, LoadState::Ready(ref categories)
+            if categories.iter().any(|item| item.category.id == category.id))
+    }));
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().editor.is_some_and(|document| {
+            document.note_id == note.id
+                && document.source == note.source
+                && document.revision == note.revision
+                && document.external_change.is_none()
+        })
+    }));
     Ok(())
 }
