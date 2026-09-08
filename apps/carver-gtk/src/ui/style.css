@@ -204,6 +204,26 @@ textview text {
   opacity: 0.72;
 }
 
+.media-filename {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+#editor-media-size {
+  font-size: 0.82em;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.media-thumbnail {
+  border-radius: 6px;
+}
+
+#editor-media-list {
+  /* Keep the card shadow inside the scroller's clipping boundary. */
+  margin: 6px 4px;
+}
+
 #editor-mode-switcher {
   background: @headerbar_bg_color;
   border: 1px solid alpha(currentColor, 0.14);
@@ -270,4 +290,38 @@ popover button:checked {
 
 .table-size-picker label {
   font-size: 1.15em;
+}
+
+/* The outline is a flat navigation tree, separate from the Media cards. */
+.document-outline {
+  background: transparent;
+}
+
+.document-outline > row {
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+
+/* Preserve the current heading when pointer hover or keyboard focus moves elsewhere. */
+.document-outline > row:selected,
+.document-outline > row:selected:hover,
+.document-outline > row:selected:focus-within {
+  background: alpha(@accent_bg_color, 0.25);
+  color: @accent_color;
+}
+
+.document-outline > row:not(:selected):hover {
+  background: alpha(currentColor, 0.06);
+}
+
+.outline-heading {
+  font-weight: 600;
+}
+
+.outline-level {
+  font-family: monospace;
+  font-size: 0.8em;
+  font-weight: 600;
+  min-width: 20px;
+  opacity: 0.65;
 }

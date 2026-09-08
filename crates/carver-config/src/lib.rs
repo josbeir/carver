@@ -135,9 +135,9 @@ pub struct EditorConfig {
     /// Whether source mode restores its rendered split preview.
     #[serde(default)]
     pub source_split_view: bool,
-    /// Whether the editor restores its Media sidebar.
-    #[serde(default)]
-    pub show_media_sidebar: bool,
+    /// Whether the editor restores its document sidebar.
+    #[serde(default, rename = "show_media_sidebar")]
+    pub show_document_sidebar: bool,
     /// Whether the source editor shows a line-number gutter.
     #[serde(default)]
     pub source_line_numbers: bool,
@@ -253,7 +253,7 @@ impl Default for EditorConfig {
             last_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
             source_split_view: false,
-            show_media_sidebar: false,
+            show_document_sidebar: false,
             source_line_numbers: false,
             source_highlight_current_line: false,
             source_syntax_style: SourceSyntaxStyle::default(),

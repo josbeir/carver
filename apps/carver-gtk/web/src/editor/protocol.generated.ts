@@ -88,6 +88,10 @@ export interface SelectionState {
    */
   heading: number;
   /**
+   * Heading occurrence enclosing the current selection.
+   */
+  heading_occurrence: number | null;
+  /**
    * Selected image width percentage, when an image is selected.
    */
   image_width: number | null;
@@ -95,6 +99,14 @@ export interface SelectionState {
    * Media at the current selection, if any.
    */
   media: MediaSelection | null;
+  /**
+   * Navigation sequence used to reject selection events preceding a host focus request.
+   */
+  navigation_epoch: number;
+  /**
+   * Content revision within this projection's load session.
+   */
+  revision: number;
 }
 /**
  * One media occurrence in an editor projection.
@@ -109,3 +121,26 @@ export interface MediaSelection {
    */
   path: string;
 }
+
+/**
+ * An occurrence addressed independently of an editor's position representation.
+ */
+export type DocumentTarget =
+  | {
+      kind: 'heading';
+      /**
+       * Zero-based heading occurrence.
+       */
+      occurrence: number;
+    }
+  | {
+      kind: 'media';
+      /**
+       * Zero-based occurrence among references to this path.
+       */
+      occurrence: number;
+      /**
+       * Authored asset path.
+       */
+      path: string;
+    };

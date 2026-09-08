@@ -2,6 +2,7 @@ import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { Slice } from '@tiptap/pm/model';
 import { mediaOccurrences, selectedMedia } from './media-selection';
+import { headingOccurrences, selectedHeading } from './heading-selection';
 import {
   CarveKit,
   carveToProseMirrorWithReport,
@@ -14,6 +15,7 @@ import { insertOrUpdateLink, linkContext } from './link';
 import { ClipboardPasteSanitizer } from './paste-sanitizer';
 import { selectedCarveSource } from './selection-copy';
 import type {
+  DocumentTarget,
   EditorEvent,
   LinkCommand,
   LinkContext,
@@ -67,6 +69,8 @@ export class EditorController implements RichEditorApi {
   private loading = false;
   private session = 0;
   private revision = 0;
+  private navigationEpoch = 0;
+  private navigating = false;
   private readonly pendingBlobSources = new Set<string>();
   private readonly pasteSanitizer = new ClipboardPasteSanitizer();
 
@@ -138,6 +142,7 @@ export class EditorController implements RichEditorApi {
   public load(source: string, session: number): boolean {
     this.session = session;
     this.revision = 0;
+    this.navigationEpoch = 0;
     const result = carveToProseMirrorWithReport(source, {
       unsupported: 'preserve',
     });
@@ -223,6 +228,39 @@ export class EditorController implements RichEditorApi {
       .run();
   }
 
+  /** Executes navigation only against the projection version admitted by the host. */
+  public focusDocumentTarget(
+    target: DocumentTarget,
+    session: number,
+    revision: number,
+    navigationEpoch = this.navigationEpoch,
+  ): boolean {
+    const editor = this.editor;
+    if (!editor || session !== this.session) return false;
+    this.navigationEpoch = navigationEpoch;
+    if (revision !== this.revision) {
+      this.reportSelection();
+      return false;
+    }
+    this.navigating = true;
+    try {
+      if (target.kind === 'media')
+        return this.focusMedia(target.path, target.occurrence);
+      const heading = headingOccurrences(editor.state.doc)[target.occurrence];
+      return heading
+        ? editor
+            .chain()
+            .setTextSelection(heading.from)
+            .focus()
+            .scrollIntoView()
+            .run()
+        : false;
+    } finally {
+      this.navigating = false;
+      this.reportSelection();
+    }
+  }
+
   public source(): string {
     const editor = this.editor;
     return editor ? serializeToCarve(editor.getJSON()) : '';
@@ -286,11 +324,12 @@ export class EditorController implements RichEditorApi {
       revision: this.revision,
       source: serializeToCarve(editor.getJSON()),
     });
+    this.reportSelection();
   }
 
   private reportSelection(): void {
     const editor = this.editor;
-    if (!editor || this.loading) return;
+    if (!editor || this.loading || this.navigating) return;
     const active = (name: string, attrs?: Record<string, unknown>) =>
       editor.isActive(name, attrs);
     const heading = editor.getAttributes('heading');
@@ -318,6 +357,9 @@ export class EditorController implements RichEditorApi {
       state: {
         active: states.filter(([, enabled]) => enabled).map(([name]) => name),
         heading: active('heading') ? heading.level : 0,
+        heading_occurrence: selectedHeading(editor.state),
+        revision: this.revision,
+        navigation_epoch: this.navigationEpoch,
         image_width: image ? this.imageWidth() : null,
         media: selectedMedia(editor.state),
       },

@@ -153,3 +153,78 @@ fn context_should_cover_quotes_lists_code_and_comments() -> Result<(), Box<dyn s
     }
     Ok(())
 }
+
+#[test]
+fn headings_should_follow_ast_order_and_ignore_code() {
+    let source = "# Same\n\n### Same\n\n> ## Nested\n\n```\n# Not a heading\n```";
+    let analysis = SourceAnalysis::parse(source);
+    assert_eq!(
+        analysis
+            .headings()
+            .iter()
+            .map(|h| (h.level, h.label.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(1, "Same"), (3, "Same"), (2, "Nested")]
+    );
+}
+
+#[test]
+fn heading_labels_should_flatten_inline_markup_and_preserve_unicode_positions() {
+    let source = "🦀\n\n## *Bold* [link](https://example.test) `code` é";
+    let analysis = SourceAnalysis::parse(source);
+    let heading = &analysis.headings()[0];
+    assert_eq!(heading.label, "Bold link code é");
+    assert_eq!(heading.range.start, 3);
+    assert_eq!(
+        source
+            .chars()
+            .skip(heading.text_start)
+            .take(6)
+            .collect::<String>(),
+        "*Bold*"
+    );
+}
+
+#[test]
+fn empty_heading_should_have_a_navigable_fallback_label() {
+    let mut analysis = SourceAnalysis::default();
+    analysis.visit_block(
+        &carve::BlockNode::Heading(carve::Heading {
+            level: 1,
+            children: Vec::new(),
+            attrs: None,
+            pos: Some(carve::Pos {
+                start_offset: 0,
+                end_offset: 2,
+                ..Default::default()
+            }),
+        }),
+        &mut Vec::new(),
+    );
+    assert_eq!(analysis.headings()[0].label, "Untitled heading");
+}
+
+#[test]
+fn nested_heading_should_focus_after_its_authored_prefix() {
+    let source = "> ## Nested";
+    let analysis = SourceAnalysis::parse(source);
+    assert_eq!(
+        source
+            .chars()
+            .skip(analysis.headings()[0].text_start)
+            .collect::<String>(),
+        "Nested"
+    );
+}
+
+#[test]
+fn labels_should_keep_autolink_text_and_smart_punctuation() {
+    let analysis = SourceAnalysis::parse("# Go <https://example.test> -- now");
+    assert!(
+        analysis.headings()[0]
+            .label
+            .contains("https://example.test")
+    );
+    assert!(analysis.headings()[0].label.contains("now"));
+    assert!(!analysis.headings()[0].label.contains("  now"));
+}

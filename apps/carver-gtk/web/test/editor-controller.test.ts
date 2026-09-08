@@ -268,3 +268,53 @@ describe('media focus', () => {
     expect(chain.focus).not.toHaveBeenCalled();
   });
 });
+
+describe('document navigation', () => {
+  it('focuses a duplicate heading using its projection position without editing', () => {
+    const { controller, editor, chain } = controllerFixture();
+    controller.initialize();
+    editor.state.doc.descendants.mockImplementation((visit) => {
+      visit({ type: { name: 'heading' }, nodeSize: 8 }, 0);
+      visit({ type: { name: 'heading' }, nodeSize: 8 }, 12);
+    });
+    expect(
+      controller.focusDocumentTarget({ kind: 'heading', occurrence: 1 }, 0, 0),
+    ).toBe(true);
+    expect(chain.setTextSelection).toHaveBeenCalledWith(13);
+    expect(editor.commands.setContent).not.toHaveBeenCalled();
+  });
+
+  it('ignores missing headings and stale projection sessions or revisions', () => {
+    const { controller, chain } = controllerFixture();
+    const target = { kind: 'heading', occurrence: 0 } as const;
+    expect(controller.focusDocumentTarget(target, 0, 0)).toBe(false);
+    controller.initialize();
+    expect(controller.focusDocumentTarget(target, 1, 0)).toBe(false);
+    expect(controller.focusDocumentTarget(target, 0, 1)).toBe(false);
+    expect(controller.focusDocumentTarget(target, 0, 0)).toBe(false);
+    expect(chain.focus).not.toHaveBeenCalled();
+  });
+
+  it('routes media through the same version-checked navigation entry point', () => {
+    const { controller, editor, chain } = controllerFixture();
+    controller.initialize();
+    editor.state.doc.descendants.mockImplementation((visit) => {
+      visit(
+        {
+          type: { name: 'image' },
+          attrs: { src: 'assets/a.png' },
+          nodeSize: 1,
+        },
+        2,
+      );
+    });
+    expect(
+      controller.focusDocumentTarget(
+        { kind: 'media', path: 'assets/a.png', occurrence: 0 },
+        0,
+        0,
+      ),
+    ).toBe(true);
+    expect(chain.setNodeSelection).toHaveBeenCalledWith(2);
+  });
+});

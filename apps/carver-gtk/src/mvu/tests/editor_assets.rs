@@ -272,11 +272,11 @@ fn file_import_should_insert_a_managed_link_and_refresh_media() {
         panic!("editor should remain open");
     };
     assert_eq!(document.source, "[Project brief.pdf](assets/brief.pdf)\n");
-    assert_eq!(document.media.len(), 1);
+    assert_eq!(document.analysis.media().len(), 1);
 }
 
 #[test]
-fn media_sidebar_should_focus_only_current_occurrences() {
+fn document_sidebar_should_focus_only_current_occurrences() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(
         &mut model,
@@ -286,24 +286,33 @@ fn media_sidebar_should_focus_only_current_occurrences() {
             source: String::from("![Diagram](assets/diagram.png)"),
         }),
     );
-    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
     let Some(document) = model.editor.as_ref() else {
         panic!("editor should be open");
     };
-    assert!(document.media_sidebar.is_visible());
-    let selection = document.media[0].range.clone();
+    assert!(document.document_sidebar.is_visible());
     let session = document.session;
 
     assert_eq!(
         update(
             &mut model,
-            AppMsg::Editor(EditorMsg::FocusMedia { selection })
+            AppMsg::Editor(EditorMsg::FocusDocumentTarget {
+                session,
+                generation: 0,
+                target: carver_editor_protocol::DocumentTarget::Media {
+                    path: "assets/diagram.png".into(),
+                    occurrence: 0
+                }
+            })
         ),
-        vec![Effect::FocusEditorMedia {
+        vec![Effect::FocusDocumentTarget {
             session,
             selection: 0..30,
-            path: String::from("assets/diagram.png"),
-            occurrence: 0,
+            generation: 0,
+            target: carver_editor_protocol::DocumentTarget::Media {
+                path: "assets/diagram.png".into(),
+                occurrence: 0
+            },
         }]
     );
 }
@@ -426,7 +435,7 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
         panic!("editor should exist");
     };
     let session = document.session;
-    let effects = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
     assert_eq!(
         effects,
         vec![
@@ -444,19 +453,27 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
     let Some(document) = model.editor.as_ref() else {
         panic!("editor should exist");
     };
-    let selection = document.media[1].range.clone();
+    let selection = document.analysis.media()[1].range.clone();
     assert_eq!(
         update(
             &mut model,
-            AppMsg::Editor(EditorMsg::FocusMedia {
-                selection: selection.clone()
+            AppMsg::Editor(EditorMsg::FocusDocumentTarget {
+                session,
+                generation: 0,
+                target: carver_editor_protocol::DocumentTarget::Media {
+                    path: "assets/a.png".into(),
+                    occurrence: 1
+                }
             })
         ),
-        vec![Effect::FocusEditorMedia {
+        vec![Effect::FocusDocumentTarget {
             session,
             selection,
-            path: String::from("assets/a.png"),
-            occurrence: 1
+            generation: 0,
+            target: carver_editor_protocol::DocumentTarget::Media {
+                path: "assets/a.png".into(),
+                occurrence: 1
+            }
         },]
     );
     let _ = update(
@@ -502,7 +519,7 @@ fn preview_should_request_only_an_authored_managed_attachment() {
     let Some(document) = model.editor.as_ref() else {
         panic!("document");
     };
-    let selection = document.media[0].range.clone();
+    let selection = document.analysis.media()[0].range.clone();
     let session = document.session;
     let before = document.clone();
     assert_eq!(
@@ -567,12 +584,14 @@ fn editor_media_selection_should_track_occurrences_without_editing_source() {
     let document = open_media_document(&model);
     let session = document.session;
     let mode = document.mode;
-    let range = document.media[1].range.clone();
+    let range = document.analysis.media()[1].range.clone();
     let message = |session, mode, media| {
-        AppMsg::Editor(EditorMsg::MediaSelected {
+        AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
             session,
             mode,
             media,
+            heading: None,
+            source: std::rc::Rc::from(source),
         })
     };
     let media = carver_editor_protocol::MediaSelection {
@@ -607,7 +626,9 @@ fn source_caret_should_select_media_only_inside_its_range() {
             source: "Before\n\n![One](assets/a.png)".into(),
         }),
     );
-    let range = open_media_document(&model).media[0].range.clone();
+    let range = open_media_document(&model).analysis.media()[0]
+        .range
+        .clone();
     let _ = update(
         &mut model,
         AppMsg::Editor(EditorMsg::SourceSelectionChanged {
@@ -621,10 +642,12 @@ fn source_caret_should_select_media_only_inside_its_range() {
     let session = open_media_document(&model).session;
     let _ = update(
         &mut model,
-        AppMsg::Editor(EditorMsg::MediaSelected {
+        AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
             session,
             mode: carver_config::EditorMode::Rich,
             media: None,
+            heading: None,
+            source: std::rc::Rc::from("Before\n\n![One](assets/a.png)"),
         }),
     );
     assert_eq!(
@@ -783,7 +806,7 @@ fn imported_attachment_label_should_escape_backslashes() {
     );
     let document = open_media_document(&model);
     assert_eq!(document.source, "[report\\\\](assets/report.bin)\n");
-    assert_eq!(document.media.len(), 1);
+    assert_eq!(document.analysis.media().len(), 1);
 }
 
 #[test]
@@ -825,7 +848,7 @@ fn changing_attachment_to_image_should_reload_details_and_reject_stale_results()
             source: "[Photo](assets/a.png)".into(),
         }),
     );
-    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleMediaSidebar));
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
     let session = open_media_document(&model).session;
     let effects = update(
         &mut model,

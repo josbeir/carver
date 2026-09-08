@@ -46,6 +46,25 @@ pub struct MediaSelection {
     pub occurrence: usize,
 }
 
+/// An occurrence addressed independently of an editor's position representation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum DocumentTarget {
+    /// A heading in document order.
+    Heading {
+        /// Zero-based heading occurrence.
+        occurrence: usize,
+    },
+    /// An image or managed attachment.
+    Media {
+        /// Authored asset path.
+        path: String,
+        /// Zero-based occurrence among references to this path.
+        occurrence: usize,
+    },
+}
+
 /// Selection information used to reflect state in host-native controls.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -54,6 +73,15 @@ pub struct SelectionState {
     pub active: Vec<String>,
     /// Heading level at the selection, or zero for a paragraph.
     pub heading: u8,
+    /// Heading occurrence enclosing the current selection.
+    #[serde(default)]
+    pub heading_occurrence: Option<usize>,
+    /// Content revision within this projection's load session.
+    #[serde(default)]
+    pub revision: u64,
+    /// Navigation sequence used to reject selection events preceding a host focus request.
+    #[serde(default)]
+    pub navigation_epoch: u64,
     /// Selected image width percentage, when an image is selected.
     pub image_width: Option<u8>,
     /// Media at the current selection, if any.
@@ -146,6 +174,9 @@ mod tests {
             state: SelectionState {
                 active: vec![String::from("bold"), String::from("table")],
                 heading: 2,
+                heading_occurrence: None,
+                revision: 0,
+                navigation_epoch: 0,
                 image_width: None,
                 media: None,
             },
