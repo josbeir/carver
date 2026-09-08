@@ -1,5 +1,6 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
+import { mediaOccurrences, selectedMedia } from './media-selection';
 import {
   CarveKit,
   carveToProseMirrorWithReport,
@@ -173,6 +174,26 @@ export class EditorController implements RichEditorApi {
     }
   }
 
+  /** Selects an authored media occurrence without changing document content. */
+  public focusMedia(path: string, occurrence = 0): boolean {
+    const editor = this.editor;
+    if (!editor) return false;
+    const target = mediaOccurrences(editor.state.doc).find(
+      (item) => item.path === path && item.occurrence === occurrence,
+    );
+    if (!target) return false;
+    const { from: position, to, image } = target;
+    const size = to - position;
+    const chain = editor.chain().focus();
+    return (
+      image
+        ? chain.setNodeSelection(position)
+        : chain.setTextSelection({ from: position, to: position + size })
+    )
+      .scrollIntoView()
+      .run();
+  }
+
   public source(): string {
     const editor = this.editor;
     return editor ? serializeToCarve(editor.getJSON()) : '';
@@ -269,6 +290,7 @@ export class EditorController implements RichEditorApi {
         active: states.filter(([, enabled]) => enabled).map(([name]) => name),
         heading: active('heading') ? heading.level : 0,
         image_width: image ? this.imageWidth() : null,
+        media: selectedMedia(editor.state),
       },
     });
   }

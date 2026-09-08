@@ -8,6 +8,7 @@ export interface RichEditorApi {
   load(source: string, session: number): boolean;
   command(name: string, argument?: unknown): boolean;
   source(): string;
+  focusMedia(path: string, occurrence?: number): boolean;
   linkContext(): LinkContext;
   insertImage(path: string, alt?: string): void;
   setTheme(

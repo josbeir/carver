@@ -23,6 +23,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     glib::set_application_name("Carver test");
     gtk::init()?;
     assert_sidebar_reload_preserves_rows()?;
+    crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
+    assert_media_visibility_should_restore_without_reentrant_toggles()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
@@ -696,7 +698,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_eq!(
         widget_as::<adw::SwitchRow>(export_options.upcast_ref(), "export-assets-setting")
             .map(|row| row.title()),
-        Some("Include managed images".into())
+        Some("Include managed files".into())
     );
     export_options.emit_by_name::<()>("response", &[&"cancel"]);
     let export_warning = crate::ui::editor::show_export_warning_dialog(
@@ -1011,6 +1013,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
     }));
+    assert_media_sidebar_should_focus_and_show_file_details(
+        &root,
+        &source,
+        &source_mode,
+        &rich_mode,
+        &rich,
+        &client,
+        note.id,
+    )?;
+    assert_native_file_drop_should_insert_an_ordered_batch(&source, &source_mode)?;
     source_mode.set_active(true);
     source
         .buffer()
@@ -1502,4 +1514,415 @@ fn assert_split_preview_tracks_source_scroll(
     }));
     split_toggle.set_active(false);
     Ok(())
+}
+
+fn assert_media_sidebar_should_focus_and_show_file_details(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+    rich_mode: &gtk::ToggleButton,
+    rich: &webkit6::WebView,
+    client: &super::support::TestLibraryClient,
+    note_id: carver_sdk::NoteId,
+) -> TestResult {
+    let image = gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, 16, 16)
+        .ok_or("image fixture")?;
+    image.fill(0x33aa_66ff);
+    let bytes = image.save_to_bufferv("png", &[])?;
+    let path = client.store_asset(note_id, "png", &bytes)?;
+    let text = format!("Before\n\n![Diagram]({path})\n\nAfter");
+    source_mode.set_active(true);
+    source.buffer().set_text(&text);
+    let toggle = widget_as::<gtk::ToggleButton>(root, "editor-media-sidebar-toggle")
+        .ok_or("media toggle")?;
+    toggle.set_active(true);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(root, "editor-media-size")
+            .is_some_and(|label| label.text() == glib::format_size(bytes.len() as u64))
+    }));
+    let list = widget_as::<gtk::ListBox>(root, "editor-media-list").ok_or("media list")?;
+    assert!(run_main_context_until(|| list.height() > 0));
+    assert!(
+        list.height() < 150,
+        "one card should use its natural height"
+    );
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
+    let content = button.child().ok_or("card contents")?;
+    let thumbnail = content
+        .first_child()
+        .and_then(|widget| widget.downcast::<gtk::Image>().ok())
+        .ok_or("thumbnail")?;
+    assert!(
+        thumbnail.paintable().is_some(),
+        "managed images should display a thumbnail"
+    );
+    assert_thumbnail_should_follow_markup_kind(root, source, &path, &text);
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
+    button.emit_clicked();
+    let (start, end) = source
+        .buffer()
+        .selection_bounds()
+        .ok_or("source media selection")?;
+    assert_eq!(
+        source.buffer().text(&start, &end, false),
+        format!("![Diagram]({path})")
+    );
+    assert!(
+        run_main_context_until(|| widget_is_window_focus(source.upcast_ref())),
+        "source focus: {:?}",
+        source
+            .root()
+            .and_downcast::<gtk::Window>()
+            .and_then(|window| gtk::prelude::RootExt::focus(&window))
+            .map(|widget| widget.widget_name())
+    );
+    assert!(list.selected_row().is_some());
+    source.buffer().place_cursor(&source.buffer().start_iter());
+    assert!(list.selected_row().is_none());
+    source
+        .buffer()
+        .place_cursor(&source.buffer().iter_at_offset(10));
+    assert!(list.selected_row().is_some());
+    rich_mode.set_active(true);
+    assert!(run_main_context_until(|| rich.is_visible()));
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
+    button.emit_clicked();
+    let selected = Rc::new(Cell::new(false));
+    let result = Rc::clone(&selected);
+    rich.evaluate_javascript(
+        "!!document.querySelector('img.ProseMirror-selectednode')",
+        None,
+        None,
+        None::<&gtk::gio::Cancellable>,
+        move |value| result.set(value.is_ok_and(|value| value.to_boolean())),
+    );
+    assert!(run_main_context_until(|| selected.get()));
+    assert!(list.selected_row().is_some());
+    assert_rich_media_selection_should_update_sidebar(rich, &list, &path);
+    assert!(widget_is_window_focus(rich.upcast_ref()));
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        text
+    );
+    assert_attachment_card_should_focus_in_edit_and_preview(
+        root,
+        source,
+        source_mode,
+        rich_mode,
+        rich,
+        client,
+        note_id,
+    )?;
+    toggle.set_active(false);
+    Ok(())
+}
+
+fn assert_rich_media_selection_should_update_sidebar(
+    rich: &webkit6::WebView,
+    list: &gtk::ListBox,
+    path: &str,
+) {
+    assert_web_script_should_be_true(
+        rich,
+        "window.carverEditor.editor.commands.setTextSelection(1)",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_none()));
+    assert_web_script_should_be_true(
+        rich,
+        &format!("window.carverEditor.focusMedia('{path}', 0)"),
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
+}
+
+fn assert_attachment_card_should_focus_in_edit_and_preview(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+    rich_mode: &gtk::ToggleButton,
+    rich: &webkit6::WebView,
+    client: &super::support::TestLibraryClient,
+    note_id: carver_sdk::NoteId,
+) -> TestResult {
+    let bytes = vec![b'x'; 4096];
+    let path = client.store_asset(note_id, "pdf", &bytes)?;
+    source_mode.set_active(true);
+    let text = format!("[External](https://example.test/{path})\n\n[Brief]({path})");
+    source.buffer().set_text(&text);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        root,
+        "editor-media-size"
+    )
+    .is_some_and(|label| label.text() == glib::format_size(4096))));
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("attachment card")?;
+    let icon = button
+        .child()
+        .and_then(|child| child.first_child())
+        .and_then(|widget| widget.downcast::<gtk::Image>().ok())
+        .ok_or("file icon")?;
+    assert!(
+        icon.gicon().is_some(),
+        "attachments should display a file type icon"
+    );
+    rich_mode.set_active(true);
+    button.emit_clicked();
+    assert_web_script_should_be_true(rich, "window.getSelection().toString() === 'Brief'");
+    let rendered_mode =
+        widget_as::<gtk::ToggleButton>(root, "editor-mode-rendered").ok_or("preview mode")?;
+    rendered_mode.set_active(true);
+    let preview =
+        widget_as::<webkit6::WebView>(root, "editor-rendered-preview").ok_or("preview")?;
+    assert!(run_main_context_until(|| !preview.is_loading()));
+    assert_web_script_should_be_true(&preview, "!!document.querySelector('a')");
+    let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("attachment card")?;
+    button.emit_clicked();
+    assert_web_script_should_be_true(&preview, "document.activeElement?.tagName === 'A'");
+    let list = widget_as::<gtk::ListBox>(root, "editor-media-list").ok_or("media list")?;
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
+    assert_web_script_should_be_true(
+        &preview,
+        "document.body.dispatchEvent(new MouseEvent('click', {bubbles:true})); true",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_none()));
+    assert_web_script_should_be_true(
+        &preview,
+        "document.querySelector('a[href^=\"assets/\"]').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); true",
+    );
+    assert!(run_main_context_until(|| list.selected_row().is_some()));
+    assert_web_script_should_be_true(
+        &preview,
+        &format!("document.activeElement?.getAttribute('href') === '{path}'"),
+    );
+    let add_files = widget_as::<gtk::Button>(root, "editor-media-add-files").ok_or("add files")?;
+    assert!(!add_files.is_sensitive());
+    assert!(widget_is_window_focus(preview.upcast_ref()));
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            false
+        ),
+        text
+    );
+    Ok(())
+}
+
+fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
+    let result = Rc::new(Cell::new(false));
+    let pending = Rc::new(Cell::new(false));
+    assert!(
+        run_main_context_until(|| {
+            if result.get() {
+                return true;
+            }
+            if !pending.replace(true) {
+                let response = Rc::clone(&result);
+                let pending = Rc::clone(&pending);
+                view.evaluate_javascript(
+                    script,
+                    None,
+                    None,
+                    None::<&gtk::gio::Cancellable>,
+                    move |value| {
+                        response.set(value.is_ok_and(|value| value.to_boolean()));
+                        pending.set(false);
+                    },
+                );
+            }
+            false
+        }),
+        "{script}"
+    );
+}
+
+fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestResult {
+    use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, EditorMsg};
+    let (directory, client) = test_state()?;
+    let syntax = crate::ui::editor::install_syntax_assets(directory.path())?;
+    let config_path = directory.path().join("media-settings.toml");
+    let mut config = Config::default();
+    config.editor.show_media_sidebar = true;
+    config.editor.last_mode = carver_config::EditorMode::Source;
+    carver_config::save(&config_path, &config)?;
+    let config = carver_config::load(&config_path)?;
+    let dispatcher = AppDispatcher::default();
+    let overlay = adw::ToastOverlay::new();
+    let editor = crate::ui::editor::build_editor(
+        &dispatcher,
+        &config,
+        None,
+        &syntax,
+        &overlay,
+        &adw::NavigationSplitView::new(),
+    )?;
+    let (surface, refs) = editor.into_parts();
+    let stack = gtk::Stack::new();
+    stack.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    stack.add_named(&surface, Some("editor"));
+    let window = gtk::Window::builder()
+        .default_width(1200)
+        .default_height(800)
+        .child(&stack)
+        .build();
+    let runtime = AppRuntime::new_with_config_path(
+        client,
+        AppModel::new(&config),
+        crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
+            .with_editor(refs),
+        Some(config_path.clone()),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    window.present();
+    let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-media-sidebar-toggle")
+        .ok_or("media toggle")?;
+    let editor_view =
+        widget_as::<adw::ToolbarView>(&surface, "editor-surface").ok_or("editor view")?;
+    let controllers = editor_view.observe_controllers();
+    let editor_shortcuts = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("editor-window-shortcuts"))
+        .ok_or("editor shortcuts")?;
+    for source in [
+        "Plain document",
+        "![Photo](assets/missing.png)",
+        "Another document",
+    ] {
+        runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+            note_id: carver_sdk::NoteId::new(),
+            revision: carver_sdk::Revision(1),
+            source: source.to_owned(),
+        }));
+        assert!(toggle.is_active());
+        assert!(runtime.model().config.editor.show_media_sidebar);
+        let pages = widget_as::<gtk::Stack>(&surface, "editor-media-pages").ok_or("media pages")?;
+        assert_eq!(
+            pages.visible_child_name().as_deref(),
+            Some(if source.starts_with("![") {
+                "files"
+            } else {
+                "empty"
+            })
+        );
+    }
+    let sidebar = find_widget(&surface, "editor-media-sidebar").ok_or("media sidebar")?;
+    assert!(run_main_context_until(|| sidebar.width() > 0));
+    assert!(sidebar.width() <= 320, "sidebar width: {}", sidebar.width());
+    let media_split = widget_as::<adw::OverlaySplitView>(&surface, "editor-media-split-view")
+        .ok_or("media split")?;
+    assert_eq!(media_split.sidebar_position(), gtk::PackType::End);
+    assert!(media_split.is_pin_sidebar());
+    assert!(media_split.shows_sidebar());
+    window.set_default_size(700, 800);
+    assert!(run_main_context_until(|| media_split.is_collapsed()));
+    window.set_default_size(1200, 800);
+    assert!(run_main_context_until(|| !media_split.is_collapsed()));
+    assert_media_sidebar_shortcut(&editor_shortcuts, &config_path, &media_split)?;
+    toggle.set_active(false);
+    assert!(!carver_config::load(&config_path)?.editor.show_media_sidebar);
+    assert!(run_main_context_until(|| !media_split.shows_sidebar()));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        source: String::from("![Image](assets/another.png)"),
+    }));
+    assert!(!toggle.is_active());
+    toggle.set_active(true);
+    assert!(carver_config::load(&config_path)?.editor.show_media_sidebar);
+    assert_missing_media_preview_should_report_error(&surface, &runtime)?;
+    window.close();
+    Ok(())
+}
+
+fn assert_media_sidebar_shortcut(
+    shortcuts: &gtk::EventControllerKey,
+    config_path: &std::path::Path,
+    media_split: &adw::OverlaySplitView,
+) -> TestResult {
+    let modifiers = gtk::gdk::ModifierType::empty();
+    for expected_visible in [false, true] {
+        let handled = shortcuts
+            .emit_by_name::<bool>("key-pressed", &[&gtk::gdk::Key::F9, &0_u32, &modifiers]);
+        assert!(handled);
+        assert_eq!(
+            carver_config::load(config_path)?.editor.show_media_sidebar,
+            expected_visible
+        );
+        assert!(run_main_context_until(
+            || media_split.shows_sidebar() == expected_visible
+        ));
+    }
+    Ok(())
+}
+
+fn assert_missing_media_preview_should_report_error(
+    surface: &gtk::Widget,
+    runtime: &crate::mvu::AppRuntime<carver_storage_sqlite::SqliteLibrary>,
+) -> TestResult {
+    let before = runtime.model().editor.ok_or("document")?.source;
+    let button =
+        widget_as::<gtk::Button>(surface, "editor-media-preview").ok_or("preview action")?;
+    button.emit_clicked();
+    assert!(run_main_context_until(|| runtime.model().notice.is_some()));
+    assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
+    Ok(())
+}
+
+fn assert_native_file_drop_should_insert_an_ordered_batch(
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+) -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let first = directory.path().join("first.txt");
+    let second = directory.path().join("second.txt");
+    std::fs::write(&first, b"first contents")?;
+    std::fs::write(&second, b"second contents")?;
+    source_mode.set_active(true);
+    let buffer = source.buffer();
+    buffer.set_text("Before replace After");
+    buffer.select_range(&buffer.iter_at_offset(7), &buffer.iter_at_offset(14));
+    let controllers = source.observe_controllers();
+    let target = (0..controllers.n_items())
+        .find_map(|index| controllers.item(index).and_downcast::<gtk::DropTarget>())
+        .ok_or("source drop target")?;
+    let files = gtk::gdk::FileList::from_array(&[
+        gtk::gio::File::for_path(first),
+        gtk::gio::File::for_path(second),
+    ]);
+    assert!(target.emit_by_name::<bool>(
+        "drop",
+        &[&glib::BoxedValue(files.to_value()), &0.0_f64, &0.0_f64]
+    ));
+    assert!(run_main_context_until(|| {
+        let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+        text.starts_with("Before [first.txt](assets/")
+            && text.contains(")\n[second.txt](assets/")
+            && text.ends_with(") After")
+    }));
+    Ok(())
+}
+
+fn assert_thumbnail_should_follow_markup_kind(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    path: &str,
+    original: &str,
+) {
+    let has_thumbnail = || {
+        widget_as::<gtk::Button>(root, "editor-media-item")
+            .and_then(|button| button.child())
+            .and_then(|child| child.first_child())
+            .and_downcast::<gtk::Image>()
+            .is_some_and(|image| image.paintable().is_some())
+    };
+    source.buffer().set_text(&format!("[Diagram]({path})"));
+    assert!(run_main_context_until(|| !has_thumbnail()));
+    source.buffer().set_text(original);
+    assert!(run_main_context_until(has_thumbnail));
 }

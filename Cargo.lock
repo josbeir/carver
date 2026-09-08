@@ -157,6 +157,7 @@ name = "carver-export"
 version = "0.1.1"
 dependencies = [
  "carve-lang",
+ "carver-domain",
  "thiserror",
  "zip",
 ]

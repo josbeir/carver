@@ -151,14 +151,20 @@ pub trait LibraryBackend: Send + 'static {
         category_id: Option<CategoryId>,
         limit: usize,
     ) -> Result<Vec<SearchHit>, Self::Error>;
-    /// Stores managed image bytes and returns their relative Carve path.
+    /// Stores managed file bytes and returns their relative Carve path.
     fn store_asset(
         &self,
         note_id: NoteId,
         extension: &str,
         bytes: &[u8],
     ) -> Result<String, Self::Error>;
-    /// Reads managed image bytes for one note.
+    /// Returns the size of a managed file belonging to one note without reading its contents.
+    fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, Self::Error>;
+    /// Reads managed file bytes for one note.
     fn note_asset_bytes(
         &self,
         note_id: NoteId,

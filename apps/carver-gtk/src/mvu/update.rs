@@ -10,7 +10,7 @@ use super::{
 /// Applies one message and returns the work a runtime must perform afterwards.
 #[must_use]
 pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
-    match message {
+    let mut effects = match message {
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
         }
@@ -71,7 +71,38 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 .collect()
         }
         AppMsg::Library(reply) => update_library(model, reply),
+    };
+    if let Some(document) = model.editor.as_mut()
+        && document.media_sidebar.is_visible()
+    {
+        let mut requested = std::collections::BTreeMap::new();
+        for media in &document.media {
+            let image = media.kind == carver_domain::source_analysis::MediaKind::Image;
+            requested
+                .entry(media.path.clone())
+                .and_modify(|value| *value |= image)
+                .or_insert(image);
+        }
+        document
+            .media_files
+            .retain(|path, _| requested.contains_key(path));
+        document
+            .media_file_kinds
+            .retain(|path, _| requested.contains_key(path));
+        for (path, image) in requested {
+            if document.media_file_kinds.get(&path) != Some(&image) {
+                document.media_file_kinds.insert(path.clone(), image);
+                document.media_files.insert(path.clone(), None);
+                effects.push(Effect::LoadMediaFile {
+                    session: document.session,
+                    note_id: document.note_id,
+                    path,
+                    image,
+                });
+            }
+        }
     }
+    effects
 }
 
 fn request_editor_load(
@@ -220,6 +251,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
     persist_config_effect(model)
 }
 
+// CONTEXT: The full editor message vocabulary is intentionally centralized so source changes,
+// persistence, and asynchronous asset completion share one admission point.
+#[expect(clippy::too_many_lines)]
 fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
     match message {
         EditorMsg::Load {
@@ -296,15 +330,187 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             omitted_images,
         } => complete_copy_request(model, request_id, omitted_images),
         EditorMsg::CopyFailed { request_id } => fail_copy_request(model, request_id),
-        EditorMsg::PasteImage { extension, bytes } => {
-            store_editor_asset_effect(model, extension, bytes, String::from("Pasted image"), None)
+        EditorMsg::PasteImage { extension, bytes } => store_editor_asset_effect(
+            model,
+            extension,
+            bytes,
+            String::from("Pasted image"),
+            None,
+            true,
+        ),
+        EditorMsg::ImportFiles { target, files } => model
+            .editor
+            .as_ref()
+            .filter(|document| {
+                document.session == target.session
+                    && document.mode != carver_config::EditorMode::Rendered
+            })
+            .map(|document| Effect::ImportEditorFiles {
+                note_id: document.note_id,
+                target,
+                files,
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::ImportFilesStored { target, result } => {
+            complete_file_import(model, target, result)
+        }
+        EditorMsg::ImportImageRead { target, bytes } => {
+            if !model.editor.as_ref().is_some_and(|document| {
+                document.session == target.session
+                    && document.mode != carver_config::EditorMode::Rendered
+            }) {
+                return Vec::new();
+            }
+            store_editor_asset_effect(
+                model,
+                "png".into(),
+                bytes,
+                "Pasted image".into(),
+                target.source,
+                true,
+            )
         }
         EditorMsg::ImportImage {
             extension,
             bytes,
             alt,
             source_target,
-        } => store_editor_asset_effect(model, extension, bytes, alt, source_target),
+        } => store_editor_asset_effect(model, extension, bytes, alt, source_target, true),
+        EditorMsg::ImportFile {
+            extension,
+            bytes,
+            name,
+            source_target,
+        } => store_editor_asset_effect(model, extension, bytes, name, source_target, false),
+        EditorMsg::MediaSelected {
+            session,
+            mode,
+            media,
+        } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.session == session
+                && document.mode == mode
+            {
+                document.selected_media = media.and_then(|selected| {
+                    document
+                        .media
+                        .iter()
+                        .filter(|item| item.path == selected.path)
+                        .nth(selected.occurrence)
+                        .map(|item| item.range.clone())
+                });
+            }
+            Vec::new()
+        }
+        EditorMsg::SourceSelectionChanged { selection } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.mode == carver_config::EditorMode::Source
+            {
+                document.selected_media = document
+                    .media
+                    .iter()
+                    .find(|item| {
+                        item.range.start <= selection.start
+                            && selection.start < item.range.end
+                            && selection.end <= item.range.end
+                    })
+                    .map(|item| item.range.clone());
+            }
+            Vec::new()
+        }
+        EditorMsg::PreviewMedia { selection } => model
+            .editor
+            .as_ref()
+            .and_then(|document| {
+                document
+                    .media
+                    .iter()
+                    .find(|media| media.range == selection && media.path.starts_with("assets/"))
+                    .map(|media| Effect::PrepareMediaPreview {
+                        session: document.session,
+                        note_id: document.note_id,
+                        path: media.path.clone(),
+                        label: media.label.clone(),
+                    })
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::MediaPreviewPrepared { session, result } => {
+            if model
+                .editor
+                .as_ref()
+                .is_none_or(|document| document.session != session)
+            {
+                return Vec::new();
+            }
+            match result {
+                Ok(path) => vec![Effect::ShowMediaPreview { session, path }],
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
+        EditorMsg::MediaPreviewFailed { session } => {
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session)
+            {
+                model.notice = Some(UiError::new(
+                    "Could not open this file. Install an application that can view it.",
+                ));
+            }
+            Vec::new()
+        }
+        EditorMsg::MediaFileLoaded {
+            image,
+            session,
+            path,
+            file,
+        } => {
+            if let Some(document) = model.editor.as_mut()
+                && document.session == session
+                && document.media_file_kinds.get(&path) == Some(&image)
+            {
+                document.media_files.insert(path, file);
+            }
+            Vec::new()
+        }
+        EditorMsg::ToggleMediaSidebar => {
+            if let Some(document) = model.editor.as_mut() {
+                document.media_sidebar = document.media_sidebar.toggled();
+                model.config.editor.show_media_sidebar = document.media_sidebar.is_visible();
+                return persist_config_effect(model);
+            }
+            Vec::new()
+        }
+        EditorMsg::FocusMedia { selection } => model
+            .editor
+            .as_mut()
+            .and_then(|document| {
+                document
+                    .media
+                    .iter()
+                    .find(|media| media.range == selection)
+                    .map(|media| {
+                        document.selected_media = Some(selection.clone());
+                        Effect::FocusEditorMedia {
+                            session: document.session,
+                            selection: selection.clone(),
+                            path: media.path.clone(),
+                            occurrence: document
+                                .media
+                                .iter()
+                                .take_while(|item| item.range != selection)
+                                .filter(|item| item.path == media.path)
+                                .count(),
+                        }
+                    })
+            })
+            .into_iter()
+            .collect(),
         EditorMsg::Close(session_id) => close_editor(model, session_id),
         EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
@@ -479,14 +685,18 @@ fn open_editor(
     source: String,
 ) {
     let session = model.next_editor_session_id();
-    model.editor = Some(super::EditorDocument::new(
+    let mut document = super::EditorDocument::new(
         session,
         note_id,
         revision,
         is_favorite,
         source.clone(),
         model.preferences.editor_mode,
-    ));
+    );
+    if model.config.editor.show_media_sidebar {
+        document.media_sidebar = super::model::MediaSidebarVisibility::Visible;
+    }
+    model.editor = Some(document);
     model.editor_preview = Some(super::EditorPreview { session, source });
     model.editor_copy_request = None;
     model.editor_export_dialog_request = None;
@@ -858,11 +1068,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_loaded(model, request_id, result)
         }
         LibraryReply::EditorAssetStored {
+            image,
             session,
             alt,
             source_target,
             result,
-        } => update_editor_asset_stored(model, session, &alt, source_target, result),
+        } => update_editor_asset_stored(model, session, &alt, source_target, result, image),
         LibraryReply::EditorExportPrepared {
             request_id,
             session,
@@ -976,6 +1187,7 @@ fn update_editor_asset_stored(
     alt: &str,
     source_target: Option<super::SourceImageTarget>,
     result: Result<String, UiError>,
+    image: bool,
 ) -> Vec<Effect> {
     let Some(document) = model
         .editor
@@ -986,7 +1198,11 @@ fn update_editor_asset_stored(
     };
     match result {
         Ok(path) => {
-            let source = image_source(&document.source, alt, &path, source_target);
+            let source = if image {
+                image_source(&document.source, alt, &path, source_target)
+            } else {
+                attachment_source(&document.source, alt, &path, source_target)
+            };
             if !document.source_changed(source) {
                 return Vec::new();
             }
@@ -1167,11 +1383,14 @@ fn store_editor_asset_effect(
     bytes: Vec<u8>,
     alt: String,
     source_target: Option<super::SourceImageTarget>,
+    image: bool,
 ) -> Vec<Effect> {
     model
         .editor
         .as_ref()
+        .filter(|document| document.mode != carver_config::EditorMode::Rendered)
         .map(|document| Effect::StoreEditorAsset {
+            image,
             session: document.session,
             note_id: document.note_id,
             extension,
@@ -1190,13 +1409,21 @@ fn image_source(
     source_target: Option<super::SourceImageTarget>,
 ) -> String {
     let markup = format!("![{alt}]({path})");
+    insert_media_markup(source, &markup, source_target)
+}
+
+fn insert_media_markup(
+    source: &str,
+    markup: &str,
+    source_target: Option<super::SourceImageTarget>,
+) -> String {
     let Some(target) = source_target.filter(|target| target.source == source) else {
-        return append_image_source(source, &markup);
+        return append_image_source(source, markup);
     };
     let start = character_byte_offset(source, target.selection.start);
     let end = character_byte_offset(source, target.selection.end.max(target.selection.start));
     let mut inserted = source.to_owned();
-    inserted.replace_range(start..end, &markup);
+    inserted.replace_range(start..end, markup);
     inserted
 }
 
@@ -1208,6 +1435,36 @@ fn append_image_source(source: &str, markup: &str) -> String {
     source.push_str(markup);
     source.push('\n');
     source
+}
+
+fn attachment_source(
+    source: &str,
+    name: &str,
+    path: &str,
+    source_target: Option<super::SourceImageTarget>,
+) -> String {
+    let label = carve_link_label(name);
+    let markup = format!("[{label}]({path})");
+    let Some(target) = source_target.filter(|target| target.source == source) else {
+        return append_image_source(source, &markup);
+    };
+    let start = character_byte_offset(source, target.selection.start);
+    let end = character_byte_offset(source, target.selection.end.max(target.selection.start));
+    let mut inserted = source.to_owned();
+    inserted.replace_range(start..end, &markup);
+    inserted
+}
+
+/// Produces link text that remains literal inside canonical Carve markup.
+fn carve_link_label(label: &str) -> String {
+    label.chars().fold(String::new(), |mut escaped, character| {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '[' | ']' | '\n' | '\r' => {}
+            _ => escaped.push(character),
+        }
+        escaped
+    })
 }
 
 fn character_byte_offset(source: &str, offset: usize) -> usize {
@@ -1536,4 +1793,54 @@ fn reload_trash(model: &mut AppModel) -> Option<Effect> {
         .trash
         .begin_reload(request_id)
         .then_some(Effect::LoadTrash { request_id })
+}
+
+fn complete_file_import(
+    model: &mut AppModel,
+    target: super::ImportTarget,
+    result: Result<Vec<super::StoredMedia>, UiError>,
+) -> Vec<Effect> {
+    let Some(document) = model
+        .editor
+        .as_mut()
+        .filter(|document| document.session == target.session)
+    else {
+        return Vec::new();
+    };
+    let files = match result {
+        Ok(files) => files,
+        Err(error) => {
+            model.notice = Some(error);
+            return Vec::new();
+        }
+    };
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let markup = files
+        .iter()
+        .map(|file| {
+            let label = carve_link_label(&file.label);
+            format!(
+                "{}[{label}]({})",
+                if file.image { "!" } else { "" },
+                file.path
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let source = insert_media_markup(&document.source, &markup, target.source);
+    document.source_changed(source);
+    let source = document.source.clone();
+    [
+        schedule_preview(model),
+        schedule_editor_save(model),
+        Some(Effect::ReloadRichEditor {
+            session: target.session,
+            source,
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

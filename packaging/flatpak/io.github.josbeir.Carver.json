@@ -14,7 +14,8 @@
         "--socket=wayland",
         "--socket=fallback-x11",
         "--device=dri",
-        "--share=network"
+        "--share=network",
+        "--talk-name=org.gnome.NautilusPreviewer"
     ],
     "modules": [
         {

@@ -146,6 +146,50 @@ pub struct SourceImageTarget {
 /// Editor events whose persistence is introduced in the editor migration parts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditorMsg {
+    /// A web projection selected a media occurrence without changing source.
+    MediaSelected {
+        /// Editor lifetime that emitted this event.
+        session: EditorSessionId,
+        /// Projection that emitted this event.
+        mode: carver_config::EditorMode,
+        /// Selected occurrence, or none when selection leaves media.
+        media: Option<carver_editor_protocol::MediaSelection>,
+    },
+    /// The source cursor moved.
+    SourceSelectionChanged {
+        /// Character-based source selection.
+        selection: Range<usize>,
+    },
+
+    /// Preview an attachment referenced by the active document.
+    PreviewMedia {
+        /// Authored occurrence selected by the user.
+        selection: Range<usize>,
+    },
+    /// The runtime prepared an isolated copy for an external viewer.
+    MediaPreviewPrepared {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Prepared local path or a user-visible error.
+        result: Result<std::path::PathBuf, UiError>,
+    },
+    /// Both the previewer and default application failed to open the copy.
+    MediaPreviewFailed {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+    },
+
+    /// Asset bytes resolved by the runtime for sidebar presentation.
+    MediaFileLoaded {
+        /// Thumbnail requirement of this request, used to reject stale kind changes.
+        image: bool,
+        /// Owning editor lifetime.
+        session: EditorSessionId,
+        /// Canonical asset path.
+        path: String,
+        /// Missing or inaccessible files have no bytes.
+        file: Option<super::MediaFile>,
+    },
     /// Load a persisted note into the canonical editor document.
     Load {
         /// Persisted note to edit.
@@ -253,6 +297,27 @@ pub enum EditorMsg {
         /// Decoded image bytes from the `WebKit` bridge.
         bytes: Vec<u8>,
     },
+    /// Import a batch of native files into the document that initiated the interaction.
+    ImportFiles {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Files in picker or drop order.
+        files: Vec<ImportFileSource>,
+    },
+    /// Complete an ordered native file import as one source edit.
+    ImportFilesStored {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Stored references or an import error.
+        result: Result<Vec<StoredMedia>, UiError>,
+    },
+    /// Accept a native clipboard read only for its initiating document.
+    ImportImageRead {
+        /// Captured editor target.
+        target: ImportTarget,
+        /// Image bytes.
+        bytes: Vec<u8>,
+    },
     /// Store a native image selected outside the rich-editor bridge.
     ImportImage {
         /// Validated image extension.
@@ -264,6 +329,24 @@ pub enum EditorMsg {
         /// Source target to replace after storage completes, when the image originated in the
         /// native source editor.
         source_target: Option<SourceImageTarget>,
+    },
+    /// Store a selected non-image file as a managed attachment.
+    ImportFile {
+        /// Safe extension used for the managed filename.
+        extension: String,
+        /// File content read by the GTK adapter.
+        bytes: Vec<u8>,
+        /// User-visible filename used for the inserted link label.
+        name: String,
+        /// Source target to replace after storage completes, when applicable.
+        source_target: Option<SourceImageTarget>,
+    },
+    /// Show or hide the editor's AST-derived media navigation sidebar.
+    ToggleMediaSidebar,
+    /// Focus one current media occurrence without mutating canonical source.
+    FocusMedia {
+        /// Unicode code-point range of the occurrence's Carve markup.
+        selection: std::ops::Range<usize>,
     },
     /// Close the active editor lifetime.
     Close(EditorSessionId),
@@ -486,6 +569,8 @@ pub enum LibraryReply {
     },
     /// A session-identified managed editor asset finished storing.
     EditorAssetStored {
+        /// Requested markup kind, independent of the canonical filename.
+        image: bool,
         /// Editor lifetime that requested the asset.
         session: EditorSessionId,
         /// Alternative text selected when the import began.
@@ -522,4 +607,37 @@ pub enum TrashMutation {
     NoteRestored,
     /// Trash was permanently emptied.
     Emptied(TrashPurgeResult),
+}
+
+/// Snapshot of the editor that initiated a native file interaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportTarget {
+    /// Initiating document lifetime.
+    pub session: EditorSessionId,
+    /// Optional insertion point captured only in Source mode.
+    pub source: Option<SourceImageTarget>,
+}
+
+/// A native file selected for managed storage.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportFileSource {
+    /// GIO URI, including document portal file URIs.
+    pub uri: String,
+    /// Authored label.
+    pub label: String,
+    /// Requested file extension.
+    pub extension: String,
+    /// Whether to insert image markup.
+    pub image: bool,
+}
+
+/// Stored file metadata needed for one ordered insertion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StoredMedia {
+    /// Portable asset reference.
+    pub path: String,
+    /// User-selected label.
+    pub label: String,
+    /// Requested markup kind.
+    pub image: bool,
 }

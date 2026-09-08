@@ -2,7 +2,6 @@
 
 use super::source_commands;
 use gtk::prelude::*;
-use libadwaita as adw;
 
 use super::super::formatting;
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
@@ -15,15 +14,20 @@ use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 pub(crate) fn install_image_paste(
     view: &gtk::TextView,
     dispatcher: &AppDispatcher,
+    rich: &super::RichEditor,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
     let dispatcher = dispatcher.clone();
     let clipboard = view.display().clipboard();
     let source_buffer = view.buffer();
+    let rich = rich.clone();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
         if key != gtk::gdk::Key::v || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
+        let Some(session) = rich.document_session() else {
+            return glib::Propagation::Proceed;
+        };
         let dispatcher = dispatcher.clone();
         let source_target = source_commands::image_target_from_buffer(&source_buffer);
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
@@ -31,11 +35,12 @@ pub(crate) fn install_image_paste(
                 return;
             };
             let bytes = texture.save_to_png_bytes().as_ref().to_vec();
-            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImage {
-                extension: String::from("png"),
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImageRead {
                 bytes,
-                alt: String::from("Pasted image"),
-                source_target: Some(source_target),
+                target: crate::mvu::ImportTarget {
+                    session,
+                    source: Some(source_target),
+                },
             }));
         });
         glib::Propagation::Proceed
@@ -44,7 +49,7 @@ pub(crate) fn install_image_paste(
     controller
 }
 
-/// Installs managed image-file drag and drop for an editing surface.
+/// Installs managed file drag and drop for an editing surface.
 ///
 /// GTK owns native file drops, including `WebKit` drops that only expose a URI
 /// to JavaScript. Routing both source and rich editors through this handler
@@ -52,7 +57,7 @@ pub(crate) fn install_image_paste(
 pub(crate) fn install_image_drop(
     view: &impl IsA<gtk::Widget>,
     dispatcher: &AppDispatcher,
-    toast_overlay: &adw::ToastOverlay,
+    rich: &super::RichEditor,
 ) -> gtk::DropTarget {
     use glib::types::StaticType;
 
@@ -61,7 +66,8 @@ pub(crate) fn install_image_drop(
         gtk::gdk::DragAction::COPY,
     );
     let dispatcher = dispatcher.clone();
-    let toast_overlay = toast_overlay.clone();
+    let rich = rich.clone();
+    let source_view = view.as_ref().downcast_ref::<gtk::TextView>().cloned();
     target.connect_drop(move |_target, value, _x, _y| {
         let Ok(files) = value.get::<gtk::gdk::FileList>() else {
             return false;
@@ -70,20 +76,17 @@ pub(crate) fn install_image_drop(
         if files.is_empty() {
             return false;
         }
-        for file in files {
-            let Some(extension) = formatting::image_extension_for_file(&file) else {
-                continue;
-            };
-            let alt = formatting::image_alt_for_file(&file);
-            formatting::import_managed_image_file(
-                &file,
-                &alt,
-                &dispatcher,
-                &toast_overlay,
-                extension,
-                None,
-            );
-        }
+        let Some(session) = rich.document_session() else {
+            return false;
+        };
+        let source = source_view
+            .as_ref()
+            .map(|view| source_commands::image_target_from_buffer(&view.buffer()));
+        formatting::import_managed_files(
+            &files,
+            &dispatcher,
+            crate::mvu::ImportTarget { session, source },
+        );
         true
     });
     view.add_controller(target.clone());

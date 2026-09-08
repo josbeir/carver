@@ -13,6 +13,34 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Read and store native files sequentially with a bounded per-file read.
+    ImportEditorFiles {
+        /// Initiating document and source position.
+        target: super::ImportTarget,
+        /// Owning note.
+        note_id: NoteId,
+        /// Files in selection order.
+        files: Vec<super::ImportFileSource>,
+    },
+    /// Read and stage one managed attachment for external preview.
+    PrepareMediaPreview {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Note that owns the asset.
+        note_id: NoteId,
+        /// Canonical managed asset path.
+        path: String,
+        /// Friendly title for the preview copy.
+        label: String,
+    },
+    /// Open the prepared copy through Sushi or the desktop file launcher.
+    ShowMediaPreview {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Path of the isolated copy.
+        path: std::path::PathBuf,
+    },
+
     /// Apply an editor command through the selected rich-text projection.
     ApplyRichEditorCommand {
         /// Immutable protocol command accepted by the reducer.
@@ -31,6 +59,28 @@ pub enum Effect {
         session: EditorSessionId,
         /// Character-based selection in the canonical source.
         selection: std::ops::Range<usize>,
+    },
+    /// Resolve a managed asset through the asynchronous SDK boundary.
+    LoadMediaFile {
+        /// Whether image bytes are needed for a thumbnail.
+        image: bool,
+        /// Editor lifetime receiving the result.
+        session: EditorSessionId,
+        /// Owning note.
+        note_id: NoteId,
+        /// Canonical asset path.
+        path: String,
+    },
+    /// Focus a media occurrence through the active editor projection.
+    FocusEditorMedia {
+        /// Active editor lifetime that owns the occurrence.
+        session: EditorSessionId,
+        /// Unicode code-point range of the authored occurrence.
+        selection: std::ops::Range<usize>,
+        /// Managed asset path used to locate the rendered occurrence.
+        path: String,
+        /// Index among occurrences referencing the same asset.
+        occurrence: usize,
     },
     /// Publish a canonical editor snapshot through the native clipboard adapter.
     CopyEditorDocument {
@@ -130,6 +180,8 @@ pub enum Effect {
     },
     /// Store a rich-editor image as a managed asset for the active note.
     StoreEditorAsset {
+        /// Requested markup kind, independent of the canonical filename.
+        image: bool,
         /// Editor lifetime that requested the asset.
         session: EditorSessionId,
         /// Owning note.

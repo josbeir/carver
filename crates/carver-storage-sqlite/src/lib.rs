@@ -875,7 +875,7 @@ impl SqliteLibrary {
         })
     }
 
-    /// Adds bytes to the managed asset store and returns its portable source path.
+    /// Adds file bytes to the managed asset store and returns its portable source path.
     ///
     /// # Errors
     ///
@@ -886,9 +886,20 @@ impl SqliteLibrary {
         extension: &str,
         bytes: &[u8],
     ) -> Result<String, StorageError> {
+        let extension = asset_extension(extension)?;
         let digest = format!("{:x}", Sha256::digest(bytes));
-        let safe_extension = asset_extension(extension)?;
-        let filename = format!("{digest}.{safe_extension}");
+        let existing_filename: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT filename FROM assets WHERE hash = ?1",
+                [&digest],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let filename = match existing_filename {
+            Some(filename) => filename,
+            None => format!("{digest}.{extension}"),
+        };
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
             let temporary = path.with_extension("partial");
@@ -910,7 +921,30 @@ impl SqliteLibrary {
         Ok(format!("assets/{filename}"))
     }
 
-    /// Reads a managed image only when it belongs to the requested note.
+    /// Returns the on-disk size of an asset belonging to this note without reading its bytes.
+    ///
+    /// # Errors
+    /// Returns an error for unsafe paths, database failures, or inaccessible files.
+    pub fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, StorageError> {
+        let Some(filename) = relative_path.strip_prefix("assets/") else {
+            return Ok(None);
+        };
+        let attached: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM assets a JOIN note_assets na ON na.asset_hash = a.hash WHERE na.note_id = ?1 AND a.filename = ?2)",
+            params![note_id.to_string(), filename], |row| row.get(0))?;
+        if !attached {
+            return Ok(None);
+        }
+        Ok(Some(
+            fs::metadata(self.managed_asset_path(filename)?)?.len(),
+        ))
+    }
+
+    /// Reads a managed file only when it belongs to the requested note.
     ///
     /// # Errors
     ///
@@ -1156,6 +1190,14 @@ impl LibraryBackend for SqliteLibrary {
         Self::store_asset(self, note_id, extension, bytes)
     }
 
+    fn note_asset_size(
+        &self,
+        note_id: NoteId,
+        relative_path: &str,
+    ) -> Result<Option<u64>, Self::Error> {
+        Self::note_asset_size(self, note_id, relative_path)
+    }
+
     fn note_asset_bytes(
         &self,
         note_id: NoteId,
@@ -1341,21 +1383,18 @@ fn category_color_from_value(value: &str) -> Result<CategoryColor, StorageError>
     }
 }
 
-fn asset_extension(extension: &str) -> Result<&'static str, StorageError> {
-    match extension
-        .trim_start_matches('.')
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "png" => Ok("png"),
-        "jpg" | "jpeg" => Ok("jpg"),
-        "gif" => Ok("gif"),
-        "webp" => Ok("webp"),
-        "svg" => Ok("svg"),
-        _ => Err(StorageError::UnsupportedAssetExtension(
-            extension.to_owned(),
-        )),
+fn asset_extension(extension: &str) -> Result<String, StorageError> {
+    let extension = extension.trim_start_matches('.').to_ascii_lowercase();
+    let valid = !extension.is_empty()
+        && extension.len() <= 32
+        && extension.bytes().all(|byte| byte.is_ascii_alphanumeric());
+    if !valid {
+        return Err(StorageError::UnsupportedAssetExtension(extension));
     }
+    Ok(match extension.as_str() {
+        "jpeg" => String::from("jpg"),
+        _ => extension,
+    })
 }
 fn note_id(value: &str) -> Result<NoteId, StorageError> {
     Uuid::parse_str(value)

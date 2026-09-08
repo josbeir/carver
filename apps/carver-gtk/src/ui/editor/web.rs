@@ -28,6 +28,7 @@ type SelectionHandler = Rc<RefCell<Option<Box<dyn Fn(SelectionState)>>>>;
 pub(crate) struct RichEditor {
     view: webkit6::WebView,
     session: Rc<Cell<u64>>,
+    document_session: Rc<Cell<Option<crate::mvu::EditorSessionId>>>,
     ready: Rc<Cell<bool>>,
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
     current_theme: Rc<RefCell<Option<EditorTheme>>>,
@@ -79,6 +80,7 @@ impl RichEditor {
         let editor = Self {
             view,
             session: Rc::new(Cell::new(0)),
+            document_session: Rc::new(Cell::new(None)),
             ready: Rc::new(Cell::new(false)),
             pending_source: Rc::new(RefCell::new(None)),
             current_theme: Rc::new(RefCell::new(None)),
@@ -97,6 +99,16 @@ impl RichEditor {
     /// Returns the GTK widget to add to layout containers.
     pub(crate) fn view(&self) -> &webkit6::WebView {
         &self.view
+    }
+
+    /// Returns the document identity rendered by this editor.
+    pub(crate) fn document_session(&self) -> Option<crate::mvu::EditorSessionId> {
+        self.document_session.get()
+    }
+
+    /// Associates projection events with the current MVU document session.
+    pub(crate) fn set_document_session(&self, session: crate::mvu::EditorSessionId) {
+        self.document_session.set(Some(session));
     }
 
     /// Loads a new document into the rich editor without marking it dirty.
@@ -145,6 +157,18 @@ impl RichEditor {
             "window.carverEditor.command({}, {});",
             json(name),
             argument
+        ));
+    }
+
+    /// Scrolls a rendered managed asset into view without changing its source.
+    pub(crate) fn focus_media(&self, path: &str, occurrence: usize) {
+        self.view.grab_focus();
+        if let Some(root) = self.view.root() {
+            root.set_focus(Some(&self.view));
+        }
+        self.evaluate(&format!(
+            "window.carverEditor.focusMedia({}, {occurrence});",
+            json(path)
         ));
     }
 
@@ -255,6 +279,13 @@ impl RichEditor {
                     session,
                     state: selection,
                 } if session == editor.session.get() => {
+                    if let Some(session) = editor.document_session.get() {
+                        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::MediaSelected {
+                            session,
+                            mode: carver_config::EditorMode::Rich,
+                            media: selection.media.clone(),
+                        }));
+                    }
                     if let Some(handler) = selection_handler.borrow().as_ref() {
                         handler(selection);
                     }

@@ -237,6 +237,15 @@ impl ViewRefs {
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);
             }
+            Effect::FocusEditorMedia {
+                session,
+                selection,
+                path,
+                occurrence,
+            } => {
+                editor.focus_media(session, selection, &path, occurrence);
+            }
+            Effect::ShowMediaPreview { session, path } => editor.preview_media(session, &path),
             Effect::CopyEditorDocument { request } => editor.copy_document(&request),
             Effect::ShowEditorExportDialog { request } => editor.show_export_dialog(request),
             Effect::ShowEditorExportWarning { request } => editor.show_export_warning(&request),
