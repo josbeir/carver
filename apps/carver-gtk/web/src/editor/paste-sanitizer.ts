@@ -4,6 +4,11 @@ type AttributeTransform = (
   attributes: Record<string, unknown>,
 ) => Record<string, unknown>;
 
+const CLIPBOARD_METADATA_ATTRIBUTES = new Set([
+  'data-carve-attr-order',
+  'data-pm-slice',
+]);
+
 function sanitizedAttributes(attributes: Record<string, unknown>) {
   const sanitized = { ...attributes };
   if (!('carveAttrOrder' in sanitized)) return sanitized;
@@ -20,13 +25,17 @@ function withoutClipboardMetadata(attributes: Record<string, unknown>) {
   const keyValues = attributes.carveKeyValues;
   if (keyValues && typeof keyValues === 'object' && !Array.isArray(keyValues)) {
     const retained = Object.fromEntries(
-      Object.entries(keyValues).filter(([name]) => name !== 'data-pm-slice'),
+      Object.entries(keyValues).filter(
+        ([name]) => !CLIPBOARD_METADATA_ATTRIBUTES.has(name),
+      ),
     );
     sanitized.carveKeyValues = Object.keys(retained).length ? retained : null;
   }
   const order = attributes.carveAttrOrder;
   if (Array.isArray(order)) {
-    const retained = order.filter((name) => name !== 'data-pm-slice');
+    const retained = order.filter(
+      (name) => !CLIPBOARD_METADATA_ATTRIBUTES.has(name),
+    );
     sanitized.carveAttrOrder = retained.length ? retained : null;
   }
   return sanitized;
@@ -78,10 +87,10 @@ export class ClipboardPasteSanitizer {
     return slice;
   }
 
-  /** Preserves an exact internal copy and sanitizes every other pasted slice. */
-  public sanitizePastedSlice(slice: Slice): Slice {
+  /** Preserves plain-text context or an exact internal copy; sanitizes rich text. */
+  public sanitizePastedSlice(slice: Slice, plain = false): Slice {
     const content = transformedSlice(slice, withoutClipboardMetadata);
-    return this.signature(content) === this.copiedSlice
+    return plain || this.signature(content) === this.copiedSlice
       ? content
       : sanitizePastedSlice(content);
   }

@@ -85,8 +85,8 @@ export class EditorController implements RichEditorApi {
         handleDrop: (_view, event) => this.dropImages(event),
         transformCopied: (slice) =>
           this.pasteSanitizer.recordCopiedSlice(slice),
-        transformPasted: (slice) =>
-          this.pasteSanitizer.sanitizePastedSlice(slice),
+        transformPasted: (slice, _view, plain) =>
+          this.pasteSanitizer.sanitizePastedSlice(slice, plain),
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),

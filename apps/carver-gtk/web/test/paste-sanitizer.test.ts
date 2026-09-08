@@ -139,7 +139,12 @@ describe('sanitizePastedSlice', () => {
       carveAttrOrder: ['#id', '.class', 'role', 'style'],
     });
     const heading = schema.nodes.heading.create(
-      { level: 2 },
+      {
+        level: 2,
+        id: 'references',
+        carveKeyValues: { role: 'bibliography' },
+        carveAttrOrder: ['#id', 'role'],
+      },
       schema.text('Reference', [link]),
     );
 
@@ -157,7 +162,13 @@ describe('sanitizePastedSlice', () => {
     const pasted = new Slice(
       Fragment.from(
         schema.nodes.heading.create(
-          { level: 2 },
+          {
+            ...heading.attrs,
+            carveKeyValues: {
+              ...heading.attrs.carveKeyValues,
+              'data-carve-attr-order': '#id role',
+            },
+          },
           schema.text('Reference', [pastedLink]),
         ),
       ),
@@ -175,6 +186,36 @@ describe('sanitizePastedSlice', () => {
       carveKeyValues: { role: 'citation', style: 'color: red' },
       carveAttrOrder: ['#id', '.class', 'role', 'style'],
     });
+    expect(sanitized.content.firstChild?.attrs).toEqual({
+      level: 2,
+      id: 'references',
+      class: null,
+      carveKeyValues: { role: 'bibliography' },
+      carveAttrOrder: ['#id', 'role'],
+    });
+  });
+
+  it('preserves marks inherited from the selection on plain-text paste', () => {
+    const inheritedLink = schema.marks.link.create({
+      href: 'https://example.com',
+      id: 'reference',
+      class: 'document-link',
+      carveKeyValues: { role: 'citation' },
+      carveAttrOrder: ['#id', '.class', 'role'],
+    });
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.text('Plain text', [inheritedLink]),
+    );
+
+    const sanitized = new ClipboardPasteSanitizer().sanitizePastedSlice(
+      new Slice(Fragment.from(heading), 0, 0),
+      true,
+    );
+
+    expect(sanitized.content.firstChild?.firstChild?.marks[0]).toEqual(
+      inheritedLink,
+    );
   });
 
   it('rejects forged attribute-order metadata from external HTML', () => {
