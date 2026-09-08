@@ -8,3 +8,12 @@ export function unsupportedForEditing(result) {
     result.doc.content[0]?.type === 'carveUnsupported';
   return opaque ? Object.keys(result.preserved ?? {}) : [];
 }
+
+// A ProseMirror Slice contains document children, not document attributes.
+// Reject clipboard payloads whose exact Carve source depends on an envelope
+// attached to the adapter's document node, because insertion would drop it.
+export function unsupportedForPasting(result) {
+  const unsupported = unsupportedForEditing(result);
+  if (unsupported.length) return unsupported;
+  return Object.hasOwn(result.preserved ?? {}, 'document') ? ['document'] : [];
+}

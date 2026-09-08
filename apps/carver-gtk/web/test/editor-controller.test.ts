@@ -145,6 +145,40 @@ describe('EditorController', () => {
     );
   });
 
+  it('refuses a Carver paste that depends on document-level source metadata', () => {
+    const { controller, createEditor } = controllerFixture();
+    controller.initialize();
+    const options = createEditor.mock.calls[0]?.[0] as {
+      editorProps: {
+        handleDOMEvents: {
+          paste: (view: unknown, event: ClipboardEvent) => boolean;
+        };
+        transformPasted: (
+          slice: unknown,
+          view: unknown,
+          plain: boolean,
+        ) => Slice;
+      };
+    };
+    const source =
+      '![First](assets/first.png){width="50%"}![Second](assets/second.png)';
+    const pasteEvent = {
+      clipboardData: {
+        types: ['application/x-carver-source'],
+        getData: () => source,
+      },
+    } as unknown as ClipboardEvent;
+
+    options.editorProps.handleDOMEvents.paste(null, pasteEvent);
+    const restored = options.editorProps.transformPasted(
+      { foreign: true },
+      { state: { schema: getSchema([CarveKit]) } },
+      false,
+    );
+
+    expect(restored.size).toBe(0);
+  });
+
   it('routes named commands through its current editor chain', () => {
     const { chain, controller } = controllerFixture();
     controller.initialize();

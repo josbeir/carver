@@ -7,7 +7,7 @@ import {
   carveToProseMirrorWithReport,
   serializeToCarve,
 } from '@markup-carve/carve-grammars/tiptap';
-import { unsupportedForEditing } from './editability';
+import { unsupportedForEditing, unsupportedForPasting } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
@@ -103,7 +103,7 @@ export class EditorController implements RichEditorApi {
             const result = carveToProseMirrorWithReport(source, {
               unsupported: 'preserve',
             });
-            if (unsupportedForEditing(result).length) return null;
+            if (unsupportedForPasting(result).length) return null;
             const document = view.state.schema.nodeFromJSON(result.doc);
             return Slice.maxOpen(document.content, true);
           }),

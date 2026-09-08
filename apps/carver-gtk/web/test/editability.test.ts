@@ -4,7 +4,10 @@ import {
   carveToProseMirrorWithReport,
   serializeToCarve,
 } from '@markup-carve/carve-grammars/tiptap';
-import { unsupportedForEditing } from '../src/editor/editability';
+import {
+  unsupportedForEditing,
+  unsupportedForPasting,
+} from '../src/editor/editability';
 
 describe('unsupportedForEditing', () => {
   it('returns preserved keys when the entire document is opaque', () => {
@@ -65,5 +68,25 @@ En eventueel meer in depth via interactieve toggles.`;
     ]);
     expect(unsupportedForEditing(result)).toEqual([]);
     expect(serializeToCarve(result.doc)).toBe(source);
+  });
+});
+
+describe('unsupportedForPasting', () => {
+  it('rejects source that depends on document-level preservation', () => {
+    const result = carveToProseMirrorWithReport(
+      '![First](assets/first.png){width="50%"}![Second](assets/second.png)',
+      { unsupported: 'preserve' },
+    );
+
+    expect(result.preserved).toHaveProperty('document');
+    expect(unsupportedForPasting(result)).toEqual(['document']);
+  });
+
+  it('accepts source represented entirely by slice content', () => {
+    const result = carveToProseMirrorWithReport('Selected', {
+      unsupported: 'preserve',
+    });
+
+    expect(unsupportedForPasting(result)).toEqual([]);
   });
 });
