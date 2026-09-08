@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, EditorSessionId};
 
 use super::focus::EditorFocusRestorer;
 
@@ -275,6 +275,15 @@ impl RichEditor {
                         bytes,
                     }));
                 }
+                EditorEvent::CopySelection { session, source }
+                    if session == editor.session.get() =>
+                {
+                    let _ =
+                        dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopySelectionRequested {
+                            session: EditorSessionId(session),
+                            source,
+                        }));
+                }
                 EditorEvent::Selection {
                     session,
                     state: selection,
@@ -293,6 +302,7 @@ impl RichEditor {
                 EditorEvent::Selection { .. }
                 | EditorEvent::Changed { .. }
                 | EditorEvent::Unsupported { .. }
+                | EditorEvent::CopySelection { .. }
                 | EditorEvent::PasteImage { .. } => {}
             }
         });

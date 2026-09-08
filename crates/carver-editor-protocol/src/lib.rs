@@ -84,6 +84,13 @@ pub enum EditorEvent {
         /// Selected state.
         state: SelectionState,
     },
+    /// A rich-editor selection should be published through the native clipboard adapter.
+    CopySelection {
+        /// Host document session.
+        session: u64,
+        /// Canonical source for the selected document fragment.
+        source: String,
+    },
     /// The adapter cannot safely edit the document.
     Unsupported {
         /// Host document session.
@@ -142,6 +149,17 @@ mod tests {
                 image_width: None,
                 media: None,
             },
+        };
+        let encoded = serde_json::to_string(&event).unwrap_or_default();
+        let decoded: EditorEvent = serde_json::from_str(&encoded).unwrap_or(EditorEvent::Ready);
+        assert_eq!(decoded, event);
+    }
+
+    #[test]
+    fn copy_selection_messages_round_trip_without_loss() {
+        let event = EditorEvent::CopySelection {
+            session: 7,
+            source: String::from("Selected *text*"),
         };
         let encoded = serde_json::to_string(&event).unwrap_or_default();
         let decoded: EditorEvent = serde_json::from_str(&encoded).unwrap_or(EditorEvent::Ready);

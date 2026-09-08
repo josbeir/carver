@@ -2,9 +2,9 @@
 
 use super::model::{LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection};
 use super::{
-    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest, Effect,
-    LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg, SourceEdit, TrashMsg,
-    UiError, WindowMsg,
+    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
+    EditorSessionId, Effect, LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg,
+    SourceEdit, TrashMsg, UiError, WindowMsg,
 };
 
 /// Applies one message and returns the work a runtime must perform afterwards.
@@ -317,6 +317,9 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             }),
         EditorMsg::ToggleFavorite => toggle_editor_favorite(model),
         EditorMsg::CopyRequested => request_editor_copy(model),
+        EditorMsg::CopySelectionRequested { session, source } => {
+            request_editor_selection_copy(model, session, source)
+        }
         message @ (EditorMsg::ExportDialogRequested
         | EditorMsg::ExportRequested { .. }
         | EditorMsg::ExportConfirmed { .. }
@@ -717,13 +720,24 @@ fn complete_copy_request(
     if request.request_id != request_id {
         return Vec::new();
     }
+    let scope = request.scope;
     model.editor_copy_request = None;
-    let message = if omitted_images == 0 {
-        String::from("Note copied")
-    } else {
-        format!("Note copied; {omitted_images} images were omitted.")
-    };
-    model.notice = Some(UiError::new(message));
+    match (scope, omitted_images) {
+        (super::EditorCopyScope::Note, 0) => {
+            model.notice = Some(UiError::new("Note copied"));
+        }
+        (super::EditorCopyScope::Note, omitted) => {
+            model.notice = Some(UiError::new(format!(
+                "Note copied; {omitted} images were omitted."
+            )));
+        }
+        (super::EditorCopyScope::Selection, 0) => {}
+        (super::EditorCopyScope::Selection, omitted) => {
+            model.notice = Some(UiError::new(format!(
+                "Selection copied; {omitted} images were omitted."
+            )));
+        }
+    }
     Vec::new()
 }
 
@@ -739,6 +753,25 @@ fn request_editor_copy(model: &mut AppModel) -> Vec<Effect> {
         request_id: model.next_editor_copy_request_id(),
         session,
         source,
+        scope: super::EditorCopyScope::Note,
+    };
+    model.editor_copy_request = Some(request.clone());
+    vec![Effect::CopyEditorDocument { request }]
+}
+
+fn request_editor_selection_copy(
+    model: &mut AppModel,
+    session: EditorSessionId,
+    source: String,
+) -> Vec<Effect> {
+    if !matches!(model.editor.as_ref(), Some(document) if document.session == session) {
+        return Vec::new();
+    }
+    let request = super::EditorCopyRequest {
+        request_id: model.next_editor_copy_request_id(),
+        session,
+        source,
+        scope: super::EditorCopyScope::Selection,
     };
     model.editor_copy_request = Some(request.clone());
     vec![Effect::CopyEditorDocument { request }]
@@ -751,8 +784,13 @@ fn fail_copy_request(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
     if request.request_id != request_id {
         return Vec::new();
     }
+    let scope = request.scope;
     model.editor_copy_request = None;
-    model.notice = Some(UiError::new("Could not copy the note."));
+    let message = match scope {
+        super::EditorCopyScope::Note => "Could not copy the note.",
+        super::EditorCopyScope::Selection => "Could not copy the selection.",
+    };
+    model.notice = Some(UiError::new(message));
     Vec::new()
 }
 
