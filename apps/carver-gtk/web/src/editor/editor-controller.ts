@@ -1,5 +1,6 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
+import { Slice } from '@tiptap/pm/model';
 import { mediaOccurrences, selectedMedia } from './media-selection';
 import {
   CarveKit,
@@ -89,8 +90,19 @@ export class EditorController implements RichEditorApi {
         },
         transformPastedHTML: (html) =>
           this.pasteSanitizer.preparePastedHtml(html),
-        transformPasted: (slice, _view, plain) =>
-          this.pasteSanitizer.sanitizePastedSlice(slice, plain),
+        transformPasted: (slice, view, plain) => {
+          const source = this.pasteSanitizer.takePastedSource();
+          if (!plain && source !== null) {
+            const result = carveToProseMirrorWithReport(source, {
+              unsupported: 'preserve',
+            });
+            if (!unsupportedForEditing(result).length) {
+              const document = view.state.schema.nodeFromJSON(result.doc);
+              return Slice.maxOpen(document.content, true);
+            }
+          }
+          return this.pasteSanitizer.sanitizePastedSlice(slice, plain);
+        },
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),
@@ -359,7 +371,6 @@ export class EditorController implements RichEditorApi {
     if (!editor) return false;
     const source = selectedCarveSource(editor.state);
     if (source == null) return false;
-    this.pasteSanitizer.recordCopiedSlice(editor.state.selection.content());
     event.preventDefault();
     this.send({ type: 'copy-selection', session: this.session, source });
     return true;

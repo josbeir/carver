@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getSchema } from '@tiptap/core';
+import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
+import type { Slice } from '@tiptap/pm/model';
 
 import { EditorController } from '../src/editor/editor-controller';
 
@@ -122,12 +125,17 @@ describe('EditorController', () => {
     );
     expect(
       options.editorProps.transformPastedHTML(
-        '<p>Selected</p><!--carver-internal-copy-->',
+        '<p>Selected</p><!--carver-source:U2VsZWN0ZWQ=-->',
       ),
     ).toBe('<p>Selected</p>');
-    expect(
-      options.editorProps.transformPasted({ foreign: true }, null, false),
-    ).toBe(selectedSlice);
+    const restored = options.editorProps.transformPasted(
+      { foreign: true },
+      { state: { schema: getSchema([CarveKit]) } },
+      false,
+    ) as Slice;
+    expect(restored.content.textBetween(0, restored.content.size)).toBe(
+      'Selected',
+    );
   });
 
   it('routes named commands through its current editor chain', () => {

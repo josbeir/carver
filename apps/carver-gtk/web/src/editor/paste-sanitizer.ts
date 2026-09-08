@@ -4,7 +4,18 @@ type AttributeTransform = (
   attributes: Record<string, unknown>,
 ) => Record<string, unknown>;
 
-export const INTERNAL_COPY_MARKER = '<!--carver-internal-copy-->';
+const INTERNAL_COPY_PATTERN = /<!--carver-source:([A-Za-z0-9+/]*={0,2})-->/;
+
+function decodedSource(encoded: string): string | null {
+  try {
+    const bytes = Uint8Array.from(globalThis.atob(encoded), (value) =>
+      value.charCodeAt(0),
+    );
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
 
 function sanitizedAttributes(attributes: Record<string, unknown>) {
   const sanitized = { ...attributes };
@@ -54,27 +65,24 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 
 /** Distinguishes exact editor-owned copies from untrusted clipboard HTML. */
 export class ClipboardPasteSanitizer {
-  private copiedSlice: Slice | null = null;
-  private pasteIsInternal = false;
+  private pastedSource: string | null = null;
 
-  /** Records the exact slice passed to ProseMirror's clipboard serializer. */
-  public recordCopiedSlice(slice: Slice): Slice {
-    this.copiedSlice = slice;
-    return slice;
-  }
-
-  /** Recognizes and removes the native selection marker before HTML is parsed. */
+  /** Extracts canonical Carve from native clipboard HTML before it is parsed. */
   public preparePastedHtml(html: string): string {
-    this.pasteIsInternal =
-      this.copiedSlice !== null && html.includes(INTERNAL_COPY_MARKER);
-    return html.replace(INTERNAL_COPY_MARKER, '');
+    const match = INTERNAL_COPY_PATTERN.exec(html);
+    this.pastedSource = match ? decodedSource(match[1]) : null;
+    return match ? html.replace(match[0], '') : html;
   }
 
-  /** Preserves plain-text context or an editor-owned copy; sanitizes rich text. */
+  /** Consumes canonical Carve carried by the current native clipboard paste. */
+  public takePastedSource(): string | null {
+    const source = this.pastedSource;
+    this.pastedSource = null;
+    return source;
+  }
+
+  /** Preserves plain-text context and sanitizes foreign rich text. */
   public sanitizePastedSlice(slice: Slice, plain = false): Slice {
-    const copiedSlice = this.pasteIsInternal ? this.copiedSlice : null;
-    this.pasteIsInternal = false;
-    if (plain) return slice;
-    return copiedSlice ?? sanitizePastedSlice(slice);
+    return plain ? slice : sanitizePastedSlice(slice);
   }
 }

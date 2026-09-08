@@ -7,7 +7,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 const MAX_EMBEDDED_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 const MAX_TOTAL_EMBEDDED_IMAGE_BYTES: usize = 15 * 1024 * 1024;
-const INTERNAL_COPY_MARKER: &str = "<!--carver-internal-copy-->";
+const INTERNAL_COPY_PREFIX: &str = "<!--carver-source:";
 
 /// Rendered clipboard representations for a complete note.
 #[derive(Debug, Eq, PartialEq)]
@@ -39,9 +39,8 @@ pub(crate) fn publish_note(
     clipboard: &gtk::gdk::Clipboard,
     source: &str,
     assets_dir: Option<&Path>,
-    mark_internal_selection: bool,
 ) -> Result<ClipboardDocument, glib::BoolError> {
-    let document = clipboard_document_for_publish(source, assets_dir, mark_internal_selection);
+    let document = clipboard_document_for_publish(source, assets_dir);
     let html = gtk::gdk::ContentProvider::for_bytes(
         "text/html",
         &glib::Bytes::from(document.html.as_bytes()),
@@ -55,15 +54,11 @@ pub(crate) fn publish_note(
     Ok(document)
 }
 
-fn clipboard_document_for_publish(
-    source: &str,
-    assets_dir: Option<&Path>,
-    mark_internal_selection: bool,
-) -> ClipboardDocument {
+fn clipboard_document_for_publish(source: &str, assets_dir: Option<&Path>) -> ClipboardDocument {
     let mut document = clipboard_document(source, assets_dir);
-    if mark_internal_selection {
-        document.html.push_str(INTERNAL_COPY_MARKER);
-    }
+    document.html.push_str(INTERNAL_COPY_PREFIX);
+    document.html.push_str(&STANDARD.encode(source.as_bytes()));
+    document.html.push_str("-->");
     document
 }
 
@@ -176,11 +171,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn selection_clipboard_document_should_include_internal_copy_marker() {
-        let document = clipboard_document_for_publish("Selected", None, true);
+    fn clipboard_document_should_include_canonical_source_payload() {
+        let document = clipboard_document_for_publish("Selected *text*", None);
 
-        assert!(document.html.ends_with(INTERNAL_COPY_MARKER));
-        assert_eq!(document.plain_text.trim(), "Selected");
+        assert!(
+            document
+                .html
+                .ends_with("<!--carver-source:U2VsZWN0ZWQgKnRleHQq-->")
+        );
+        assert_eq!(document.plain_text.trim(), "Selected text");
     }
 
     #[test]

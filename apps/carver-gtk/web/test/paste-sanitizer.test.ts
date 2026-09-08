@@ -137,112 +137,29 @@ describe('sanitizePastedSlice', () => {
     });
   });
 
-  it('preserves authored Carve attributes on an exact internal paste', () => {
-    const link = schema.marks.link.create({
-      href: 'https://example.com',
-      id: 'reference',
-      class: 'document-link',
-      carveKeyValues: {
-        role: 'citation',
-        style: 'color: red',
-      },
-      carveAttrOrder: ['#id', '.class', 'role', 'style'],
-    });
-    const heading = schema.nodes.heading.create(
-      {
-        level: 2,
-        id: 'references',
-        carveKeyValues: { role: 'bibliography' },
-        carveAttrOrder: ['#id', 'role'],
-      },
-      schema.text('Reference', [link]),
+  it('extracts canonical source from Carver clipboard HTML', () => {
+    const source = '## R\u00e9sum\u00e9{#references role="bibliography"}';
+    const encoded = globalThis.btoa(
+      String.fromCharCode(...new TextEncoder().encode(source)),
     );
-
-    const copied = new Slice(Fragment.from(heading), 0, 0);
     const sanitizer = new ClipboardPasteSanitizer();
-    sanitizer.recordCopiedSlice(copied);
-    const pastedLink = schema.marks.link.create({
-      ...link.attrs,
-      carveKeyValues: {
-        ...link.attrs.carveKeyValues,
-        'data-pm-slice': '0 0 []',
-      },
-      carveAttrOrder: [...link.attrs.carveAttrOrder, 'data-pm-slice'],
-    });
-    const pasted = new Slice(
-      Fragment.from(
-        schema.nodes.heading.create(
-          {
-            level: 2,
-            id: null,
-            carveKeyValues: {
-              role: 'bibliography',
-              'data-carve-attr-order': '#id role',
-            },
-            carveAttrOrder: ['#id', 'role'],
-          },
-          schema.text('Reference', [pastedLink]),
-        ),
-      ),
-      0,
-      0,
-    );
+
     expect(
       sanitizer.preparePastedHtml(
-        '<h2>Reference</h2><!--carver-internal-copy-->',
+        `<h2>R\u00e9sum\u00e9</h2><!--carver-source:${encoded}-->`,
       ),
-    ).toBe('<h2>Reference</h2>');
-    const sanitized = sanitizer.sanitizePastedSlice(
-      Slice.fromJSON(schema, pasted.toJSON()),
-    );
-
-    expect(sanitized.content.firstChild?.firstChild?.marks[0].attrs).toEqual({
-      href: 'https://example.com',
-      id: 'reference',
-      class: 'document-link',
-      carveKeyValues: { role: 'citation', style: 'color: red' },
-      carveAttrOrder: ['#id', '.class', 'role', 'style'],
-    });
-    expect(sanitized.content.firstChild?.attrs).toEqual({
-      level: 2,
-      id: 'references',
-      class: null,
-      carveKeyValues: { role: 'bibliography' },
-      carveAttrOrder: ['#id', 'role'],
-    });
+    ).toBe('<h2>R\u00e9sum\u00e9</h2>');
+    expect(sanitizer.takePastedSource()).toBe(source);
+    expect(sanitizer.takePastedSource()).toBeNull();
   });
 
-  it('preserves lossy block attributes on editor-owned HTML paste', () => {
-    const paragraph = schema.nodes.paragraph.create(
-      {
-        id: 'intro',
-        carveKeyValues: { role: 'summary' },
-        carveAttrOrder: ['#id', 'role'],
-      },
-      schema.text('Introduction'),
-    );
-    const copied = new Slice(Fragment.from(paragraph), 0, 0);
-    const parsed = new Slice(
-      Fragment.from(
-        schema.nodes.paragraph.create(
-          {
-            id: null,
-            carveKeyValues: '[object Object]',
-            carveAttrOrder: ['#id', 'role'],
-          },
-          schema.text('Introduction'),
-        ),
-      ),
-      0,
-      0,
-    );
+  it('ignores malformed Carver clipboard payloads', () => {
     const sanitizer = new ClipboardPasteSanitizer();
-    sanitizer.recordCopiedSlice(copied);
-    sanitizer.preparePastedHtml(
-      '<p>Introduction</p><!--carver-internal-copy-->',
-    );
 
-    expect(sanitizer.sanitizePastedSlice(parsed)).toEqual(copied);
+    expect(
+      sanitizer.preparePastedHtml('<p>External</p><!--carver-source:a-->'),
+    ).toBe('<p>External</p>');
+    expect(sanitizer.takePastedSource()).toBeNull();
   });
 
   it('preserves marks inherited from the selection on plain-text paste', () => {
@@ -291,14 +208,7 @@ describe('sanitizePastedSlice', () => {
     });
   });
 
-  it('sanitizes clipboard content that differs from the recorded internal copy', () => {
-    const copied = new Slice(
-      Fragment.from(
-        schema.nodes.heading.create({ level: 2 }, schema.text('Internal')),
-      ),
-      0,
-      0,
-    );
+  it('sanitizes rich HTML without a Carver source payload', () => {
     const forged = new Slice(
       Fragment.from(
         schema.nodes.heading.create(
@@ -314,8 +224,8 @@ describe('sanitizePastedSlice', () => {
       0,
     );
     const sanitizer = new ClipboardPasteSanitizer();
-    sanitizer.recordCopiedSlice(copied);
     sanitizer.preparePastedHtml('<h2>Internal</h2>');
+    expect(sanitizer.takePastedSource()).toBeNull();
 
     expect(
       sanitizer.sanitizePastedSlice(forged).content.firstChild?.attrs

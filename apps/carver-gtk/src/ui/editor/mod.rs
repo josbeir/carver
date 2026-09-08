@@ -21,7 +21,7 @@ use super::{
     sidebar::sidebar_toggle_button,
 };
 use crate::mvu::{
-    AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorCopyScope, EditorExportDialogRequest,
+    AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
     EditorExportFormat, EditorExportWarningRequest, EditorMsg, EditorPdfExportRequest,
     EditorSessionId, PreferencesMsg,
 };
@@ -395,14 +395,8 @@ impl EditorViewRefs {
         let assets_dir = self.assets_dir.clone();
         let clipboard = self.source_editor.view().display().clipboard();
         let request_id = request.request_id;
-        let mark_internal_selection = request.scope == EditorCopyScope::Selection;
         glib::idle_add_local_once(move || {
-            let message = match publish_note(
-                &clipboard,
-                &source,
-                assets_dir.as_deref(),
-                mark_internal_selection,
-            ) {
+            let message = match publish_note(&clipboard, &source, assets_dir.as_deref()) {
                 Ok(document) => AppMsg::Editor(EditorMsg::CopyCompleted {
                     request_id,
                     omitted_images: document.omitted_images,
