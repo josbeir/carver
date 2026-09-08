@@ -2,7 +2,7 @@
     const session = __SESSION__;
     const revision = __LOAD__;
     let navigation_epoch = 0;
-    const headings = () => [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')];
+    const headings = () => [...document.querySelectorAll('h1[data-source-line],h2[data-source-line],h3[data-source-line],h4[data-source-line],h5[data-source-line],h6[data-source-line]')];
     const pathFor = node => (node.getAttribute('src') ?? node.getAttribute('href') ?? '')
         .replace(/^carver-asset:\/\/\//, '');
     const mediaFor = path => [...document.querySelectorAll('img,a[href]')]

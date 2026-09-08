@@ -197,7 +197,9 @@ fn rendered_document_with_theme(
     } else {
         "img-src data: carver-asset:"
     };
-    let body = carve::to_html(source).replace("src=\"assets/", "src=\"carver-asset:///assets/");
+    let body =
+        carve::to_html_with_options(source, &carve::Options::default().with_source_lines(true))
+            .replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let selection_style = format!(
         "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
         theme.selection.accent,

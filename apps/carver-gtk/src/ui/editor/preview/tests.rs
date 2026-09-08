@@ -66,3 +66,17 @@ fn preview_stylesheet_should_use_a_document_specific_print_palette() {
     assert!(PREVIEW_STYLESHEET.contains("background: #ffffff !important"));
     assert!(PREVIEW_STYLESHEET.contains("break-inside: avoid"));
 }
+
+#[test]
+fn rendered_headings_should_carry_source_annotations_for_outline_navigation() {
+    let html = rendered_document("# First\n\n## Second", false);
+    assert!(html.contains("data-source-line=\"1\""));
+    assert!(html.contains("data-source-line=\"3\""));
+}
+
+#[test]
+fn raw_html_headings_should_remain_outside_the_outline_projection() {
+    let html = rendered_document("```=html\n<h2>Raw</h2>\n```\n\n# Authored", false);
+    assert!(html.contains("<h2>Raw</h2>"));
+    assert!(html.contains("data-source-line=\"5\""));
+}
