@@ -21,6 +21,8 @@ pub(crate) struct SidebarSurface {
     rendering: Rc<Cell<bool>>,
 }
 
+pub(crate) type CompactNavigation = Rc<Cell<bool>>;
+
 /// Builds the responsive category sidebar.
 pub(crate) fn build_sidebar(
     dispatcher: &AppDispatcher,
@@ -120,6 +122,7 @@ impl SidebarSurface {
 /// Builds the shared control that expands or collapses the category sidebar.
 pub(crate) fn sidebar_toggle_button(
     split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
     widget_name: &str,
 ) -> gtk::ToggleButton {
     let toggle = gtk::ToggleButton::new();
@@ -128,7 +131,20 @@ pub(crate) fn sidebar_toggle_button(
     toggle.set_tooltip_text(Some("Hide Categories"));
     toggle.set_active(!split_view.is_collapsed());
     let split = split_view.clone();
+    let compact_navigation = Rc::clone(compact_navigation);
+    let resetting = Rc::new(Cell::new(false));
+    let resetting_for_toggle = Rc::clone(&resetting);
     toggle.connect_toggled(move |button| {
+        if resetting_for_toggle.get() {
+            return;
+        }
+        if compact_navigation.get() {
+            resetting_for_toggle.set(true);
+            button.set_active(false);
+            resetting_for_toggle.set(false);
+            split.set_show_content(false);
+            return;
+        }
         if button.is_active() {
             split.set_collapsed(false);
         } else {
@@ -137,7 +153,9 @@ pub(crate) fn sidebar_toggle_button(
         }
     });
     let toggle_for_state = toggle.clone();
+    let resetting_for_state = Rc::clone(&resetting);
     split_view.connect_collapsed_notify(move |split| {
+        resetting_for_state.set(true);
         if split.is_collapsed() {
             toggle_for_state.set_active(false);
             toggle_for_state.set_tooltip_text(Some("Show Categories"));
@@ -145,6 +163,7 @@ pub(crate) fn sidebar_toggle_button(
             toggle_for_state.set_active(true);
             toggle_for_state.set_tooltip_text(Some("Hide Categories"));
         }
+        resetting_for_state.set(false);
     });
     toggle
 }

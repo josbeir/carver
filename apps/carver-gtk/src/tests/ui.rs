@@ -6,7 +6,9 @@ use carver_config::{Config, SourceSyntaxStyle};
 use gtk::gio::prelude::FileExt;
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::{ActionRowExt, AdwDialogExt, ComboRowExt, PreferencesRowExt};
+use libadwaita::prelude::{
+    ActionRowExt, AdwDialogExt, BreakpointBinExt, ComboRowExt, PreferencesRowExt,
+};
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
@@ -345,6 +347,32 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
     let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     sidebar.select_row(Some(&all_notes));
+    let navigation_container =
+        widget_as::<adw::BreakpointBin>(&root, "responsive-navigation-container")
+            .ok_or("responsive navigation container")?;
+    let navigation = navigation_container
+        .child()
+        .and_downcast::<adw::NavigationSplitView>()
+        .ok_or("responsive navigation split")?;
+    window.set_default_size(360, 640);
+    assert!(run_main_context_until(|| navigation.is_collapsed()));
+    assert!(
+        root.width() >= 360,
+        "window content width: {}",
+        root.width()
+    );
+    let sidebar_toggle = widget_as::<gtk::ToggleButton>(&root, "toggle-categories-button")
+        .ok_or("responsive sidebar toggle")?;
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| !navigation.shows_content()));
+    let category_row = find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
+        .and_downcast::<gtk::ListBoxRow>()
+        .ok_or("responsive category row")?;
+    sidebar.select_row(Some(&category_row));
+    assert!(run_main_context_until(|| navigation.shows_content()));
+    sidebar.select_row(Some(&all_notes));
+    window.set_default_size(1120, 760);
+    assert!(run_main_context_until(|| !navigation.is_collapsed()));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note-category:{}", note.id)).is_some()
             && find_widget(&root, &format!("note-updated:{}", note.id)).is_some()
@@ -627,6 +655,38 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let source_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-source").ok_or("source mode")?;
     let rich_mode = widget_as::<gtk::ToggleButton>(&root, "editor-mode-rich").ok_or("rich mode")?;
+    window.set_default_size(360, 640);
+    let responsive_editor = widget_as::<adw::BreakpointBin>(&root, "editor-responsive-container")
+        .ok_or("responsive editor container")?;
+    assert!(run_main_context_until(|| responsive_editor.width() <= 700));
+    assert!(
+        widget_as::<gtk::Label>(&root, "editor-mode-rich-label")
+            .is_some_and(|label| !label.is_visible())
+    );
+    assert!(
+        widget_as::<gtk::Box>(&root, "formatting-toolbar-desktop")
+            .is_some_and(|toolbar| !toolbar.is_visible())
+    );
+    assert!(
+        widget_as::<gtk::Box>(&root, "formatting-toolbar-compact")
+            .is_some_and(|toolbar| toolbar.is_visible())
+    );
+    assert!(widget_as::<gtk::MenuButton>(&root, "formatting-toolbar-more").is_some());
+    assert!(
+        widget_as::<gtk::ToggleButton>(&root, "favorite-note-button")
+            .is_some_and(|button| !button.is_visible())
+    );
+    assert!(
+        widget_as::<gtk::Button>(&root, "copy-note-button")
+            .is_some_and(|button| !button.is_visible())
+    );
+    window.set_default_size(390, 844);
+    assert!(run_main_context_until(|| responsive_editor.width() >= 360));
+    window.set_default_size(1120, 760);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Box>(&root, "formatting-toolbar-desktop")
+            .is_some_and(|toolbar| toolbar.is_visible())
+    }));
     let toolbar =
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("shared formatting toolbar")?;
     let toolbar_bar =
@@ -670,7 +730,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let gtk_window = window.clone().upcast::<gtk::Window>();
     assert_eq!(
         options_menu.menu_model().map(|model| model.n_items()),
-        Some(3)
+        Some(6)
     );
     assert!(
         options_menu
@@ -1812,6 +1872,7 @@ fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestRes
         &syntax,
         &overlay,
         &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
     )?;
     let (surface, refs) = editor.into_parts();
     let stack = gtk::Stack::new();

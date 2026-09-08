@@ -18,7 +18,7 @@ use webkit6::prelude::*;
 
 use super::{
     dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
-    sidebar::sidebar_toggle_button,
+    sidebar::{CompactNavigation, sidebar_toggle_button},
 };
 use crate::mvu::{
     AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
@@ -43,6 +43,8 @@ mod web;
 
 #[cfg(test)]
 pub(crate) use clipboard::CARVER_CLIPBOARD_MIME;
+
+const COMPACT_EDITOR_WIDTH: f64 = 700.0;
 use clipboard::publish_note;
 use find::FindController;
 use preview::{build_preview, load_preview};
@@ -540,13 +542,18 @@ pub(crate) fn build_editor(
     source_syntax_dir: &Path,
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
 ) -> Result<EditorSurface, SourceSyntaxError> {
     let allow_remote_images = config.images.load_remote_automatically;
     let assets_dir = assets_dir.map(Path::to_path_buf);
     let view = adw::ToolbarView::new();
     view.set_widget_name("editor-surface");
     let header = adw::HeaderBar::new();
-    let toggle_sidebar = sidebar_toggle_button(split_view, "editor-toggle-categories-button");
+    let toggle_sidebar = sidebar_toggle_button(
+        split_view,
+        compact_navigation,
+        "editor-toggle-categories-button",
+    );
     header.pack_start(&toggle_sidebar);
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name("back-to-notes-button");
@@ -555,21 +562,21 @@ pub(crate) fn build_editor(
     let mode_group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     mode_group.add_css_class("linked");
     mode_group.set_widget_name("editor-mode-group");
-    let rich_mode = editor_mode_button(
+    let (rich_mode, rich_mode_label) = editor_mode_button(
         "editor-mode-rich",
         "document-edit-symbolic",
         "Edit",
         "Edit with rich text",
     );
     rich_mode.set_active(true);
-    let source_mode = editor_mode_button(
+    let (source_mode, source_mode_label) = editor_mode_button(
         "editor-mode-source",
         "text-x-generic-symbolic",
         "Source",
         "Edit Carve markup",
     );
     source_mode.set_group(Some(&rich_mode));
-    let rendered_mode = editor_mode_button(
+    let (rendered_mode, rendered_mode_label) = editor_mode_button(
         "editor-mode-rendered",
         "view-reveal-symbolic",
         "Preview",
@@ -608,6 +615,7 @@ pub(crate) fn build_editor(
     let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     mode_controls.set_widget_name("editor-mode-switcher");
     mode_controls.add_css_class("editor-mode-switcher");
+    mode_controls.set_size_request(0, -1);
     mode_controls.set_halign(gtk::Align::Center);
     mode_controls.append(&mode_group);
     mode_controls.append(&split_toggle);
@@ -726,8 +734,8 @@ pub(crate) fn build_editor(
     media_split.set_max_sidebar_width(320.0);
     media_split.set_sidebar_width_fraction(0.25);
     media_split.set_pin_sidebar(true);
-    media_split.set_enable_hide_gesture(false);
-    media_split.set_enable_show_gesture(false);
+    media_split.set_enable_hide_gesture(true);
+    media_split.set_enable_show_gesture(true);
     media_split.set_content(Some(&editor_stack));
     media_split.set_sidebar(Some(&media_panel));
     let media_container = adw::BreakpointBin::new();
@@ -742,6 +750,7 @@ pub(crate) fn build_editor(
     media_breakpoint.add_setters(&[(&media_split, "collapsed", true)]);
     media_container.add_breakpoint(media_breakpoint);
     view.set_content(Some(&media_container));
+    install_compact_editor_actions(&view, dispatcher, &split_toggle);
 
     connect_mode_buttons(
         dispatcher,
@@ -784,6 +793,24 @@ pub(crate) fn build_editor(
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher, &rich);
     let _source_image_drop = render::install_image_drop(&source, dispatcher, &rich);
     let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, &rich);
+    let responsive_container = adw::BreakpointBin::new();
+    responsive_container.set_widget_name("editor-responsive-container");
+    responsive_container.set_size_request(360, 240);
+    responsive_container.set_child(Some(&view));
+    let compact_breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+        adw::BreakpointConditionLengthType::MaxWidth,
+        COMPACT_EDITOR_WIDTH,
+        adw::LengthUnit::Px,
+    ));
+    compact_breakpoint.add_setters(&[(&rich_mode_label, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&source_mode_label, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&rendered_mode_label, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&favorite, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&copy_note, "visible", false)]);
+    compact_breakpoint.add_setters(&[(&split_toggle, "visible", false)]);
+    compact_breakpoint.add_setters(&[(toolbar.desktop_widget(), "visible", false)]);
+    compact_breakpoint.add_setters(&[(toolbar.compact_widget(), "visible", true)]);
+    responsive_container.add_breakpoint(compact_breakpoint);
     let refs = EditorViewRefs {
         favorite,
         add_files,
@@ -819,7 +846,7 @@ pub(crate) fn build_editor(
         assets_dir,
     };
     Ok(EditorSurface {
-        widget: view.upcast(),
+        widget: responsive_container.upcast(),
         refs,
     })
 }
@@ -922,9 +949,11 @@ fn render_media_list(
         content.append(&icon);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
         labels.set_valign(gtk::Align::Center);
+        labels.set_hexpand(true);
         let title = gtk::Label::new(Some(&item.label));
         title.set_halign(gtk::Align::Start);
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        title.set_hexpand(true);
         let size = file.map_or_else(
             || String::from("Unavailable"),
             |file| glib::format_size(file.size).to_string(),
@@ -987,15 +1016,17 @@ fn editor_mode_button(
     icon_name: &str,
     label: &str,
     tooltip: &str,
-) -> gtk::ToggleButton {
+) -> (gtk::ToggleButton, gtk::Label) {
     let button = gtk::ToggleButton::new();
     button.set_widget_name(name);
     button.set_tooltip_text(Some(tooltip));
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     content.append(&gtk::Image::from_icon_name(icon_name));
-    content.append(&gtk::Label::new(Some(label)));
+    let label = gtk::Label::new(Some(label));
+    label.set_widget_name(&format!("{name}-label"));
+    content.append(&label);
     button.set_child(Some(&content));
-    button
+    (button, label)
 }
 
 fn connect_source_context(
@@ -1398,11 +1429,40 @@ fn editor_options_menu() -> gtk::MenuButton {
     menu.add_css_class("flat");
     menu.set_widget_name("editor-options-menu");
     let actions = gtk::gio::Menu::new();
+    actions.append(Some("Copy note"), Some("editor.copy-note"));
+    actions.append(Some("Favorite"), Some(TOGGLE_FAVORITE_ACTION));
+    actions.append(
+        Some("Show rendered preview"),
+        Some("editor.toggle-split-preview"),
+    );
     actions.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
     actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
     actions.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
     menu.set_menu_model(Some(&actions));
     menu
+}
+
+fn install_compact_editor_actions(
+    view: &adw::ToolbarView,
+    dispatcher: &AppDispatcher,
+    split_toggle: &gtk::ToggleButton,
+) {
+    let actions = gtk::gio::SimpleActionGroup::new();
+    let copy_note = gtk::gio::SimpleAction::new("copy-note", None);
+    let copy_dispatcher = dispatcher.clone();
+    copy_note.connect_activate(move |_, _| {
+        let _ = copy_dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopyRequested));
+    });
+    actions.add_action(&copy_note);
+    let split_preview = gtk::gio::SimpleAction::new("toggle-split-preview", None);
+    let split_toggle = split_toggle.clone();
+    split_preview.connect_activate(move |_, _| {
+        if split_toggle.is_sensitive() {
+            split_toggle.set_active(!split_toggle.is_active());
+        }
+    });
+    actions.add_action(&split_preview);
+    view.insert_action_group("editor", Some(&actions));
 }
 
 /// Installs editor-wide actions before embedded rich-text widgets receive their key events.

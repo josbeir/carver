@@ -1,6 +1,6 @@
 //! Application bootstrap and top-level window composition.
 
-use std::path::Path;
+use std::{cell::Cell, path::Path, rc::Rc};
 
 use adw::prelude::*;
 use carver_config::{AppPaths, Config, load, save};
@@ -11,8 +11,10 @@ use libadwaita as adw;
 use crate::{
     mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, NavigationMsg, WindowMsg},
     ui::{
-        browser::build_content, dialogs::install_window_actions, editor::install_syntax_assets,
-        sidebar::build_sidebar,
+        browser::build_content,
+        dialogs::install_window_actions,
+        editor::install_syntax_assets,
+        sidebar::{CompactNavigation, build_sidebar},
     },
     view::ViewRefs,
 };
@@ -20,6 +22,8 @@ use crate::{
 pub(crate) const APPLICATION_ID: &str = "io.github.josbeir.Carver";
 const APPLICATION_NAME: &str = "Carver";
 pub(crate) const APPLICATION_ICON: &str = "io.github.josbeir.Carver";
+const MINIMUM_WINDOW_WIDTH: i32 = 360;
+const COMPACT_NAVIGATION_WIDTH: f64 = 900.0;
 
 type AppLibraryClient = InstalledLibraryClient;
 
@@ -125,6 +129,7 @@ fn build_window(
     let split_view = adw::NavigationSplitView::new();
     split_view.set_show_content(true);
     split_view.set_collapsed(config.window.sidebar_collapsed);
+    let compact_navigation = Rc::new(Cell::new(false));
     let sidebar = build_sidebar(&dispatcher, &split_view);
     let content = build_content(
         &dispatcher,
@@ -132,6 +137,7 @@ fn build_window(
         assets_dir,
         source_syntax_dir,
         &split_view,
+        &compact_navigation,
         &toast_overlay,
     )?;
     let sidebar_page = adw::NavigationPage::new(&sidebar.widget, "Categories");
@@ -139,7 +145,10 @@ fn build_window(
     content_page.set_can_pop(false);
     split_view.set_sidebar(Some(&sidebar_page));
     split_view.set_content(Some(&content_page));
-    toast_overlay.set_child(Some(&split_view));
+    toast_overlay.set_child(Some(&responsive_navigation(
+        &split_view,
+        &compact_navigation,
+    )));
     window.set_content(Some(&toast_overlay));
     let sidebar_for_render = sidebar.clone();
     let browser_status = content.browser.status.clone();
@@ -182,6 +191,28 @@ fn build_window(
     let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     window.present();
     Ok(window)
+}
+
+fn responsive_navigation(
+    split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
+) -> adw::BreakpointBin {
+    let container = adw::BreakpointBin::new();
+    container.set_widget_name("responsive-navigation-container");
+    container.set_size_request(MINIMUM_WINDOW_WIDTH, 240);
+    container.set_child(Some(split_view));
+    let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+        adw::BreakpointConditionLengthType::MaxWidth,
+        COMPACT_NAVIGATION_WIDTH,
+        adw::LengthUnit::Px,
+    ));
+    breakpoint.add_setters(&[(split_view, "collapsed", true)]);
+    let compact_for_apply = Rc::clone(compact_navigation);
+    breakpoint.connect_apply(move |_| compact_for_apply.set(true));
+    let compact_for_unapply = Rc::clone(compact_navigation);
+    breakpoint.connect_unapply(move |_| compact_for_unapply.set(false));
+    container.add_breakpoint(breakpoint);
+    container
 }
 
 #[cfg(test)]
