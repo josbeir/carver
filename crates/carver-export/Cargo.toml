@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-domain = { path = "../carver-domain", version = "0.1.1" }
+carver-domain = { path = "../carver-domain", version = "0.2.0" }
 carve-lang.workspace = true
 thiserror.workspace = true
 zip.workspace = true

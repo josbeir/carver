@@ -117,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "carver-agent-integration"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "carver-config"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "directories",
  "serde",
@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "carver-domain"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "carve-lang",
  "schemars",
@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "carver-editor-protocol"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "schemars",
  "serde",
@@ -157,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "carver-export"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "carve-lang",
  "carver-domain",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "carver-gtk"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "carve-lang",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "carver-library-port"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "carver-domain",
  "time",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "carver-mcp"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "carve-lang",
  "carver-agent-integration",
@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "carver-sdk"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-channel",
  "carver-config",
@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "carver-storage-sqlite"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "carver-domain",
  "carver-library-port",
