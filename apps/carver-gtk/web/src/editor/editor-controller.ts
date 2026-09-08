@@ -10,6 +10,7 @@ import { unsupportedForEditing } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
+import { sanitizePastedSlice } from './paste-sanitizer';
 import type {
   EditorEvent,
   LinkCommand,
@@ -81,6 +82,7 @@ export class EditorController implements RichEditorApi {
       editorProps: {
         handlePaste: (_view, event) => this.pasteImage(event) ?? false,
         handleDrop: (_view, event) => this.dropImages(event),
+        transformPasted: sanitizePastedSlice,
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),
