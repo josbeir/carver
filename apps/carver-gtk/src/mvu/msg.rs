@@ -238,6 +238,13 @@ pub enum EditorMsg {
     ToggleFavorite,
     /// Copy the complete active note as rendered clipboard content.
     CopyRequested,
+    /// Copy a canonical fragment selected by the rich-editor projection.
+    CopySelectionRequested {
+        /// Editor lifetime that produced the fragment.
+        session: EditorSessionId,
+        /// Canonical source for the selected fragment.
+        source: String,
+    },
     /// Open the native export format and packaging options for the current note snapshot.
     ExportDialogRequested,
     /// Export options selected by the native GTK dialog.

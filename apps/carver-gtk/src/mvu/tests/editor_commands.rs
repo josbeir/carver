@@ -129,6 +129,71 @@ fn stale_copy_completion_should_not_replace_the_current_copy_request() {
 }
 
 #[test]
+fn rich_selection_copy_should_publish_the_fragment_without_a_success_notice() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Complete note"),
+        }),
+    );
+    let session = model.editor.as_ref().map(|document| document.session);
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::CopySelectionRequested {
+            session: session.unwrap_or(EditorSessionId(0)),
+            source: String::from("Selected *text*"),
+        }),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::CopyEditorDocument { request }]
+            if request.source == "Selected *text*"
+                && request.scope == EditorCopyScope::Selection
+    ));
+    let request_id = model
+        .editor_copy_request
+        .as_ref()
+        .map(|request| request.request_id)
+        .unwrap_or_default();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::CopyCompleted {
+            request_id,
+            omitted_images: 0,
+        }),
+    );
+    assert_eq!(model.notice, None);
+}
+
+#[test]
+fn stale_rich_selection_copy_should_be_ignored() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Complete note"),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::CopySelectionRequested {
+            session: EditorSessionId(u64::MAX),
+            source: String::from("Stale selection"),
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.editor_copy_request, None);
+}
+
+#[test]
 fn export_should_prepare_the_unsaved_editor_snapshot_before_writing() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

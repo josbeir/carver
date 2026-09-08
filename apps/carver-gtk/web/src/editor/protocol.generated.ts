@@ -35,6 +35,17 @@ export type EditorEvent =
     }
   | {
       /**
+       * Host document session.
+       */
+      session: number;
+      /**
+       * Canonical source for the selected document fragment.
+       */
+      source: string;
+      type: 'copy-selection';
+    }
+  | {
+      /**
        * Nodes whose original shape would degrade.
        */
       degraded: string[];

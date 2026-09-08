@@ -38,10 +38,13 @@ function controllerFixture() {
     commands: { setContent: vi.fn(), focus: vi.fn() },
     getAttributes: vi.fn(() => ({})),
     isActive: vi.fn(() => false),
-    state: { doc: { descendants: vi.fn() } },
+    state: {
+      doc: { descendants: vi.fn() },
+      selection: { empty: true },
+    },
     view: { dispatch: vi.fn() },
   };
-  const createEditor = vi.fn(() => editor);
+  const createEditor = vi.fn((_options: Record<string, unknown>) => editor);
   const controller = new EditorController(
     root,
     { postMessage: (message) => messages.push(message) },
@@ -64,6 +67,47 @@ describe('EditorController', () => {
       'pointerdown',
     ]);
     expect(messages).toEqual([JSON.stringify({ type: 'ready' })]);
+  });
+
+  it('routes a non-empty copy selection through the native clipboard bridge', () => {
+    const { controller, createEditor, editor, messages } = controllerFixture();
+    Object.assign(editor.state, {
+      selection: {
+        empty: false,
+        content: () => ({
+          content: {
+            forEach: (visit) =>
+              visit({
+                isInline: false,
+                toJSON: () => ({
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Selected' }],
+                }),
+              }),
+          },
+        }),
+      },
+    });
+    controller.initialize();
+    controller.load('Document', 9);
+    const options = createEditor.mock.calls[0]?.[0] as {
+      editorProps: {
+        handleDOMEvents: {
+          copy: (view: unknown, event: ClipboardEvent) => boolean;
+        };
+      };
+    };
+    const event = { preventDefault: vi.fn() } as unknown as ClipboardEvent;
+
+    expect(options.editorProps.handleDOMEvents.copy(null, event)).toBe(true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(messages).toContain(
+      JSON.stringify({
+        type: 'copy-selection',
+        session: 9,
+        source: 'Selected',
+      }),
+    );
   });
 
   it('routes named commands through its current editor chain', () => {

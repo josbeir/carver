@@ -10,6 +10,7 @@ import { unsupportedForEditing } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
+import { selectedCarveSource } from './selection-copy';
 import type {
   EditorEvent,
   LinkCommand,
@@ -81,6 +82,9 @@ export class EditorController implements RichEditorApi {
       editorProps: {
         handlePaste: (_view, event) => this.pasteImage(event) ?? false,
         handleDrop: (_view, event) => this.dropImages(event),
+        handleDOMEvents: {
+          copy: (_view, event) => this.copySelection(event),
+        },
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),
@@ -341,6 +345,16 @@ export class EditorController implements RichEditorApi {
     if (!transaction) return false;
     editor.view.dispatch(transaction);
     editor.commands.focus();
+    return true;
+  }
+
+  private copySelection(event: ClipboardEvent): boolean {
+    const editor = this.editor;
+    if (!editor) return false;
+    const source = selectedCarveSource(editor.state);
+    if (source == null) return false;
+    event.preventDefault();
+    this.send({ type: 'copy-selection', session: this.session, source });
     return true;
   }
 
