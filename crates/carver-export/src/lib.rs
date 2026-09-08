@@ -444,6 +444,13 @@ mod tests {
     }
 
     #[test]
+    fn html_document_should_escape_markup_in_the_title() {
+        let document = html_document("<p>Body</p>", "<Client> \"R&D's\"");
+
+        assert!(document.contains("<title>&lt;Client&gt; &quot;R&amp;D&#39;s&quot;</title>"));
+    }
+
+    #[test]
     fn export_warnings_should_explain_singular_plural_and_missing_asset_cases() {
         assert_eq!(
             ExportWarning::MarkdownLoss { count: 1 }.to_string(),
