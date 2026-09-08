@@ -776,16 +776,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some(&gtk_window),
         crate::mvu::AppDispatcher::default(),
     );
-    assert_eq!(
+    let export_format =
         widget_as::<adw::ComboRow>(export_options.upcast_ref(), "export-format-setting")
-            .map(|row| row.title()),
-        Some("Format".into())
-    );
-    assert_eq!(
+            .ok_or("export format")?;
+    let export_assets =
         widget_as::<adw::SwitchRow>(export_options.upcast_ref(), "export-assets-setting")
-            .map(|row| row.title()),
-        Some("Include managed files".into())
-    );
+            .ok_or("export assets")?;
+    assert_eq!(export_format.title(), "Format");
+    assert_eq!(export_format.model().map(|model| model.n_items()), Some(4));
+    assert_eq!(export_assets.title(), "Include managed files");
+    export_format.set_selected(2);
+    export_assets.set_active(true);
+    assert!(export_assets.is_sensitive());
+    export_format.set_selected(3);
+    assert!(!export_assets.is_sensitive());
+    assert!(!export_assets.is_active());
     export_options.emit_by_name::<()>("response", &[&"cancel"]);
     let export_warning = crate::ui::editor::show_export_warning_dialog(
         &crate::mvu::EditorExportWarningRequest {

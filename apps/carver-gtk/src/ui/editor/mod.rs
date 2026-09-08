@@ -1533,7 +1533,7 @@ pub(crate) fn show_export_options_dialog(
     parent: Option<&gtk::Window>,
     dispatcher: AppDispatcher,
 ) -> adw::AlertDialog {
-    let format_options = gtk::StringList::new(&["Carve", "Markdown", "PDF"]);
+    let format_options = gtk::StringList::new(&["Carve", "Markdown", "HTML", "PDF"]);
     let format_expression = gtk::PropertyExpression::new(
         gtk::StringObject::static_type(),
         None::<gtk::Expression>,
@@ -1552,7 +1552,7 @@ pub(crate) fn show_export_options_dialog(
     let format_for_toggle = format.clone();
     let assets_for_toggle = include_assets.clone();
     format.connect_selected_notify(move |_| {
-        let pdf_selected = format_for_toggle.selected() == 2;
+        let pdf_selected = format_for_toggle.selected() == 3;
         assets_for_toggle.set_sensitive(!pdf_selected);
         if pdf_selected {
             assets_for_toggle.set_active(false);
@@ -1577,6 +1577,7 @@ pub(crate) fn show_export_options_dialog(
         let format = match format.selected() {
             0 => EditorExportFormat::Carve,
             1 => EditorExportFormat::Markdown,
+            2 => EditorExportFormat::Html,
             _ => EditorExportFormat::Pdf,
         };
         let include_assets =
@@ -1607,6 +1608,7 @@ fn show_export_file_dialog(
     filter.set_name(Some(match extension {
         "crv" => "Carve documents",
         "md" => "Markdown documents",
+        "html" => "HTML documents",
         "pdf" => "PDF documents",
         _ => "Portable ZIP archives",
     }));
