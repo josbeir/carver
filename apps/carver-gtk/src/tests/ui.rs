@@ -1056,6 +1056,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             false
         )
         .contains("assets/second.png")));
+    assert_rich_selection_copy_should_publish_portable_content(
+        &source,
+        &source_mode,
+        &rich_mode,
+        &rich,
+    )?;
     source_mode.set_active(true);
     source
         .buffer()
@@ -1736,6 +1742,49 @@ fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
         }),
         "{script}"
     );
+}
+
+fn assert_rich_selection_copy_should_publish_portable_content(
+    source: &gtk::TextView,
+    source_mode: &gtk::ToggleButton,
+    rich_mode: &gtk::ToggleButton,
+    rich: &webkit6::WebView,
+) -> TestResult {
+    for text in ["first projection", "# Portable selection"] {
+        source_mode.set_active(true);
+        source.buffer().set_text(text);
+        rich_mode.set_active(true);
+        assert_web_script_should_be_true(
+            rich,
+            &format!(
+                "window.carverEditor?.source() === {}",
+                serde_json::to_string(text)?
+            ),
+        );
+    }
+
+    assert_web_script_should_be_true(
+        rich,
+        "(() => { const editor = window.carverEditor?.editor; if (!editor) return false; editor.commands.selectAll(); return !editor.view.dom.dispatchEvent(new ClipboardEvent('copy', {bubbles:true, cancelable:true})); })()",
+    );
+    let clipboard = source.display().clipboard();
+    assert!(run_main_context_until(|| {
+        clipboard.formats().contain_mime_type("text/html")
+            && clipboard
+                .formats()
+                .contain_mime_type("text/plain;charset=utf-8")
+    }));
+    let copied_text = Rc::new(std::cell::RefCell::new(None));
+    let copied_text_for_callback = Rc::clone(&copied_text);
+    clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+        *copied_text_for_callback.borrow_mut() = result.ok().flatten().map(|text| text.to_string());
+    });
+    assert!(run_main_context_until(|| copied_text.borrow().is_some()));
+    assert_eq!(
+        copied_text.borrow().as_deref(),
+        Some("Portable selection\n")
+    );
+    Ok(())
 }
 
 fn assert_media_visibility_should_restore_without_reentrant_toggles() -> TestResult {

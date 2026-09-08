@@ -11,7 +11,7 @@ use gtk::prelude::*;
 use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, EditorSessionId};
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 
 use super::focus::EditorFocusRestorer;
 
@@ -278,11 +278,11 @@ impl RichEditor {
                 EditorEvent::CopySelection { session, source }
                     if session == editor.session.get() =>
                 {
-                    let _ =
-                        dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopySelectionRequested {
-                            session: EditorSessionId(session),
-                            source,
-                        }));
+                    if let Some(session) = editor.document_session.get() {
+                        let _ = dispatcher.dispatch(AppMsg::Editor(
+                            EditorMsg::CopySelectionRequested { session, source },
+                        ));
+                    }
                 }
                 EditorEvent::Selection {
                     session,
