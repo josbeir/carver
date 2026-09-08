@@ -137,29 +137,84 @@ describe('sanitizePastedSlice', () => {
     });
   });
 
-  it('extracts canonical source from Carver clipboard HTML', () => {
+  it('carries canonical source from the native clipboard format', () => {
     const source = '## R\u00e9sum\u00e9{#references role="bibliography"}';
-    const encoded = globalThis.btoa(
-      String.fromCharCode(...new TextEncoder().encode(source)),
-    );
     const sanitizer = new ClipboardPasteSanitizer();
 
-    expect(
-      sanitizer.preparePastedHtml(
-        `<h2>R\u00e9sum\u00e9</h2><!--carver-source:${encoded}-->`,
-      ),
-    ).toBe('<h2>R\u00e9sum\u00e9</h2>');
+    sanitizer.capturePastedSource(source);
     expect(sanitizer.takePastedSource()).toBe(source);
     expect(sanitizer.takePastedSource()).toBeNull();
   });
 
-  it('ignores malformed Carver clipboard payloads', () => {
+  it('clears a stale native clipboard source when the next paste is external', () => {
     const sanitizer = new ClipboardPasteSanitizer();
 
-    expect(
-      sanitizer.preparePastedHtml('<p>External</p><!--carver-source:a-->'),
-    ).toBe('<p>External</p>');
+    sanitizer.capturePastedSource('Internal');
+    sanitizer.capturePastedSource(null);
     expect(sanitizer.takePastedSource()).toBeNull();
+  });
+
+  it('refuses an unsupported Carver source instead of degrading its HTML', () => {
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.text('Rendered fallback'),
+    );
+    const parsed = new Slice(Fragment.from(heading), 0, 0);
+    const sanitizer = new ClipboardPasteSanitizer();
+    sanitizer.capturePastedSource('Unsupported canonical source');
+
+    expect(sanitizer.resolvePastedSlice(parsed, false, () => null)).toEqual(
+      Slice.empty,
+    );
+  });
+
+  it('keeps plain-text paste semantics when the custom format is present', () => {
+    const heading = schema.nodes.heading.create(
+      { level: 2 },
+      schema.text('Plain text'),
+    );
+    const parsed = new Slice(Fragment.from(heading), 0, 0);
+    const sanitizer = new ClipboardPasteSanitizer();
+    sanitizer.capturePastedSource('Canonical source');
+
+    expect(
+      sanitizer.resolvePastedSlice(parsed, true, () => {
+        throw new Error('plain-text paste must not restore rich content');
+      }),
+    ).toEqual(parsed);
+    expect(sanitizer.takePastedSource()).toBeNull();
+  });
+
+  it('restores the source carried by this paste without controller-local state', () => {
+    const parsed = new Slice(
+      Fragment.from(
+        schema.nodes.paragraph.create(null, schema.text('Rendered fallback')),
+      ),
+      0,
+      0,
+    );
+    const restored = new Slice(
+      Fragment.from(
+        schema.nodes.paragraph.create(
+          {
+            id: 'intro',
+            carveKeyValues: { role: 'summary' },
+            carveAttrOrder: ['#id', 'role'],
+          },
+          schema.text('Canonical source'),
+        ),
+      ),
+      0,
+      0,
+    );
+    const sanitizer = new ClipboardPasteSanitizer();
+    sanitizer.capturePastedSource('Canonical source{#intro role="summary"}');
+
+    expect(
+      sanitizer.resolvePastedSlice(parsed, false, (source) =>
+        source.startsWith('Canonical source') ? restored : null,
+      ),
+    ).toEqual(restored);
   });
 
   it('preserves marks inherited from the selection on plain-text paste', () => {
@@ -224,12 +279,12 @@ describe('sanitizePastedSlice', () => {
       0,
     );
     const sanitizer = new ClipboardPasteSanitizer();
-    sanitizer.preparePastedHtml('<h2>Internal</h2>');
-    expect(sanitizer.takePastedSource()).toBeNull();
+    sanitizer.capturePastedSource(null);
 
     expect(
-      sanitizer.sanitizePastedSlice(forged).content.firstChild?.attrs
-        .carveKeyValues,
+      sanitizer.resolvePastedSlice(forged, false, () => {
+        throw new Error('external HTML must not use the Carver source path');
+      }).content.firstChild?.attrs.carveKeyValues,
     ).toBeNull();
   });
 

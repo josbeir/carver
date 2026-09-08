@@ -29,6 +29,7 @@ import { resizeSelectedTable, tableSize } from './table-resize';
 // biome-ignore lint/suspicious/noExplicitAny: Tiptap augments its command API at runtime.
 type RuntimeEditor = any;
 type EditorFactory = (options: Record<string, unknown>) => RuntimeEditor;
+const CARVER_CLIPBOARD_TYPE = 'application/x-carver-source';
 
 const CarveImage = Image.extend({
   addAttributes() {
@@ -87,22 +88,25 @@ export class EditorController implements RichEditorApi {
         handleDrop: (_view, event) => this.dropImages(event),
         handleDOMEvents: {
           copy: (_view, event) => this.copySelection(event),
+          paste: (_view, event) => {
+            const clipboard = event.clipboardData;
+            const source =
+              clipboard && [...clipboard.types].includes(CARVER_CLIPBOARD_TYPE)
+                ? clipboard.getData(CARVER_CLIPBOARD_TYPE)
+                : null;
+            this.pasteSanitizer.capturePastedSource(source);
+            return false;
+          },
         },
-        transformPastedHTML: (html) =>
-          this.pasteSanitizer.preparePastedHtml(html),
-        transformPasted: (slice, view, plain) => {
-          const source = this.pasteSanitizer.takePastedSource();
-          if (!plain && source !== null) {
+        transformPasted: (slice, view, plain) =>
+          this.pasteSanitizer.resolvePastedSlice(slice, plain, (source) => {
             const result = carveToProseMirrorWithReport(source, {
               unsupported: 'preserve',
             });
-            if (!unsupportedForEditing(result).length) {
-              const document = view.state.schema.nodeFromJSON(result.doc);
-              return Slice.maxOpen(document.content, true);
-            }
-          }
-          return this.pasteSanitizer.sanitizePastedSlice(slice, plain);
-        },
+            if (unsupportedForEditing(result).length) return null;
+            const document = view.state.schema.nodeFromJSON(result.doc);
+            return Slice.maxOpen(document.content, true);
+          }),
       },
       onUpdate: ({ editor }) => this.onUpdate(editor),
       onSelectionUpdate: () => this.reportSelection(),

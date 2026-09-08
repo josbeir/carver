@@ -65,9 +65,11 @@ describe('EditorController', () => {
 
     expect(createEditor).toHaveBeenCalledOnce();
     expect(createEditor.mock.calls[0][0].editorProps).toMatchObject({
-      handleDOMEvents: expect.objectContaining({ copy: expect.any(Function) }),
+      handleDOMEvents: expect.objectContaining({
+        copy: expect.any(Function),
+        paste: expect.any(Function),
+      }),
       transformPasted: expect.any(Function),
-      transformPastedHTML: expect.any(Function),
     });
     expect([...listeners.keys()].sort()).toEqual([
       'drop',
@@ -103,13 +105,13 @@ describe('EditorController', () => {
       editorProps: {
         handleDOMEvents: {
           copy: (view: unknown, event: ClipboardEvent) => boolean;
+          paste: (view: unknown, event: ClipboardEvent) => boolean;
         };
         transformPasted: (
           slice: unknown,
           view: unknown,
           plain: boolean,
         ) => unknown;
-        transformPastedHTML: (html: string) => string;
       };
     };
     const event = { preventDefault: vi.fn() } as unknown as ClipboardEvent;
@@ -123,11 +125,16 @@ describe('EditorController', () => {
         source: 'Selected',
       }),
     );
-    expect(
-      options.editorProps.transformPastedHTML(
-        '<p>Selected</p><!--carver-source:U2VsZWN0ZWQ=-->',
-      ),
-    ).toBe('<p>Selected</p>');
+    const pasteEvent = {
+      clipboardData: {
+        types: ['text/html', 'application/x-carver-source'],
+        getData: (type: string) =>
+          type === 'application/x-carver-source' ? 'Selected' : '',
+      },
+    } as unknown as ClipboardEvent;
+    expect(options.editorProps.handleDOMEvents.paste(null, pasteEvent)).toBe(
+      false,
+    );
     const restored = options.editorProps.transformPasted(
       { foreign: true },
       { state: { schema: getSchema([CarveKit]) } },

@@ -4,19 +4,6 @@ type AttributeTransform = (
   attributes: Record<string, unknown>,
 ) => Record<string, unknown>;
 
-const INTERNAL_COPY_PATTERN = /<!--carver-source:([A-Za-z0-9+/]*={0,2})-->/;
-
-function decodedSource(encoded: string): string | null {
-  try {
-    const bytes = Uint8Array.from(globalThis.atob(encoded), (value) =>
-      value.charCodeAt(0),
-    );
-    return new TextDecoder().decode(bytes);
-  } catch {
-    return null;
-  }
-}
-
 function sanitizedAttributes(attributes: Record<string, unknown>) {
   const sanitized = { ...attributes };
   if (!('carveAttrOrder' in sanitized)) return sanitized;
@@ -67,11 +54,9 @@ export function sanitizePastedSlice(slice: Slice): Slice {
 export class ClipboardPasteSanitizer {
   private pastedSource: string | null = null;
 
-  /** Extracts canonical Carve from native clipboard HTML before it is parsed. */
-  public preparePastedHtml(html: string): string {
-    const match = INTERNAL_COPY_PATTERN.exec(html);
-    this.pastedSource = match ? decodedSource(match[1]) : null;
-    return match ? html.replace(match[0], '') : html;
+  /** Captures canonical Carve from the native clipboard format before parsing. */
+  public capturePastedSource(source: string | null): void {
+    this.pastedSource = source;
   }
 
   /** Consumes canonical Carve carried by the current native clipboard paste. */
@@ -84,5 +69,17 @@ export class ClipboardPasteSanitizer {
   /** Preserves plain-text context and sanitizes foreign rich text. */
   public sanitizePastedSlice(slice: Slice, plain = false): Slice {
     return plain ? slice : sanitizePastedSlice(slice);
+  }
+
+  /** Restores typed Carver content or refuses an unsupported internal paste. */
+  public resolvePastedSlice(
+    slice: Slice,
+    plain: boolean,
+    restore: (source: string) => Slice | null,
+  ): Slice {
+    const source = this.takePastedSource();
+    if (plain) return slice;
+    if (source !== null) return restore(source) ?? Slice.empty;
+    return sanitizePastedSlice(slice);
   }
 }

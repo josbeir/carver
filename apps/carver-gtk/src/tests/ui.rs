@@ -736,6 +736,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             && clipboard
                 .formats()
                 .contain_mime_type("text/plain;charset=utf-8")
+            && clipboard
+                .formats()
+                .contain_mime_type(crate::ui::editor::CARVER_CLIPBOARD_MIME)
     }));
     let copied_text = std::rc::Rc::new(std::cell::RefCell::new(None));
     let copied_text_for_callback = std::rc::Rc::clone(&copied_text);
@@ -1773,6 +1776,9 @@ fn assert_rich_selection_copy_should_publish_portable_content(
             && clipboard
                 .formats()
                 .contain_mime_type("text/plain;charset=utf-8")
+            && clipboard
+                .formats()
+                .contain_mime_type(crate::ui::editor::CARVER_CLIPBOARD_MIME)
     }));
     let copied_text = Rc::new(std::cell::RefCell::new(None));
     let copied_text_for_callback = Rc::clone(&copied_text);
