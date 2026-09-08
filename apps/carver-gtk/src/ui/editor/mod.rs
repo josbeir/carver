@@ -961,12 +961,20 @@ fn render_media_list(
             && let Some(texture) = thumbnails.get(&item.path)
         {
             icon.set_paintable(Some(texture));
+            let thumbnail = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            thumbnail.add_css_class("media-thumbnail");
+            thumbnail.set_overflow(gtk::Overflow::Hidden);
+            thumbnail.set_valign(gtk::Align::Center);
+            thumbnail.append(&icon);
+            content.append(&thumbnail);
+        } else {
+            content.append(&icon);
         }
-        content.append(&icon);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
         labels.set_valign(gtk::Align::Center);
         labels.set_hexpand(true);
         let title = gtk::Label::new(Some(&item.label));
+        title.add_css_class("media-filename");
         title.set_halign(gtk::Align::Start);
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
         title.set_hexpand(true);
