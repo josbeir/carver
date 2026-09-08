@@ -720,6 +720,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         find_label(options_popover.upcast_ref(), "Show rendered preview")
             .is_some_and(|label| !label.is_sensitive())
     );
+    assert!(find_label(options_popover.upcast_ref(), "Remove from Favorites").is_some());
     options_menu.popdown();
     assert!(!split_toggle.is_active());
     window.set_default_size(1120, 760);

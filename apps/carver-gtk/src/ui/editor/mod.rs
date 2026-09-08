@@ -66,6 +66,7 @@ type ThumbnailCache =
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
+    compact_options: gtk::gio::Menu,
     media_toggle: gtk::ToggleButton,
     add_files: gtk::Button,
     media_split: adw::OverlaySplitView,
@@ -146,6 +147,16 @@ impl EditorViewRefs {
         };
         self.rendering.set(true);
         self.favorite.set_active(document.is_favorite);
+        self.compact_options.remove(2);
+        self.compact_options.insert(
+            2,
+            Some(if document.is_favorite {
+                "Remove from Favorites"
+            } else {
+                "Add to Favorites"
+            }),
+            Some("editor.toggle-favorite"),
+        );
         self.add_files
             .set_sensitive(document.mode != EditorMode::Rendered);
         self.media_toggle
@@ -600,7 +611,7 @@ pub(crate) fn build_editor(
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
-    let options_menu = editor_options_menu();
+    let (options_menu, compact_options) = editor_options_menu();
     header.pack_end(&options_menu);
     header.pack_end(&media_toggle);
     header.pack_end(&copy_note);
@@ -817,6 +828,7 @@ pub(crate) fn build_editor(
     responsive_container.add_breakpoint(compact_breakpoint);
     let refs = EditorViewRefs {
         favorite,
+        compact_options,
         add_files,
         media_toggle,
         media_split,
@@ -1426,7 +1438,7 @@ fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
     });
 }
 
-fn editor_options_menu() -> gtk::MenuButton {
+fn editor_options_menu() -> (gtk::MenuButton, gtk::gio::Menu) {
     let menu = gtk::MenuButton::new();
     menu.set_icon_name("view-more-symbolic");
     menu.set_tooltip_text(Some("Note options"));
@@ -1435,7 +1447,7 @@ fn editor_options_menu() -> gtk::MenuButton {
     let actions = gtk::gio::Menu::new();
     actions.append(Some("Back to notes"), Some("editor.back"));
     actions.append(Some("Copy note"), Some("editor.copy-note"));
-    actions.append(Some("Favorite"), Some(TOGGLE_FAVORITE_ACTION));
+    actions.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
     actions.append(
         Some("Show rendered preview"),
         Some("editor.toggle-split-preview"),
@@ -1444,7 +1456,7 @@ fn editor_options_menu() -> gtk::MenuButton {
     actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
     actions.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
     menu.set_menu_model(Some(&actions));
-    menu
+    (menu, actions)
 }
 
 fn install_compact_editor_actions(
@@ -1465,6 +1477,12 @@ fn install_compact_editor_actions(
         let _ = copy_dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopyRequested));
     });
     actions.add_action(&copy_note);
+    let favorite = gtk::gio::SimpleAction::new("toggle-favorite", None);
+    let favorite_dispatcher = dispatcher.clone();
+    favorite.connect_activate(move |_, _| {
+        let _ = favorite_dispatcher.dispatch(AppMsg::Editor(EditorMsg::ToggleFavorite));
+    });
+    actions.add_action(&favorite);
     let split_preview = gtk::gio::SimpleAction::new("toggle-split-preview", None);
     split_preview.set_enabled(split_toggle.is_sensitive());
     let split_preview_for_sensitivity = split_preview.clone();
