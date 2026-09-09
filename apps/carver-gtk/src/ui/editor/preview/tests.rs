@@ -196,3 +196,29 @@ fn raw_html_should_not_escape_preview_layout_rules() {
     assert!(html.contains("</main>"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview] {\n  max-width:"));
 }
+
+#[test]
+fn preview_images_should_rewrite_encoded_paths_and_preserve_other_attributes()
+-> Result<(), lol_html::errors::RewritingError> {
+    let html = rewrite_preview_images("<IMG alt='a > b' SRC='assets&#47;photo.png' width='50%'>")?;
+    assert!(html.contains("carver-asset:///assets/photo.png"));
+    assert!(html.contains("alt='a > b'"));
+    assert!(html.contains("width='50%'"));
+    Ok(())
+}
+
+#[test]
+fn preview_images_should_leave_traversal_paths_unrouted()
+-> Result<(), lol_html::errors::RewritingError> {
+    let html = "<img src='assets/&#46;&#46;/private.png'>";
+    assert_eq!(rewrite_preview_images(html)?, html);
+    Ok(())
+}
+
+#[test]
+fn preview_images_should_preserve_encoded_ampersands_in_filenames()
+-> Result<(), lol_html::errors::RewritingError> {
+    let html = rewrite_preview_images("<img src='assets/a&amp;amp;b.png'>")?;
+    assert!(html.contains("carver-asset:///assets/a&amp;amp;b.png"));
+    Ok(())
+}

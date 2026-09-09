@@ -222,14 +222,27 @@ fn rendered_document_with_theme(
     let body = carve::to_html_with_options(
         source,
         &carve::Options::default().with_extension(&provenance),
-    )
-    .replace("src=\"assets/", "src=\"carver-asset:///assets/");
+    );
+    let body = rewrite_preview_images(&body).unwrap_or_else(|error| {
+        glib::g_warning!("carver", "Could not rewrite preview images: {error}");
+        String::from("<p>Could not render the note preview.</p>")
+    });
     let stylesheet = preview_document_style(theme, appearance);
     format!(
         "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )
+}
+
+fn rewrite_preview_images(html: &str) -> Result<String, lol_html::errors::RewritingError> {
+    super::html::rewrite_managed_images(html, |image, source| {
+        if managed_asset_filename(source).is_some() {
+            let uri = format!("carver-asset:///{source}");
+            image.set_attribute("src", &html_escape::encode_double_quoted_attribute(&uri))?;
+        }
+        Ok(())
+    })
 }
 
 /// Loads source into a preview while keeping the caller's UI state intact.
