@@ -13,6 +13,12 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
         revision: saved.revision,
         source: saved.source.clone(),
     }));
+    let rich =
+        widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich editor")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "(() => { const panel = document.querySelector('.carve-div.details'); return panel && getComputedStyle(panel).borderRadius === '10px' && getComputedStyle(panel.querySelector('.admonition-title')).borderBottomWidth === '1px' && panel.querySelector('.carve-div-body').textContent.includes('https://example.com'); })()",
+    );
     for (mode, name) in [
         (
             carver_config::EditorMode::Rendered,
@@ -35,6 +41,10 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
         assert_web_script_should_be_true(
             &view,
             "Boolean(document.querySelector('nav.toc a[href=\"#Heading\"]') && document.querySelector('details a[href=\"https://example.com\"]'))",
+        );
+        assert_web_script_should_be_true(
+            &view,
+            "getComputedStyle(document.querySelector('details')).borderRadius === '10px' && parseFloat(getComputedStyle(document.querySelector('nav.toc')).borderInlineStartWidth) > 1",
         );
         assert_web_script_should_be_true(
             &view,

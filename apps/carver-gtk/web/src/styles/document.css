@@ -439,27 +439,91 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
     block-size: auto;
   }
 }
-/* Native, script-free authoring helpers share the document's theme. */
-body[data-preview] nav.toc {
-  margin-block: 1em;
-  padding: 0.75em 1em;
-  border-inline-start: 2px solid currentColor;
+/* Keep authored containers recognizable in both the editable projection and preview. */
+:where(.ProseMirror, body[data-preview])
+:is(.carve-div.details, details, nav.toc) {
+  margin-block: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--code-background);
+  overflow-wrap: anywhere;
 }
 
-body[data-preview] nav.toc ul {
-  margin-block: 0.25em;
-}
-
+:where(.ProseMirror, body[data-preview]) .carve-div.details,
 body[data-preview] details {
-  margin-block: 1em;
+  padding: 1rem 1.25rem;
 }
 
-body[data-preview] summary {
-  cursor: pointer;
+:where(.ProseMirror, body[data-preview]) .carve-div.details > .admonition-title,
+body[data-preview] details > summary {
+  margin: -1rem -1.25rem 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
+}
+
+:where(.ProseMirror, body[data-preview])
+  .carve-div.details
+  > .carve-div-body
+  > :last-child,
+body[data-preview] details > :last-child:not(summary) {
+  margin-bottom: 0;
+}
+
+body[data-preview] details:not([open]) {
+  padding-bottom: 0;
+}
+
+body[data-preview] details:not([open]) > summary {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+body[data-preview] details > summary {
+  cursor: pointer;
+  border-radius: 9px 9px 0 0;
+}
+
+body[data-preview] details > summary::marker {
+  color: var(--accent-color);
+}
+
+body[data-preview] details > summary:hover {
+  background: var(--selection-background);
 }
 
 body[data-preview] summary:focus-visible {
   outline: 2px solid var(--accent-color);
-  outline-offset: 3px;
+  outline-offset: 2px;
+}
+
+body[data-preview] nav.toc {
+  padding: 1rem 1.25rem;
+  border-inline-start: 3px solid var(--accent-color);
+}
+
+body[data-preview] nav.toc ul {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  list-style: none;
+}
+
+body[data-preview] nav.toc > ul {
+  padding-inline-start: 0;
+}
+
+body[data-preview] nav.toc li {
+  margin: 0;
+}
+
+body[data-preview] nav.toc a {
+  display: inline-block;
+  padding-block: 0.2rem;
+  text-decoration: none;
+  text-underline-offset: 0.2em;
+}
+
+body[data-preview] nav.toc a:hover,
+body[data-preview] nav.toc a:focus-visible {
+  text-decoration: underline;
 }
