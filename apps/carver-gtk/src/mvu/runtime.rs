@@ -1025,3 +1025,6 @@ async fn stage_portable_export<B: LibraryBackend>(
 fn display_error(error: impl std::fmt::Display) -> UiError {
     UiError::new(error.to_string())
 }
+
+#[cfg(test)]
+pub(crate) mod tests;

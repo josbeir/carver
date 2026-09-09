@@ -19,6 +19,7 @@ mod editor_commands;
 mod editor_navigation;
 mod editor_refresh;
 mod editor_save;
+mod export_failures;
 mod favorites;
 mod mutations;
 mod preferences;

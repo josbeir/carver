@@ -223,6 +223,7 @@ dependencies = [
  "time",
  "uuid",
  "webkit6",
+ "zip",
 ]
 
 [[package]]

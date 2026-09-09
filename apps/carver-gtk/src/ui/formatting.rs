@@ -383,25 +383,4 @@ fn capture_selection(buffer: &gtk::TextBuffer) -> Option<SelectionMarks> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use gtk::prelude::*;
-
-    use super::capture_selection;
-
-    pub(crate) fn captured_source_selection_should_delete_marks_after_reading_offsets() {
-        let buffer = gtk::TextBuffer::new(None);
-        buffer.set_text("Carver");
-        let start = buffer.iter_at_offset(1);
-        let end = buffer.iter_at_offset(4);
-        buffer.select_range(&start, &end);
-        let Some(marks) = capture_selection(&buffer) else {
-            panic!("the selected source range should create marks");
-        };
-        let start_mark = marks.start.clone();
-        let end_mark = marks.end.clone();
-
-        assert_eq!(marks.into_range(&buffer), 1..4);
-        assert!(start_mark.is_deleted());
-        assert!(end_mark.is_deleted());
-    }
-}
+pub(crate) mod tests;

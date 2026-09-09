@@ -1,3 +1,3 @@
 mod state;
 pub(crate) mod support;
-mod ui;
+pub(crate) mod ui;

@@ -33,6 +33,9 @@ webkit6 = "0.6.1"
 lol_html.workspace = true
 html-escape.workspace = true
 
+[dev-dependencies]
+zip.workspace = true
+
 [build-dependencies]
 glib-build-tools = "0.22"
 
