@@ -169,7 +169,7 @@ fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppMod
         button.set_widget_name(&format!("base:{}", base.id));
         button.add_css_class("base-sidebar-button");
         button.set_child(Some(&base_button_content(
-            "view-grid-symbolic",
+            "drive-harddisk-symbolic",
             &base.name,
             Some(base.row_count),
             Some(&format!("base-count:{}", base.id)),

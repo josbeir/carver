@@ -53,6 +53,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "registered agent icons should be discoverable by GTK's icon theme"
     );
     assert!(
+        gtk::IconTheme::for_display(&display).has_icon("drive-harddisk-symbolic"),
+        "the Adwaita storage icon should be available for saved Bases"
+    );
+    assert!(
         gtk::IconTheme::for_display(&display).has_icon("package-x-generic-symbolic"),
         "the Adwaita package icon should be available to the category picker"
     );
