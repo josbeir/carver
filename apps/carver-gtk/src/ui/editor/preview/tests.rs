@@ -29,6 +29,13 @@ fn rendered_document_matches_the_editor_block_presentation() {
 }
 
 #[test]
+fn shared_document_inset_should_live_on_the_body() {
+    assert!(PREVIEW_STYLESHEET.contains("body {\n  box-sizing: border-box;"));
+    assert!(PREVIEW_STYLESHEET.contains("padding: 24px;"));
+    assert!(PREVIEW_STYLESHEET.contains("min-height: calc(100vh - 48px);"));
+}
+
+#[test]
 fn rendered_document_should_include_the_shared_document_appearance() {
     let html = rendered_document("Preview", false);
 

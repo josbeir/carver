@@ -23,12 +23,14 @@ body {
   margin: 0;
 }
 body {
+  box-sizing: border-box;
   background: var(--document-background);
   color: var(--document-foreground);
   font-family: var(--document-font-family);
   font-size: var(--document-font-size);
   font-style: var(--document-font-style);
   font-weight: var(--document-font-weight);
+  padding: 24px;
 }
 .ProseMirror::selection,
 body[data-preview]::selection {
@@ -41,14 +43,10 @@ body[data-preview] {
   line-height: var(--document-line-height);
 }
 .ProseMirror {
-  min-height: 100vh;
+  min-height: calc(100vh - 48px);
   max-width: var(--document-content-width);
   margin-inline: auto;
   outline: none;
-  padding: 24px;
-}
-body[data-preview] {
-  padding: 24px;
 }
 body[data-preview] > * {
   max-width: var(--document-content-width);
