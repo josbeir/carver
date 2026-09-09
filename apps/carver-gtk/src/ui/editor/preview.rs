@@ -20,19 +20,13 @@ pub(super) fn build_preview(
     let context = webkit6::WebContext::new();
     install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
     let manager = webkit6::UserContentManager::new();
-    manager.add_style_sheet(&webkit6::UserStyleSheet::new(
-        PREVIEW_STYLESHEET,
-        webkit6::UserContentInjectedFrames::TopFrame,
-        webkit6::UserStyleLevel::User,
-        &[],
-        &[],
-    ));
     let settings = webkit6::Settings::new();
     // The preview document's CSP keeps document markup scriptless. JavaScript
     // stays enabled solely for the native split-preview scroll bridge, which
     // invokes a fixed host script through `WebView::evaluate_javascript`.
     settings.set_enable_javascript(true);
     settings.set_enable_javascript_markup(false);
+    settings.set_enable_developer_extras(cfg!(debug_assertions));
     settings.set_enable_media(false);
     settings.set_enable_html5_database(false);
     settings.set_enable_html5_local_storage(false);
@@ -51,6 +45,22 @@ pub(super) fn build_preview(
     view.set_widget_name("rendered-preview");
     connect_external_link_handler(&view, toast_overlay);
     view
+}
+
+fn preview_document_style(
+    theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
+) -> String {
+    format!(
+        "{PREVIEW_STYLESHEET}\n:root {{ --accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {}; --preview-selection-background: {}; --preview-selection-foreground: {}; {} }}",
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
+        super::web::appearance_style(appearance),
+    )
 }
 
 /// Sends user-activated web links to the desktop browser instead of navigating
@@ -179,20 +189,29 @@ pub(crate) fn rendered_document(source: &str, allow_remote_images: bool) -> Stri
         (false, gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0))
     };
     let theme = super::web::editor_theme(dark, &accent);
-    rendered_document_with_theme(source, allow_remote_images, &theme)
+    rendered_document_with_theme(source, allow_remote_images, &theme, &default_appearance())
 }
 
 #[cfg(test)]
 fn rendered_document_for_theme(source: &str, allow_remote_images: bool, dark: bool) -> String {
     let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
     let theme = super::web::editor_theme(dark, &accent);
-    rendered_document_with_theme(source, allow_remote_images, &theme)
+    rendered_document_with_theme(source, allow_remote_images, &theme, &default_appearance())
+}
+
+fn default_appearance() -> super::web::DocumentAppearance {
+    super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: None,
+        line_height_percent: 155,
+        width: carver_config::DocumentWidth::Comfortable,
+    })
 }
 
 fn rendered_document_with_theme(
     source: &str,
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
 ) -> String {
     let image_sources = if allow_remote_images {
         "img-src data: https: http: carver-asset:"
@@ -205,17 +224,9 @@ fn rendered_document_with_theme(
         &carve::Options::default().with_extension(&provenance),
     )
     .replace("src=\"assets/", "src=\"carver-asset:///assets/");
-    let selection_style = format!(
-        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
-        theme.selection.accent,
-        theme.selection.background,
-        theme.selection.foreground,
-        theme.selection.accent,
-        theme.selection.background,
-        theme.selection.foreground,
-    );
+    let stylesheet = preview_document_style(theme, appearance);
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\"><main class=\"preview-content\">{body}</main></body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )
@@ -235,9 +246,10 @@ pub(super) fn load_preview_with_theme(
     source: &str,
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
 ) {
     view.load_html(
-        &rendered_document_with_theme(source, allow_remote_images, theme),
+        &rendered_document_with_theme(source, allow_remote_images, theme, appearance),
         Some("carver-preview://document/"),
     );
 }

@@ -6,12 +6,13 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use carver_config::DocumentWidth;
 use carver_editor_protocol::{EditorCommand, EditorEvent, SelectionState};
 use gtk::prelude::*;
 use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
+use crate::mvu::{AppDispatcher, AppMsg, DocumentPreferences, EditorMsg};
 
 use super::focus::EditorFocusRestorer;
 
@@ -35,6 +36,7 @@ pub(crate) struct RichEditor {
     canonical_source: Rc<RefCell<Rc<str>>>,
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
     current_theme: Rc<RefCell<Option<EditorTheme>>>,
+    current_appearance: Rc<RefCell<Option<DocumentAppearance>>>,
     unsupported_handler: UnsupportedHandler,
     selection_handler: SelectionHandler,
 }
@@ -69,6 +71,7 @@ impl RichEditor {
         let settings = webkit6::Settings::new();
         settings.set_enable_javascript(true);
         settings.set_enable_javascript_markup(false);
+        settings.set_enable_developer_extras(cfg!(debug_assertions));
         settings.set_enable_media(false);
         settings.set_enable_html5_database(false);
         settings.set_enable_html5_local_storage(false);
@@ -90,6 +93,7 @@ impl RichEditor {
             canonical_source: Rc::new(RefCell::new(Rc::from(""))),
             pending_source: Rc::new(RefCell::new(None)),
             current_theme: Rc::new(RefCell::new(None)),
+            current_appearance: Rc::new(RefCell::new(None)),
             unsupported_handler: Rc::new(RefCell::new(None)),
             selection_handler: Rc::new(RefCell::new(None)),
         };
@@ -225,6 +229,12 @@ impl RichEditor {
         self.apply_theme();
     }
 
+    /// Applies formatted-document typography and measure without reloading the document.
+    pub(super) fn set_appearance(&self, appearance: &DocumentAppearance) {
+        self.current_appearance.replace(Some(appearance.clone()));
+        self.apply_appearance();
+    }
+
     /// Invokes `handler` when a source document cannot be edited without loss.
     pub(crate) fn connect_unsupported(&self, handler: impl Fn() + 'static) {
         self.unsupported_handler.replace(Some(Box::new(handler)));
@@ -277,6 +287,7 @@ impl RichEditor {
                     editor.ready.set(true);
                     editor.flush_pending_source();
                     editor.apply_theme();
+                    editor.apply_appearance();
                 }
                 EditorEvent::Changed {
                     session,
@@ -381,6 +392,16 @@ impl RichEditor {
             return;
         };
         self.evaluate(&theme_javascript(&theme));
+    }
+
+    fn apply_appearance(&self) {
+        if !self.ready.get() {
+            return;
+        }
+        let Some(appearance) = self.current_appearance.borrow().clone() else {
+            return;
+        };
+        self.evaluate(&appearance_javascript(&appearance));
     }
 
     fn evaluate(&self, script: &str) {
@@ -549,6 +570,39 @@ pub(super) struct EditorTheme {
     pub(super) selection: SelectionTheme,
 }
 
+/// Typography and readable measure shared by formatted editor projections.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct DocumentAppearance {
+    css: String,
+}
+
+/// Resolves document preferences into a safe stylesheet declaration list.
+pub(super) fn document_appearance(preferences: &DocumentPreferences) -> DocumentAppearance {
+    let font = preferences
+        .font
+        .as_deref()
+        .and_then(super::normalize_document_font_description)
+        .unwrap_or_else(super::system_document_font_description);
+    let width = match preferences.width {
+        DocumentWidth::Narrow => "60ch",
+        DocumentWidth::Comfortable => "80ch",
+        DocumentWidth::Wide => "100ch",
+        DocumentWidth::Full => "none",
+    };
+    DocumentAppearance {
+        css: format!(
+            "{} --document-line-height: {}; --document-content-width: {width};",
+            super::document_font_css(&font),
+            f64::from(preferences.line_height_percent.clamp(100, 250)) / 100.0,
+        ),
+    }
+}
+
+/// Returns CSS declarations for preview document roots.
+pub(super) fn appearance_style(appearance: &DocumentAppearance) -> &str {
+    &appearance.css
+}
+
 /// Builds the `WebKit` palette from Adwaita's selected color scheme.
 ///
 /// The bundled stylesheet owns the canonical Adwaita document surface for the
@@ -575,6 +629,13 @@ fn theme_javascript(theme: &EditorTheme) -> String {
     )
 }
 
+fn appearance_javascript(appearance: &DocumentAppearance) -> String {
+    format!(
+        "window.carverEditor.setAppearance({});",
+        json(&appearance.css)
+    )
+}
+
 /// Builds the sandboxed editor shell using the configured image source policy.
 fn editor_document(allow_remote_images: bool) -> String {
     let image_sources = if allow_remote_images {
@@ -583,7 +644,7 @@ fn editor_document(allow_remote_images: bool) -> String {
         "data: carver-asset: blob:"
     };
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
     )
 }
 
@@ -598,10 +659,10 @@ fn rich_source_change_messages(source: String) -> [AppMsg; 2] {
 #[cfg(test)]
 mod tests {
     use super::{
-        LinkContext, editor_document, editor_theme, parse_link_context,
-        rich_source_change_messages, selection_theme, theme_javascript,
+        LinkContext, appearance_javascript, document_appearance, editor_document, editor_theme,
+        parse_link_context, rich_source_change_messages, selection_theme, theme_javascript,
     };
-    use crate::mvu::{AppMsg, EditorMsg};
+    use crate::mvu::{AppMsg, DocumentPreferences, EditorMsg};
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
@@ -611,6 +672,49 @@ mod tests {
     #[test]
     fn editor_document_keeps_remote_images_blocked_when_disabled() {
         assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn editor_document_should_keep_runtime_styles_in_the_head() {
+        let document = editor_document(false);
+
+        assert!(document.contains("<style id=\"editor-runtime-styles\"></style>"));
+        assert!(!document.contains("<html style="));
+    }
+
+    #[test]
+    fn document_appearance_should_transfer_font_spacing_and_measure_to_webkit() {
+        let appearance = document_appearance(&DocumentPreferences {
+            font: Some("Cantarell Bold Italic 14".to_owned()),
+            line_height_percent: 175,
+            width: carver_config::DocumentWidth::Wide,
+        });
+
+        let script = appearance_javascript(&appearance);
+        assert!(script.contains("--document-font-family: \\\"Cantarell\\\""));
+        assert!(script.contains("--document-line-height: 1.75"));
+        assert!(script.contains("--document-content-width: 100ch"));
+    }
+
+    #[test]
+    fn document_appearance_should_support_every_reading_measure() {
+        for (width, measure) in [
+            (carver_config::DocumentWidth::Narrow, "60ch"),
+            (carver_config::DocumentWidth::Comfortable, "80ch"),
+            (carver_config::DocumentWidth::Wide, "100ch"),
+            (carver_config::DocumentWidth::Full, "none"),
+        ] {
+            let appearance = document_appearance(&DocumentPreferences {
+                font: None,
+                line_height_percent: 155,
+                width,
+            });
+
+            assert!(
+                appearance_javascript(&appearance)
+                    .contains(&format!("--document-content-width: {measure}"))
+            );
+        }
     }
 
     #[test]

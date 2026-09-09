@@ -47,7 +47,7 @@ pub(crate) fn widget_as<T: glib::prelude::IsA<gtk::Widget> + glib::object::Objec
 
 pub(crate) fn run_main_context_until(predicate: impl Fn() -> bool) -> bool {
     let context = glib::MainContext::default();
-    for _ in 0..100 {
+    for _ in 0..500 {
         while context.pending() {
             context.iteration(false);
         }

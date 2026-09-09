@@ -57,6 +57,29 @@ function controllerFixture() {
 }
 
 describe('EditorController', () => {
+  it('keeps runtime theme and appearance rules in the head stylesheet', () => {
+    const { controller } = controllerFixture();
+    const stylesheet = { tagName: 'STYLE', textContent: '' };
+    const documentElement = {
+      dataset: {},
+      getAttribute: (_name: string) => null,
+    };
+    vi.stubGlobal('document', {
+      documentElement,
+      getElementById: vi.fn(() => stylesheet),
+    });
+
+    controller.setTheme(false, '#358e45', 'rgb(53 142 69 / 25%)', '#333334');
+    controller.setAppearance('--document-font-family: "Cantarell";');
+
+    expect(documentElement.getAttribute('style')).toBeNull();
+    expect(stylesheet.textContent).toContain('--accent-color: #358e45');
+    expect(stylesheet.textContent).toContain(
+      '--document-font-family: "Cantarell"',
+    );
+    vi.unstubAllGlobals();
+  });
+
   it('owns initialization, browser listeners, and the ready event', () => {
     const { controller, createEditor, listeners, messages } =
       controllerFixture();

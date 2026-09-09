@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use carver_config::{EditorMode, SourceSyntaxStyle};
+use carver_config::{DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
@@ -406,6 +406,14 @@ pub enum PreferencesMsg {
     ///
     /// `None` restores the desktop monospace font.
     SetSourceFont(Option<String>),
+    /// Set the optional custom Pango font description for formatted surfaces.
+    ///
+    /// `None` restores the desktop document font.
+    SetDocumentFont(Option<String>),
+    /// Set formatted-surface line height as a percentage.
+    SetDocumentLineHeightPercent(u16),
+    /// Set the formatted-surface maximum readable measure.
+    SetDocumentWidth(DocumentWidth),
 }
 
 /// Window state that must survive the next launch.

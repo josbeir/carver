@@ -99,6 +99,45 @@ fn source_font_reset_should_restore_the_system_font_setting() {
 }
 
 #[test]
+fn document_appearance_preferences_should_persist_a_complete_config_snapshot() {
+    let mut model = AppModel::new(&Config::default());
+    let font = "Cantarell Semi-Bold Italic 14".to_owned();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetDocumentFont(Some(font.clone()))),
+    );
+
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.document_font.as_deref() == Some("Cantarell Semi-Bold Italic 14"))
+    );
+    assert_eq!(model.preferences.document.font, Some(font));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetDocumentLineHeightPercent(999)),
+    );
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.document_line_height_percent == 250)
+    );
+    assert_eq!(model.preferences.document.line_height_percent, 250);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(super::PreferencesMsg::SetDocumentWidth(
+            carver_config::DocumentWidth::Wide,
+        )),
+    );
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if config.editor.document_width == carver_config::DocumentWidth::Wide)
+    );
+    assert_eq!(
+        model.preferences.document.width,
+        carver_config::DocumentWidth::Wide
+    );
+}
+
+#[test]
 fn close_geometry_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 

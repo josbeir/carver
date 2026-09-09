@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use carver_config::{Config, EditorMode, SourceSyntaxStyle};
+use carver_config::{Config, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_domain::source_analysis::SourceAnalysis;
 use carver_sdk::{
     CategoryId, CategorySummary, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
@@ -179,6 +179,8 @@ pub struct Preferences {
     pub show_formatting_toolbar: bool,
     /// Source-editor-only presentation preferences.
     pub source_editor: SourceEditorPreferences,
+    /// Formatted-editor and preview presentation preferences.
+    pub document: DocumentPreferences,
 }
 
 /// Source-editor presentation preferences needed by the renderer.
@@ -196,6 +198,19 @@ pub struct SourceEditorPreferences {
     pub font: Option<String>,
 }
 
+/// Formatted-editor and preview presentation preferences needed by the renderer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentPreferences {
+    /// Optional Pango font description selected for formatted surfaces.
+    ///
+    /// `None` delegates font selection to the desktop document preference.
+    pub font: Option<String>,
+    /// Line height as a percentage of the selected font size.
+    pub line_height_percent: u16,
+    /// Maximum readable measure for the formatted content.
+    pub width: DocumentWidth,
+}
+
 impl From<&Config> for Preferences {
     fn from(config: &Config) -> Self {
         Self {
@@ -209,6 +224,11 @@ impl From<&Config> for Preferences {
                 highlight_current_line: config.editor.source_highlight_current_line,
                 syntax_style: config.editor.source_syntax_style,
                 font: config.editor.source_font.clone(),
+            },
+            document: DocumentPreferences {
+                font: config.editor.document_font.clone(),
+                line_height_percent: config.editor.document_line_height_percent,
+                width: config.editor.document_width,
             },
         }
     }

@@ -51,8 +51,9 @@ use find::FindController;
 use preview::{build_preview, load_preview};
 use source::SourceEditor;
 pub(crate) use source::{
-    SourceSyntaxError, buffer_text, install_syntax_assets, normalize_source_font_description,
-    system_monospace_font_description,
+    SourceSyntaxError, buffer_text, document_font_css, install_syntax_assets,
+    normalize_document_font_description, normalize_source_font_description,
+    system_document_font_description, system_monospace_font_description,
 };
 use source_context::SourceContextCache;
 use toolbar::Toolbar;
@@ -60,6 +61,7 @@ use web::RichEditor;
 
 type PreviewSource = (EditorSessionId, String);
 type PreviewSourceCache = Rc<RefCell<Option<PreviewSource>>>;
+type DocumentAppearanceCache = Rc<RefCell<Option<web::DocumentAppearance>>>;
 
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
@@ -88,10 +90,12 @@ pub(crate) struct EditorViewRefs {
     latest_split_preview_source: PreviewSourceCache,
     rendered_preview_source: RefCell<Option<PreviewSource>>,
     rendered_theme_revision: RefCell<Option<u64>>,
+    rendered_appearance: DocumentAppearanceCache,
     loaded_session: RefCell<Option<EditorSessionId>>,
     source_generation: Cell<u64>,
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
+    _document_font_settings: Option<gtk::gio::Settings>,
 }
 
 impl EditorViewRefs {
@@ -137,7 +141,10 @@ impl EditorViewRefs {
             .rendered_theme_revision
             .replace(Some(model.editor_theme_revision))
             != Some(model.editor_theme_revision);
-        let presentation_changed = remote_images_changed || theme_changed;
+        let appearance = web::document_appearance(&model.preferences.document);
+        let previous_appearance = self.rendered_appearance.replace(Some(appearance.clone()));
+        let appearance_changed = previous_appearance.as_ref() != Some(&appearance);
+        let presentation_changed = remote_images_changed || theme_changed || appearance_changed;
         if presentation_changed {
             invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
         }
@@ -166,6 +173,7 @@ impl EditorViewRefs {
                 preview,
                 model.preferences.load_remote_images,
                 &theme,
+                &appearance,
                 presentation_changed,
             );
         }
@@ -181,6 +189,9 @@ impl EditorViewRefs {
         }
         if theme_changed {
             self.rich.set_theme(&theme);
+        }
+        if appearance_changed {
+            self.rich.set_appearance(&appearance);
         }
         self.source_editor.render_preferences(
             &model.preferences.source_editor,
@@ -214,6 +225,12 @@ impl EditorViewRefs {
         }
     }
 
+    // CONTEXT: Rendering requires the mode, immutable preview, and three independently cached
+    // presentation inputs; packaging them would obscure their distinct invalidation rules.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "preview rendering has distinct inputs"
+    )]
     fn render_visible_preview(
         &self,
         mode: EditorMode,
@@ -221,6 +238,7 @@ impl EditorViewRefs {
         preview: &crate::mvu::EditorPreview,
         allow_remote_images: bool,
         theme: &web::EditorTheme,
+        appearance: &web::DocumentAppearance,
         presentation_changed: bool,
     ) {
         let (view, rendered) = match mode {
@@ -251,7 +269,13 @@ impl EditorViewRefs {
                 &self.split_navigation
             };
             navigation.set_document(preview.session, &preview.source);
-            preview::load_preview_with_theme(view, &preview.source, allow_remote_images, theme);
+            preview::load_preview_with_theme(
+                view,
+                &preview.source,
+                allow_remote_images,
+                theme,
+                appearance,
+            );
             rendered_source.replace(Some((preview.session, preview.source.clone())));
         }
     }
@@ -442,6 +466,7 @@ fn refresh_split_preview(
     loaded: &PreviewSourceCache,
     allow_remote_images: bool,
     navigation: &document_navigation::PreviewNavigation,
+    appearance: &web::DocumentAppearance,
 ) {
     let Some((session, source)) = latest.borrow().clone() else {
         return;
@@ -450,7 +475,13 @@ fn refresh_split_preview(
         return;
     }
     navigation.set_document(session, &source);
-    preview::load_preview_with_theme(view, &source, allow_remote_images, &editor_theme());
+    preview::load_preview_with_theme(
+        view,
+        &source,
+        allow_remote_images,
+        &editor_theme(),
+        appearance,
+    );
     loaded.replace(Some((session, source)));
 }
 
@@ -613,6 +644,7 @@ pub(crate) fn build_editor(
     });
     install_source_shortcuts(source.upcast_ref(), &toolbar);
     let split_preview_state = SplitPreviewState::new();
+    let document_appearance = Rc::new(RefCell::new(None));
     let pages = add_editor_pages(
         &editor_stack,
         &EditorPageViews {
@@ -626,6 +658,7 @@ pub(crate) fn build_editor(
         &source_mode,
         &split_preview_state,
         &remote_images,
+        &document_appearance,
     );
     let toolbar_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
@@ -667,7 +700,7 @@ pub(crate) fn build_editor(
         &split_preview_state.supported,
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
-    connect_theme_changes(dispatcher);
+    let document_font_settings = connect_theme_changes(dispatcher);
     connect_favorite_action(dispatcher, &favorite);
     connect_copy_action(dispatcher, &copy_note);
     connect_document_sidebar_toggle(dispatcher, &sidebar.toggle, &rendering);
@@ -728,10 +761,12 @@ pub(crate) fn build_editor(
         latest_split_preview_source: split_preview_state.latest_source,
         rendered_preview_source: RefCell::new(None),
         rendered_theme_revision: RefCell::new(Some(0)),
+        rendered_appearance: document_appearance,
         loaded_session: RefCell::new(None),
         source_generation: Cell::new(0),
         dispatcher: dispatcher.clone(),
         assets_dir,
+        _document_font_settings: document_font_settings,
     };
     Ok(EditorSurface {
         widget: responsive_container.upcast(),
@@ -866,6 +901,7 @@ fn add_editor_pages(
     source_mode: &gtk::ToggleButton,
     split_preview_state: &SplitPreviewState,
     remote_images: &Rc<Cell<bool>>,
+    document_appearance: &DocumentAppearanceCache,
 ) -> EditorPages {
     let rich_scroll = gtk::ScrolledWindow::new();
     rich_scroll.set_child(Some(views.rich));
@@ -909,6 +945,7 @@ fn add_editor_pages(
     let split_preview_source_for_unapply = Rc::clone(&split_preview_state.loaded_source);
     let latest_split_preview_source_for_unapply = Rc::clone(&split_preview_state.latest_source);
     let remote_images_for_unapply = Rc::clone(remote_images);
+    let appearance_for_unapply = Rc::clone(document_appearance);
     let navigation = views.split_navigation.clone();
     breakpoint.connect_unapply(move |_| {
         split_supported_for_unapply.set(true);
@@ -917,12 +954,17 @@ fn add_editor_pages(
         let split_visible = source_active && split_toggle_for_unapply.is_active();
         split_scroll_for_unapply.set_visible(split_visible);
         if split_visible {
+            let appearance = appearance_for_unapply
+                .borrow()
+                .clone()
+                .unwrap_or_else(default_document_appearance);
             refresh_split_preview(
                 &split_preview_for_unapply,
                 &latest_split_preview_source_for_unapply,
                 &split_preview_source_for_unapply,
                 remote_images_for_unapply.get(),
                 &navigation,
+                &appearance,
             );
         }
     });
@@ -934,6 +976,14 @@ fn add_editor_pages(
     editor_stack.add_named(&rendered_scroll, Some("rendered"));
     editor_stack.set_visible_child_name("rich");
     EditorPages { source_scroll }
+}
+
+fn default_document_appearance() -> web::DocumentAppearance {
+    web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: None,
+        line_height_percent: 155,
+        width: carver_config::DocumentWidth::Comfortable,
+    })
 }
 
 #[expect(
@@ -1648,7 +1698,7 @@ fn connect_source_preview(
 }
 
 /// Routes desktop theme notifications through the immutable MVU render pass.
-fn connect_theme_changes(dispatcher: &AppDispatcher) {
+fn connect_theme_changes(dispatcher: &AppDispatcher) -> Option<gtk::gio::Settings> {
     let dispatcher_for_dark_theme = dispatcher.clone();
     adw::StyleManager::default().connect_dark_notify(move |_| {
         let _ = dispatcher_for_dark_theme.dispatch(AppMsg::Editor(EditorMsg::ThemeChanged));
@@ -1657,6 +1707,15 @@ fn connect_theme_changes(dispatcher: &AppDispatcher) {
     adw::StyleManager::default().connect_accent_color_notify(move |_| {
         let _ = dispatcher_for_accent.dispatch(AppMsg::Editor(EditorMsg::ThemeChanged));
     });
+    let schema = gtk::gio::SettingsSchemaSource::default()?
+        .lookup("org.gnome.desktop.interface", true)
+        .filter(|schema| schema.has_key("document-font-name"))?;
+    let settings = gtk::gio::Settings::new_full(&schema, None::<&gtk::gio::SettingsBackend>, None);
+    let dispatcher_for_document_font = dispatcher.clone();
+    settings.connect_changed(Some("document-font-name"), move |_, _| {
+        let _ = dispatcher_for_document_font.dispatch(AppMsg::Editor(EditorMsg::ThemeChanged));
+    });
+    Some(settings)
 }
 
 fn editor_theme() -> web::EditorTheme {

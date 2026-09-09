@@ -1,8 +1,10 @@
 use std::fs;
 
 use super::{
-    FALLBACK_MONOSPACE_FONT, install_syntax_assets, normalize_source_font_description,
-    source_font_css, system_monospace_font_from_settings,
+    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_stretch,
+    document_font_variant, document_font_variations, document_font_weight, escape_css_string,
+    install_syntax_assets, normalize_document_font_description, normalize_source_font_description,
+    source_font_css, system_document_font_from_settings, system_monospace_font_from_settings,
 };
 
 #[test]
@@ -28,10 +30,107 @@ fn source_font_css_should_scope_the_selected_family_and_size_to_source_mode() {
 }
 
 #[test]
+fn document_font_description_should_preserve_the_selected_face_and_size() {
+    assert_eq!(
+        normalize_document_font_description("Cantarell Semi-Bold Italic 14"),
+        Some("Cantarell Semi-Bold Italic 14".to_owned())
+    );
+    assert_eq!(normalize_document_font_description("Sans 12px"), None);
+}
+
+#[test]
+fn document_font_css_should_keep_the_selected_face() {
+    assert_eq!(
+        document_font_css("Cantarell Bold Italic 14"),
+        "--document-font-family: \"Cantarell\"; --document-font-size: 14pt; --document-font-style: italic; --document-font-weight: 700; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
+    );
+}
+
+#[test]
+fn document_font_css_should_fall_back_to_a_stable_normal_face() {
+    assert_eq!(
+        document_font_css("Cantarell Oblique 12"),
+        "--document-font-family: \"Cantarell\"; --document-font-size: 12pt; --document-font-style: oblique; --document-font-weight: 400; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
+    );
+    assert_eq!(
+        document_font_css("Invalid font"),
+        "--document-font-family: \"Sans\"; --document-font-size: 12pt; --document-font-style: normal; --document-font-weight: 400; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
+    );
+}
+
+#[test]
+fn document_font_weight_should_map_supported_pango_weights_to_css_values() {
+    for (weight, expected) in [
+        (gtk::pango::Weight::Thin, 100),
+        (gtk::pango::Weight::Ultralight, 200),
+        (gtk::pango::Weight::Light, 300),
+        (gtk::pango::Weight::Semilight, 350),
+        (gtk::pango::Weight::Book, 380),
+        (gtk::pango::Weight::Medium, 500),
+        (gtk::pango::Weight::Semibold, 600),
+        (gtk::pango::Weight::Bold, 700),
+        (gtk::pango::Weight::Ultrabold, 800),
+        (gtk::pango::Weight::Heavy, 900),
+        (gtk::pango::Weight::Ultraheavy, 1000),
+    ] {
+        assert_eq!(document_font_weight(weight), expected);
+    }
+}
+
+#[test]
+fn document_font_face_attributes_should_map_to_css() {
+    assert_eq!(
+        document_font_stretch(gtk::pango::Stretch::Condensed),
+        "condensed"
+    );
+    assert_eq!(
+        document_font_variant(gtk::pango::Variant::SmallCaps),
+        "small-caps"
+    );
+    assert_eq!(
+        document_font_variations(Some("wght=650, wdth=85")),
+        "\"wght\" 650, \"wdth\" 85"
+    );
+    assert_eq!(document_font_variations(Some("broken")), "normal");
+}
+
+#[test]
+fn css_string_escaping_should_preserve_special_characters_inside_font_names() {
+    let mut expected = String::from("A");
+    expected.push('\\');
+    expected.push('\\');
+    expected.push('\\');
+    expected.push('"');
+    expected.push('\\');
+    expected.push('a');
+    expected.push(' ');
+    expected.push('\\');
+    expected.push('d');
+    expected.push(' ');
+    expected.push('\\');
+    expected.push('c');
+    expected.push(' ');
+    expected.push('\\');
+    expected.push('3');
+    expected.push('c');
+    expected.push(' ');
+
+    assert_eq!(escape_css_string("A\\\"\n\r\u{c}<"), expected);
+}
+
+#[test]
 fn unavailable_desktop_font_setting_should_use_a_stable_monospace_fallback() {
     assert_eq!(
         system_monospace_font_from_settings(None),
         FALLBACK_MONOSPACE_FONT
+    );
+}
+
+#[test]
+fn unavailable_desktop_document_font_setting_should_use_a_stable_fallback() {
+    assert_eq!(
+        system_document_font_from_settings(None),
+        FALLBACK_DOCUMENT_FONT
     );
 }
 

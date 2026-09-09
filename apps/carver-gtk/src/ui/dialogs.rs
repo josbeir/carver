@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
-use carver_config::SourceSyntaxStyle;
+use carver_config::{DocumentWidth, SourceSyntaxStyle};
 use carver_sdk::{
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
     DocumentImportFormat, NoteId,
@@ -12,7 +12,10 @@ use carver_sdk::{
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use super::editor::{normalize_source_font_description, system_monospace_font_description};
+use super::editor::{
+    normalize_document_font_description, normalize_source_font_description,
+    system_document_font_description, system_monospace_font_description,
+};
 use crate::mvu::{
     ActionMsg, AppDispatcher, AppMsg, AppRuntime, EditorMsg, NavigationMsg, PreferencesMsg, Route,
     TrashMsg,
@@ -496,8 +499,10 @@ fn show_preferences_dialog(
     );
     group.add(&formatting_toolbar);
 
+    let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
     page.add(&group);
+    page.add(&document_group);
     page.add(&source_group);
     dialog.add(&page);
 
@@ -515,6 +520,174 @@ fn show_preferences_dialog(
     });
     dialog.present(Some(parent));
     dialog
+}
+
+fn document_preferences_group(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Edit and Preview");
+    let (font, font_value) = document_font_row(config);
+    group.add(&font);
+    let line_height = adw::SpinRow::with_range(1.0, 2.5, 0.05);
+    line_height.set_widget_name("document-line-height-setting");
+    line_height.set_title("Line spacing");
+    line_height.set_subtitle("Adjust the space between lines in Edit and Preview.");
+    line_height.set_digits(2);
+    line_height.set_snap_to_ticks(true);
+    line_height.set_value(f64::from(config.editor.document_line_height_percent) / 100.0);
+    group.add(&line_height);
+    let width = document_width_row(config.editor.document_width);
+    group.add(&width);
+    let reset = adw::ActionRow::new();
+    reset.set_widget_name("document-appearance-reset-row");
+    reset.set_title("Reset appearance");
+    reset
+        .set_subtitle("Use the system document font, comfortable width, and default line spacing.");
+    reset.set_activatable(true);
+    group.add(&reset);
+    connect_document_appearance_controls(
+        parent,
+        dispatcher,
+        &font,
+        &font_value,
+        &line_height,
+        &width,
+        &reset,
+    );
+    group
+}
+
+fn document_font_row(config: &carver_config::Config) -> (adw::ActionRow, gtk::Label) {
+    let row = adw::ActionRow::new();
+    row.set_widget_name("document-font-setting");
+    row.set_title("Document font");
+    row.set_activatable(true);
+    let selected_font = config
+        .editor
+        .document_font
+        .as_deref()
+        .and_then(normalize_document_font_description)
+        .unwrap_or_else(system_document_font_description);
+    let value = gtk::Label::new(Some(&selected_font));
+    value.set_widget_name("document-font-value");
+    value.add_css_class("dim-label");
+    value.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    row.add_suffix(&value);
+    (row, value)
+}
+
+fn document_width_row(width: DocumentWidth) -> adw::ComboRow {
+    let options = gtk::StringList::new(&["Narrow", "Comfortable", "Wide", "Full width"]);
+    let expression = gtk::PropertyExpression::new(
+        gtk::StringObject::static_type(),
+        None::<gtk::Expression>,
+        "string",
+    );
+    let row = adw::ComboRow::new();
+    row.set_widget_name("document-width-setting");
+    row.set_title("Content width");
+    row.set_subtitle("Choose the reading width in Edit and Preview.");
+    row.set_model(Some(&options));
+    row.set_expression(Some(&expression));
+    row.set_selected(document_width_index(width));
+    row
+}
+
+const fn document_width_index(width: DocumentWidth) -> u32 {
+    match width {
+        DocumentWidth::Narrow => 0,
+        DocumentWidth::Comfortable => 1,
+        DocumentWidth::Wide => 2,
+        DocumentWidth::Full => 3,
+    }
+}
+
+const fn document_width_from_index(index: u32) -> DocumentWidth {
+    match index {
+        0 => DocumentWidth::Narrow,
+        2 => DocumentWidth::Wide,
+        3 => DocumentWidth::Full,
+        _ => DocumentWidth::Comfortable,
+    }
+}
+
+fn connect_document_appearance_controls(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    font: &adw::ActionRow,
+    font_value: &gtk::Label,
+    line_height: &adw::SpinRow,
+    width: &adw::ComboRow,
+    reset: &adw::ActionRow,
+) {
+    let parent = parent.clone();
+    let dispatcher_for_font = dispatcher.clone();
+    let font_value_for_change = font_value.clone();
+    font.connect_activated(move |_| {
+        let dialog = gtk::FontDialog::new();
+        dialog.set_title("Choose Document Font");
+        let initial_font = gtk::pango::FontDescription::from_string(&font_value_for_change.label());
+        let dispatcher_for_result = dispatcher_for_font.clone();
+        let font_value_for_result = font_value_for_change.clone();
+        dialog.choose_font(
+            Some(&parent),
+            Some(&initial_font),
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                let Ok(font) = result else {
+                    return;
+                };
+                let Some(font) = normalize_document_font_description(&font.to_string()) else {
+                    return;
+                };
+                font_value_for_result.set_label(&font);
+                let _ = dispatcher_for_result.dispatch(AppMsg::Preferences(
+                    PreferencesMsg::SetDocumentFont(Some(font)),
+                ));
+            },
+        );
+    });
+    let dispatcher_for_spacing = dispatcher.clone();
+    line_height.connect_value_notify(move |line_height| {
+        let percent = line_height_percent(line_height.value());
+        let _ = dispatcher_for_spacing.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentLineHeightPercent(percent),
+        ));
+    });
+    let dispatcher_for_width = dispatcher.clone();
+    width.connect_selected_notify(move |width| {
+        let _ = dispatcher_for_width.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentWidth(document_width_from_index(width.selected())),
+        ));
+    });
+    let dispatcher_for_reset = dispatcher.clone();
+    let font_value_for_reset = font_value.clone();
+    let line_height_for_reset = line_height.clone();
+    let width_for_reset = width.clone();
+    reset.connect_activated(move |_| {
+        font_value_for_reset.set_label(&system_document_font_description());
+        line_height_for_reset.set_value(1.55);
+        width_for_reset.set_selected(document_width_index(DocumentWidth::Comfortable));
+        for message in [
+            PreferencesMsg::SetDocumentFont(None),
+            PreferencesMsg::SetDocumentLineHeightPercent(155),
+            PreferencesMsg::SetDocumentWidth(DocumentWidth::Comfortable),
+        ] {
+            let _ = dispatcher_for_reset.dispatch(AppMsg::Preferences(message));
+        }
+    });
+}
+
+fn line_height_percent(line_height: f64) -> u16 {
+    (line_height * 100.0)
+        .round()
+        .clamp(100.0, 250.0)
+        .to_string()
+        .parse()
+        .unwrap_or(155)
 }
 
 fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesDialog {
@@ -907,6 +1080,9 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
     about.present(Some(parent));
     about
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Presents the searchable reference for every explicit Carver keyboard shortcut.
 pub(crate) fn show_keyboard_shortcuts_dialog(

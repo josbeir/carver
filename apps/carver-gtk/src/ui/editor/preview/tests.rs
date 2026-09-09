@@ -18,13 +18,84 @@ fn rendered_document_keeps_full_carve_table_output() {
 #[test]
 fn rendered_document_matches_the_editor_block_presentation() {
     let html = rendered_document("# Heading\n\n- [x] Complete", false);
-    assert!(!html.contains("<style>"));
+    assert!(html.contains("<style>"));
     assert!(PREVIEW_STYLESHEET.contains("h1 {\n  font-size: 2em;"));
     assert!(PREVIEW_STYLESHEET.contains("ul.task-list"));
     assert!(PREVIEW_STYLESHEET.contains("ul:has(> li > input[type=checkbox])"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > img"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] th"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > .preview-content > img"));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content th"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview]::selection"));
+    assert!(PREVIEW_STYLESHEET.contains("--document-content-width"));
+}
+
+#[test]
+fn shared_document_inset_should_live_on_the_body() {
+    assert!(PREVIEW_STYLESHEET.contains("body {\n  box-sizing: border-box;"));
+    assert!(PREVIEW_STYLESHEET.contains("padding: 24px;"));
+    assert!(PREVIEW_STYLESHEET.contains("min-height: calc(100vh - 48px);"));
+}
+
+#[test]
+fn rendered_document_should_wrap_preview_in_the_shared_content_column() {
+    let html = rendered_document("![image](assets/example.png){width=\"50%\"}", false);
+
+    assert!(html.contains("<main class=\"preview-content\"><img"));
+    assert!(html.contains("width=\"50%\""));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content {\n  box-sizing: border-box;"));
+    assert!(PREVIEW_STYLESHEET.contains("max-width: var(--document-content-width);"));
+    assert!(PREVIEW_STYLESHEET.contains("margin-inline: auto;"));
+}
+
+#[test]
+fn rendered_document_should_include_the_shared_document_appearance() {
+    let html = rendered_document("Preview", false);
+
+    assert!(html.contains("--document-font-family"));
+    assert!(html.contains("--document-line-height: 1.55"));
+    assert!(html.contains("--document-content-width: 80ch"));
+}
+
+#[test]
+fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance() {
+    let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+    let theme = super::super::web::editor_theme(false, &accent);
+    let appearance = super::super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: Some("Cantarell Bold Italic 14".to_owned()),
+        line_height_percent: 175,
+        width: carver_config::DocumentWidth::Wide,
+    });
+
+    let html = rendered_document_with_theme("Preview", false, &theme, &appearance);
+
+    assert!(html.contains("--preview-accent-color: #358e45"));
+    assert!(html.contains("--preview-selection-background: rgb(53 142 69 / 25%)"));
+    assert!(html.contains("--preview-selection-foreground: #333334"));
+    assert!(html.contains("--document-font-family: \"Cantarell\""));
+    assert!(html.contains("--document-line-height: 1.75"));
+    assert!(html.contains("--document-content-width: 100ch"));
+    assert!(html.contains("data-carver-heading-token=\""));
+    assert!(html.contains("<style>"));
+    let body_tag = html
+        .split("<body")
+        .nth(1)
+        .and_then(|body| body.split('>').next())
+        .unwrap_or_default();
+    assert!(!body_tag.contains("style="));
+}
+
+#[test]
+fn preview_styles_should_include_document_appearance_in_the_document_head() {
+    let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+    let theme = super::super::web::editor_theme(false, &accent);
+    let appearance = super::super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: Some("Cantarell Bold Italic 14".to_owned()),
+        line_height_percent: 175,
+        width: carver_config::DocumentWidth::Wide,
+    });
+    let style = super::preview_document_style(&theme, &appearance);
+
+    assert!(style.contains("--document-font-family: \"Cantarell\""));
+    assert!(style.contains("--preview-selection-background: rgb(53 142 69 / 25%)"));
 }
 
 #[test]
@@ -65,12 +136,19 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     assert!(PREVIEW_STYLESHEET.contains("@media print"));
     assert!(PREVIEW_STYLESHEET.contains("background: #ffffff !important"));
     assert!(PREVIEW_STYLESHEET.contains("font-size: 10.5pt"));
+    assert!(PREVIEW_STYLESHEET.contains("font-stretch: normal"));
+    assert!(PREVIEW_STYLESHEET.contains("font-variant: normal"));
+    assert!(PREVIEW_STYLESHEET.contains("font-variation-settings: normal"));
     assert!(PREVIEW_STYLESHEET.contains("font-size: 21pt"));
     assert!(
         PREVIEW_STYLESHEET.contains("body[data-preview] {\n    padding: 0;\n    line-height: 1.4")
     );
+    assert!(
+        PREVIEW_STYLESHEET
+            .contains(".preview-content {\n    max-width: none;\n    line-height: 1.4")
+    );
     assert!(PREVIEW_STYLESHEET.contains("display: table-header-group"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] ul.task-list li"));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content ul.task-list li"));
     assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
     assert!(PREVIEW_STYLESHEET.contains("padding: 4pt 5pt"));
 }

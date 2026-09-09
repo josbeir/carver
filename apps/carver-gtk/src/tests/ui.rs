@@ -78,13 +78,27 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
+    config.editor.document_font = Some("DejaVu Serif Italic 15".to_owned());
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
-    let (preferences_dialog, about_dialog) = crate::ui::dialogs::present_dialogs_for_test(
-        &window,
-        &config,
-        &crate::mvu::AppDispatcher::default(),
+    let preferences_dispatcher = crate::mvu::AppDispatcher::default();
+    let preferences_stack = gtk::Stack::new();
+    for name in ["browser", "editor", "trash"] {
+        preferences_stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
+    }
+    let preferences_runtime = crate::mvu::AppRuntime::new_with_config_path(
+        client.clone(),
+        crate::mvu::AppModel::new(&config),
+        crate::view::ViewRefs::new(
+            preferences_stack,
+            adw::StatusPage::new(),
+            adw::StatusPage::new(),
+        ),
+        Some(config_path.clone()),
     );
+    preferences_runtime.bind_dispatcher(&preferences_dispatcher);
+    let (preferences_dialog, about_dialog) =
+        crate::ui::dialogs::present_dialogs_for_test(&window, &config, &preferences_dispatcher);
     assert_eq!(
         about_dialog.application_icon(),
         crate::app::APPLICATION_ICON
@@ -137,6 +151,49 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         formatting_toolbar_setting.subtitle(),
         Some("Show formatting controls at the bottom of the editor.".into())
     );
+    assert_eq!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "document-font-setting")
+            .map(|row| row.title()),
+        Some("Document font".into())
+    );
+    assert!(
+        widget_as::<gtk::Label>(preferences_dialog.upcast_ref(), "document-font-value").is_some()
+    );
+    let document_line_height = widget_as::<adw::SpinRow>(
+        preferences_dialog.upcast_ref(),
+        "document-line-height-setting",
+    )
+    .ok_or("document line spacing setting")?;
+    assert!((document_line_height.value() - 1.55).abs() < f64::EPSILON);
+    assert_eq!(
+        widget_as::<adw::ComboRow>(preferences_dialog.upcast_ref(), "document-width-setting")
+            .map(|row| row.selected()),
+        Some(1)
+    );
+    document_line_height.set_value(1.75);
+    let document_width =
+        widget_as::<adw::ComboRow>(preferences_dialog.upcast_ref(), "document-width-setting")
+            .ok_or("document width setting")?;
+    document_width.set_selected(2);
+    assert!(run_main_context_until(|| {
+        carver_config::load(&config_path).is_ok_and(|persisted| {
+            persisted.editor.document_line_height_percent == 175
+                && persisted.editor.document_width == carver_config::DocumentWidth::Wide
+        })
+    }));
+    let document_appearance_reset = widget_as::<adw::ActionRow>(
+        preferences_dialog.upcast_ref(),
+        "document-appearance-reset-row",
+    )
+    .ok_or("document appearance reset")?;
+    document_appearance_reset.emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| {
+        carver_config::load(&config_path).is_ok_and(|persisted| {
+            persisted.editor.document_font.is_none()
+                && persisted.editor.document_line_height_percent == 155
+                && persisted.editor.document_width == carver_config::DocumentWidth::Comfortable
+        })
+    }));
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
     let purist_window = crate::app::build_window_for_test(
@@ -1075,12 +1132,25 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         source_path.is_visible() && source_path.text() == "p"
     }));
+    source
+        .buffer()
+        .set_text("![First](assets/first.png){width=\"50%\"}");
     let rendered_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
     rendered_mode.set_active(true);
     assert!(run_main_context_until(|| !toolbar.is_sensitive()
         && !source_path.is_visible()
         && !find_bar.is_search_mode()));
+    let rendered_preview =
+        widget_as::<webkit6::WebView>(&root, "editor-rendered-preview").ok_or("preview")?;
+    assert_web_script_should_be_true(
+        &rendered_preview,
+        "getComputedStyle(document.body).fontFamily.includes('DejaVu Serif')",
+    );
+    assert_web_script_should_be_true(
+        &rendered_preview,
+        "(() => { const image = document.querySelector('.preview-content > img'); const content = document.querySelector('.preview-content'); return image && content && Math.abs(image.getBoundingClientRect().width - content.getBoundingClientRect().width / 2) < 1; })()",
+    );
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
     assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;
