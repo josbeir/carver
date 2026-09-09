@@ -156,6 +156,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .map(|row| row.selected()),
         Some(1)
     );
+    document_line_height.set_value(1.75);
+    assert!((document_line_height.value() - 1.75).abs() < f64::EPSILON);
+    let document_width =
+        widget_as::<adw::ComboRow>(preferences_dialog.upcast_ref(), "document-width-setting")
+            .ok_or("document width setting")?;
+    document_width.set_selected(2);
+    assert_eq!(document_width.selected(), 2);
+    let document_appearance_reset = widget_as::<adw::ActionRow>(
+        preferences_dialog.upcast_ref(),
+        "document-appearance-reset-row",
+    )
+    .ok_or("document appearance reset")?;
+    document_appearance_reset.emit_by_name::<()>("activated", &[]);
+    assert!((document_line_height.value() - 1.55).abs() < f64::EPSILON);
+    assert_eq!(document_width.selected(), 1);
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
     let purist_window = crate::app::build_window_for_test(

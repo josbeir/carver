@@ -688,6 +688,27 @@ mod tests {
     }
 
     #[test]
+    fn document_appearance_should_support_every_reading_measure() {
+        for (width, measure) in [
+            (carver_config::DocumentWidth::Narrow, "60ch"),
+            (carver_config::DocumentWidth::Comfortable, "80ch"),
+            (carver_config::DocumentWidth::Wide, "100ch"),
+            (carver_config::DocumentWidth::Full, "none"),
+        ] {
+            let appearance = document_appearance(&DocumentPreferences {
+                font: None,
+                line_height_percent: 155,
+                width,
+            });
+
+            assert!(
+                appearance_javascript(&appearance)
+                    .contains(&format!("--document-content-width: {measure}"))
+            );
+        }
+    }
+
+    #[test]
     fn rich_source_change_should_schedule_an_autosave_notification() {
         let [source_changed, autosave] = rich_source_change_messages(String::from("Changed"));
 

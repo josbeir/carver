@@ -55,3 +55,12 @@ fn split_preview_should_not_refresh_when_the_visible_source_is_current() {
 fn split_preview_should_not_render_while_the_breakpoint_hides_it() {
     assert!(!split_preview_is_visible(EditorMode::Source, true, false));
 }
+
+#[test]
+fn default_document_appearance_should_use_the_comfortable_reading_measure() {
+    let appearance = default_document_appearance();
+    let style = web::appearance_style(&appearance);
+
+    assert!(style.contains("--document-line-height: 1.55"));
+    assert!(style.contains("--document-content-width: 80ch"));
+}

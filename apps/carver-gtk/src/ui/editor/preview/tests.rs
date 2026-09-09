@@ -38,6 +38,26 @@ fn rendered_document_should_include_the_shared_document_appearance() {
 }
 
 #[test]
+fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance() {
+    let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+    let theme = super::super::web::editor_theme(false, &accent);
+    let appearance = super::super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: Some("Cantarell Bold Italic 14".to_owned()),
+        line_height_percent: 175,
+        width: carver_config::DocumentWidth::Wide,
+    });
+
+    let html = rendered_document_with_theme("Preview", false, &theme, &appearance);
+
+    assert!(html.contains("--preview-accent-color: #358e45 !important"));
+    assert!(html.contains("--preview-selection-background: rgb(53 142 69 / 25%) !important"));
+    assert!(html.contains("--preview-selection-foreground: #333334 !important"));
+    assert!(html.contains("--document-font-family: \"Cantarell\""));
+    assert!(html.contains("--document-line-height: 1.75"));
+    assert!(html.contains("--document-content-width: 100ch"));
+}
+
+#[test]
 fn rendered_document_routes_managed_assets_through_the_restricted_scheme() {
     let html = rendered_document("![image](assets/example.png)", false);
     assert!(html.contains("carver-asset:///assets/example.png"));

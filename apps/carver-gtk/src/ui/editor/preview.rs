@@ -219,10 +219,10 @@ fn rendered_document_with_theme(
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
-        super::web::appearance_style(appearance),
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
+        super::web::appearance_style(appearance),
     );
     format!(
         "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",

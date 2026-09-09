@@ -1081,6 +1081,9 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
     about
 }
 
+#[cfg(test)]
+mod tests;
+
 /// Presents the searchable reference for every explicit Carver keyboard shortcut.
 pub(crate) fn show_keyboard_shortcuts_dialog(
     parent: &adw::ApplicationWindow,

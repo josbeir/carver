@@ -1,8 +1,9 @@
 use std::fs;
 
 use super::{
-    FALLBACK_MONOSPACE_FONT, document_font_css, install_syntax_assets,
-    normalize_document_font_description, normalize_source_font_description, source_font_css,
+    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_weight,
+    escape_css_string, install_syntax_assets, normalize_document_font_description,
+    normalize_source_font_description, source_font_css, system_document_font_from_settings,
     system_monospace_font_from_settings,
 };
 
@@ -46,10 +47,69 @@ fn document_font_css_should_keep_the_selected_face() {
 }
 
 #[test]
+fn document_font_css_should_fall_back_to_a_stable_normal_face() {
+    assert_eq!(
+        document_font_css("Cantarell Oblique 12"),
+        "--document-font-family: \"Cantarell\"; --document-font-size: 12pt; --document-font-style: oblique; --document-font-weight: 400;"
+    );
+    assert_eq!(
+        document_font_css("Invalid font"),
+        "--document-font-family: \"Sans\"; --document-font-size: 12pt; --document-font-style: normal; --document-font-weight: 400;"
+    );
+}
+
+#[test]
+fn document_font_weight_should_map_supported_pango_weights_to_css_values() {
+    for (weight, expected) in [
+        (gtk::pango::Weight::Thin, 100),
+        (gtk::pango::Weight::Ultralight, 200),
+        (gtk::pango::Weight::Light, 300),
+        (gtk::pango::Weight::Semilight, 350),
+        (gtk::pango::Weight::Book, 380),
+        (gtk::pango::Weight::Medium, 500),
+        (gtk::pango::Weight::Semibold, 600),
+        (gtk::pango::Weight::Bold, 700),
+        (gtk::pango::Weight::Ultrabold, 800),
+        (gtk::pango::Weight::Heavy, 900),
+        (gtk::pango::Weight::Ultraheavy, 1000),
+    ] {
+        assert_eq!(document_font_weight(weight), expected);
+    }
+}
+
+#[test]
+fn css_string_escaping_should_preserve_special_characters_inside_font_names() {
+    let mut expected = String::from("A");
+    expected.push('\\');
+    expected.push('\\');
+    expected.push('\\');
+    expected.push('"');
+    expected.push('\\');
+    expected.push('a');
+    expected.push(' ');
+    expected.push('\\');
+    expected.push('d');
+    expected.push(' ');
+    expected.push('\\');
+    expected.push('c');
+    expected.push(' ');
+
+    assert_eq!(escape_css_string("A\\\"\n\r\u{c}"), expected);
+}
+
+#[test]
 fn unavailable_desktop_font_setting_should_use_a_stable_monospace_fallback() {
     assert_eq!(
         system_monospace_font_from_settings(None),
         FALLBACK_MONOSPACE_FONT
+    );
+}
+
+#[test]
+fn unavailable_desktop_document_font_setting_should_use_a_stable_fallback() {
+    assert_eq!(
+        system_document_font_from_settings(None),
+        FALLBACK_DOCUMENT_FONT
     );
 }
 
