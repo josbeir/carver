@@ -144,13 +144,13 @@ pub struct BasesModel {
     pub rows: Resource<Vec<carver_sdk::BaseRow>>,
 }
 
-/// A browser selection waiting for an active editor to finish closing.
+/// A destination waiting for an active editor to finish closing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PendingCategorySelection {
-    /// Show notes from every active category.
-    AllNotes,
-    /// Show notes from one category.
-    Category(CategoryId),
+pub(crate) enum PendingNavigation {
+    /// Show the browser, optionally scoped to one category.
+    Browser(Option<CategoryId>),
+    /// Show one saved base.
+    Base(carver_sdk::BaseId),
 }
 
 /// Browser-specific UI-neutral state.
@@ -537,8 +537,8 @@ pub struct AppModel {
     pub(crate) editor_return_route: Route,
     /// Category selected by the user, or all categories when absent.
     pub selected_category: Option<CategoryId>,
-    /// Category to select once a pending editor close has safely completed.
-    pub(crate) pending_category_selection: Option<PendingCategorySelection>,
+    /// Destination to show once a pending editor close has safely completed.
+    pub(crate) pending_navigation: Option<PendingNavigation>,
     /// Categories rendered by the sidebar.
     pub sidebar: Resource<Vec<CategorySummary>>,
     /// Browser state and its loaded note summaries.
@@ -601,7 +601,7 @@ impl AppModel {
             route: Route::Browser,
             editor_return_route: Route::Browser,
             selected_category: None,
-            pending_category_selection: None,
+            pending_navigation: None,
             sidebar: Resource::default(),
             browser: BrowserModel::default(),
             bases: BasesModel::default(),

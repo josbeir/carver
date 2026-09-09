@@ -51,6 +51,7 @@ fn base_rows_should_project_json_and_toml_frontmatter() {
         json_row.properties.pointer("/status"),
         Some(&serde_json::json!("active"))
     );
+    assert_eq!(json_row.updated, "1970-01-01T00:00:00Z");
     assert_eq!(
         library
             .property_paths()

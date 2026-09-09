@@ -68,3 +68,111 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
     assert_eq!(model.route, Route::Base);
     assert_eq!(model.bases.selected, Some(base_id));
 }
+
+#[test]
+fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let base_id = BaseId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "Initial".to_owned(),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Unsaved".to_owned())),
+    );
+
+    let effects = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
+    let request = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("opening a base should first save the dirty editor"),
+    };
+    assert_eq!(model.route, Route::Editor);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert_eq!(model.route, Route::Base);
+    assert!(effects.iter().any(
+        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
+    ));
+}
+
+#[test]
+fn rapidly_switching_bases_should_load_the_latest_selection_after_in_flight_rows_settle() {
+    let mut model = AppModel::new(&Config::default());
+    let first = BaseId::new();
+    let second = BaseId::new();
+    let first_effects = update(&mut model, AppMsg::Bases(BasesMsg::Open(first)));
+    let request_id = match first_effects.as_slice() {
+        [Effect::LoadBaseRows { request_id, .. }] => *request_id,
+        _ => panic!("first base should start loading"),
+    };
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Open(second))).is_empty());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseRowsLoaded {
+            request_id,
+            base_id: first,
+            result: Ok(Vec::new()),
+        }),
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id, .. }] if *base_id == second
+    ));
+}
+
+#[test]
+fn invalidating_base_definitions_in_flight_should_schedule_one_follow_up_load() {
+    let mut model = AppModel::new(&Config::default());
+    let first = update(&mut model, AppMsg::Bases(BasesMsg::Reload));
+    let request_id = match first.as_slice() {
+        [Effect::LoadBases { request_id }] => *request_id,
+        _ => panic!("definitions should start loading"),
+    };
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Reload)).is_empty());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasesLoaded {
+            request_id,
+            result: Ok(Vec::new()),
+        }),
+    );
+    assert!(matches!(effects.as_slice(), [Effect::LoadBases { .. }]));
+}
+
+#[test]
+fn external_library_change_should_reload_selected_base_rows() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.bases.selected = Some(base_id);
+    model.library_revision = Some(LibraryRevision(1));
+    let request = update(&mut model, AppMsg::LibraryChangedExternally);
+    let request_id = match request.as_slice() {
+        [Effect::LoadLibraryRevision { request_id }] => *request_id,
+        _ => panic!("external wakeup should check the revision"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id,
+            result: Ok(LibraryRevision(2)),
+        }),
+    );
+    assert!(effects.iter().any(
+        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
+    ));
+}

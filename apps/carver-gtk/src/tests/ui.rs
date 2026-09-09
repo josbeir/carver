@@ -88,6 +88,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         },
     )?;
     let destination = client.create_category("Projects")?;
+    let base = glib::MainContext::default().block_on(client.create_base_async(
+        "Review base".to_owned(),
+        vec![carver_sdk::BaseColumn::Category],
+    ))?;
     let application = adw::Application::new(
         Some("io.github.josbeir.Carver.Tests"),
         gtk::gio::ApplicationFlags::empty(),
@@ -312,7 +316,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(source_font_filter.match_(&monospace_face));
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
     assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
-    assert!(widget_as::<gtk::Button>(&root, "new-base-button").is_some());
+    let new_base = widget_as::<gtk::Button>(&root, "new-base-button").ok_or("new base button")?;
+    let sidebar_scroll = widget_as::<gtk::ScrolledWindow>(&root, "sidebar-navigation-scroll")
+        .ok_or("sidebar navigation scroll")?;
+    assert!(new_base.is_ancestor(&sidebar_scroll));
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
     assert!(widget_as::<gtk::Button>(&root, "back-to-notes-from-base-button").is_some());
     assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());
@@ -458,7 +465,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok_or("responsive category row")?;
     sidebar.select_row(Some(&category_row));
     assert!(run_main_context_until(|| navigation.shows_content()));
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| !navigation.shows_content()));
+    let base_button = widget_as::<gtk::Button>(&root, &format!("base:{}", base.id))
+        .ok_or("responsive base button")?;
+    base_button.emit_clicked();
+    assert!(run_main_context_until(|| {
+        navigation.shows_content()
+            && widget_as::<gtk::Label>(&root, "base-title")
+                .is_some_and(|title| title.text() == "Review base")
+    }));
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| !navigation.shows_content()));
     sidebar.select_row(Some(&all_notes));
+    assert!(run_main_context_until(|| navigation.shows_content()));
     window.set_default_size(1120, 760);
     assert!(run_main_context_until(|| !navigation.is_collapsed()));
     assert!(run_main_context_until(|| {

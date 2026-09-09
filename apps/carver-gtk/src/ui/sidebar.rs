@@ -66,13 +66,8 @@ pub(crate) fn build_sidebar(
     connect_new_category(dispatcher, &new_category);
     install_sidebar_search_shortcut(&container, dispatcher);
 
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_child(Some(&list));
-    scroll.set_vexpand(true);
-    container.append(&scroll);
     let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
     bases_box.set_margin_bottom(8);
-    container.append(&bases_box);
     let new_base = gtk::Button::new();
     new_base.set_widget_name("new-base-button");
     new_base.add_css_class("base-sidebar-button");
@@ -86,6 +81,14 @@ pub(crate) fn build_sidebar(
     let dispatcher_for_base = dispatcher.clone();
     new_base.connect_clicked(move |button| show_new_base_dialog(button, &dispatcher_for_base));
     bases_box.append(&new_base);
+    let scroll_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    scroll_content.append(&list);
+    scroll_content.append(&bases_box);
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("sidebar-navigation-scroll");
+    scroll.set_child(Some(&scroll_content));
+    scroll.set_vexpand(true);
+    container.append(&scroll);
     container.append(&trash_footer(dispatcher, split_view));
     SidebarSurface {
         widget: container.upcast(),
@@ -150,12 +153,17 @@ impl SidebarSurface {
             categories,
             model.selected_category,
         );
-        render_bases(&self.bases_box, &self.dispatcher, model);
+        render_bases(&self.bases_box, &self.dispatcher, &self.split_view, model);
         self.rendering.set(false);
     }
 }
 
-fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppModel) {
+fn render_bases(
+    container: &gtk::Box,
+    dispatcher: &AppDispatcher,
+    split_view: &adw::NavigationSplitView,
+    model: &AppModel,
+) {
     while container.observe_children().n_items() > 1 {
         if let Some(child) = container.last_child() {
             container.remove(&child);
@@ -176,9 +184,13 @@ fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppMod
         )));
         button.add_css_class("flat");
         let dispatcher = dispatcher.clone();
+        let split_view = split_view.clone();
         let base_id = base.id;
         button.connect_clicked(move |_| {
             let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Open(base_id)));
+            if split_view.is_collapsed() {
+                split_view.set_show_content(true);
+            }
         });
         container.insert_child_after(&button, container.first_child().as_ref());
     }

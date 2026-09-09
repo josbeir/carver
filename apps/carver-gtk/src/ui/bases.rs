@@ -34,6 +34,7 @@ pub(crate) fn build_base(
     );
     header.pack_start(&back);
     let title = gtk::Label::new(Some("Base"));
+    title.set_widget_name("base-title");
     title.add_css_class("title");
     header.set_title_widget(Some(&title));
     for (label, icon) in [
@@ -145,7 +146,8 @@ fn append_column(
     dispatcher: Option<&AppDispatcher>,
 ) {
     let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
+    let dispatcher_for_setup = dispatcher.cloned();
+    factory.connect_setup(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
         };
@@ -156,10 +158,26 @@ fn append_column(
         label.set_margin_top(7);
         label.set_margin_bottom(7);
         label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        if let Some(dispatcher) = &dispatcher_for_setup {
+            label.add_css_class("link");
+            let click = gtk::GestureClick::new();
+            let dispatcher = dispatcher.clone();
+            let item = item.clone();
+            click.connect_released(move |_, _, _, _| {
+                let Some(string) = item.item().and_downcast::<gtk::StringObject>() else {
+                    return;
+                };
+                let Ok(row) = serde_json::from_str::<BaseRow>(&string.string()) else {
+                    return;
+                };
+                let _ =
+                    dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(row.note_id)));
+            });
+            label.add_controller(click);
+        }
         item.set_child(Some(&label));
     });
     let field_for_bind = field.map(ToOwned::to_owned);
-    let dispatcher_for_bind = dispatcher.cloned();
     factory.connect_bind(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -184,16 +202,6 @@ fn append_column(
                 .unwrap_or_default(),
         };
         label.set_text(&value);
-        if let Some(dispatcher) = &dispatcher_for_bind {
-            label.add_css_class("link");
-            let click = gtk::GestureClick::new();
-            let dispatcher = dispatcher.clone();
-            click.connect_released(move |_, _, _, _| {
-                let _ =
-                    dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(row.note_id)));
-            });
-            label.add_controller(click);
-        }
     });
     let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_resizable(true);

@@ -22,7 +22,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
@@ -419,8 +419,12 @@ impl SqliteLibrary {
                     .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))?
                     .unwrap_or(serde_json::Value::Null);
                 let updated = parse_timestamp(row.get(4)?)
-                    .map_err(to_sql_error)?
-                    .to_string();
+                    .and_then(|timestamp| {
+                        timestamp
+                            .format(&Rfc3339)
+                            .map_err(|error| StorageError::Corrupt(error.to_string()))
+                    })
+                    .map_err(to_sql_error)?;
                 Ok(BaseRow {
                     note_id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
                     revision: Revision(row.get(1)?),
