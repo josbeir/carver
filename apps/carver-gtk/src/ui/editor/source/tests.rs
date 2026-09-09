@@ -88,8 +88,10 @@ fn document_font_face_attributes_should_map_to_css() {
         "small-caps"
     );
     assert_eq!(
-        document_font_variations(Some("wght=650, wdth=85")),
-        "\"wght\" 650, \"wdth\" 85"
+        document_font_variations(Some(
+            "wght=650, wdth=85, slnt=10, ital=1, opsz=12, GRAD=50, XTRA=100",
+        )),
+        "\"GRAD\" 50, \"XTRA\" 100"
     );
     assert_eq!(document_font_variations(Some("broken")), "normal");
 }

@@ -369,8 +369,11 @@ fn document_font_variations(variations: Option<&str>) -> String {
             let (axis, value) = variation.trim().split_once('=')?;
             let axis = axis.trim();
             let value = value.trim().parse::<f64>().ok()?;
+            // CSS's high-level font properties must remain free to cascade to
+            // semantic markup such as headings and strong text.
             (axis.len() == 4
                 && axis.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                && !matches!(axis, "wght" | "wdth" | "slnt" | "ital" | "opsz")
                 && value.is_finite())
             .then(|| format!("\"{axis}\" {value}"))
         })
