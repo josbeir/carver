@@ -5,6 +5,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::mvu::{AppDispatcher, AppMsg, NavigationMsg};
+use crate::ui::sidebar::{CompactNavigation, sidebar_toggle_button};
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
@@ -13,9 +14,26 @@ pub(crate) struct BaseViewRefs {
     pub(crate) pages: gtk::Stack,
 }
 
-pub(crate) fn build_base(dispatcher: &AppDispatcher) -> (gtk::Widget, BaseViewRefs) {
+pub(crate) fn build_base(
+    dispatcher: &AppDispatcher,
+    split_view: &adw::NavigationSplitView,
+    compact_navigation: &CompactNavigation,
+) -> (gtk::Widget, BaseViewRefs) {
     let toolbar = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
+    header.pack_start(&sidebar_toggle_button(
+        split_view,
+        compact_navigation,
+        "base-toggle-categories-button",
+    ));
+    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    back.set_widget_name("back-to-notes-from-base-button");
+    back.set_tooltip_text(Some("Back to notes"));
+    let dispatcher_for_back = dispatcher.clone();
+    back.connect_clicked(move |_| {
+        let _ = dispatcher_for_back.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser));
+    });
+    header.pack_start(&back);
     let title = gtk::Label::new(Some("Base"));
     title.add_css_class("title");
     header.set_title_widget(Some(&title));
@@ -57,7 +75,6 @@ pub(crate) fn build_base(dispatcher: &AppDispatcher) -> (gtk::Widget, BaseViewRe
     pages.add_named(&status, Some("status"));
     pages.set_visible_child_name("status");
     toolbar.set_content(Some(&pages));
-    let _ = dispatcher;
     (toolbar.upcast(), BaseViewRefs { title, grid, pages })
 }
 

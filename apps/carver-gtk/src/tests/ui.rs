@@ -307,6 +307,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
     assert!(widget_as::<gtk::Button>(&root, "new-base-button").is_some());
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
+    assert!(widget_as::<gtk::Button>(&root, "back-to-notes-from-base-button").is_some());
+    assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());
     assert!(bases_grid.shows_row_separators());
     assert!(bases_grid.shows_column_separators());
     let settings_menu = widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button")

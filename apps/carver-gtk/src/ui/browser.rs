@@ -142,7 +142,8 @@ pub(crate) fn build_content(
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let (browser, browser_refs) = build_browser(dispatcher, split_view, compact_navigation);
     stack.add_named(&browser, Some("browser"));
-    let (base, base_refs) = crate::ui::bases::build_base(dispatcher);
+    let (base, base_refs) =
+        crate::ui::bases::build_base(dispatcher, split_view, compact_navigation);
     stack.add_named(&base, Some("base"));
     let (editor, editor_refs) = build_editor(
         dispatcher,
@@ -169,7 +170,7 @@ pub(crate) fn build_content(
     })
 }
 
-/// Routes all conventional Back inputs through the editor's MVU close transition.
+/// Routes conventional Back inputs through the active editor or base transition.
 fn install_editor_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
     install_editor_mouse_back_navigation(dispatcher, route_stack);
     install_editor_touchpad_back_navigation(dispatcher, route_stack);
@@ -189,10 +190,10 @@ fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack:
                 button.event_type() == gtk::gdk::EventType::ButtonPress
                     && button.button() == MOUSE_BACK_BUTTON
             });
-        if !is_mouse_back || !is_editor_route(&route_stack_for_event) {
+        if !is_mouse_back || !is_back_route(&route_stack_for_event) {
             return glib::Propagation::Proceed;
         }
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+        dispatch_route_back(&dispatcher, &route_stack_for_event);
         glib::Propagation::Stop
     });
     route_stack.add_controller(back);
@@ -210,14 +211,14 @@ fn install_editor_touchpad_back_navigation(dispatcher: &AppDispatcher, route_sta
     let dispatcher = dispatcher.clone();
     let route_stack_for_scroll = route_stack.clone();
     back.connect_scroll(move |controller, delta_x, delta_y| {
-        if !is_editor_route(&route_stack_for_scroll) || !is_touchpad_surface_scroll(controller) {
+        if !is_back_route(&route_stack_for_scroll) || !is_touchpad_surface_scroll(controller) {
             return glib::Propagation::Proceed;
         }
         let next = gesture_for_scroll.get().advance(delta_x, delta_y);
         let was_triggered = matches!(gesture_for_scroll.get(), TouchpadBackGesture::Triggered);
         gesture_for_scroll.set(next);
         if matches!(next, TouchpadBackGesture::Triggered) && !was_triggered {
-            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+            dispatch_route_back(&dispatcher, &route_stack_for_scroll);
         }
         if next.is_tracking() {
             glib::Propagation::Stop
@@ -230,6 +231,22 @@ fn install_editor_touchpad_back_navigation(dispatcher: &AppDispatcher, route_sta
 
 fn is_editor_route(route_stack: &gtk::Stack) -> bool {
     route_stack.visible_child_name().as_deref() == Some("editor")
+}
+
+fn is_back_route(route_stack: &gtk::Stack) -> bool {
+    matches!(
+        route_stack.visible_child_name().as_deref(),
+        Some("editor" | "base")
+    )
+}
+
+fn dispatch_route_back(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+    let message = if is_editor_route(route_stack) {
+        AppMsg::Editor(EditorMsg::BackRequested)
+    } else {
+        AppMsg::Navigation(NavigationMsg::ShowBrowser)
+    };
+    let _ = dispatcher.dispatch(message);
 }
 
 fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
