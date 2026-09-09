@@ -32,6 +32,7 @@ import { resizeSelectedTable, tableSize } from './table-resize';
 type RuntimeEditor = any;
 type EditorFactory = (options: Record<string, unknown>) => RuntimeEditor;
 const CARVER_CLIPBOARD_TYPE = 'application/x-carver-source';
+const RUNTIME_STYLES_ID = 'editor-runtime-styles';
 
 const CarveImage = Image.extend({
   addAttributes() {
@@ -71,6 +72,8 @@ export class EditorController implements RichEditorApi {
   private revision = 0;
   private navigationEpoch = 0;
   private navigating = false;
+  private themeStyles = '';
+  private appearanceStyles = '';
   private readonly pendingBlobSources = new Set<string>();
   private readonly pasteSanitizer = new ClipboardPasteSanitizer();
 
@@ -294,19 +297,20 @@ export class EditorController implements RichEditorApi {
     selectionForeground: string,
   ): void {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    document.documentElement.style.setProperty('--accent-color', accent);
-    document.documentElement.style.setProperty(
-      '--selection-background',
-      selectionBackground,
-    );
-    document.documentElement.style.setProperty(
-      '--selection-foreground',
-      selectionForeground,
-    );
+    this.themeStyles = `:root { --accent-color: ${accent}; --selection-background: ${selectionBackground}; --selection-foreground: ${selectionForeground}; }`;
+    this.applyRuntimeStyles();
   }
 
   public setAppearance(css: string): void {
-    document.documentElement.style.cssText += css;
+    this.appearanceStyles = `:root { ${css} }`;
+    this.applyRuntimeStyles();
+  }
+
+  private applyRuntimeStyles(): void {
+    const runtimeStyles = document.getElementById(RUNTIME_STYLES_ID);
+    if (runtimeStyles?.tagName === 'STYLE') {
+      runtimeStyles.textContent = `${this.themeStyles}\n${this.appearanceStyles}`;
+    }
   }
 
   private currentEditor(): RuntimeEditor {

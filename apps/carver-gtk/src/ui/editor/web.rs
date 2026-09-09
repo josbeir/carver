@@ -644,7 +644,7 @@ fn editor_document(allow_remote_images: bool) -> String {
         "data: carver-asset: blob:"
     };
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
     )
 }
 
@@ -672,6 +672,14 @@ mod tests {
     #[test]
     fn editor_document_keeps_remote_images_blocked_when_disabled() {
         assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn editor_document_should_keep_runtime_styles_in_the_head() {
+        let document = editor_document(false);
+
+        assert!(document.contains("<style id=\"editor-runtime-styles\"></style>"));
+        assert!(!document.contains("<html style="));
     }
 
     #[test]
