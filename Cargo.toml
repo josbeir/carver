@@ -22,6 +22,10 @@ version = "0.2.1"
 authors = ["Carver contributors"]
 
 [workspace.dependencies]
+atomic-write-file = "0.3"
+lol_html = "3"
+html-escape = "0.2"
+sanitize-filename = "0.6"
 async-channel = "2.5"
 base64 = "0.22"
 carve-lang = "0.1.5"

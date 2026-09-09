@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+atomic-write-file.workspace = true
 carver-config = { path = "../../crates/carver-config", version = "0.2.1" }
 carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.2.1" }
 carver-domain = { path = "../../crates/carver-domain", version = "0.2.1" }
@@ -28,6 +29,8 @@ sourceview5.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
 webkit6 = "0.6.1"
+lol_html.workspace = true
+html-escape.workspace = true
 
 [build-dependencies]
 glib-build-tools = "0.22"

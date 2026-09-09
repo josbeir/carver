@@ -18,6 +18,19 @@ allow = [
 ]
 confidence-threshold = 0.8
 
+# BSD dependencies used for atomic replacement and HTML-aware rewriting.
+[[licenses.exceptions]]
+name = "atomic-write-file"
+allow = ["BSD-3-Clause"]
+
+[[licenses.exceptions]]
+name = "lol_html"
+allow = ["BSD-3-Clause"]
+
+[[licenses.exceptions]]
+name = "encoding_rs"
+allow = ["BSD-3-Clause"]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
