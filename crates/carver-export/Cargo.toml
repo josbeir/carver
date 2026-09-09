@@ -7,10 +7,12 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+html-escape.workspace = true
 carver-domain = { path = "../carver-domain", version = "0.2.1" }
 carve-lang.workspace = true
 thiserror.workspace = true
 zip.workspace = true
+sanitize-filename.workspace = true
 
 [lints]
 workspace = true

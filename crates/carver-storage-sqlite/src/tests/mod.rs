@@ -21,6 +21,7 @@ fn schema_version(database_path: &std::path::Path) -> i32 {
 mod assets;
 mod categories;
 mod compatibility;
+mod excerpts;
 mod migrations;
 mod notes;
 mod search;

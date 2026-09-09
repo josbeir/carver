@@ -2,7 +2,11 @@
 
 #![forbid(unsafe_code)]
 
-use std::{env, process::ExitCode};
+use std::process::ExitCode;
+
+use clap::Parser;
+
+mod cli;
 
 use carve::{CheckedRenderOptions, to_markdown_with_report};
 use carver_sdk::{
@@ -544,23 +548,10 @@ fn json(value: impl serde::Serialize) -> Result<String, ErrorData> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let arguments: Vec<String> = env::args().skip(1).collect();
-    if arguments
-        .iter()
-        .any(|argument| argument == "--help" || argument == "-h")
-    {
-        println!(
-            "Usage: carver-mcp [--allow-write]\n       carver-mcp configure <codex|claude-code|copilot|vscode|generic> [--allow-write]"
-        );
-        return ExitCode::SUCCESS;
+    let args = cli::Args::parse();
+    if let Some(cli::Command::Configure { client }) = args.command {
+        return print_setup(client, args.allow_write);
     }
-    if arguments
-        .first()
-        .is_some_and(|argument| argument == "configure")
-    {
-        return print_setup(&arguments[1..]);
-    }
-    let allow_write = arguments.iter().any(|argument| argument == "--allow-write");
     let client = match open_installed_library() {
         Ok(client) => client,
         Err(error) => {
@@ -568,7 +559,7 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match CarverServer::new(client, allow_write)
+    match CarverServer::new(client, args.allow_write)
         .serve(rmcp::transport::stdio())
         .await
     {
@@ -586,24 +577,11 @@ async fn main() -> ExitCode {
     }
 }
 
-fn print_setup(arguments: &[String]) -> ExitCode {
-    let client = match arguments.first().map(String::as_str) {
-        Some("codex") => carver_agent_integration::AgentClient::Codex,
-        Some("claude-code") => carver_agent_integration::AgentClient::ClaudeCode,
-        Some("copilot") => carver_agent_integration::AgentClient::CopilotCli,
-        Some("vscode") => carver_agent_integration::AgentClient::VsCodeCopilot,
-        Some("generic" | "other") => carver_agent_integration::AgentClient::Generic,
-        _ => {
-            eprintln!(
-                "usage: carver-mcp configure <codex|claude-code|copilot|vscode|generic> [--allow-write]"
-            );
-            return ExitCode::FAILURE;
-        }
-    };
+fn print_setup(client: carver_agent_integration::AgentClient, allow_write: bool) -> ExitCode {
     let instruction = match carver_agent_integration::setup_instruction(
         client,
         &carver_agent_integration::InstallChannel::detect(),
-        arguments.iter().any(|argument| argument == "--allow-write"),
+        allow_write,
     ) {
         Ok(instruction) => instruction,
         Err(error) => {

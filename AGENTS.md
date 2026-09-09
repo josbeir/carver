@@ -50,6 +50,12 @@ infrastructure or GTK.
 
 ## Rust rules
 
+- Before implementing or extending a local solution, always research whether a public crate
+  already solves the problem. Prefer a suitable, well-maintained crate with established
+  community adoption over maintaining equivalent code ourselves. Verify maintenance activity,
+  adoption, API fit, license compatibility, and dependency cost; reuse existing workspace
+  dependencies where possible. If no suitable crate meets these criteria, briefly document
+  why a local implementation is warranted.
 - Use idiomatic Rust guided by `rust-best-practices`; prefer borrowed inputs (`&str`,
   `&Path`, slices) and clone only when GTK callback ownership or a snapshot requires it.
 - Production code must return typed `Result` errors. Libraries use `thiserror`; do not

@@ -4,9 +4,11 @@
 
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 
+use atomic_write_file::AtomicWriteFile;
 use std::time::Duration;
 
 use carver_domain::{
@@ -20,6 +22,7 @@ use rusqlite_migration::{M, Migrations};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use time::OffsetDateTime;
+use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
 /// SQLite-backed managed library.
@@ -902,9 +905,9 @@ impl SqliteLibrary {
         };
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
-            let temporary = path.with_extension("partial");
-            fs::write(&temporary, bytes)?;
-            fs::rename(temporary, &path)?;
+            let mut file = AtomicWriteFile::open(&path)?;
+            file.write_all(bytes)?;
+            file.commit()?;
         }
         self.connection.execute(
             "INSERT OR IGNORE INTO assets (hash, filename, byte_size) VALUES (?1, ?2, ?3)",
@@ -1258,6 +1261,11 @@ fn note_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     })
 }
 
+// Active and trashed cards share a limit of 180 user-perceived characters.
+fn note_excerpt(plain_text: &str) -> String {
+    plain_text.graphemes(true).take(180).collect()
+}
+
 fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     let plain_text: String = row.get(4)?;
     Ok(NoteSummary {
@@ -1265,7 +1273,7 @@ fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
         category_id: category_id(&row.get::<_, String>(1)?).map_err(to_sql_error)?,
         category_name: row.get(2)?,
         title: row.get(3)?,
-        excerpt: plain_text.chars().take(180).collect(),
+        excerpt: note_excerpt(&plain_text),
         revision: Revision(row.get(5)?),
         is_favorite: row.get(6)?,
         updated_at: parse_timestamp(row.get(7)?).map_err(to_sql_error)?,
@@ -1295,7 +1303,7 @@ fn trashed_note_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Tr
         category_id: category_id(&row.get::<_, String>(1)?).map_err(to_sql_error)?,
         category_name: row.get(2)?,
         title: row.get(3)?,
-        excerpt: row.get::<_, String>(4)?.chars().take(180).collect(),
+        excerpt: note_excerpt(&row.get::<_, String>(4)?),
         trashed_at: parse_timestamp(trashed_at).map_err(to_sql_error)?,
         has_images: row.get(6)?,
     })

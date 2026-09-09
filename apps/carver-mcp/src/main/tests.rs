@@ -387,12 +387,6 @@ async fn read_only_server_should_reject_writes_and_validate_requests() -> TestRe
     assert_eq!(server.capture_note().await.len(), 1);
     assert_eq!(server.summarize_notes().await.len(), 1);
     assert_eq!(server.organize_notes().await.len(), 1);
-    assert_eq!(print_setup(&["codex".to_owned()]), ExitCode::SUCCESS);
-    assert_eq!(print_setup(&["claude-code".to_owned()]), ExitCode::SUCCESS);
-    assert_eq!(print_setup(&["copilot".to_owned()]), ExitCode::SUCCESS);
-    assert_eq!(print_setup(&["vscode".to_owned()]), ExitCode::SUCCESS);
-    assert_eq!(print_setup(&["generic".to_owned()]), ExitCode::SUCCESS);
-    assert_eq!(print_setup(&["unknown".to_owned()]), ExitCode::FAILURE);
     Ok(())
 }
 

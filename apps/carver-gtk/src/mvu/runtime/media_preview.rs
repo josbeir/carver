@@ -132,17 +132,7 @@ fn prepare_copy(
 
 fn preview_filename(path: &str, label: &str) -> String {
     const MAX_FILENAME_BYTES: usize = 255;
-    let name: String = label
-        .chars()
-        .map(|character| {
-            if character.is_alphanumeric() || matches!(character, ' ' | '-' | '_' | '.') {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let name = name.trim_matches([' ', '.']);
+    let name = label.trim().trim_matches([' ', '.']);
     let suffix = Path::new(path)
         .extension()
         .and_then(|value| value.to_str())
@@ -153,26 +143,15 @@ fn preview_filename(path: &str, label: &str) -> String {
         .unwrap_or(name)
         .trim_matches([' ', '.']);
     let suffix_bytes = suffix.as_ref().map_or(0, String::len);
-    let mut filename = truncate_utf8(stem, MAX_FILENAME_BYTES.saturating_sub(suffix_bytes));
+    let mut filename = carver_export::filename::sanitized_component(
+        stem,
+        MAX_FILENAME_BYTES.saturating_sub(suffix_bytes),
+    );
     if filename.is_empty() {
         filename = String::from("Attachment");
     }
     filename.push_str(suffix.as_deref().unwrap_or_default());
     filename
-}
-
-/// Truncates on a UTF-8 boundary so preview filenames fit one filesystem component.
-fn truncate_utf8(value: &str, max_bytes: usize) -> String {
-    value
-        .chars()
-        .scan(0, |bytes, character| {
-            let character_bytes = character.len_utf8();
-            (*bytes + character_bytes <= max_bytes).then(|| {
-                *bytes += character_bytes;
-                character
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]

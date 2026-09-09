@@ -919,8 +919,7 @@ fn request_editor_export(
 ) -> Vec<Effect> {
     let Some(request) = model
         .editor_export_dialog_request
-        .take()
-        .filter(|request| request.request_id == request_id)
+        .take_if(|request| request.request_id == request_id)
     else {
         return Vec::new();
     };

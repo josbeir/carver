@@ -7,6 +7,8 @@ use std::{
     io::{Cursor, Seek, Write},
 };
 
+pub mod filename;
+
 use carve::{CheckedRenderOptions, to_html_with_report, to_markdown_with_report};
 use carver_domain::source_analysis::SourceAnalysis;
 use thiserror::Error;
@@ -304,27 +306,12 @@ th, td { padding: 0.5rem; border: 1px solid #d1d5db; text-align: start; }
     const DOCUMENT_END: &str = "\n</body>\n</html>\n";
     [
         HEAD_BEFORE_TITLE,
-        &escape_html_text(title),
+        &html_escape::encode_text(title),
         HEAD_AFTER_TITLE,
         body,
         DOCUMENT_END,
     ]
     .concat()
-}
-
-fn escape_html_text(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        match character {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&#39;"),
-            _ => escaped.push(character),
-        }
-    }
-    escaped
 }
 
 fn archive_document_name(document_stem: &str, format: ExportFormat) -> Result<String, ExportError> {
@@ -338,20 +325,13 @@ fn archive_document_name(document_stem: &str, format: ExportFormat) -> Result<St
 /// Returns a safe desktop filename stem with a readable fallback.
 #[must_use]
 pub fn sanitized_filename_stem(title: &str) -> String {
-    let value = title
-        .trim()
-        .chars()
-        .map(|character| match character {
-            '/' | '\\' | ':' | '\0' => '-',
-            character if character.is_control() => ' ',
-            character => character,
-        })
-        .collect::<String>();
-    let value = value.trim_matches([' ', '.']).trim();
-    if value.is_empty() {
+    // Reserve the longest export suffix (".html") within a 255-byte component.
+    let title: String = title.trim().chars().take(120).collect();
+    let stem = filename::sanitized_component(&title, 250);
+    if stem.is_empty() {
         String::from("Untitled Note")
     } else {
-        value.chars().take(120).collect()
+        stem
     }
 }
 
@@ -447,7 +427,7 @@ mod tests {
     fn html_document_should_escape_markup_in_the_title() {
         let document = html_document("<p>Body</p>", "<Client> \"R&D's\"");
 
-        assert!(document.contains("<title>&lt;Client&gt; &quot;R&amp;D&#39;s&quot;</title>"));
+        assert!(document.contains("<title>&lt;Client&gt; \"R&amp;D's\"</title>"));
     }
 
     #[test]
@@ -594,3 +574,7 @@ mod tests {
         assert_eq!(sanitized_filename_stem(". \n\t"), "Untitled Note");
     }
 }
+
+#[cfg(test)]
+#[path = "tests/escaping.rs"]
+mod escaping_tests;

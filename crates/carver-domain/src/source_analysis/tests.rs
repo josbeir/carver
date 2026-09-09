@@ -228,3 +228,71 @@ fn labels_should_keep_autolink_text_and_smart_punctuation() {
     assert!(analysis.headings()[0].label.contains("now"));
     assert!(!analysis.headings()[0].label.contains("  now"));
 }
+
+#[test]
+fn context_should_preserve_nested_inline_formatting_inside_a_span() {
+    let source = "[a _marked_ word]{.label}";
+    let cursor = source
+        .find("marked")
+        .unwrap_or_else(|| panic!("fixture word"));
+    assert_eq!(
+        context(source, cursor..cursor),
+        vec![
+            SourceNodeKind::Paragraph,
+            SourceNodeKind::Container,
+            SourceNodeKind::Underline
+        ]
+    );
+}
+
+#[test]
+fn context_should_recognize_superscript_and_subscript() {
+    for (source, kind) in [
+        ("{^raised^}", SourceNodeKind::Superscript),
+        ("{,lowered,}", SourceNodeKind::Subscript),
+    ] {
+        assert_eq!(context(source, 3..3), vec![SourceNodeKind::Paragraph, kind]);
+    }
+}
+
+#[test]
+fn heading_label_should_flatten_nested_links_images_and_inline_code() {
+    let analysis = SourceAnalysis::parse(
+        "# [*Guide*](https://example.test) ![Diagram](assets/diagram.png) `code`",
+    );
+    assert_eq!(analysis.headings()[0].label, "Guide Diagram code");
+    assert_eq!(analysis.media().len(), 1);
+    assert_eq!(analysis.media()[0].path, "assets/diagram.png");
+}
+
+#[test]
+fn critic_changes_should_keep_nested_media_discoverable() {
+    let source = "{++![Added](assets/new.png)++} {--[Removed](assets/old.pdf)--}";
+    let analysis = SourceAnalysis::parse(source);
+    let paths: Vec<_> = analysis
+        .media()
+        .iter()
+        .map(|media| media.path.as_str())
+        .collect();
+    assert_eq!(paths, ["assets/new.png", "assets/old.pdf"]);
+}
+
+#[test]
+fn media_analysis_should_reject_traversal_and_absolute_paths() {
+    let analysis = SourceAnalysis::parse(
+        "![Bad](assets/../private.png) [Absolute](/tmp/private.pdf) ![Remote](https://example.test/image.png)",
+    );
+    assert!(analysis.media().is_empty());
+}
+
+#[test]
+fn block_quote_should_preserve_heading_and_media_occurrences() {
+    let source = "> # Nested\n>\n> ![Chart](assets/chart.png)";
+    let analysis = SourceAnalysis::parse(source);
+    assert_eq!(analysis.headings()[0].label, "Nested");
+    assert_eq!(analysis.media()[0].label, "Chart");
+    let cursor = source
+        .find("Chart")
+        .unwrap_or_else(|| panic!("fixture label"));
+    assert!(context(source, cursor..cursor).contains(&SourceNodeKind::BlockQuote));
+}

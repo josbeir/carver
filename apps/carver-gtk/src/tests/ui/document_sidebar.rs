@@ -2,8 +2,8 @@
 use super::*;
 use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, EditorMsg, PreferencesMsg};
 
-pub(super) struct SidebarFixture {
-    pub _directory: tempfile::TempDir,
+pub(crate) struct SidebarFixture {
+    pub directory: tempfile::TempDir,
     pub client: super::super::support::TestLibraryClient,
     pub surface: gtk::Widget,
     pub runtime: AppRuntime<carver_storage_sqlite::SqliteLibrary>,
@@ -11,7 +11,7 @@ pub(super) struct SidebarFixture {
     pub config_path: std::path::PathBuf,
 }
 
-pub(super) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
+pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     let (directory, client) = test_state()?;
     let syntax = crate::ui::editor::install_syntax_assets(directory.path())?;
     let config_path = directory.path().join("document-sidebar-settings.toml");
@@ -53,7 +53,7 @@ pub(super) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     runtime.bind_dispatcher(&dispatcher);
     window.present();
     Ok(SidebarFixture {
-        _directory: directory,
+        directory,
         client,
         surface,
         runtime,

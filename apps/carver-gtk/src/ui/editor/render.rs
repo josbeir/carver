@@ -17,6 +17,7 @@ pub(crate) fn install_image_paste(
     rich: &super::RichEditor,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
+    controller.set_name(Some("source-image-paste"));
     let dispatcher = dispatcher.clone();
     let clipboard = view.display().clipboard();
     let source_buffer = view.buffer();

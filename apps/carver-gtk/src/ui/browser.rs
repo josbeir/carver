@@ -6,7 +6,7 @@ use carver_config::Config;
 use carver_sdk::{Category, CategoryColor, CategorySummary, NoteSummary};
 use gtk::prelude::*;
 use libadwaita as adw;
-use time::{Duration, Month, OffsetDateTime, UtcOffset};
+use time::{Duration, OffsetDateTime, UtcOffset, macros::format_description};
 
 use super::{
     dialogs::{
@@ -710,9 +710,20 @@ pub(crate) fn note_card_details(
 }
 
 pub(crate) fn local_day(timestamp: OffsetDateTime) -> time::Date {
+    day_in_timezone(timestamp, &glib::TimeZone::local())
+        .unwrap_or_else(|_| timestamp.to_offset(UtcOffset::UTC).date())
+}
+
+fn day_in_timezone(
+    timestamp: OffsetDateTime,
+    timezone: &glib::TimeZone,
+) -> Result<time::Date, glib::BoolError> {
+    let local = glib::DateTime::from_unix_utc(timestamp.unix_timestamp())?.to_timezone(timezone)?;
     timestamp
-        .to_offset(UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC))
-        .date()
+        .to_offset(UtcOffset::UTC)
+        .checked_add(Duration::microseconds(local.utc_offset().as_microseconds()))
+        .map(OffsetDateTime::date)
+        .ok_or_else(|| glib::bool_error!("Local date is outside the supported range"))
 }
 
 /// Returns the relative calendar group for a note updated at `updated_at`.
@@ -769,34 +780,17 @@ pub(crate) fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTi
     if day == today - Duration::days(1) {
         return String::from("Yesterday");
     }
-    let date = format!("{} {}", month_name(day.month()), day.day());
-    if day.year() == today.year() {
-        date
+    let format = if day.year() == today.year() {
+        format_description!("[month repr:short] [day padding:none]")
     } else {
-        format!("{date}, {}", day.year())
-    }
+        format_description!("[month repr:short] [day padding:none], [year]")
+    };
+    day.format(format).unwrap_or_else(|_| day.to_string())
 }
 
 fn elapsed_label(amount: i64, unit: &str) -> String {
     let suffix = if amount == 1 { "" } else { "s" };
     format!("{amount} {unit}{suffix} ago")
-}
-
-const fn month_name(month: Month) -> &'static str {
-    match month {
-        Month::January => "Jan",
-        Month::February => "Feb",
-        Month::March => "Mar",
-        Month::April => "Apr",
-        Month::May => "May",
-        Month::June => "Jun",
-        Month::July => "Jul",
-        Month::August => "Aug",
-        Month::September => "Sep",
-        Month::October => "Oct",
-        Month::November => "Nov",
-        Month::December => "Dec",
-    }
 }
 
 #[cfg(test)]

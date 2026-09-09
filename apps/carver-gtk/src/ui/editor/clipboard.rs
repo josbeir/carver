@@ -2,6 +2,10 @@
 
 use std::{fs, path::Path};
 
+use lol_html::{errors::RewritingError, html_content::ContentType};
+use thiserror::Error;
+
+use super::html::rewrite_managed_images;
 use super::preview::{managed_asset_filename, mime_type};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
@@ -20,27 +24,45 @@ pub(crate) struct ClipboardDocument {
     pub(crate) omitted_images: usize,
 }
 
+/// Failures preparing or publishing portable clipboard content.
+#[derive(Debug, Error)]
+pub(crate) enum ClipboardError {
+    /// The HTML rewriter could not complete the document.
+    #[error("Could not prepare clipboard HTML: {0}")]
+    Html(#[from] RewritingError),
+    /// GTK could not publish the prepared content.
+    #[error("Could not claim the clipboard: {0}")]
+    Publish(#[from] glib::BoolError),
+}
+
 /// Builds portable rich and plain-text clipboard content from canonical Carve source.
-pub(crate) fn clipboard_document(source: &str, assets_dir: Option<&Path>) -> ClipboardDocument {
-    let (html, omitted_images) = embed_managed_images(&carve::to_html(source), assets_dir);
-    ClipboardDocument {
+///
+/// # Errors
+///
+/// Returns an error when HTML rewriting cannot complete.
+pub(crate) fn clipboard_document(
+    source: &str,
+    assets_dir: Option<&Path>,
+) -> Result<ClipboardDocument, ClipboardError> {
+    let (html, omitted_images) = embed_managed_images(&carve::to_html(source), assets_dir)?;
+    Ok(ClipboardDocument {
         html,
         plain_text: carve::to_plain_text(source),
         omitted_images,
-    }
+    })
 }
 
 /// Publishes a complete note as HTML with a plain-text fallback.
 ///
 /// # Errors
 ///
-/// Returns an error if GTK cannot claim the system clipboard.
+/// Returns an error if HTML rewriting fails or GTK cannot claim the system clipboard.
 pub(crate) fn publish_note(
     clipboard: &gtk::gdk::Clipboard,
     source: &str,
     assets_dir: Option<&Path>,
-) -> Result<ClipboardDocument, glib::BoolError> {
-    let document = clipboard_document(source, assets_dir);
+) -> Result<ClipboardDocument, ClipboardError> {
+    let document = clipboard_document(source, assets_dir)?;
     let html = gtk::gdk::ContentProvider::for_bytes(
         "text/html",
         &glib::Bytes::from(document.html.as_bytes()),
@@ -58,65 +80,29 @@ pub(crate) fn publish_note(
     Ok(document)
 }
 
-fn embed_managed_images(html: &str, assets_dir: Option<&Path>) -> (String, usize) {
-    let mut remaining = html;
+fn embed_managed_images(
+    html: &str,
+    assets_dir: Option<&Path>,
+) -> Result<(String, usize), RewritingError> {
     let mut embedded_bytes = 0_usize;
     let mut omitted_images = 0_usize;
-    let mut output = String::with_capacity(html.len());
-
-    while let Some(image_start) = remaining.find("<img ") {
-        let (before_image, image_and_rest) = remaining.split_at(image_start);
-        output.push_str(before_image);
-        let Some(image_end) = image_and_rest.find('>') else {
-            output.push_str(image_and_rest);
-            return (output, omitted_images);
-        };
-        let (image, rest) = image_and_rest.split_at(image_end + 1);
-        match image_source(image) {
-            ImageSource::Managed(source) => {
-                if let Some(data_uri) =
-                    embedded_image_data_uri(source, assets_dir, &mut embedded_bytes)
-                {
-                    output.push_str(&image.replacen(
-                        &format!("src=\"{source}\""),
-                        &format!("src=\"{data_uri}\""),
-                        1,
-                    ));
-                } else {
-                    output.push_str(&omitted_image_text(image));
-                    omitted_images += 1;
-                }
-            }
-            ImageSource::InvalidManaged => {
-                output.push_str(&omitted_image_text(image));
-                omitted_images += 1;
-            }
-            ImageSource::External => output.push_str(image),
+    let output = rewrite_managed_images(html, |image, source| {
+        if let Some(data_uri) = embedded_image_data_uri(source, assets_dir, &mut embedded_bytes) {
+            image.set_attribute("src", &data_uri)?;
+        } else {
+            let alt = image.get_attribute("alt").filter(|alt| !alt.is_empty());
+            let text = alt.map_or_else(
+                || String::from("[Image omitted]"),
+                |alt| format!("[Image: {}]", html_escape::decode_html_entities(&alt)),
+            );
+            image.before("<span>", ContentType::Html);
+            image.replace(&text, ContentType::Text);
+            image.after("</span>", ContentType::Html);
+            omitted_images += 1;
         }
-        remaining = rest;
-    }
-    output.push_str(remaining);
-    (output, omitted_images)
-}
-
-enum ImageSource<'a> {
-    External,
-    Managed(&'a str),
-    InvalidManaged,
-}
-
-fn image_source(image: &str) -> ImageSource<'_> {
-    let Some(source) = attribute(image, "src") else {
-        return ImageSource::External;
-    };
-    if !source.starts_with("assets/") {
-        return ImageSource::External;
-    }
-    if managed_asset_filename(source).is_some() {
-        ImageSource::Managed(source)
-    } else {
-        ImageSource::InvalidManaged
-    }
+        Ok(())
+    })?;
+    Ok((output, omitted_images))
 }
 
 fn embedded_image_data_uri(
@@ -146,101 +132,5 @@ fn embedded_image_data_uri(
     ))
 }
 
-fn omitted_image_text(image: &str) -> String {
-    let alt = attribute(image, "alt").filter(|alt| !alt.is_empty());
-    match alt {
-        Some(alt) => format!("<span>[Image: {alt}]</span>"),
-        None => String::from("<span>[Image omitted]</span>"),
-    }
-}
-
-fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
-    let prefix = format!("{name}=\"");
-    let value = tag.split_once(&prefix)?.1;
-    value.split_once('"').map(|(value, _)| value)
-}
-
 #[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use super::*;
-
-    #[test]
-    fn clipboard_document_should_embed_a_small_managed_image()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let directory = tempfile::tempdir()?;
-        fs::write(directory.path().join("example.png"), [1_u8, 2, 3])?;
-
-        let document = clipboard_document("![Diagram](assets/example.png)", Some(directory.path()));
-
-        assert!(document.html.contains("src=\"data:image/png;base64,AQID\""));
-        assert_eq!(document.plain_text.trim(), "Diagram");
-        assert_eq!(document.omitted_images, 0);
-        Ok(())
-    }
-
-    #[test]
-    fn clipboard_document_should_preserve_external_images() {
-        let document = clipboard_document("![Logo](https://example.test/logo.png)", None);
-
-        assert!(
-            document
-                .html
-                .contains("src=\"https://example.test/logo.png\"")
-        );
-        assert_eq!(document.omitted_images, 0);
-    }
-
-    #[test]
-    fn clipboard_document_should_replace_missing_managed_images_with_alt_text() {
-        let document = clipboard_document("![Diagram](assets/missing.png)", None);
-
-        assert!(document.html.contains("[Image: Diagram]"));
-        assert_eq!(document.omitted_images, 1);
-    }
-
-    #[test]
-    fn clipboard_document_should_replace_invalid_managed_asset_paths_with_alt_text() {
-        let document = clipboard_document("![Private](assets/../library.sqlite3)", None);
-
-        assert!(document.html.contains("[Image: Private]"));
-        assert_eq!(document.omitted_images, 1);
-    }
-
-    #[test]
-    fn clipboard_document_should_omit_managed_images_over_the_per_image_limit()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let directory = tempfile::tempdir()?;
-        fs::write(
-            directory.path().join("large.png"),
-            vec![0_u8; MAX_EMBEDDED_IMAGE_BYTES + 1],
-        )?;
-
-        let document = clipboard_document("![Large](assets/large.png)", Some(directory.path()));
-
-        assert!(document.html.contains("[Image: Large]"));
-        assert_eq!(document.omitted_images, 1);
-        Ok(())
-    }
-
-    #[test]
-    fn clipboard_document_should_limit_total_embedded_image_bytes()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let directory = tempfile::tempdir()?;
-        let image = vec![0_u8; MAX_EMBEDDED_IMAGE_BYTES];
-        for index in 1..=4 {
-            fs::write(directory.path().join(format!("{index}.png")), &image)?;
-        }
-
-        let document = clipboard_document(
-            "![One](assets/1.png) ![Two](assets/2.png) ![Three](assets/3.png) ![Four](assets/4.png)",
-            Some(directory.path()),
-        );
-
-        assert_eq!(document.html.matches("data:image/png;base64,").count(), 3);
-        assert!(document.html.contains("[Image: Four]"));
-        assert_eq!(document.omitted_images, 1);
-        Ok(())
-    }
-}
+mod tests;

@@ -1,6 +1,9 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
-mod document_sidebar;
+pub(crate) mod document_sidebar;
+mod excerpts;
+mod html;
+pub(crate) mod interactions;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -26,11 +29,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    excerpts::note_card_should_display_the_complete_final_grapheme()?;
+    crate::mvu::export_runtime_should_cover_completion_cancellation_and_failures()?;
+    interactions::cancelled_source_link_should_leave_the_document_unchanged()?;
+    interactions::stale_web_messages_should_not_change_the_active_document()?;
+    interactions::source_link_should_keep_the_captured_selection()?;
+    interactions::rich_link_should_update_canonical_source()?;
+    interactions::source_image_paste_should_store_a_managed_asset()?;
+    crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
+    html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
+    html::document_font_should_remain_css_text_inside_the_preview_head()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
     let display = gtk::gdk::Display::default().ok_or("display")?;
@@ -2013,7 +2026,7 @@ fn assert_rich_selection_copy_should_publish_portable_content(
 fn assert_document_sidebar_visibility_should_restore_without_reentrant_toggles() -> TestResult {
     use crate::mvu::{AppMsg, EditorMsg};
     let document_sidebar::SidebarFixture {
-        _directory,
+        directory: _directory,
         surface,
         runtime,
         window,

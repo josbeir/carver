@@ -1,23 +1,30 @@
 //! Package-aware MCP launcher and setup instructions for Carver.
+//!
+//! Enable `cli` to expose supported client names through `clap::ValueEnum`.
 
 #![forbid(unsafe_code)]
 
 use std::env;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Agent client supported by Carver's setup instructions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum AgentClient {
     /// `OpenAI` Codex.
     Codex,
     /// Anthropic Claude Code.
     ClaudeCode,
     /// GitHub Copilot CLI.
+    #[cfg_attr(feature = "cli", value(name = "copilot"))]
     CopilotCli,
     /// GitHub Copilot in Visual Studio Code.
+    #[cfg_attr(feature = "cli", value(name = "vscode"))]
     VsCodeCopilot,
     /// Any MCP client that accepts a stdio command and argument list.
+    #[cfg_attr(feature = "cli", value(alias = "other"))]
     Generic,
 }
 
@@ -101,65 +108,64 @@ pub struct SetupInstruction {
     pub verification: Option<String>,
 }
 
+/// Failures generating client setup instructions.
+#[derive(Debug, Error)]
+pub enum SetupError {
+    /// The launch arguments cannot be represented in a shell command.
+    #[error("Could not quote the MCP launch command: {0}")]
+    Shell(#[from] shlex::QuoteError),
+    /// The client configuration could not be serialized.
+    #[error("Could not serialize the MCP configuration: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
 /// Creates setup material for one client and installation channel.
 ///
 /// # Errors
 ///
-/// Returns an error when the Visual Studio Code JSON configuration cannot be
-/// serialized.
+/// Returns an error when a shell launch argument contains a NUL byte or JSON
+/// configuration cannot be serialized.
 pub fn setup_instruction(
     client: AgentClient,
     channel: &InstallChannel,
     allow_write: bool,
-) -> Result<SetupInstruction, serde_json::Error> {
+) -> Result<SetupInstruction, SetupError> {
     let invocation = channel.mcp_invocation(allow_write);
-    let launch = shell_command(&invocation);
-    match client {
-        AgentClient::Codex => Ok(SetupInstruction {
-            command: Some(format!("codex mcp add carver -- {launch}")),
-            configuration: None,
-            verification: Some("codex mcp get carver".to_owned()),
-        }),
-        AgentClient::ClaudeCode => Ok(SetupInstruction {
-            command: Some(format!("claude mcp add --scope user carver -- {launch}")),
-            configuration: None,
-            verification: Some("claude mcp get carver".to_owned()),
-        }),
-        AgentClient::CopilotCli => Ok(SetupInstruction {
-            command: Some(format!("copilot mcp add carver -- {launch}")),
-            configuration: None,
-            verification: Some("copilot mcp get carver".to_owned()),
-        }),
-        AgentClient::VsCodeCopilot => Ok(SetupInstruction {
-            command: None,
-            configuration: Some(vscode_configuration(&invocation)?),
-            verification: None,
-        }),
-        AgentClient::Generic => Ok(SetupInstruction {
-            command: None,
-            configuration: Some(generic_configuration(&invocation)?),
-            verification: None,
-        }),
-    }
+    let (registration, verification) = match client {
+        AgentClient::Codex => ("codex mcp add carver --", "codex mcp get carver"),
+        AgentClient::ClaudeCode => (
+            "claude mcp add --scope user carver --",
+            "claude mcp get carver",
+        ),
+        AgentClient::CopilotCli => ("copilot mcp add carver --", "copilot mcp get carver"),
+        AgentClient::VsCodeCopilot => {
+            return Ok(SetupInstruction {
+                command: None,
+                configuration: Some(vscode_configuration(&invocation)?),
+                verification: None,
+            });
+        }
+        AgentClient::Generic => {
+            return Ok(SetupInstruction {
+                command: None,
+                configuration: Some(generic_configuration(&invocation)?),
+                verification: None,
+            });
+        }
+    };
+    let launch = shell_command(&invocation)?;
+    Ok(SetupInstruction {
+        command: Some(format!("{registration} {launch}")),
+        configuration: None,
+        verification: Some(verification.to_owned()),
+    })
 }
 
-fn shell_command(invocation: &McpInvocation) -> String {
-    std::iter::once(invocation.command.as_str())
-        .chain(invocation.arguments.iter().map(String::as_str))
-        .map(shell_quote)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn shell_quote(value: &str) -> String {
-    if value
-        .chars()
-        .all(|character| character.is_ascii_alphanumeric() || "-_.=/".contains(character))
-    {
-        value.to_owned()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
+fn shell_command(invocation: &McpInvocation) -> Result<String, shlex::QuoteError> {
+    shlex::try_join(
+        std::iter::once(invocation.command.as_str())
+            .chain(invocation.arguments.iter().map(String::as_str)),
+    )
 }
 
 fn vscode_configuration(invocation: &McpInvocation) -> Result<String, serde_json::Error> {
@@ -183,50 +189,4 @@ fn generic_configuration(invocation: &McpInvocation) -> Result<String, serde_jso
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn flatpak_instruction_should_start_the_package_command() {
-        let instruction = setup_instruction(
-            AgentClient::Codex,
-            &InstallChannel::Flatpak {
-                app_id: "io.github.josbeir.Carver".to_owned(),
-            },
-            true,
-        )
-        .unwrap_or_else(|error| panic!("instruction should serialize: {error}"));
-
-        assert_eq!(
-            instruction.command,
-            Some("codex mcp add carver -- flatpak run --command=carver-mcp io.github.josbeir.Carver --allow-write".to_owned())
-        );
-    }
-
-    #[test]
-    fn vscode_instruction_should_use_stdio_configuration() {
-        let instruction =
-            setup_instruction(AgentClient::VsCodeCopilot, &InstallChannel::Native, false)
-                .unwrap_or_else(|error| panic!("instruction should serialize: {error}"));
-
-        assert!(
-            instruction
-                .configuration
-                .as_deref()
-                .is_some_and(|configuration| configuration.contains("\"type\": \"stdio\""))
-        );
-    }
-
-    #[test]
-    fn generic_instruction_should_describe_a_stdio_transport() {
-        let instruction = setup_instruction(AgentClient::Generic, &InstallChannel::Native, false)
-            .unwrap_or_else(|error| panic!("instruction should serialize: {error}"));
-
-        assert!(
-            instruction
-                .configuration
-                .as_deref()
-                .is_some_and(|configuration| configuration.contains("\"transport\": \"stdio\""))
-        );
-    }
-}
+mod tests;

@@ -3,10 +3,12 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
+use atomic_write_file::AtomicWriteFile;
 use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
@@ -361,9 +363,9 @@ pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
     }
     let document = toml::to_string_pretty(config)
         .map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
-    let temporary = path.with_extension("toml.tmp");
-    fs::write(&temporary, document)?;
-    fs::rename(temporary, path)?;
+    let mut file = AtomicWriteFile::open(path)?;
+    file.write_all(document.as_bytes())?;
+    file.commit()?;
     Ok(())
 }
 

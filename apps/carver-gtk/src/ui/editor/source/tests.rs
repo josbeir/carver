@@ -1,10 +1,10 @@
 use std::fs;
 
 use super::{
-    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_stretch,
-    document_font_stretch_with_variations, document_font_style_with_variations,
-    document_font_variant, document_font_variations, document_font_weight,
-    document_font_weight_with_variations, escape_css_string, install_syntax_assets,
+    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, css_string, document_font_css,
+    document_font_stretch, document_font_stretch_with_variations,
+    document_font_style_with_variations, document_font_variant, document_font_variations,
+    document_font_weight, document_font_weight_with_variations, install_syntax_assets,
     normalize_document_font_description, normalize_source_font_description, source_font_css,
     system_document_font_from_settings, system_monospace_font_from_settings,
 };
@@ -121,27 +121,28 @@ fn registered_variable_axes_should_use_cascading_css_properties() {
 }
 
 #[test]
-fn css_string_escaping_should_preserve_special_characters_inside_font_names() {
-    let mut expected = String::from("A");
-    expected.push('\\');
-    expected.push('\\');
-    expected.push('\\');
-    expected.push('"');
-    expected.push('\\');
-    expected.push('a');
-    expected.push(' ');
-    expected.push('\\');
-    expected.push('d');
-    expected.push(' ');
-    expected.push('\\');
-    expected.push('c');
-    expected.push(' ');
-    expected.push('\\');
-    expected.push('3');
-    expected.push('c');
-    expected.push(' ');
+fn css_string_should_preserve_quotes_backslashes_and_controls_in_font_names() {
+    let value = "A\\\"\n\r\u{c}\u{1}\u{7f}測";
+    let encoded = css_string(value);
+    let mut input = cssparser::ParserInput::new(&encoded);
+    let mut parser = cssparser::Parser::new(&mut input);
+    assert_eq!(parser.expect_string().map(AsRef::as_ref), Ok(value));
+    assert!(parser.is_exhausted());
+}
 
-    assert_eq!(escape_css_string("A\\\"\n\r\u{c}<"), expected);
+#[test]
+fn css_string_should_prevent_a_font_name_from_closing_an_html_style_element() {
+    let value = "</style><script>bad()</script>";
+    let encoded = css_string(value);
+    assert!(!encoded.contains('<'));
+    let mut input = cssparser::ParserInput::new(&encoded);
+    let mut parser = cssparser::Parser::new(&mut input);
+    assert_eq!(parser.expect_string().map(AsRef::as_ref), Ok(value));
+}
+
+#[test]
+fn css_string_should_replace_nul_using_css_serialization_rules() {
+    assert_eq!(css_string("A\0B"), "\"A\u{fffd}B\"");
 }
 
 #[test]
@@ -247,5 +248,22 @@ fn syntax_style_schemes_should_inherit_gnome_adwaita_variants()
     let writing_focus_dark = fs::read_to_string(syntax_dir.join("carve-writing-focus-dark.xml"))?;
     assert!(writing_focus_dark.contains("parent-scheme=\"Adwaita-dark\""));
     assert!(writing_focus_dark.contains("name=\"carve:link-text\" foreground=\"#8ebddd\""));
+    Ok(())
+}
+
+#[test]
+fn syntax_installation_should_ignore_a_preexisting_legacy_temporary_path()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let syntax = directory.path().join("source-syntax");
+    fs::create_dir(&syntax)?;
+    let legacy = syntax.join("carve.tmp");
+    fs::create_dir(&legacy)?;
+    install_syntax_assets(directory.path())?;
+    assert_eq!(
+        fs::read_to_string(syntax.join("carve.lang"))?,
+        super::CARVE_LANGUAGE
+    );
+    assert!(legacy.is_dir());
     Ok(())
 }
