@@ -226,7 +226,7 @@ fn rendered_document_with_theme(
     .replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let stylesheet = preview_document_style(theme, appearance);
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\"><main class=\"preview-content\">{body}</main></body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )

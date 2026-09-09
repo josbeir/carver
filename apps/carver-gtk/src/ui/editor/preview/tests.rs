@@ -22,8 +22,8 @@ fn rendered_document_matches_the_editor_block_presentation() {
     assert!(PREVIEW_STYLESHEET.contains("h1 {\n  font-size: 2em;"));
     assert!(PREVIEW_STYLESHEET.contains("ul.task-list"));
     assert!(PREVIEW_STYLESHEET.contains("ul:has(> li > input[type=checkbox])"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > img"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] th"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > .preview-content > img"));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content th"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview]::selection"));
     assert!(PREVIEW_STYLESHEET.contains("--document-content-width"));
 }
@@ -33,6 +33,17 @@ fn shared_document_inset_should_live_on_the_body() {
     assert!(PREVIEW_STYLESHEET.contains("body {\n  box-sizing: border-box;"));
     assert!(PREVIEW_STYLESHEET.contains("padding: 24px;"));
     assert!(PREVIEW_STYLESHEET.contains("min-height: calc(100vh - 48px);"));
+}
+
+#[test]
+fn rendered_document_should_wrap_preview_in_the_shared_content_column() {
+    let html = rendered_document("![image](assets/example.png){width=\"50%\"}", false);
+
+    assert!(html.contains("<main class=\"preview-content\"><img"));
+    assert!(html.contains("width=\"50%\""));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content {\n  box-sizing: border-box;"));
+    assert!(PREVIEW_STYLESHEET.contains("max-width: var(--document-content-width);"));
+    assert!(PREVIEW_STYLESHEET.contains("margin-inline: auto;"));
 }
 
 #[test]
@@ -133,7 +144,7 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
         PREVIEW_STYLESHEET.contains("body[data-preview] {\n    padding: 0;\n    line-height: 1.4")
     );
     assert!(PREVIEW_STYLESHEET.contains("display: table-header-group"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] ul.task-list li"));
+    assert!(PREVIEW_STYLESHEET.contains(".preview-content ul.task-list li"));
     assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
     assert!(PREVIEW_STYLESHEET.contains("padding: 4pt 5pt"));
 }

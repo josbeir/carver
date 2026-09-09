@@ -1132,6 +1132,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         source_path.is_visible() && source_path.text() == "p"
     }));
+    source
+        .buffer()
+        .set_text("![First](assets/first.png){width=\"50%\"}");
     let rendered_mode =
         widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
     rendered_mode.set_active(true);
@@ -1143,6 +1146,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_web_script_should_be_true(
         &rendered_preview,
         "getComputedStyle(document.body).fontFamily.includes('DejaVu Serif')",
+    );
+    assert_web_script_should_be_true(
+        &rendered_preview,
+        "(() => { const image = document.querySelector('.preview-content > img'); const content = document.querySelector('.preview-content'); return image && content && Math.abs(image.getBoundingClientRect().width - content.getBoundingClientRect().width / 2) < 1; })()",
     );
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
