@@ -62,6 +62,25 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     })
 }
 
+pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
+    let fixture = fixture()?;
+
+    for name in [
+        "rich-editor",
+        "source-split-preview",
+        "editor-rendered-preview",
+    ] {
+        let view = widget_as::<webkit6::WebView>(&fixture.surface, name).ok_or(name)?;
+        let settings = webkit6::prelude::WebViewExt::settings(&view).ok_or("WebKit settings")?;
+        assert!(
+            !settings.enables_smooth_scrolling(),
+            "{name} should disable smooth scrolling"
+        );
+    }
+
+    Ok(())
+}
+
 pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResult {
     let fixture = fixture()?;
     let root = &fixture.surface;
