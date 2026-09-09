@@ -366,6 +366,13 @@ impl ViewRefs {
 
     fn render_browser(&self, model: &AppModel) {
         self.render_browser_search(model);
+        // Keep the complete previous browser visible until both lists are ready.
+        if matches!(model.browser.notes.state, LoadState::Loading(_))
+            && !model.browser.loading_indicator_visible
+            && model.browser.last_ready_notes.is_some()
+        {
+            return;
+        }
         if !self.browser_projection_changed(model) {
             return;
         }
@@ -432,26 +439,6 @@ impl ViewRefs {
                 model,
                 self.dispatcher.as_ref(),
             ),
-            // CONTEXT: Fast reloads retain the last rendered snapshot rather than flashing a
-            // loading status between category selections.
-            LoadState::Loading(_)
-                if !model.browser.loading_indicator_visible
-                    && model.browser.last_ready_notes.is_some() =>
-            {
-                if let Some(notes) = &model.browser.last_ready_notes {
-                    render_browser_notes(
-                        list,
-                        pages,
-                        search_empty,
-                        category_empty,
-                        empty_new_note,
-                        category_empty_new_note,
-                        notes,
-                        model,
-                        self.dispatcher.as_ref(),
-                    );
-                }
-            }
             state => {
                 clear_list(list);
                 search_empty.set_visible(false);

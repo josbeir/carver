@@ -205,7 +205,7 @@ pub enum Effect {
         /// Identity for stale-completion protection.
         request_id: RequestId,
     },
-    /// Load browser note summaries for the selected category and query.
+    /// Load browser notes and favorites together for the selected category and query.
     LoadBrowser {
         /// Identity for stale-completion protection.
         request_id: RequestId,
@@ -213,13 +213,6 @@ pub enum Effect {
         category_id: Option<CategoryId>,
         /// Search input to apply.
         query: String,
-    },
-    /// Load favorite note summaries for the visible Favorites section.
-    LoadFavorites {
-        /// Identity for stale-completion protection.
-        request_id: RequestId,
-        /// Category to restrict the listing to, if any.
-        category_id: Option<CategoryId>,
     },
     /// Load a complete note before showing it in the editor.
     LoadEditorNote {

@@ -567,13 +567,8 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Successful result or a displayable failure.
         result: Result<Vec<NoteSummary>, UiError>,
-    },
-    /// Favorite summaries completed loading for the visible Favorites section.
-    FavoritesLoaded {
-        /// Identity of the initiating request.
-        request_id: RequestId,
-        /// Successful result or a displayable failure.
-        result: Result<Vec<NoteSummary>, UiError>,
+        /// Favorites loaded with the same category; empty for searches.
+        favorites: Result<Vec<NoteSummary>, UiError>,
     },
     /// A favorite-state mutation completed with its updated note revision.
     FavoriteChanged {
