@@ -700,6 +700,7 @@ pub(crate) fn note_card_details(
     )));
     updated.set_widget_name(&format!("note-updated:{}", note.id));
     updated.add_css_class("note-card-updated");
+    updated.set_xalign(0.0);
     updated.set_ellipsize(gtk::pango::EllipsizeMode::End);
     updated.set_single_line_mode(true);
     updated.set_hexpand(true);
