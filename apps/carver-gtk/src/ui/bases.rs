@@ -69,7 +69,7 @@ pub(crate) fn build_base(
     let status = adw::StatusPage::builder()
         .icon_name("view-grid-symbolic")
         .title("No rows")
-        .description("Notes with JSON or TOML frontmatter will appear here.")
+        .description("Notes with YAML, JSON, or TOML frontmatter will appear here.")
         .build();
     status.set_widget_name("base-status");
     let pages = gtk::Stack::new();

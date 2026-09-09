@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn base_rows_should_project_json_and_toml_frontmatter() {
+fn base_rows_should_project_yaml_json_and_toml_frontmatter() {
     let (_directory, library) = library();
     let now = OffsetDateTime::UNIX_EPOCH;
     let category = library
@@ -21,6 +21,13 @@ fn base_rows_should_project_json_and_toml_frontmatter() {
             now,
         )
         .unwrap_or_else(|error| panic!("TOML note failed: {error}"));
+    let yaml = library
+        .create_note_with_source(
+            category.id,
+            "---\nstatus: ready\nowner:\n  name: Grace\n---\n# YAML",
+            now,
+        )
+        .unwrap_or_else(|error| panic!("YAML note failed: {error}"));
     let base = library
         .create_base(
             "Pipeline",
@@ -30,13 +37,13 @@ fn base_rows_should_project_json_and_toml_frontmatter() {
             ],
         )
         .unwrap_or_else(|error| panic!("base failed: {error}"));
-    assert_eq!(base.row_count, 2);
+    assert_eq!(base.row_count, 3);
     assert_eq!(
         library
             .bases()
             .unwrap_or_else(|error| panic!("bases failed: {error}"))[0]
             .row_count,
-        2
+        3
     );
 
     let rows = library
@@ -50,6 +57,14 @@ fn base_rows_should_project_json_and_toml_frontmatter() {
     assert_eq!(
         json_row.properties.pointer("/status"),
         Some(&serde_json::json!("active"))
+    );
+    let yaml_row = rows
+        .iter()
+        .find(|row| row.note_id == yaml.id)
+        .unwrap_or_else(|| panic!("YAML row missing"));
+    assert_eq!(
+        yaml_row.properties.pointer("/owner/name"),
+        Some(&serde_json::json!("Grace"))
     );
     assert_eq!(json_row.updated, "1970-01-01T00:00:00Z");
     assert_eq!(

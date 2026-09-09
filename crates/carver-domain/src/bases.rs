@@ -105,7 +105,8 @@ pub struct FrontmatterProjection {
     pub error: Option<String>,
 }
 
-/// Extracts exact `---json` or `---toml` frontmatter through Carve's parsed document binding.
+/// Extracts YAML (including Carve's default `---` form), JSON, or TOML frontmatter through
+/// Carve's parsed document binding.
 #[must_use]
 pub fn project_frontmatter(source: &str) -> FrontmatterProjection {
     let document = parse_with_options(source, &Options::default().with_positions(true));
@@ -126,6 +127,10 @@ pub fn project_frontmatter(source: &str) -> FrontmatterProjection {
             toml::from_str::<toml::Value>(&raw.content)
                 .map_err(|error| error.to_string())
                 .and_then(|value| serde_json::to_value(value).map_err(|error| error.to_string())),
+        ),
+        "yaml" => (
+            "yaml",
+            yaml_serde::from_str::<Value>(&raw.content).map_err(|error| error.to_string()),
         ),
         _ => {
             return FrontmatterProjection {
@@ -199,8 +204,21 @@ mod tests {
     }
 
     #[test]
-    fn projection_should_ignore_yaml_and_report_malformed_toml() {
-        assert_eq!(project_frontmatter("---yaml\na: b\n---").format, None);
+    fn projection_should_accept_yaml_and_report_malformed_toml() {
+        let yaml = project_frontmatter(
+            "---\nstatus: active\nowner:\n  name: Ada\ntags:\n  - rust\n  - notes\n---",
+        );
+        assert_eq!(yaml.format, Some("yaml"));
+        let value: Value =
+            serde_json::from_str(yaml.json.as_deref().unwrap_or("null")).unwrap_or(Value::Null);
+        assert_eq!(
+            value.pointer("/owner/name"),
+            Some(&Value::String("Ada".to_owned()))
+        );
+        assert_eq!(
+            value.pointer("/tags/1"),
+            Some(&Value::String("notes".to_owned()))
+        );
         let malformed = project_frontmatter("---toml\na = [\n---");
         assert_eq!(malformed.format, Some("toml"));
         assert!(malformed.error.is_some());
@@ -223,6 +241,13 @@ mod tests {
             scalar.error.as_deref(),
             Some("frontmatter root must be an object")
         );
+        let yaml_scalar = project_frontmatter("---yaml\n- one\n- two\n---");
+        assert_eq!(yaml_scalar.format, Some("yaml"));
+        assert_eq!(
+            yaml_scalar.error.as_deref(),
+            Some("frontmatter root must be an object")
+        );
+        assert!(project_frontmatter("---yaml\nkey: [\n---").error.is_some());
     }
 
     #[test]
