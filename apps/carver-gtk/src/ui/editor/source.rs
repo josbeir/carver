@@ -10,6 +10,7 @@ use std::{
 
 use atomic_write_file::AtomicWriteFile;
 use carver_config::SourceSyntaxStyle;
+use cssparser::ToCss;
 use gtk::gio::prelude::*;
 use gtk::prelude::*;
 use sourceview5::prelude::*;
@@ -302,8 +303,8 @@ pub(crate) fn document_font_css(description: &str) -> String {
     let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
     let variations = description.variations();
     format!(
-        "--document-font-family: \"{}\"; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {}; --document-font-stretch: {}; --document-font-variant: {}; --document-font-variation-settings: {};",
-        escape_css_string(&family),
+        "--document-font-family: {}; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {}; --document-font-stretch: {}; --document-font-variant: {}; --document-font-variation-settings: {};",
+        css_string(&family),
         document_font_style_with_variations(description.style(), variations.as_deref()),
         document_font_weight_with_variations(description.weight(), variations.as_deref()),
         document_font_stretch_with_variations(description.stretch(), variations.as_deref()),
@@ -470,45 +471,16 @@ fn source_font_css(description: &str) -> String {
     let family = description.family().unwrap_or_else(|| "Monospace".into());
     let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
     format!(
-        "#source-editor {{ font-family: \"{}\"; font-size: {points}pt; }}",
-        escape_css_string(&family)
+        "#source-editor {{ font-family: {}; font-size: {points}pt; }}",
+        css_string(&family)
     )
 }
 
-fn escape_css_string(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        match character {
-            '\\' => {
-                escaped.push('\\');
-                escaped.push('\\');
-            }
-            '"' => {
-                escaped.push('\\');
-                escaped.push('"');
-            }
-            '<' => {
-                escaped.push_str("\\3c ");
-            }
-            '\n' => {
-                escaped.push('\\');
-                escaped.push('a');
-                escaped.push(' ');
-            }
-            '\r' => {
-                escaped.push('\\');
-                escaped.push('d');
-                escaped.push(' ');
-            }
-            '\u{c}' => {
-                escaped.push('\\');
-                escaped.push('c');
-                escaped.push(' ');
-            }
-            _ => escaped.push(character),
-        }
-    }
-    escaped
+fn css_string(value: &str) -> String {
+    // CSS escaping alone leaves '<' intact, which could terminate an HTML style element.
+    cssparser::Token::QuotedString(value.into())
+        .to_css_string()
+        .replace('<', "\\3c ")
 }
 
 fn install_source_font_provider(view: &sourceview5::View, provider: &gtk::CssProvider) {

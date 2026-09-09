@@ -74,3 +74,45 @@ pub(super) fn preview_and_copy_should_preserve_source_with_quoted_image_attribut
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn document_font_should_remain_css_text_inside_the_preview_head() -> TestResult {
+    let fixture = document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Fonts")?;
+    let created = fixture.client.create_note(category.id)?;
+    let saved = fixture
+        .client
+        .save_note(created.id, created.revision, "# Font preview")?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: saved.id,
+        revision: saved.revision,
+        source: saved.source.clone(),
+    }));
+    let mode = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rendered")
+        .ok_or("preview mode")?;
+    mode.set_active(true);
+    let font = crate::ui::editor::normalize_document_font_description(
+        "</style><p id=font-injection>Injected</p> 12",
+    )
+    .ok_or("font description")?;
+    fixture.runtime.dispatch(AppMsg::Preferences(
+        crate::mvu::PreferencesMsg::SetDocumentFont(Some(font.clone())),
+    ));
+    let preview = widget_as::<webkit6::WebView>(&fixture.surface, "editor-rendered-preview")
+        .ok_or("preview")?;
+    assert_web_script_should_be_true(
+        &preview,
+        "!document.querySelector('#font-injection') && document.head.querySelector('style')?.textContent.includes(String.fromCharCode(92) + '3c ') && document.body.textContent.includes('Font preview')",
+    );
+    assert!(run_main_context_until(|| carver_config::load(
+        &fixture.config_path
+    )
+    .is_ok_and(
+        |config| config.editor.document_font.as_ref() == Some(&font)
+    )));
+    let reopened = fixture.client.note(saved.id)?.ok_or("persisted note")?;
+    assert_eq!(reopened.source, saved.source);
+    assert_eq!(reopened.revision, saved.revision);
+    assert_eq!(reopened.updated_at, saved.updated_at);
+    fixture.window.close();
+    Ok(())
+}

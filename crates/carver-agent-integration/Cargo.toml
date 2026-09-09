@@ -6,7 +6,13 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+cli = ["dep:clap"]
+
 [dependencies]
+clap = { workspace = true, optional = true }
+shlex.workspace = true
+thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
