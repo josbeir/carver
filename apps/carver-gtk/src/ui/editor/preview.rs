@@ -215,17 +215,20 @@ fn rendered_document_with_theme(
     )
     .replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let selection_style = format!(
-        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important; {}",
+        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
+    );
+    let appearance_style = format!(
+        "{} font-family: var(--document-font-family) !important; font-size: var(--document-font-size) !important; font-style: var(--document-font-style) !important; font-weight: var(--document-font-weight) !important; line-height: var(--document-line-height) !important;",
         super::web::appearance_style(appearance),
     );
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\" style=\"{appearance_style}\">{body}</body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )

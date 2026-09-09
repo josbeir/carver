@@ -55,6 +55,9 @@ fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance
     assert!(html.contains("--document-font-family: \"Cantarell\""));
     assert!(html.contains("--document-line-height: 1.75"));
     assert!(html.contains("--document-content-width: 100ch"));
+    assert!(html.contains("data-carver-heading-token=\""));
+    assert!(html.contains("style=\"--document-font-family:"));
+    assert!(html.contains("font-family: var(--document-font-family) !important"));
 }
 
 #[test]
