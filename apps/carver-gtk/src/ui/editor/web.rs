@@ -71,6 +71,7 @@ impl RichEditor {
         let settings = webkit6::Settings::new();
         settings.set_enable_javascript(true);
         settings.set_enable_javascript_markup(false);
+        settings.set_enable_developer_extras(cfg!(debug_assertions));
         settings.set_enable_media(false);
         settings.set_enable_html5_database(false);
         settings.set_enable_html5_local_storage(false);
