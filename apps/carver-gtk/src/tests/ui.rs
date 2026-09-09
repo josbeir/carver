@@ -81,11 +81,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.document_font = Some("DejaVu Serif Italic 15".to_owned());
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
-    let (preferences_dialog, about_dialog) = crate::ui::dialogs::present_dialogs_for_test(
-        &window,
-        &config,
-        &crate::mvu::AppDispatcher::default(),
+    let preferences_dispatcher = crate::mvu::AppDispatcher::default();
+    let preferences_stack = gtk::Stack::new();
+    for name in ["browser", "editor", "trash"] {
+        preferences_stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
+    }
+    let preferences_runtime = crate::mvu::AppRuntime::new_with_config_path(
+        client.clone(),
+        crate::mvu::AppModel::new(&config),
+        crate::view::ViewRefs::new(
+            preferences_stack,
+            adw::StatusPage::new(),
+            adw::StatusPage::new(),
+        ),
+        Some(config_path.clone()),
     );
+    preferences_runtime.bind_dispatcher(&preferences_dispatcher);
+    let (preferences_dialog, about_dialog) =
+        crate::ui::dialogs::present_dialogs_for_test(&window, &config, &preferences_dispatcher);
     assert_eq!(
         about_dialog.application_icon(),
         crate::app::APPLICATION_ICON
@@ -158,20 +171,29 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         Some(1)
     );
     document_line_height.set_value(1.75);
-    assert!((document_line_height.value() - 1.75).abs() < f64::EPSILON);
     let document_width =
         widget_as::<adw::ComboRow>(preferences_dialog.upcast_ref(), "document-width-setting")
             .ok_or("document width setting")?;
     document_width.set_selected(2);
-    assert_eq!(document_width.selected(), 2);
+    assert!(run_main_context_until(|| {
+        carver_config::load(&config_path).is_ok_and(|persisted| {
+            persisted.editor.document_line_height_percent == 175
+                && persisted.editor.document_width == carver_config::DocumentWidth::Wide
+        })
+    }));
     let document_appearance_reset = widget_as::<adw::ActionRow>(
         preferences_dialog.upcast_ref(),
         "document-appearance-reset-row",
     )
     .ok_or("document appearance reset")?;
     document_appearance_reset.emit_by_name::<()>("activated", &[]);
-    assert!((document_line_height.value() - 1.55).abs() < f64::EPSILON);
-    assert_eq!(document_width.selected(), 1);
+    assert!(run_main_context_until(|| {
+        carver_config::load(&config_path).is_ok_and(|persisted| {
+            persisted.editor.document_font.is_none()
+                && persisted.editor.document_line_height_percent == 155
+                && persisted.editor.document_width == carver_config::DocumentWidth::Comfortable
+        })
+    }));
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
     let purist_window = crate::app::build_window_for_test(

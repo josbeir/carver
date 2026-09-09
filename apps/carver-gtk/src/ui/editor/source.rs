@@ -299,10 +299,13 @@ pub(crate) fn document_font_css(description: &str) -> String {
     let family = description.family().unwrap_or_else(|| "Sans".into());
     let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
     format!(
-        "--document-font-family: \"{}\"; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {};",
+        "--document-font-family: \"{}\"; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {}; --document-font-stretch: {}; --document-font-variant: {}; --document-font-variation-settings: {};",
         escape_css_string(&family),
         document_font_style(description.style()),
         document_font_weight(description.weight()),
+        document_font_stretch(description.stretch()),
+        document_font_variant(description.variant()),
+        document_font_variations(description.variations().as_deref()),
     )
 }
 
@@ -329,6 +332,53 @@ const fn document_font_weight(weight: gtk::pango::Weight) -> i32 {
         gtk::pango::Weight::Ultraheavy => 1000,
         gtk::pango::Weight::__Unknown(weight) => weight,
         _ => 400,
+    }
+}
+
+const fn document_font_stretch(stretch: gtk::pango::Stretch) -> &'static str {
+    match stretch {
+        gtk::pango::Stretch::UltraCondensed => "ultra-condensed",
+        gtk::pango::Stretch::ExtraCondensed => "extra-condensed",
+        gtk::pango::Stretch::Condensed => "condensed",
+        gtk::pango::Stretch::SemiCondensed => "semi-condensed",
+        gtk::pango::Stretch::SemiExpanded => "semi-expanded",
+        gtk::pango::Stretch::Expanded => "expanded",
+        gtk::pango::Stretch::ExtraExpanded => "extra-expanded",
+        gtk::pango::Stretch::UltraExpanded => "ultra-expanded",
+        _ => "normal",
+    }
+}
+
+const fn document_font_variant(variant: gtk::pango::Variant) -> &'static str {
+    match variant {
+        gtk::pango::Variant::SmallCaps => "small-caps",
+        gtk::pango::Variant::AllSmallCaps => "all-small-caps",
+        gtk::pango::Variant::PetiteCaps => "petite-caps",
+        gtk::pango::Variant::AllPetiteCaps => "all-petite-caps",
+        gtk::pango::Variant::Unicase => "unicase",
+        gtk::pango::Variant::TitleCaps => "titling-caps",
+        _ => "normal",
+    }
+}
+
+fn document_font_variations(variations: Option<&str>) -> String {
+    let settings = variations
+        .into_iter()
+        .flat_map(|variations| variations.split(','))
+        .filter_map(|variation| {
+            let (axis, value) = variation.trim().split_once('=')?;
+            let axis = axis.trim();
+            let value = value.trim().parse::<f64>().ok()?;
+            (axis.len() == 4
+                && axis.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                && value.is_finite())
+            .then(|| format!("\"{axis}\" {value}"))
+        })
+        .collect::<Vec<_>>();
+    if settings.is_empty() {
+        "normal".to_owned()
+    } else {
+        settings.join(", ")
     }
 }
 

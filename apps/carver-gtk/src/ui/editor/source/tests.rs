@@ -1,10 +1,10 @@
 use std::fs;
 
 use super::{
-    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_weight,
-    escape_css_string, install_syntax_assets, normalize_document_font_description,
-    normalize_source_font_description, source_font_css, system_document_font_from_settings,
-    system_monospace_font_from_settings,
+    FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_stretch,
+    document_font_variant, document_font_variations, document_font_weight, escape_css_string,
+    install_syntax_assets, normalize_document_font_description, normalize_source_font_description,
+    source_font_css, system_document_font_from_settings, system_monospace_font_from_settings,
 };
 
 #[test]
@@ -42,7 +42,7 @@ fn document_font_description_should_preserve_the_selected_face_and_size() {
 fn document_font_css_should_keep_the_selected_face() {
     assert_eq!(
         document_font_css("Cantarell Bold Italic 14"),
-        "--document-font-family: \"Cantarell\"; --document-font-size: 14pt; --document-font-style: italic; --document-font-weight: 700;"
+        "--document-font-family: \"Cantarell\"; --document-font-size: 14pt; --document-font-style: italic; --document-font-weight: 700; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
     );
 }
 
@@ -50,11 +50,11 @@ fn document_font_css_should_keep_the_selected_face() {
 fn document_font_css_should_fall_back_to_a_stable_normal_face() {
     assert_eq!(
         document_font_css("Cantarell Oblique 12"),
-        "--document-font-family: \"Cantarell\"; --document-font-size: 12pt; --document-font-style: oblique; --document-font-weight: 400;"
+        "--document-font-family: \"Cantarell\"; --document-font-size: 12pt; --document-font-style: oblique; --document-font-weight: 400; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
     );
     assert_eq!(
         document_font_css("Invalid font"),
-        "--document-font-family: \"Sans\"; --document-font-size: 12pt; --document-font-style: normal; --document-font-weight: 400;"
+        "--document-font-family: \"Sans\"; --document-font-size: 12pt; --document-font-style: normal; --document-font-weight: 400; --document-font-stretch: normal; --document-font-variant: normal; --document-font-variation-settings: normal;"
     );
 }
 
@@ -75,6 +75,23 @@ fn document_font_weight_should_map_supported_pango_weights_to_css_values() {
     ] {
         assert_eq!(document_font_weight(weight), expected);
     }
+}
+
+#[test]
+fn document_font_face_attributes_should_map_to_css() {
+    assert_eq!(
+        document_font_stretch(gtk::pango::Stretch::Condensed),
+        "condensed"
+    );
+    assert_eq!(
+        document_font_variant(gtk::pango::Variant::SmallCaps),
+        "small-caps"
+    );
+    assert_eq!(
+        document_font_variations(Some("wght=650, wdth=85")),
+        "\"wght\" 650, \"wdth\" 85"
+    );
+    assert_eq!(document_font_variations(Some("broken")), "normal");
 }
 
 #[test]

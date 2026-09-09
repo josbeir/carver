@@ -14,6 +14,9 @@
   --document-font-size: 12pt;
   --document-font-style: normal;
   --document-font-weight: 400;
+  --document-font-stretch: normal;
+  --document-font-variant: normal;
+  --document-font-variation-settings: normal;
   --document-line-height: 1.55;
   --document-content-width: 80ch;
 }
@@ -30,6 +33,9 @@ body {
   font-size: var(--document-font-size);
   font-style: var(--document-font-style);
   font-weight: var(--document-font-weight);
+  font-stretch: var(--document-font-stretch);
+  font-variant: var(--document-font-variant);
+  font-variation-settings: var(--document-font-variation-settings);
   padding: 24px;
 }
 .ProseMirror::selection,
