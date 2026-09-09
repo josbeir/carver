@@ -109,3 +109,55 @@ fn touchpad_back_gesture_should_trigger_only_once() {
         TouchpadBackGesture::Triggered
     );
 }
+
+#[test]
+fn local_day_should_use_the_historical_winter_offset() -> Result<(), Box<dyn std::error::Error>> {
+    let timezone = glib::TimeZone::from_identifier(Some("Europe/Brussels")).ok_or("timezone")?;
+    assert_eq!(
+        super::day_in_timezone(datetime!(2026-01-15 22:30 UTC), &timezone)?,
+        date!(2026 - 01 - 15)
+    );
+    Ok(())
+}
+
+#[test]
+fn local_day_should_use_the_historical_summer_offset() -> Result<(), Box<dyn std::error::Error>> {
+    let timezone = glib::TimeZone::from_identifier(Some("Europe/Brussels")).ok_or("timezone")?;
+    assert_eq!(
+        super::day_in_timezone(datetime!(2026-07-15 22:30 UTC), &timezone)?,
+        date!(2026 - 07 - 16)
+    );
+    Ok(())
+}
+
+#[test]
+fn local_day_should_convert_the_instant_when_the_input_has_an_offset()
+-> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(
+        super::day_in_timezone(datetime!(2026-07-16 00:30 +02:00), &glib::TimeZone::utc())?,
+        date!(2026 - 07 - 15)
+    );
+    Ok(())
+}
+
+#[test]
+fn relative_update_time_should_format_dates_in_the_current_year() {
+    assert_eq!(
+        relative_update_time(
+            datetime!(2026-01-02 12:00 UTC),
+            datetime!(2026-09-09 12:00 UTC)
+        ),
+        "Jan 2"
+    );
+}
+
+#[test]
+fn relative_update_time_should_include_the_year_for_older_notes() {
+    assert_eq!(
+        relative_update_time(
+            datetime!(2025-01-02 12:00 UTC),
+            datetime!(2026-09-09 12:00 UTC)
+        ),
+        "Jan 2, 2025"
+    );
+}
