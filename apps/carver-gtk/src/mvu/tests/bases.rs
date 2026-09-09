@@ -22,6 +22,7 @@ fn created_base_should_reload_definitions_and_open_its_grid() {
         name: "Projects".to_owned(),
         columns: vec![BaseColumn::Category],
         revision: Revision(1),
+        row_count: 0,
     };
 
     let effects = update(

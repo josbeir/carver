@@ -324,6 +324,7 @@ impl SqliteLibrary {
             name: name.to_owned(),
             columns: columns.to_vec(),
             revision,
+            row_count: self.active_note_count()?,
         })
     }
 
@@ -334,7 +335,10 @@ impl SqliteLibrary {
     /// Returns an error when stored values are malformed or cannot be read.
     pub fn bases(&self) -> Result<Vec<BaseDefinition>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT id, name, definition_json, revision FROM bases ORDER BY name COLLATE NOCASE",
+            "SELECT b.id, b.name, b.definition_json, b.revision,
+                    (SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
+                     WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL)
+             FROM bases b ORDER BY b.name COLLATE NOCASE",
         )?;
         statement
             .query_map([], |row| {
@@ -348,10 +352,26 @@ impl SqliteLibrary {
                     name: row.get(1)?,
                     columns,
                     revision: Revision(row.get(3)?),
+                    row_count: usize::try_from(row.get::<_, i64>(4)?).map_err(|_| {
+                        to_sql_error(StorageError::Corrupt(
+                            "base row count does not fit usize".to_owned(),
+                        ))
+                    })?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(Into::into)
+    }
+
+    fn active_note_count(&self) -> Result<usize, StorageError> {
+        let count = self.connection.query_row(
+            "SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL",
+            [],
+            |row| row.get::<_, i64>(0),
+        )?;
+        usize::try_from(count)
+            .map_err(|_| StorageError::Corrupt("base row count does not fit usize".to_owned()))
     }
 
     /// Deletes only the saved view definition.

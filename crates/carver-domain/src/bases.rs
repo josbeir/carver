@@ -72,6 +72,9 @@ pub struct BaseDefinition {
     pub columns: Vec<BaseColumn>,
     /// Optimistic concurrency token.
     pub revision: Revision,
+    /// Number of active notes currently represented by this view.
+    #[serde(default)]
+    pub row_count: usize,
 }
 
 /// One row returned for a base.

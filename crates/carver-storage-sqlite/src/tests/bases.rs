@@ -30,6 +30,14 @@ fn base_rows_should_project_json_and_toml_frontmatter() {
             ],
         )
         .unwrap_or_else(|error| panic!("base failed: {error}"));
+    assert_eq!(base.row_count, 2);
+    assert_eq!(
+        library
+            .bases()
+            .unwrap_or_else(|error| panic!("bases failed: {error}"))[0]
+            .row_count,
+        2
+    );
 
     let rows = library
         .base_rows(base.id)

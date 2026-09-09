@@ -77,7 +77,12 @@ pub(crate) fn build_sidebar(
     container.append(&bases_box);
     let new_base = gtk::Button::new();
     new_base.set_widget_name("new-base-button");
-    new_base.set_child(Some(&base_button_content("list-add-symbolic", "New Base")));
+    new_base.set_child(Some(&base_button_content(
+        "list-add-symbolic",
+        "New Base",
+        None,
+        None,
+    )));
     new_base.add_css_class("flat");
     let dispatcher_for_base = dispatcher.clone();
     new_base.connect_clicked(move |button| show_new_base_dialog(button, &dispatcher_for_base));
@@ -163,7 +168,12 @@ fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppMod
     for base in bases.iter().rev() {
         let button = gtk::Button::new();
         button.set_widget_name(&format!("base:{}", base.id));
-        button.set_child(Some(&base_button_content("view-grid-symbolic", &base.name)));
+        button.set_child(Some(&base_button_content(
+            "view-grid-symbolic",
+            &base.name,
+            Some(base.row_count),
+            Some(&format!("base-count:{}", base.id)),
+        )));
         button.add_css_class("flat");
         let dispatcher = dispatcher.clone();
         let base_id = base.id;
@@ -174,7 +184,12 @@ fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppMod
     }
 }
 
-fn base_button_content(icon: &str, text: &str) -> gtk::Box {
+fn base_button_content(
+    icon: &str,
+    text: &str,
+    count: Option<usize>,
+    count_widget_name: Option<&str>,
+) -> gtk::Box {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     content.set_margin_start(8);
     content.set_margin_end(8);
@@ -186,6 +201,15 @@ fn base_button_content(icon: &str, text: &str) -> gtk::Box {
     label.set_hexpand(true);
     label.set_ellipsize(gtk::pango::EllipsizeMode::End);
     content.append(&label);
+    if let Some(count) = count {
+        let badge = gtk::Label::new(Some(&count.to_string()));
+        if let Some(widget_name) = count_widget_name {
+            badge.set_widget_name(widget_name);
+        }
+        badge.set_tooltip_text(Some(&note_count_label(count)));
+        badge.add_css_class("category-count-badge");
+        content.append(&badge);
+    }
     content
 }
 
