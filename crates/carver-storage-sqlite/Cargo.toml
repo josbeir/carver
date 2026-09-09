@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+unicode-segmentation.workspace = true
 atomic-write-file.workspace = true
 carver-domain = { path = "../carver-domain", version = "0.2.1" }
 carver-library-port = { path = "../carver-library-port", version = "0.2.1" }

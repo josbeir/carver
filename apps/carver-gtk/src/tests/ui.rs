@@ -1,6 +1,7 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
 mod document_sidebar;
+mod excerpts;
 mod html;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
@@ -27,6 +28,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    excerpts::note_card_should_display_the_complete_final_grapheme()?;
     assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;

@@ -22,6 +22,7 @@ version = "0.2.1"
 authors = ["Carver contributors"]
 
 [workspace.dependencies]
+unicode-segmentation = "1.13.3"
 clap = { version = "4.6", default-features = false, features = ["derive", "std", "help", "usage", "error-context", "suggestions"] }
 cssparser = "0.36"
 shlex = "2"
