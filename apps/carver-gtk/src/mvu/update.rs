@@ -4,7 +4,7 @@ use super::model::{
     ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection,
 };
 use super::{
-    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
+    ActionKey, ActionMsg, AppModel, AppMsg, BasesMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
     EditorSessionId, Effect, LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg,
     SourceEdit, TrashMsg, UiError, WindowMsg,
 };
@@ -73,6 +73,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 .collect()
         }
         AppMsg::Library(reply) => update_library(model, reply),
+        AppMsg::Bases(message) => update_bases(model, message),
     };
     resume_editor_refresh(model, &mut effects);
     if let Some(document) = model.editor.as_mut()
@@ -106,6 +107,26 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
     }
     effects
+}
+
+fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
+    match message {
+        BasesMsg::Open(base_id) => {
+            model.route = super::Route::Base;
+            model.bases.selected = Some(base_id);
+            reload_base_rows(model, base_id).into_iter().collect()
+        }
+        BasesMsg::Create { name, columns } => {
+            let name = name.trim().to_owned();
+            if name.is_empty() {
+                model.notice = Some(UiError::new("Base names cannot be empty."));
+                Vec::new()
+            } else {
+                vec![Effect::CreateBase { name, columns }]
+            }
+        }
+        BasesMsg::Reload => reload_bases(model).into_iter().collect(),
+    }
 }
 
 fn resume_editor_refresh(model: &mut AppModel, effects: &mut Vec<Effect>) {
@@ -1158,6 +1179,15 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::BasesLoaded { request_id, result } => {
+            update_bases_loaded(model, request_id, result)
+        }
+        LibraryReply::BaseRowsLoaded {
+            request_id,
+            base_id,
+            result,
+        } => update_base_rows_loaded(model, request_id, base_id, result),
+        LibraryReply::BaseCreated { result } => update_base_created(model, result),
         LibraryReply::LibraryRevisionLoaded { request_id, result } => {
             update_library_revision(model, request_id, result)
         }
@@ -1241,6 +1271,48 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         },
         LibraryReply::EditorSaved { request, result } => {
             update_editor_save(model, &request, result)
+        }
+    }
+}
+
+fn update_bases_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<Vec<carver_sdk::BaseDefinition>, UiError>,
+) -> Vec<Effect> {
+    model.bases.definitions.finish(request_id, result);
+    Vec::new()
+}
+
+fn update_base_rows_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    base_id: carver_sdk::BaseId,
+    result: Result<Vec<carver_sdk::BaseRow>, UiError>,
+) -> Vec<Effect> {
+    if model.bases.selected == Some(base_id) {
+        model.bases.rows.finish(request_id, result);
+    }
+    Vec::new()
+}
+
+fn update_base_created(
+    model: &mut AppModel,
+    result: Result<carver_sdk::BaseDefinition, UiError>,
+) -> Vec<Effect> {
+    match result {
+        Ok(base) => {
+            model.notice = None;
+            model.route = super::Route::Base;
+            model.bases.selected = Some(base.id);
+            [reload_bases(model), reload_base_rows(model, base.id)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
         }
     }
 }
@@ -1511,10 +1583,14 @@ fn update_config_persisted(model: &mut AppModel, result: Result<(), UiError>) ->
 fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
     match result {
         Ok(()) => {
-            let mut effects = [reload_sidebar(model), reload_browser(model)]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
+            let mut effects = [
+                reload_sidebar(model),
+                reload_bases(model),
+                reload_browser(model),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
             effects.extend(request_library_revision(
                 model,
                 LibraryRevisionCheckReason::InitialLoad,
@@ -1793,6 +1869,7 @@ fn reload_trash_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
 fn reload_all_resources(model: &mut AppModel) -> Vec<Effect> {
     [
         reload_sidebar(model),
+        reload_bases(model),
         reload_browser(model),
         reload_trash(model),
     ]
@@ -1983,6 +2060,27 @@ fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
         .sidebar
         .begin_reload(request_id)
         .then_some(Effect::LoadSidebar { request_id })
+}
+
+fn reload_bases(model: &mut AppModel) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .bases
+        .definitions
+        .begin_reload(request_id)
+        .then_some(Effect::LoadBases { request_id })
+}
+
+fn reload_base_rows(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .bases
+        .rows
+        .begin_reload(request_id)
+        .then_some(Effect::LoadBaseRows {
+            request_id,
+            base_id,
+        })
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {

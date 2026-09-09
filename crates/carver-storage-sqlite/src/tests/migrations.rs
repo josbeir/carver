@@ -20,7 +20,7 @@ fn reopening_a_versioned_library_should_not_have_pending_migrations() {
         .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
     drop(library);
 
-    assert_eq!(schema_version(&database_path), 2);
+    assert_eq!(schema_version(&database_path), 3);
     let connection = rusqlite::Connection::open(&database_path)
         .unwrap_or_else(|error| panic!("database open failed: {error}"));
     assert_eq!(
@@ -67,7 +67,7 @@ fn opening_an_unversioned_current_library_should_adopt_the_schema() {
         LibraryRevision(0)
     );
     drop(adopted);
-    assert_eq!(schema_version(&database_path), 2);
+    assert_eq!(schema_version(&database_path), 3);
 }
 
 #[test]

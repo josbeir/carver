@@ -210,6 +210,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
+            Effect::LoadBases { request_id } => self.load_bases(request_id),
+            Effect::LoadBaseRows {
+                request_id,
+                base_id,
+            } => self.load_base_rows(request_id, base_id),
+            Effect::CreateBase { name, columns } => self.create_base(name, columns),
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
@@ -518,6 +524,43 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 result,
             }));
+        });
+    }
+
+    fn load_bases(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.bases_async().await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BasesLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_base_rows(&self, request_id: super::RequestId, base_id: carver_sdk::BaseId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.base_rows_async(base_id).await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseRowsLoaded {
+                request_id,
+                base_id,
+                result,
+            }));
+        });
+    }
+
+    fn create_base(&self, name: String, columns: Vec<carver_sdk::BaseColumn>) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .create_base_async(name, columns)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));
         });
     }
 

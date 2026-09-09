@@ -123,6 +123,7 @@ pub(crate) struct ContentSurface {
     pub(crate) editor: EditorViewRefs,
     pub(crate) browser: BrowserViewRefs,
     pub(crate) trash: TrashViewRefs,
+    pub(crate) base: crate::ui::bases::BaseViewRefs,
 }
 
 /// Builds the browser, editor, and trash pages for the content pane.
@@ -141,6 +142,8 @@ pub(crate) fn build_content(
     stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
     let (browser, browser_refs) = build_browser(dispatcher, split_view, compact_navigation);
     stack.add_named(&browser, Some("browser"));
+    let (base, base_refs) = crate::ui::bases::build_base(dispatcher);
+    stack.add_named(&base, Some("base"));
     let (editor, editor_refs) = build_editor(
         dispatcher,
         config,
@@ -162,6 +165,7 @@ pub(crate) fn build_content(
         editor: editor_refs,
         browser: browser_refs,
         trash: trash_refs,
+        base: base_refs,
     })
 }
 

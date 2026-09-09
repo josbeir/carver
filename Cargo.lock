@@ -167,8 +167,10 @@ dependencies = [
  "carve-lang",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror",
  "time",
+ "toml",
  "uuid",
 ]
 
@@ -274,6 +276,7 @@ dependencies = [
  "carver-library-port",
  "rusqlite",
  "rusqlite_migration",
+ "serde_json",
  "sha2",
  "tempfile",
  "thiserror",

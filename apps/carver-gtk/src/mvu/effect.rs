@@ -2,7 +2,9 @@
 
 use carver_config::Config;
 use carver_editor_protocol::EditorCommand;
-use carver_sdk::{CategoryAppearance, CategoryId, DocumentImportFormat, NoteId, Revision};
+use carver_sdk::{
+    BaseColumn, BaseId, CategoryAppearance, CategoryId, DocumentImportFormat, NoteId, Revision,
+};
 
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
@@ -13,6 +15,25 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Load saved base definitions.
+    LoadBases {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+    },
+    /// Load rows for one saved base.
+    LoadBaseRows {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Saved view to query.
+        base_id: BaseId,
+    },
+    /// Create a saved base.
+    CreateBase {
+        /// User-visible view name.
+        name: String,
+        /// Ordered initial columns.
+        columns: Vec<BaseColumn>,
+    },
     /// Read and store native files sequentially with a bounded per-file read.
     ImportEditorFiles {
         /// Initiating document and source position.

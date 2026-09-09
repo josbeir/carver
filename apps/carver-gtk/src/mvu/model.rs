@@ -125,10 +125,23 @@ pub enum Route {
     /// The category browser and note list.
     #[default]
     Browser,
+    /// A saved database-style note view.
+    Base,
     /// The recovery and permanent-deletion surface.
     Trash,
     /// The active note editor.
     Editor,
+}
+
+/// Saved bases and the currently visible grid.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct BasesModel {
+    /// Saved definitions rendered in the sidebar.
+    pub definitions: Resource<Vec<carver_sdk::BaseDefinition>>,
+    /// Selected definition.
+    pub selected: Option<carver_sdk::BaseId>,
+    /// Rows of the selected definition.
+    pub rows: Resource<Vec<carver_sdk::BaseRow>>,
 }
 
 /// A browser selection waiting for an active editor to finish closing.
@@ -528,6 +541,8 @@ pub struct AppModel {
     pub sidebar: Resource<Vec<CategorySummary>>,
     /// Browser state and its loaded note summaries.
     pub browser: BrowserModel,
+    /// Saved database-style views.
+    pub bases: BasesModel,
     /// Recoverable deleted content.
     pub trash: Resource<TrashContents>,
     /// The most recent mutation error for the view to surface.
@@ -586,6 +601,7 @@ impl AppModel {
             pending_category_selection: None,
             sidebar: Resource::default(),
             browser: BrowserModel::default(),
+            bases: BasesModel::default(),
             trash: Resource::default(),
             notice: None,
             pending_actions: BTreeSet::new(),

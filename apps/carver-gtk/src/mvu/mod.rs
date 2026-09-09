@@ -12,16 +12,16 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    ActionKey, AppModel, BrowserModel, DocumentPreferences, EditorCopyRequest, EditorCopyScope,
-    EditorDocument, EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
-    EditorPdfExportRequest, EditorPreview, EditorSaveRequest, EditorSaveState, EditorSessionId,
-    LoadState, MediaFile, MoveUndo, Preferences, RequestId, Resource, Route,
-    SourceEditorPreferences, TimerId, UiError,
+    ActionKey, AppModel, BasesModel, BrowserModel, DocumentPreferences, EditorCopyRequest,
+    EditorCopyScope, EditorDocument, EditorExportDialogRequest, EditorExportProgress,
+    EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview, EditorSaveRequest,
+    EditorSaveState, EditorSessionId, LoadState, MediaFile, MoveUndo, Preferences, RequestId,
+    Resource, Route, SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
-    ActionMsg, AppMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource, ImportTarget,
-    LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg, SourceImageTarget, StoredMedia,
-    TrashMsg, TrashMutation, WindowMsg,
+    ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,
+    ImportTarget, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg, SourceImageTarget,
+    StoredMedia, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use source_edit::{SourceCommand, SourceEdit};

@@ -21,6 +21,7 @@ type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SidebarSnapshot {
     categories: Vec<carver_sdk::CategorySummary>,
+    bases: LoadState<Vec<carver_sdk::BaseDefinition>>,
     selected_category: Option<carver_sdk::CategoryId>,
 }
 
@@ -31,6 +32,7 @@ impl SidebarSnapshot {
         };
         Some(Self {
             categories: categories.clone(),
+            bases: model.bases.definitions.state.clone(),
             selected_category: model.selected_category,
         })
     }
@@ -80,6 +82,7 @@ pub struct ViewRefs {
     browser_category_empty_new_note_button: Option<gtk::Button>,
     browser_category_hero: Option<gtk::Box>,
     browser_status: adw::StatusPage,
+    base: Option<crate::ui::bases::BaseViewRefs>,
     trash_list: Option<gtk::ListBox>,
     trash_pages: Option<gtk::Stack>,
     empty_trash_button: Option<gtk::Button>,
@@ -123,6 +126,7 @@ impl ViewRefs {
             browser_category_empty_new_note_button: None,
             browser_category_hero: None,
             browser_status,
+            base: None,
             trash_list: None,
             trash_pages: None,
             empty_trash_button: None,
@@ -190,6 +194,13 @@ impl ViewRefs {
         self
     }
 
+    /// Adds the native saved-base grid.
+    #[must_use]
+    pub(crate) fn with_base(mut self, base: crate::ui::bases::BaseViewRefs) -> Self {
+        self.base = Some(base);
+        self
+    }
+
     /// Uses the complete category-row renderer for changed MVU snapshots.
     #[must_use]
     pub fn with_sidebar_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
@@ -209,11 +220,13 @@ impl ViewRefs {
         self.rendering.set(true);
         self.route_stack.set_visible_child_name(match model.route {
             Route::Browser => "browser",
+            Route::Base => "base",
             Route::Trash => "trash",
             Route::Editor => "editor",
         });
         self.render_sidebar(model);
         self.render_browser(model);
+        self.render_base(model);
         self.render_trash(model);
         self.render_editor(model);
         self.clear_resolved_external_notice(model);
@@ -222,6 +235,23 @@ impl ViewRefs {
         self.render_undo_move(model);
         self.render_undo_trash_note(model);
         self.rendering.set(false);
+    }
+
+    fn render_base(&self, model: &AppModel) {
+        let (Some(refs), Some(base_id), Some(dispatcher)) =
+            (&self.base, model.bases.selected, &self.dispatcher)
+        else {
+            return;
+        };
+        let LoadState::Ready(definitions) = &model.bases.definitions.state else {
+            return;
+        };
+        let LoadState::Ready(rows) = &model.bases.rows.state else {
+            return;
+        };
+        if let Some(definition) = definitions.iter().find(|base| base.id == base_id) {
+            crate::ui::bases::render_base(refs, definition, rows, dispatcher);
+        }
     }
 
     /// Executes a native GTK adapter effect after the runtime has rendered its model snapshot.

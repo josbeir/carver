@@ -2,13 +2,14 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use carver_sdk::{Category, CategoryAppearance, CategoryId, CategorySummary};
+use carver_sdk::{BaseColumn, Category, CategoryAppearance, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
+use libadwaita::prelude::*;
 
 use super::dialogs::{category_color_css_class, category_icon_name, show_category_dialog};
 use crate::mvu::{
-    ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, LoadState, NavigationMsg,
+    ActionMsg, AppDispatcher, AppModel, AppMsg, BasesMsg, BrowserMsg, LoadState, NavigationMsg,
 };
 
 /// Responsive category sidebar and its snapshot renderer.
@@ -19,6 +20,7 @@ pub(crate) struct SidebarSurface {
     dispatcher: AppDispatcher,
     split_view: adw::NavigationSplitView,
     rendering: Rc<Cell<bool>>,
+    bases_box: gtk::Box,
 }
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
@@ -52,6 +54,18 @@ pub(crate) fn build_sidebar(
     scroll.set_child(Some(&list));
     scroll.set_vexpand(true);
     container.append(&scroll);
+    let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    bases_box.set_margin_start(8);
+    bases_box.set_margin_end(8);
+    bases_box.set_margin_bottom(8);
+    container.append(&bases_box);
+    let new_base = gtk::Button::with_label("New Base");
+    new_base.set_widget_name("new-base-button");
+    new_base.set_icon_name("list-add-symbolic");
+    new_base.add_css_class("flat");
+    let dispatcher_for_base = dispatcher.clone();
+    new_base.connect_clicked(move |button| show_new_base_dialog(button, &dispatcher_for_base));
+    bases_box.append(&new_base);
     container.append(&trash_footer(dispatcher, split_view));
     SidebarSurface {
         widget: container.upcast(),
@@ -59,6 +73,7 @@ pub(crate) fn build_sidebar(
         dispatcher: dispatcher.clone(),
         split_view: split_view.clone(),
         rendering,
+        bases_box,
     }
 }
 
@@ -115,7 +130,60 @@ impl SidebarSurface {
             categories,
             model.selected_category,
         );
+        render_bases(&self.bases_box, &self.dispatcher, model);
         self.rendering.set(false);
+    }
+}
+
+fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppModel) {
+    while container.observe_children().n_items() > 1 {
+        if let Some(child) = container.last_child() {
+            container.remove(&child);
+        }
+    }
+    let LoadState::Ready(bases) = &model.bases.definitions.state else {
+        return;
+    };
+    for base in bases.iter().rev() {
+        let button = gtk::Button::with_label(&base.name);
+        button.set_widget_name(&format!("base:{}", base.id));
+        button.set_icon_name("view-grid-symbolic");
+        button.add_css_class("flat");
+        let dispatcher = dispatcher.clone();
+        let base_id = base.id;
+        button.connect_clicked(move |_| {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Open(base_id)));
+        });
+        container.insert_child_after(&button, container.first_child().as_ref());
+    }
+}
+
+fn show_new_base_dialog(button: &gtk::Button, dispatcher: &AppDispatcher) {
+    let entry = gtk::Entry::builder()
+        .placeholder_text("Projects")
+        .activates_default(true)
+        .build();
+    let dialog = adw::AlertDialog::builder()
+        .heading("New Base")
+        .body("Create a database-style view of your notes.")
+        .extra_child(&entry)
+        .build();
+    dialog.add_response("cancel", "Cancel");
+    dialog.add_response("create", "Create");
+    dialog.set_response_appearance("create", adw::ResponseAppearance::Suggested);
+    dialog.set_default_response(Some("create"));
+    dialog.set_close_response("cancel");
+    let dispatcher = dispatcher.clone();
+    dialog.connect_response(None, move |_, response| {
+        if response == "create" {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Create {
+                name: entry.text().to_string(),
+                columns: vec![BaseColumn::Category, BaseColumn::Updated],
+            }));
+        }
+    });
+    if let Some(parent) = button.root().and_downcast::<gtk::Window>() {
+        dialog.present(Some(&parent));
     }
 }
 

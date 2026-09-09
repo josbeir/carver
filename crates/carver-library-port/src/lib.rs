@@ -8,8 +8,8 @@
 use std::error::Error;
 
 use carver_domain::{
-    Category, CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteSummary, Revision,
-    SearchHit, TrashContents, TrashPurgeResult,
+    BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryId, CategorySummary,
+    Note, NoteId, NoteSummary, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -126,6 +126,20 @@ pub trait LibraryBackend: Send + 'static {
     fn trash_note(&self, note_id: NoteId, now: OffsetDateTime) -> Result<(), Self::Error>;
     /// Restores a note from trash.
     fn restore_note(&self, note_id: NoteId) -> Result<(), Self::Error>;
+    /// Creates a saved database-style view.
+    fn create_base(
+        &self,
+        name: &str,
+        columns: &[carver_domain::BaseColumn],
+    ) -> Result<BaseDefinition, Self::Error>;
+    /// Lists saved bases in name order.
+    fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error>;
+    /// Deletes a saved base definition without affecting notes.
+    fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error>;
+    /// Returns rows for a saved base.
+    fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error>;
+    /// Discovers all flattened properties currently present in active notes.
+    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error>;
     /// Lists recoverable trash contents.
     fn trash_contents(&self) -> Result<TrashContents, Self::Error>;
     /// Permanently removes trashed content and unreferenced managed assets.

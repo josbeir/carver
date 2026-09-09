@@ -325,3 +325,29 @@ popover button:checked {
   min-width: 20px;
   opacity: 0.65;
 }
+.bases-grid {
+  border: 1px solid alpha(currentColor, 0.12);
+  border-radius: 8px;
+  background: @view_bg_color;
+}
+
+.bases-grid row:nth-child(even) {
+  background: alpha(currentColor, 0.025);
+}
+
+.bases-grid row:hover {
+  background: alpha(@accent_bg_color, 0.08);
+}
+
+.bases-grid row:selected {
+  background: alpha(@accent_bg_color, 0.14);
+}
+
+.bases-grid header button {
+  background: alpha(currentColor, 0.035);
+  font-weight: 600;
+}
+
+.bases-grid label.link {
+  color: @accent_color;
+}

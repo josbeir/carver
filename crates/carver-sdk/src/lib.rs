@@ -7,9 +7,10 @@ use std::{error::Error, path::Path, thread};
 use async_channel::{Receiver, Sender};
 use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
-    Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
-    DocumentImportFormat, Note, NoteId, NoteSummary, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+    BaseColumn, BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryColor,
+    CategoryIcon, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
+    PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    TrashedNoteSummary,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -215,6 +216,41 @@ impl<B: LibraryBackend> LibraryClient<B> {
             backend.restore_category(category_id, OffsetDateTime::now_utc())
         })
         .await
+    }
+
+    /// Creates a saved database-style view without blocking the caller.
+    pub async fn create_base_async(
+        &self,
+        name: String,
+        columns: Vec<BaseColumn>,
+    ) -> Result<BaseDefinition, LibraryError<B::Error>> {
+        self.request(move |backend| backend.create_base(&name, &columns))
+            .await
+    }
+
+    /// Lists saved bases without blocking the caller.
+    pub async fn bases_async(&self) -> Result<Vec<BaseDefinition>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::bases).await
+    }
+
+    /// Deletes a saved base without deleting notes.
+    pub async fn delete_base_async(&self, base_id: BaseId) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |backend| backend.delete_base(base_id))
+            .await
+    }
+
+    /// Loads rows for a saved base without blocking the caller.
+    pub async fn base_rows_async(
+        &self,
+        base_id: BaseId,
+    ) -> Result<Vec<BaseRow>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.base_rows(base_id))
+            .await
+    }
+
+    /// Discovers current frontmatter properties without blocking the caller.
+    pub async fn property_paths_async(&self) -> Result<Vec<PropertyPath>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::property_paths).await
     }
 
     /// Creates a blank note without blocking the caller.

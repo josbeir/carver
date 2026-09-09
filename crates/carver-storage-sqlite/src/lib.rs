@@ -12,9 +12,10 @@ use atomic_write_file::AtomicWriteFile;
 use std::time::Duration;
 
 use carver_domain::{
-    Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note,
-    NoteId, NoteSummary, Revision, SearchHit, TrashContents, TrashPurgeResult,
-    TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    BaseColumn, BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryColor,
+    CategoryIcon, CategoryId, CategorySummary, Note, NoteId, NoteSummary, PropertyPath, Revision,
+    SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+    derive_content, project_frontmatter, property_paths,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -82,6 +83,12 @@ pub enum StorageError {
     /// A requested trash or restore target was missing or not in the expected state.
     #[error("item is unavailable for this action")]
     MutationUnavailable,
+    /// A base name was empty after trimming whitespace.
+    #[error("base name cannot be empty")]
+    InvalidBaseName,
+    /// A saved base definition was malformed.
+    #[error("invalid saved base definition: {0}")]
+    InvalidBaseDefinition(String),
 }
 
 /// The complete schema for libraries created before schema versioning was introduced.
@@ -153,7 +160,54 @@ fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(INITIAL_SCHEMA, migrate_category_appearance_columns),
         M::up_with_hook("", migrate_note_favorite_columns),
+        M::up_with_hook("", migrate_bases),
     ])
+}
+
+fn migrate_bases(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("PRAGMA table_info(notes)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !columns.iter().any(|column| column == "frontmatter_json") {
+        transaction.execute_batch("ALTER TABLE notes ADD COLUMN frontmatter_json TEXT CHECK(frontmatter_json IS NULL OR json_valid(frontmatter_json));")?;
+    }
+    if !columns.iter().any(|column| column == "frontmatter_format") {
+        transaction.execute_batch("ALTER TABLE notes ADD COLUMN frontmatter_format TEXT;")?;
+    }
+    if !columns.iter().any(|column| column == "frontmatter_error") {
+        transaction.execute_batch("ALTER TABLE notes ADD COLUMN frontmatter_error TEXT;")?;
+    }
+    transaction.execute_batch(
+        "CREATE TABLE IF NOT EXISTS bases (
+            id TEXT PRIMARY KEY NOT NULL,
+            name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) > 0),
+            definition_json TEXT NOT NULL CHECK(json_valid(definition_json)),
+            revision INTEGER NOT NULL CHECK(revision > 0)
+        );
+        CREATE TRIGGER IF NOT EXISTS bases_change_revision_after_insert AFTER INSERT ON bases BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+        CREATE TRIGGER IF NOT EXISTS bases_change_revision_after_update AFTER UPDATE ON bases BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;
+        CREATE TRIGGER IF NOT EXISTS bases_change_revision_after_delete AFTER DELETE ON bases BEGIN
+            UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+        END;",
+    )?;
+    let mut notes = transaction.prepare("SELECT id, source FROM notes")?;
+    let rows = notes.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for row in rows {
+        let (id, source) = row?;
+        let projection = project_frontmatter(&source);
+        transaction.execute(
+            "UPDATE notes SET frontmatter_json = ?2, frontmatter_format = ?3, frontmatter_error = ?4 WHERE id = ?1",
+            params![id, projection.json, projection.format, projection.error],
+        )?;
+    }
+    Ok(())
 }
 
 fn apply_migrations(connection: &mut Connection) -> Result<(), StorageError> {
@@ -241,6 +295,143 @@ impl SqliteLibrary {
         u64::try_from(revision)
             .map(LibraryRevision)
             .map_err(|_| StorageError::Corrupt("library change revision is negative".to_owned()))
+    }
+
+    /// Creates a saved base using ordered columns.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an empty name or when persistence fails.
+    pub fn create_base(
+        &self,
+        name: &str,
+        columns: &[BaseColumn],
+    ) -> Result<BaseDefinition, StorageError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(StorageError::InvalidBaseName);
+        }
+        let id = BaseId::new();
+        let revision = Revision(1);
+        let definition_json = serde_json::to_string(columns)
+            .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))?;
+        self.connection.execute(
+            "INSERT INTO bases (id, name, definition_json, revision) VALUES (?1, ?2, ?3, ?4)",
+            params![id.to_string(), name, definition_json, revision.0],
+        )?;
+        Ok(BaseDefinition {
+            id,
+            name: name.to_owned(),
+            columns: columns.to_vec(),
+            revision,
+        })
+    }
+
+    /// Lists saved bases in case-insensitive name order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when stored values are malformed or cannot be read.
+    pub fn bases(&self) -> Result<Vec<BaseDefinition>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, name, definition_json, revision FROM bases ORDER BY name COLLATE NOCASE",
+        )?;
+        statement
+            .query_map([], |row| {
+                let id = base_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?;
+                let columns = serde_json::from_str::<Vec<BaseColumn>>(&row.get::<_, String>(2)?)
+                    .map_err(|error| {
+                        to_sql_error(StorageError::InvalidBaseDefinition(error.to_string()))
+                    })?;
+                Ok(BaseDefinition {
+                    id,
+                    name: row.get(1)?,
+                    columns,
+                    revision: Revision(row.get(3)?),
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Deletes only the saved view definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the base is missing or deletion fails.
+    pub fn delete_base(&self, base_id: BaseId) -> Result<(), StorageError> {
+        let affected = self
+            .connection
+            .execute("DELETE FROM bases WHERE id = ?1", [base_id.to_string()])?;
+        if affected == 1 {
+            Ok(())
+        } else {
+            Err(StorageError::MutationUnavailable)
+        }
+    }
+
+    /// Returns every active note projected as a base row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the base is missing or rows cannot be read.
+    pub fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, StorageError> {
+        let exists = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM bases WHERE id = ?1)",
+            [base_id.to_string()],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if !exists {
+            return Err(StorageError::MutationUnavailable);
+        }
+        let mut statement = self.connection.prepare(
+            "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
+             FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL ORDER BY n.updated_at DESC",
+        )?;
+        statement
+            .query_map([], |row| {
+                let raw: Option<String> = row.get(5)?;
+                let properties = raw
+                    .as_deref()
+                    .map(serde_json::from_str)
+                    .transpose()
+                    .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))?
+                    .unwrap_or(serde_json::Value::Null);
+                let updated = parse_timestamp(row.get(4)?)
+                    .map_err(to_sql_error)?
+                    .to_string();
+                Ok(BaseRow {
+                    note_id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
+                    revision: Revision(row.get(1)?),
+                    name: row.get(2)?,
+                    category: row.get(3)?,
+                    updated,
+                    properties,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Discovers flattened leaf paths across active notes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when indexed JSON cannot be read.
+    pub fn property_paths(&self) -> Result<Vec<PropertyPath>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT n.frontmatter_json FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.frontmatter_json IS NOT NULL",
+        )?;
+        let values = statement.query_map([], |row| row.get::<_, String>(0))?;
+        let mut found = std::collections::BTreeSet::new();
+        for value in values {
+            let value = serde_json::from_str(&value?)
+                .map_err(|error| StorageError::Corrupt(error.to_string()))?;
+            found.extend(property_paths(&value));
+        }
+        Ok(found.into_iter().collect())
     }
 
     /// Creates a category at the end of the sidebar.
@@ -495,14 +686,15 @@ impl SqliteLibrary {
     ) -> Result<Note, StorageError> {
         let id = NoteId::new();
         let derived = derive_content(source);
+        let projection = project_frontmatter(source);
         let transaction = self.connection.unchecked_transaction()?;
         let affected = transaction.execute(
-            "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at)
-             SELECT ?1, ?2, ?3, ?4, ?5, 1, ?6, ?6
+            "INSERT INTO notes (id, category_id, source, title, plain_text, revision, created_at, updated_at, frontmatter_json, frontmatter_format, frontmatter_error)
+             SELECT ?1, ?2, ?3, ?4, ?5, 1, ?6, ?6, ?7, ?8, ?9
              WHERE EXISTS (
                  SELECT 1 FROM categories WHERE id = ?2 AND trashed_at IS NULL
              )",
-            params![id.to_string(), category_id.to_string(), source, derived.title, derived.plain_text, timestamp(now)],
+            params![id.to_string(), category_id.to_string(), source, derived.title, derived.plain_text, timestamp(now), projection.json, projection.format, projection.error],
         )?;
         if affected != 1 {
             return Err(StorageError::CategoryUnavailable);
@@ -552,15 +744,26 @@ impl SqliteLibrary {
             return Ok(existing);
         }
         let derived = derive_content(source);
-        let affected = self.connection.execute(
-            "UPDATE notes SET source = ?3, title = ?4, plain_text = ?5, revision = revision + 1, updated_at = ?6
+        let projection = project_frontmatter(source);
+        let transaction = self.connection.unchecked_transaction()?;
+        let affected = transaction.execute(
+            "UPDATE notes SET source = ?3, title = ?4, plain_text = ?5, revision = revision + 1, updated_at = ?6,
+             frontmatter_json = ?7, frontmatter_format = ?8, frontmatter_error = ?9
              WHERE id = ?1 AND revision = ?2 AND trashed_at IS NULL",
-            params![note_id.to_string(), expected_revision.0, source, derived.title, derived.plain_text, timestamp(now)],
+            params![note_id.to_string(), expected_revision.0, source, derived.title, derived.plain_text, timestamp(now), projection.json, projection.format, projection.error],
         )?;
         if affected != 1 {
             return Err(StorageError::Conflict);
         }
-        self.replace_fts(note_id, &derived)?;
+        transaction.execute(
+            "DELETE FROM note_fts WHERE note_id = ?1",
+            [note_id.to_string()],
+        )?;
+        transaction.execute(
+            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
+            params![note_id.to_string(), &derived.title, &derived.plain_text],
+        )?;
+        transaction.commit()?;
         self.note(note_id)?
             .ok_or_else(|| StorageError::Corrupt("saved note was not found".to_owned()))
     }
@@ -1149,6 +1352,30 @@ impl LibraryBackend for SqliteLibrary {
         Self::restore_note(self, note_id)
     }
 
+    fn create_base(
+        &self,
+        name: &str,
+        columns: &[BaseColumn],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::create_base(self, name, columns)
+    }
+
+    fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error> {
+        Self::bases(self)
+    }
+
+    fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error> {
+        Self::delete_base(self, base_id)
+    }
+
+    fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {
+        Self::base_rows(self, base_id)
+    }
+
+    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
+        Self::property_paths(self)
+    }
+
     fn trash_contents(&self) -> Result<TrashContents, Self::Error> {
         Self::trash_contents(self)
     }
@@ -1408,6 +1635,12 @@ fn note_id(value: &str) -> Result<NoteId, StorageError> {
     Uuid::parse_str(value)
         .map(NoteId::from_uuid)
         .map_err(|error| StorageError::Corrupt(error.to_string()))
+}
+
+fn base_id(value: &str) -> Result<BaseId, StorageError> {
+    Uuid::parse_str(value)
+        .map(BaseId::from_uuid)
+        .map_err(|error| StorageError::Corrupt(format!("invalid base id: {error}")))
 }
 fn timestamp(value: OffsetDateTime) -> i64 {
     value.unix_timestamp()
