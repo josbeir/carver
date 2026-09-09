@@ -4,9 +4,11 @@
 
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 
+use atomic_write_file::AtomicWriteFile;
 use std::time::Duration;
 
 use carver_domain::{
@@ -902,9 +904,9 @@ impl SqliteLibrary {
         };
         let path = self.assets_dir.join(&filename);
         if !path.exists() {
-            let temporary = path.with_extension("partial");
-            fs::write(&temporary, bytes)?;
-            fs::rename(temporary, &path)?;
+            let mut file = AtomicWriteFile::open(&path)?;
+            file.write_all(bytes)?;
+            file.commit()?;
         }
         self.connection.execute(
             "INSERT OR IGNORE INTO assets (hash, filename, byte_size) VALUES (?1, ?2, ?3)",

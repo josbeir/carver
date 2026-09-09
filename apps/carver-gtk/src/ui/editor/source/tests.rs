@@ -249,3 +249,20 @@ fn syntax_style_schemes_should_inherit_gnome_adwaita_variants()
     assert!(writing_focus_dark.contains("name=\"carve:link-text\" foreground=\"#8ebddd\""));
     Ok(())
 }
+
+#[test]
+fn syntax_installation_should_ignore_a_preexisting_legacy_temporary_path()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let syntax = directory.path().join("source-syntax");
+    fs::create_dir(&syntax)?;
+    let legacy = syntax.join("carve.tmp");
+    fs::create_dir(&legacy)?;
+    install_syntax_assets(directory.path())?;
+    assert_eq!(
+        fs::read_to_string(syntax.join("carve.lang"))?,
+        super::CARVE_LANGUAGE
+    );
+    assert!(legacy.is_dir());
+    Ok(())
+}

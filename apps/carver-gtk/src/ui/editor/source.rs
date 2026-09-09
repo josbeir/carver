@@ -2,11 +2,13 @@
 
 use std::{
     cell::RefCell,
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     rc::Rc,
 };
 
+use atomic_write_file::AtomicWriteFile;
 use carver_config::SourceSyntaxStyle;
 use gtk::gio::prelude::*;
 use gtk::prelude::*;
@@ -73,9 +75,9 @@ fn write_asset(directory: &Path, name: &str, contents: &str) -> Result<(), io::E
     if fs::read_to_string(&destination).is_ok_and(|existing| existing == contents) {
         return Ok(());
     }
-    let temporary = destination.with_extension("tmp");
-    fs::write(&temporary, contents)?;
-    fs::rename(temporary, destination)?;
+    let mut file = AtomicWriteFile::open(&destination)?;
+    file.write_all(contents.as_bytes())?;
+    file.commit()?;
     Ok(())
 }
 
