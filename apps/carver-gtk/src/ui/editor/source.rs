@@ -298,14 +298,51 @@ pub(crate) fn document_font_css(description: &str) -> String {
     let description = gtk::pango::FontDescription::from_string(&description);
     let family = description.family().unwrap_or_else(|| "Sans".into());
     let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
+    let variations = description.variations();
     format!(
         "--document-font-family: \"{}\"; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {}; --document-font-stretch: {}; --document-font-variant: {}; --document-font-variation-settings: {};",
         escape_css_string(&family),
-        document_font_style(description.style()),
-        document_font_weight(description.weight()),
-        document_font_stretch(description.stretch()),
+        document_font_style_with_variations(description.style(), variations.as_deref()),
+        document_font_weight_with_variations(description.weight(), variations.as_deref()),
+        document_font_stretch_with_variations(description.stretch(), variations.as_deref()),
         document_font_variant(description.variant()),
-        document_font_variations(description.variations().as_deref()),
+        document_font_variations(variations.as_deref()),
+    )
+}
+
+fn document_font_style_with_variations(
+    style: gtk::pango::Style,
+    variations: Option<&str>,
+) -> String {
+    if variation_axis_value(variations, "ital").is_some_and(|italic| italic != 0.0) {
+        return "italic".to_owned();
+    }
+    if let Some(slant) = variation_axis_value(variations, "slnt").filter(|slant| *slant != 0.0) {
+        // OpenType slant angles use the opposite sign from CSS oblique angles.
+        return format!("oblique {}deg", -slant);
+    }
+    if variation_axis_value(variations, "ital").is_some() {
+        return "normal".to_owned();
+    }
+    document_font_style(style).to_owned()
+}
+
+fn document_font_weight_with_variations(
+    weight: gtk::pango::Weight,
+    variations: Option<&str>,
+) -> String {
+    variation_axis_value(variations, "wght")
+        .unwrap_or_else(|| f64::from(document_font_weight(weight)))
+        .to_string()
+}
+
+fn document_font_stretch_with_variations(
+    stretch: gtk::pango::Stretch,
+    variations: Option<&str>,
+) -> String {
+    variation_axis_value(variations, "wdth").map_or_else(
+        || document_font_stretch(stretch).to_owned(),
+        |width| format!("{width}%"),
     )
 }
 
@@ -373,7 +410,7 @@ fn document_font_variations(variations: Option<&str>) -> String {
             // semantic markup such as headings and strong text.
             (axis.len() == 4
                 && axis.bytes().all(|byte| byte.is_ascii_alphanumeric())
-                && !matches!(axis, "wght" | "wdth" | "slnt" | "ital" | "opsz")
+                && !matches!(axis, "wght" | "wdth" | "slnt" | "ital")
                 && value.is_finite())
             .then(|| format!("\"{axis}\" {value}"))
         })
@@ -383,6 +420,20 @@ fn document_font_variations(variations: Option<&str>) -> String {
     } else {
         settings.join(", ")
     }
+}
+
+fn variation_axis_value(variations: Option<&str>, target_axis: &str) -> Option<f64> {
+    variations
+        .into_iter()
+        .flat_map(|variations| variations.split(','))
+        .filter_map(|variation| {
+            let (axis, value) = variation.trim().split_once('=')?;
+            (axis.trim() == target_axis)
+                .then(|| value.trim().parse::<f64>().ok())
+                .flatten()
+                .filter(|value| value.is_finite())
+        })
+        .next_back()
 }
 
 fn desktop_font_settings(key: &str) -> Option<gtk::gio::Settings> {

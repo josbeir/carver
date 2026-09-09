@@ -22,8 +22,8 @@ fn rendered_document_matches_the_editor_block_presentation() {
     assert!(PREVIEW_STYLESHEET.contains("h1 {\n  font-size: 2em;"));
     assert!(PREVIEW_STYLESHEET.contains("ul.task-list"));
     assert!(PREVIEW_STYLESHEET.contains("ul:has(> li > input[type=checkbox])"));
-    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > .preview-content > img"));
-    assert!(PREVIEW_STYLESHEET.contains(".preview-content th"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > img"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] th"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview]::selection"));
     assert!(PREVIEW_STYLESHEET.contains("--document-content-width"));
 }
@@ -36,13 +36,18 @@ fn shared_document_inset_should_live_on_the_body() {
 }
 
 #[test]
-fn rendered_document_should_wrap_preview_in_the_shared_content_column() {
+fn rendered_document_should_constrain_preview_on_the_body_content_box() {
     let html = rendered_document("![image](assets/example.png){width=\"50%\"}", false);
 
-    assert!(html.contains("<main class=\"preview-content\"><img"));
+    assert!(
+        html.contains("<body data-preview data-carver-heading-token=\"") && html.contains("><img")
+    );
+    assert!(!html.contains("preview-content"));
     assert!(html.contains("width=\"50%\""));
-    assert!(PREVIEW_STYLESHEET.contains(".preview-content {\n  box-sizing: border-box;"));
-    assert!(PREVIEW_STYLESHEET.contains("max-width: var(--document-content-width);"));
+    assert!(
+        PREVIEW_STYLESHEET
+            .contains("body[data-preview] {\n  max-width: var(--document-content-outer-width);")
+    );
     assert!(PREVIEW_STYLESHEET.contains("margin-inline: auto;"));
 }
 
@@ -53,6 +58,7 @@ fn rendered_document_should_include_the_shared_document_appearance() {
     assert!(html.contains("--document-font-family"));
     assert!(html.contains("--document-line-height: 1.55"));
     assert!(html.contains("--document-content-width: 80ch"));
+    assert!(html.contains("--document-content-outer-width: calc(80ch + 48px)"));
 }
 
 #[test]
@@ -73,6 +79,7 @@ fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance
     assert!(html.contains("--document-font-family: \"Cantarell\""));
     assert!(html.contains("--document-line-height: 1.75"));
     assert!(html.contains("--document-content-width: 100ch"));
+    assert!(html.contains("--document-content-outer-width: calc(100ch + 48px)"));
     assert!(html.contains("data-carver-heading-token=\""));
     assert!(html.contains("<style>"));
     let body_tag = html
@@ -145,10 +152,10 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     );
     assert!(
         PREVIEW_STYLESHEET
-            .contains(".preview-content {\n    max-width: none;\n    line-height: 1.4")
+            .contains("body[data-preview] {\n    max-width: none;\n    line-height: 1.4")
     );
     assert!(PREVIEW_STYLESHEET.contains("display: table-header-group"));
-    assert!(PREVIEW_STYLESHEET.contains(".preview-content ul.task-list li"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] ul.task-list li"));
     assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
     assert!(PREVIEW_STYLESHEET.contains("padding: 4pt 5pt"));
 }
@@ -179,4 +186,13 @@ fn raw_html_headings_should_not_share_renderer_provenance() {
     assert!(html.contains("data-carver-heading=\"forged\">Raw</h2>"));
     assert_eq!(html.matches("data-carver-heading=\"").count(), 2);
     assert!(!html.contains("data-carver-heading-token=\"forged\""));
+}
+
+#[test]
+fn raw_html_should_not_escape_preview_layout_rules() {
+    let html = rendered_document("```=html\n</main>\n```\n\n# Authored", false);
+
+    assert!(!html.contains("<main"));
+    assert!(html.contains("</main>"));
+    assert!(PREVIEW_STYLESHEET.contains("body[data-preview] {\n  max-width:"));
 }

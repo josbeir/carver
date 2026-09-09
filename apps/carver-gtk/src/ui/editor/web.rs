@@ -583,15 +583,15 @@ pub(super) fn document_appearance(preferences: &DocumentPreferences) -> Document
         .as_deref()
         .and_then(super::normalize_document_font_description)
         .unwrap_or_else(super::system_document_font_description);
-    let width = match preferences.width {
-        DocumentWidth::Narrow => "60ch",
-        DocumentWidth::Comfortable => "80ch",
-        DocumentWidth::Wide => "100ch",
-        DocumentWidth::Full => "none",
+    let (width, outer_width) = match preferences.width {
+        DocumentWidth::Narrow => ("60ch", "calc(60ch + 48px)"),
+        DocumentWidth::Comfortable => ("80ch", "calc(80ch + 48px)"),
+        DocumentWidth::Wide => ("100ch", "calc(100ch + 48px)"),
+        DocumentWidth::Full => ("none", "100%"),
     };
     DocumentAppearance {
         css: format!(
-            "{} --document-line-height: {}; --document-content-width: {width};",
+            "{} --document-line-height: {}; --document-content-width: {width}; --document-content-outer-width: {outer_width};",
             super::document_font_css(&font),
             f64::from(preferences.line_height_percent.clamp(100, 250)) / 100.0,
         ),
@@ -694,15 +694,28 @@ mod tests {
         assert!(script.contains("--document-font-family: \\\"Cantarell\\\""));
         assert!(script.contains("--document-line-height: 1.75"));
         assert!(script.contains("--document-content-width: 100ch"));
+        assert!(script.contains("--document-content-outer-width: calc(100ch + 48px)"));
     }
 
     #[test]
     fn document_appearance_should_support_every_reading_measure() {
-        for (width, measure) in [
-            (carver_config::DocumentWidth::Narrow, "60ch"),
-            (carver_config::DocumentWidth::Comfortable, "80ch"),
-            (carver_config::DocumentWidth::Wide, "100ch"),
-            (carver_config::DocumentWidth::Full, "none"),
+        for (width, measure, outer_measure) in [
+            (
+                carver_config::DocumentWidth::Narrow,
+                "60ch",
+                "calc(60ch + 48px)",
+            ),
+            (
+                carver_config::DocumentWidth::Comfortable,
+                "80ch",
+                "calc(80ch + 48px)",
+            ),
+            (
+                carver_config::DocumentWidth::Wide,
+                "100ch",
+                "calc(100ch + 48px)",
+            ),
+            (carver_config::DocumentWidth::Full, "none", "100%"),
         ] {
             let appearance = document_appearance(&DocumentPreferences {
                 font: None,
@@ -713,6 +726,10 @@ mod tests {
             assert!(
                 appearance_javascript(&appearance)
                     .contains(&format!("--document-content-width: {measure}"))
+            );
+            assert!(
+                appearance_javascript(&appearance)
+                    .contains(&format!("--document-content-outer-width: {outer_measure}"))
             );
         }
     }
