@@ -325,6 +325,25 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());
     assert!(bases_grid.shows_row_separators());
     assert!(bases_grid.shows_column_separators());
+    let base_status = widget_as::<adw::StatusPage>(&root, "base-status").ok_or("base status")?;
+    let base_pages = widget_as::<gtk::Stack>(&root, "base-pages").ok_or("base pages")?;
+    crate::ui::bases::render_base_status(
+        &crate::ui::bases::BaseViewRefs {
+            title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
+            grid: bases_grid.clone(),
+            pages: base_pages.clone(),
+            scroll: bases_grid
+                .parent()
+                .and_downcast::<gtk::ScrolledWindow>()
+                .ok_or("base scroll")?,
+            status: base_status.clone(),
+        },
+        "Couldn’t load rows",
+        "Test failure",
+    );
+    assert_eq!(base_pages.visible_child_name().as_deref(), Some("status"));
+    assert_eq!(base_status.title(), "Couldn’t load rows");
+    assert_eq!(base_status.description().as_deref(), Some("Test failure"));
     let settings_menu = widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button")
         .ok_or("sidebar settings menu")?;
     assert_eq!(

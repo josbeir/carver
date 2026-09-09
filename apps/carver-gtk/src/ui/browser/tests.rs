@@ -1,9 +1,15 @@
 use time::macros::{date, datetime};
 
 use super::{
-    NoteDateGroup, TouchpadBackGesture, compact_note_excerpt, note_date_group_for_days,
-    relative_update_time,
+    NoteDateGroup, TouchpadBackGesture, adjustment_can_scroll_right, compact_note_excerpt,
+    note_date_group_for_days, relative_update_time,
 };
+
+#[test]
+fn base_touchpad_back_should_wait_until_horizontal_scrolling_reaches_its_boundary() {
+    assert!(adjustment_can_scroll_right(0.0, 400.0, 900.0));
+    assert!(!adjustment_can_scroll_right(500.0, 400.0, 900.0));
+}
 
 #[test]
 fn compact_note_excerpt_should_collapse_whitespace_and_omit_a_repeated_title() {

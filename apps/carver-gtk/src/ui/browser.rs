@@ -159,7 +159,7 @@ pub(crate) fn build_content(
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    install_page_back_navigation(dispatcher, &stack);
+    install_page_back_navigation(dispatcher, &stack, &base_refs.scroll);
     Ok(ContentSurface {
         widget: stack.clone().upcast(),
         route_stack: stack,
@@ -171,9 +171,13 @@ pub(crate) fn build_content(
 }
 
 /// Routes conventional Back inputs through the active editor or base transition.
-fn install_page_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+fn install_page_back_navigation(
+    dispatcher: &AppDispatcher,
+    route_stack: &gtk::Stack,
+    base_scroll: &gtk::ScrolledWindow,
+) {
     install_mouse_back_navigation(dispatcher, route_stack);
-    install_touchpad_back_navigation(dispatcher, route_stack);
+    install_touchpad_back_navigation(dispatcher, route_stack, base_scroll);
 }
 
 fn install_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
@@ -199,7 +203,11 @@ fn install_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::
     route_stack.add_controller(back);
 }
 
-fn install_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+fn install_touchpad_back_navigation(
+    dispatcher: &AppDispatcher,
+    route_stack: &gtk::Stack,
+    base_scroll: &gtk::ScrolledWindow,
+) {
     let back = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
     back.set_name(Some("page-touchpad-back-controller"));
     // Capture the scroll before a nested WebKit editor can claim a horizontal swipe.
@@ -210,8 +218,15 @@ fn install_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gt
     let gesture_for_scroll = Rc::clone(&gesture);
     let dispatcher = dispatcher.clone();
     let route_stack_for_scroll = route_stack.clone();
+    let base_scroll = base_scroll.clone();
     back.connect_scroll(move |controller, delta_x, delta_y| {
         if !is_back_route(&route_stack_for_scroll) || !is_touchpad_surface_scroll(controller) {
+            return glib::Propagation::Proceed;
+        }
+        if route_stack_for_scroll.visible_child_name().as_deref() == Some("base")
+            && base_can_scroll_right(&base_scroll)
+        {
+            gesture_for_scroll.set(TouchpadBackGesture::Idle);
             return glib::Propagation::Proceed;
         }
         let next = gesture_for_scroll.get().advance(delta_x, delta_y);
@@ -227,6 +242,19 @@ fn install_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gt
         }
     });
     route_stack.add_controller(back);
+}
+
+fn base_can_scroll_right(scroll: &gtk::ScrolledWindow) -> bool {
+    let adjustment = scroll.hadjustment();
+    adjustment_can_scroll_right(
+        adjustment.value(),
+        adjustment.page_size(),
+        adjustment.upper(),
+    )
+}
+
+fn adjustment_can_scroll_right(value: f64, page_size: f64, upper: f64) -> bool {
+    value + page_size < upper
 }
 
 fn is_editor_route(route_stack: &gtk::Stack) -> bool {

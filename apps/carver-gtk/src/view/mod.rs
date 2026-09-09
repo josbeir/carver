@@ -247,10 +247,23 @@ impl ViewRefs {
             return;
         };
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
+            crate::ui::bases::render_base_status(refs, "Loading base…", "Loading its definition.");
             return;
         };
-        let LoadState::Ready(rows) = &model.bases.rows.state else {
-            return;
+        let rows = match &model.bases.rows.state {
+            LoadState::Ready(rows) => rows,
+            LoadState::Failed(error) => {
+                crate::ui::bases::render_base_status(refs, "Couldn’t load rows", &error.message);
+                return;
+            }
+            LoadState::Idle | LoadState::Loading(_) => {
+                crate::ui::bases::render_base_status(
+                    refs,
+                    "Loading rows…",
+                    "Refreshing this base.",
+                );
+                return;
+            }
         };
         if let Some(definition) = definitions.iter().find(|base| base.id == base_id) {
             crate::ui::bases::render_base(refs, definition, rows, dispatcher);

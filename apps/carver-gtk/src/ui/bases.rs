@@ -13,6 +13,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) grid: gtk::ColumnView,
     pub(crate) pages: gtk::Stack,
     pub(crate) scroll: gtk::ScrolledWindow,
+    pub(crate) status: adw::StatusPage,
 }
 
 pub(crate) fn build_base(
@@ -70,7 +71,9 @@ pub(crate) fn build_base(
         .title("No rows")
         .description("Notes with JSON or TOML frontmatter will appear here.")
         .build();
+    status.set_widget_name("base-status");
     let pages = gtk::Stack::new();
+    pages.set_widget_name("base-pages");
     pages.add_named(&scroll, Some("grid"));
     pages.add_named(&status, Some("status"));
     pages.set_visible_child_name("status");
@@ -82,8 +85,15 @@ pub(crate) fn build_base(
             grid,
             pages,
             scroll,
+            status,
         },
     )
+}
+
+pub(crate) fn render_base_status(refs: &BaseViewRefs, title: &str, description: &str) {
+    refs.status.set_title(title);
+    refs.status.set_description(Some(description));
+    refs.pages.set_visible_child_name("status");
 }
 
 pub(crate) fn render_base(
