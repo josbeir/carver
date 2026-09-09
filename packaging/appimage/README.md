@@ -32,7 +32,10 @@ on normal exit; the mounted image is never modified. This costs roughly 90 MiB
 of temporary space per GUI launch. The MCP-only launcher needs no copy.
 
 The smoke test checks MCP launch and that the GUI survives startup under
-Weston with the host WebKit helper directory hidden by Bubblewrap. It does not
+Weston with the host WebKit helper directory hidden in a private mount
+namespace. Local tests use Bubblewrap; CI creates the mount namespace with
+`unshare` and drops privileges before launching the GUI, avoiding Ubuntu's
+restrictions on nested Bubblewrap sandboxes without disabling AppArmor. It does not
 establish compatibility with other distributions or verify
 all editor interactions. Test those before advertising broader compatibility.
 

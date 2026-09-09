@@ -11,10 +11,16 @@ host_helper_dir="$(pkg-config --variable=libdir webkitgtk-6.0)/webkitgtk-6.0"
 # Hide the build host's helpers in a private mount namespace. A package that
 # accidentally uses WebKit's compiled system path must fail this test.
 test -d "$host_helper_dir"
+isolation=(bwrap --die-with-parent --ro-bind / / --dev-bind /dev /dev --proc /proc
+  --bind "$test_dir" "$test_dir" --bind /tmp /tmp --tmpfs "$host_helper_dir")
+if [[ "${2:-}" == --host-helpers-hidden ]]; then
+  # CI already hid this directory in a private mount namespace. Avoid nesting
+  # Bubblewrap: Ubuntu's outer bwrap AppArmor profile blocks child userns.
+  [[ -z "$(ls -A "$host_helper_dir")" ]]
+  isolation=()
+fi
 set +e
-bwrap --die-with-parent --ro-bind / / --dev-bind /dev /dev --proc /proc \
-  --bind "$test_dir" "$test_dir" --bind /tmp /tmp \
-  --tmpfs "$host_helper_dir" \
+"${isolation[@]}" \
   dbus-run-session -- ./scripts/with-weston.sh timeout 20s "$image" --appimage-extract-and-run > "$test_dir/launch.log" 2>&1
 status=$?
 set -e

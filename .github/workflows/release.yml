@@ -111,7 +111,13 @@ jobs:
           IMAGE: target/carver-${{ needs.metadata.outputs.version }}-x86_64.AppImage
         run: |
           "$IMAGE" --appimage-extract-and-run --command=carver-mcp --help
-          bash packaging/appimage/smoke-test.sh "$IMAGE"
+          # Hide host helpers without imposing an outer Bubblewrap AppArmor
+          # profile on WebKit. Only mount setup is privileged; the GUI is not.
+          sudo unshare --mount --propagation private -- bash -euc '
+            helper_dir="$(pkg-config --variable=libdir webkitgtk-6.0)/webkitgtk-6.0"
+            mount -t tmpfs tmpfs "$helper_dir"
+            exec runuser -u "$SUDO_USER" -- bash packaging/appimage/smoke-test.sh "$1" --host-helpers-hidden
+          ' bash "$IMAGE"
       - uses: actions/upload-artifact@v4
         with:
           name: carver-appimage-x86_64
