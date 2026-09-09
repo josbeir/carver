@@ -560,6 +560,20 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     )
     .and_downcast::<gtk::ListBoxRow>()
     .ok_or("destination category row")?;
+    let notes_without_favorites = Rc::new(Cell::new(false));
+    let observed_rows = note_list.observe_children();
+    let observer = observed_rows.connect_items_changed({
+        let root = root.clone();
+        let notes_without_favorites = Rc::clone(&notes_without_favorites);
+        move |_, _, _, added| {
+            if added > 0
+                && find_widget(&root, &format!("note:{}", note.id)).is_some()
+                && find_widget(&root, &format!("favorite-note:{}", note.id)).is_none()
+            {
+                notes_without_favorites.set(true);
+            }
+        }
+    });
     sidebar.select_row(Some(&destination_category_row));
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(&root, "browser-hero-title")
@@ -571,9 +585,21 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             && find_widget(&root, "note-group:today").is_some()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
+    observed_rows.disconnect(observer);
+    assert!(
+        !notes_without_favorites.get(),
+        "category notes should never appear before their favorites"
+    );
     assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
     let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
+    let previous_favorite = find_widget(&root, &format!("favorite-note:{}", note.id))
+        .ok_or("previous category favorite")?;
     sidebar.select_row(Some(&all_notes));
+    assert_eq!(
+        find_widget(&root, &format!("favorite-note:{}", note.id)),
+        Some(previous_favorite),
+        "fast category switches should retain the complete previous browser until loaded"
+    );
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(&root, "browser-hero-title")
             .is_some_and(|title| title.text() == "All notes")

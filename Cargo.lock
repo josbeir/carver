@@ -178,6 +178,7 @@ dependencies = [
  "carver-export",
  "carver-sdk",
  "carver-storage-sqlite",
+ "futures-util",
  "gdk-pixbuf",
  "glib",
  "glib-build-tools",

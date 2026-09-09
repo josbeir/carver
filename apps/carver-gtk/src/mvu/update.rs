@@ -1181,16 +1181,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::SidebarLoaded { request_id, result } => {
             reload_sidebar_after(model.sidebar.finish(request_id, result), model)
         }
-        LibraryReply::BrowserLoaded { request_id, result } => {
-            let mut effects = update_browser_loaded(model, request_id, result);
-            if let Some(effect) = reload_favorites(model) {
-                effects.push(effect);
-            }
-            effects
-        }
-        LibraryReply::FavoritesLoaded { request_id, result } => {
-            reload_favorites_after(model.browser.favorites.finish(request_id, result), model)
-        }
+        LibraryReply::BrowserLoaded {
+            request_id,
+            result,
+            favorites,
+        } => update_browser_loaded(model, request_id, result, favorites),
         LibraryReply::FavoriteChanged { action, result } => {
             update_favorite_changed(model, action, result)
         }
@@ -1364,16 +1359,23 @@ fn update_browser_loaded(
     model: &mut AppModel,
     request_id: super::RequestId,
     result: Result<Vec<carver_sdk::NoteSummary>, UiError>,
+    favorites: Result<Vec<carver_sdk::NoteSummary>, UiError>,
 ) -> Vec<Effect> {
     let is_current = matches!(
         model.browser.notes.state,
         super::LoadState::Loading(current) if current == request_id
     );
-    if is_current && let Ok(notes) = &result {
-        model.browser.last_ready_notes = Some(notes.clone());
-    }
     let reload = model.browser.notes.finish(request_id, result);
     if is_current {
+        if !reload {
+            if let super::LoadState::Ready(notes) = &model.browser.notes.state {
+                model.browser.last_ready_notes = Some(notes.clone());
+            }
+            model.browser.favorites.state = match favorites {
+                Ok(notes) => super::LoadState::Ready(notes),
+                Err(error) => super::LoadState::Failed(error),
+            };
+        }
         model.browser.loading_indicator_request = None;
         model.browser.loading_indicator_visible = false;
     }
@@ -1983,30 +1985,6 @@ fn reload_browser(model: &mut AppModel) -> Option<Effect> {
         category_id: model.selected_category,
         query: model.browser.search_query.clone(),
     })
-}
-
-fn reload_favorites(model: &mut AppModel) -> Option<Effect> {
-    if !model.browser.search_query.trim().is_empty() {
-        model.browser.favorites = super::Resource::default();
-        return None;
-    }
-    let request_id = model.next_request_id();
-    model
-        .browser
-        .favorites
-        .begin_reload(request_id)
-        .then_some(Effect::LoadFavorites {
-            request_id,
-            category_id: model.selected_category,
-        })
-}
-
-fn reload_favorites_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
-    reload
-        .then(|| reload_favorites(model))
-        .flatten()
-        .into_iter()
-        .collect()
 }
 
 fn toggle_editor_favorite(model: &mut AppModel) -> Vec<Effect> {

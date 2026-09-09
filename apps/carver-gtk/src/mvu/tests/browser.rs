@@ -28,6 +28,7 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
     let follow_up = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
+            favorites: Ok(Vec::new()),
             request_id: first_request,
             result: Ok(Vec::new()),
         }),
@@ -44,6 +45,7 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
+            favorites: Ok(Vec::new()),
             request_id: second_request,
             result: Err(UiError::new("search failed")),
         }),
@@ -65,6 +67,7 @@ fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading()
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
+            favorites: Ok(Vec::new()),
             request_id: initial_request,
             result: Ok(Vec::new()),
         }),
@@ -88,6 +91,7 @@ fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading()
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
+            favorites: Ok(Vec::new()),
             request_id,
             result: Ok(Vec::new()),
         }),
@@ -202,9 +206,20 @@ fn selecting_a_category_should_reload_the_browser_for_that_category() {
 }
 
 #[test]
-fn loaded_category_notes_should_request_category_favorites() {
+fn loaded_category_should_publish_notes_and_favorites_together() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
+    let favorite = carver_sdk::NoteSummary {
+        id: NoteId::new(),
+        category_id,
+        category_name: String::from("Projects"),
+        title: String::from("Favorite"),
+        excerpt: String::new(),
+        revision: Revision(1),
+        is_favorite: true,
+        updated_at: OffsetDateTime::UNIX_EPOCH,
+        has_images: false,
+    };
     let request_id = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::SelectCategory(Some(category_id))),
@@ -218,17 +233,20 @@ fn loaded_category_notes_should_request_category_favorites() {
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
+            favorites: Ok(vec![favorite.clone()]),
             request_id,
-            result: Ok(Vec::new()),
+            result: Ok(vec![favorite.clone()]),
         }),
     );
 
+    assert!(effects.is_empty());
     assert_eq!(
-        effects,
-        vec![Effect::LoadFavorites {
-            request_id: RequestId(2),
-            category_id: Some(category_id),
-        }]
+        model.browser.notes.state,
+        LoadState::Ready(vec![favorite.clone()])
+    );
+    assert_eq!(
+        model.browser.favorites.state,
+        LoadState::Ready(vec![favorite])
     );
 }
 
@@ -360,4 +378,69 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
             .map(|request| (&request.note_id, request.source.as_str())),
         Some((&note_id, "# Browser note"))
     );
+}
+
+#[test]
+fn stale_browser_reply_should_not_replace_favorites() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    model.browser.favorites.state = LoadState::Ready(Vec::new());
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id: RequestId(999),
+            result: Ok(Vec::new()),
+            favorites: Err(UiError::new("stale favorites")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(model.browser.favorites.state, LoadState::Ready(Vec::new()));
+}
+
+#[test]
+fn queued_category_switch_should_keep_previous_favorites_until_latest_reply() {
+    let mut model = AppModel::new(&Config::default());
+    model.browser.favorites.state = LoadState::Ready(Vec::new());
+    let first = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    let [Effect::LoadBrowser { request_id, .. }] = first.as_slice() else {
+        panic!("browser load expected");
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::SelectCategory(Some(CategoryId::new()))),
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id: *request_id,
+            result: Ok(Vec::new()),
+            favorites: Err(UiError::new("previous category favorites")),
+        }),
+    );
+    assert!(matches!(effects.as_slice(), [Effect::LoadBrowser { .. }]));
+    assert_eq!(model.browser.favorites.state, LoadState::Ready(Vec::new()));
+    assert_eq!(model.browser.last_ready_notes, None);
+}
+
+#[test]
+fn failed_favorites_should_not_discard_successful_browser_notes() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    let [Effect::LoadBrowser { request_id, .. }] = effects.as_slice() else {
+        panic!("browser load expected");
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id: *request_id,
+            result: Ok(Vec::new()),
+            favorites: Err(UiError::new("favorites unavailable")),
+        }),
+    );
+    assert_eq!(model.browser.notes.state, LoadState::Ready(Vec::new()));
+    assert_eq!(
+        model.browser.favorites.state,
+        LoadState::Failed(UiError::new("favorites unavailable"))
+    );
+    assert!(!model.browser.loading_indicator_visible);
 }

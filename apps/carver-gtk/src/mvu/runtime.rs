@@ -284,10 +284,6 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 category_id,
                 query,
             } => self.load_browser(request_id, category_id, query),
-            Effect::LoadFavorites {
-                request_id,
-                category_id,
-            } => self.load_favorites(request_id, category_id),
             Effect::LoadEditorNote {
                 request_id,
                 note_id,
@@ -479,37 +475,23 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = if query.trim().is_empty() {
-                client.recent_notes_async(category_id, 200, 0).await
+            let (result, favorites) = if query.trim().is_empty() {
+                futures_util::future::join(
+                    client.recent_notes_async(category_id, 200, 0),
+                    client.favorite_notes_async(category_id, 200, 0),
+                )
+                .await
             } else {
-                client
+                let notes = client
                     .search_async(query, category_id, 200)
                     .await
-                    .map(|matches| matches.into_iter().map(|hit| hit.note).collect())
-            }
-            .map_err(display_error);
+                    .map(|matches| matches.into_iter().map(|hit| hit.note).collect());
+                (notes, Ok(Vec::new()))
+            };
             runtime.dispatch(AppMsg::Library(LibraryReply::BrowserLoaded {
                 request_id,
-                result,
-            }));
-        });
-    }
-
-    fn load_favorites(
-        &self,
-        request_id: super::RequestId,
-        category_id: Option<carver_sdk::CategoryId>,
-    ) {
-        let client = self.inner.client.clone();
-        let runtime = self.clone();
-        glib::spawn_future_local(async move {
-            let result = client
-                .favorite_notes_async(category_id, 200, 0)
-                .await
-                .map_err(display_error);
-            runtime.dispatch(AppMsg::Library(LibraryReply::FavoritesLoaded {
-                request_id,
-                result,
+                result: result.map_err(display_error),
+                favorites: favorites.map_err(display_error),
             }));
         });
     }
