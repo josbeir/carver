@@ -12,8 +12,8 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    ActionKey, AppModel, BrowserModel, EditorCopyRequest, EditorCopyScope, EditorDocument,
-    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
+    ActionKey, AppModel, BrowserModel, DocumentPreferences, EditorCopyRequest, EditorCopyScope,
+    EditorDocument, EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
     EditorPdfExportRequest, EditorPreview, EditorSaveRequest, EditorSaveState, EditorSessionId,
     LoadState, MediaFile, MoveUndo, Preferences, RequestId, Resource, Route,
     SourceEditorPreferences, TimerId, UiError,

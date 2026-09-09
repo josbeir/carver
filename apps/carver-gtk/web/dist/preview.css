@@ -10,6 +10,12 @@
   --accent-color: #358e45;
   --selection-background: rgb(53 142 69 / 25%);
   --selection-foreground: var(--document-foreground);
+  --document-font-family: Cantarell, sans-serif;
+  --document-font-size: 12pt;
+  --document-font-style: normal;
+  --document-font-weight: 400;
+  --document-line-height: 1.55;
+  --document-content-width: 80ch;
 }
 html,
 body {
@@ -19,7 +25,10 @@ body {
 body {
   background: var(--document-background);
   color: var(--document-foreground);
-  font: 12pt Cantarell, sans-serif;
+  font-family: var(--document-font-family);
+  font-size: var(--document-font-size);
+  font-style: var(--document-font-style);
+  font-weight: var(--document-font-weight);
 }
 .ProseMirror::selection,
 body[data-preview]::selection {
@@ -29,15 +38,21 @@ body[data-preview]::selection {
 .ProseMirror,
 body[data-preview] {
   box-sizing: border-box;
-  line-height: 1.55;
+  line-height: var(--document-line-height);
 }
 .ProseMirror {
   min-height: 100vh;
+  max-width: var(--document-content-width);
+  margin-inline: auto;
   outline: none;
   padding: 24px;
 }
 body[data-preview] {
   padding: 24px;
+}
+body[data-preview] > * {
+  max-width: var(--document-content-width);
+  margin-inline: auto;
 }
 :where(.ProseMirror, body[data-preview]) > :first-child {
   margin-top: 0;
@@ -213,11 +228,18 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
     background: #ffffff !important;
     color: var(--document-foreground) !important;
     font-size: 10.5pt;
+    font-family: Cantarell, sans-serif;
+    font-style: normal;
+    font-weight: 400;
     line-height: 1.4;
   }
   body[data-preview] {
     padding: 0;
     line-height: 1.4;
+  }
+  .ProseMirror,
+  body[data-preview] > * {
+    max-width: none;
   }
   :where(.ProseMirror, body[data-preview]) a {
     color: inherit;

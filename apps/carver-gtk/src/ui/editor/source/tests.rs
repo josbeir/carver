@@ -1,8 +1,9 @@
 use std::fs;
 
 use super::{
-    FALLBACK_MONOSPACE_FONT, install_syntax_assets, normalize_source_font_description,
-    source_font_css, system_monospace_font_from_settings,
+    FALLBACK_MONOSPACE_FONT, document_font_css, install_syntax_assets,
+    normalize_document_font_description, normalize_source_font_description, source_font_css,
+    system_monospace_font_from_settings,
 };
 
 #[test]
@@ -24,6 +25,23 @@ fn source_font_css_should_scope_the_selected_family_and_size_to_source_mode() {
     assert_eq!(
         source_font_css("JetBrains Mono 12"),
         "#source-editor { font-family: \"JetBrains Mono\"; font-size: 12pt; }"
+    );
+}
+
+#[test]
+fn document_font_description_should_preserve_the_selected_face_and_size() {
+    assert_eq!(
+        normalize_document_font_description("Cantarell Semi-Bold Italic 14"),
+        Some("Cantarell Semi-Bold Italic 14".to_owned())
+    );
+    assert_eq!(normalize_document_font_description("Sans 12px"), None);
+}
+
+#[test]
+fn document_font_css_should_keep_the_selected_face() {
+    assert_eq!(
+        document_font_css("Cantarell Bold Italic 14"),
+        "--document-font-family: \"Cantarell\"; --document-font-size: 14pt; --document-font-style: italic; --document-font-weight: 700;"
     );
 }
 

@@ -179,20 +179,29 @@ pub(crate) fn rendered_document(source: &str, allow_remote_images: bool) -> Stri
         (false, gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0))
     };
     let theme = super::web::editor_theme(dark, &accent);
-    rendered_document_with_theme(source, allow_remote_images, &theme)
+    rendered_document_with_theme(source, allow_remote_images, &theme, &default_appearance())
 }
 
 #[cfg(test)]
 fn rendered_document_for_theme(source: &str, allow_remote_images: bool, dark: bool) -> String {
     let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
     let theme = super::web::editor_theme(dark, &accent);
-    rendered_document_with_theme(source, allow_remote_images, &theme)
+    rendered_document_with_theme(source, allow_remote_images, &theme, &default_appearance())
+}
+
+fn default_appearance() -> super::web::DocumentAppearance {
+    super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: None,
+        line_height_percent: 155,
+        width: carver_config::DocumentWidth::Comfortable,
+    })
 }
 
 fn rendered_document_with_theme(
     source: &str,
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
 ) -> String {
     let image_sources = if allow_remote_images {
         "img-src data: https: http: carver-asset:"
@@ -206,10 +215,11 @@ fn rendered_document_with_theme(
     )
     .replace("src=\"assets/", "src=\"carver-asset:///assets/");
     let selection_style = format!(
-        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
+        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important; {}",
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
+        super::web::appearance_style(appearance),
         theme.selection.accent,
         theme.selection.background,
         theme.selection.foreground,
@@ -235,9 +245,10 @@ pub(super) fn load_preview_with_theme(
     source: &str,
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
 ) {
     view.load_html(
-        &rendered_document_with_theme(source, allow_remote_images, theme),
+        &rendered_document_with_theme(source, allow_remote_images, theme, appearance),
         Some("carver-preview://document/"),
     );
 }

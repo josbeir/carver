@@ -25,6 +25,16 @@ fn rendered_document_matches_the_editor_block_presentation() {
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview] > img"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview] th"));
     assert!(PREVIEW_STYLESHEET.contains("body[data-preview]::selection"));
+    assert!(PREVIEW_STYLESHEET.contains("--document-content-width"));
+}
+
+#[test]
+fn rendered_document_should_include_the_shared_document_appearance() {
+    let html = rendered_document("Preview", false);
+
+    assert!(html.contains("--document-font-family"));
+    assert!(html.contains("--document-line-height: 1.55"));
+    assert!(html.contains("--document-content-width: 80ch"));
 }
 
 #[test]

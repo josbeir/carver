@@ -39,6 +39,9 @@ fn partial_config_keeps_defaults_for_unset_sections() -> Result<(), Box<dyn std:
     );
     assert!(config.editor.show_formatting_toolbar);
     assert_eq!(config.editor.source_font, None);
+    assert_eq!(config.editor.document_font, None);
+    assert_eq!(config.editor.document_line_height_percent, 155);
+    assert_eq!(config.editor.document_width, DocumentWidth::Comfortable);
     assert!(config.images.load_remote_automatically);
     assert_eq!(config.window.width, 1120);
     assert_eq!(config.window.height, 760);
@@ -87,6 +90,9 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     config.editor.show_formatting_toolbar = false;
     config.editor.source_font = Some("Adwaita Mono 13".to_owned());
+    config.editor.document_font = Some("Cantarell Semi-Bold Italic 14".to_owned());
+    config.editor.document_line_height_percent = 175;
+    config.editor.document_width = DocumentWidth::Wide;
     save(&path, &config)?;
     assert_eq!(load(&path)?, config);
     Ok(())
@@ -138,6 +144,26 @@ fn saved_config_uses_readable_table_sections() -> Result<(), Box<dyn std::error:
     assert!(source.contains("[search]"));
     assert!(source.contains("[window]"));
     assert!(!source.contains("source_font"));
+    assert!(!source.contains("document_font"));
+    Ok(())
+}
+
+#[test]
+fn document_line_height_should_clamp_legacy_out_of_range_values()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(
+        &path,
+        "[editor]\ndocument_line_height_percent = 999\ndocument_width = 'narrow'\n",
+    )?;
+
+    let config = load(&path)?;
+    assert_eq!(config.editor.document_line_height_percent, 250);
+    assert_eq!(config.editor.document_width, DocumentWidth::Narrow);
+
+    fs::write(&path, "[editor]\ndocument_line_height_percent = -1\n")?;
+    assert_eq!(load(&path)?.editor.document_line_height_percent, 100);
     Ok(())
 }
 

@@ -305,6 +305,10 @@ export class EditorController implements RichEditorApi {
     );
   }
 
+  public setAppearance(css: string): void {
+    document.documentElement.style.cssText += css;
+  }
+
   private currentEditor(): RuntimeEditor {
     if (!this.editor)
       throw new Error('EditorController must be initialized before use.');

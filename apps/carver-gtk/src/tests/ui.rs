@@ -137,6 +137,25 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         formatting_toolbar_setting.subtitle(),
         Some("Show formatting controls at the bottom of the editor.".into())
     );
+    assert_eq!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "document-font-setting")
+            .map(|row| row.title()),
+        Some("Document font".into())
+    );
+    assert!(
+        widget_as::<gtk::Label>(preferences_dialog.upcast_ref(), "document-font-value").is_some()
+    );
+    let document_line_height = widget_as::<adw::SpinRow>(
+        preferences_dialog.upcast_ref(),
+        "document-line-height-setting",
+    )
+    .ok_or("document line spacing setting")?;
+    assert!((document_line_height.value() - 1.55).abs() < f64::EPSILON);
+    assert_eq!(
+        widget_as::<adw::ComboRow>(preferences_dialog.upcast_ref(), "document-width-setting")
+            .map(|row| row.selected()),
+        Some(1)
+    );
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
     let purist_window = crate::app::build_window_for_test(

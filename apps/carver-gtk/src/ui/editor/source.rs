@@ -21,7 +21,9 @@ const CARVE_WRITING_FOCUS_LIGHT_STYLE: &str =
 const CARVE_WRITING_FOCUS_DARK_STYLE: &str =
     include_str!("../../../resources/source-syntax/carve-writing-focus-dark.xml");
 const SYSTEM_INTERFACE_SCHEMA: &str = "org.gnome.desktop.interface";
+const SYSTEM_DOCUMENT_FONT_KEY: &str = "document-font-name";
 const SYSTEM_MONOSPACE_FONT_KEY: &str = "monospace-font-name";
+const FALLBACK_DOCUMENT_FONT: &str = "Sans 12";
 const FALLBACK_MONOSPACE_FONT: &str = "Monospace 11";
 
 /// Error returned while installing or loading Carver's bundled source syntax assets.
@@ -149,7 +151,7 @@ impl SourceEditor {
         let custom_font = Rc::new(RefCell::new(None));
         let system_font = Rc::new(RefCell::new(system_monospace_font_description()));
         font_provider.load_from_string(&source_font_css(&system_font.borrow()));
-        let system_font_settings = desktop_font_settings();
+        let system_font_settings = desktop_font_settings(SYSTEM_MONOSPACE_FONT_KEY);
         if let Some(settings) = system_font_settings.as_ref() {
             let font_provider = font_provider.clone();
             let custom_font = Rc::clone(&custom_font);
@@ -254,7 +256,7 @@ fn load_style_scheme(
 
 /// Returns the desktop source-font preference, with a stable cross-desktop fallback.
 pub(crate) fn system_monospace_font_description() -> String {
-    system_monospace_font_from_settings(desktop_font_settings().as_ref())
+    system_monospace_font_from_settings(desktop_font_settings(SYSTEM_MONOSPACE_FONT_KEY).as_ref())
 }
 
 /// Canonicalizes a Pango font description accepted by the source font chooser.
@@ -272,10 +274,68 @@ pub(crate) fn normalize_source_font_description(description: &str) -> Option<Str
     Some(format!("{family} {points}"))
 }
 
-fn desktop_font_settings() -> Option<gtk::gio::Settings> {
+/// Returns the desktop document-font preference with a cross-desktop fallback.
+pub(crate) fn system_document_font_description() -> String {
+    system_document_font_from_settings(desktop_font_settings(SYSTEM_DOCUMENT_FONT_KEY).as_ref())
+}
+
+/// Canonicalizes a Pango font description for formatted editing and previews.
+///
+/// Unlike source mode, the selected face is retained because document markup
+/// can still layer semantic emphasis on top of the user's base font choice.
+pub(crate) fn normalize_document_font_description(description: &str) -> Option<String> {
+    let description = gtk::pango::FontDescription::from_string(description);
+    let family = description.family()?;
+    if family.is_empty() || description.size() <= 0 || description.is_size_absolute() {
+        return None;
+    }
+    Some(description.to_string())
+}
+
+pub(crate) fn document_font_css(description: &str) -> String {
+    let description = normalize_document_font_description(description)
+        .unwrap_or_else(|| FALLBACK_DOCUMENT_FONT.to_owned());
+    let description = gtk::pango::FontDescription::from_string(&description);
+    let family = description.family().unwrap_or_else(|| "Sans".into());
+    let points = f64::from(description.size()) / f64::from(gtk::pango::SCALE);
+    format!(
+        "--document-font-family: \"{}\"; --document-font-size: {points}pt; --document-font-style: {}; --document-font-weight: {};",
+        escape_css_string(&family),
+        document_font_style(description.style()),
+        document_font_weight(description.weight()),
+    )
+}
+
+const fn document_font_style(style: gtk::pango::Style) -> &'static str {
+    match style {
+        gtk::pango::Style::Oblique => "oblique",
+        gtk::pango::Style::Italic => "italic",
+        _ => "normal",
+    }
+}
+
+const fn document_font_weight(weight: gtk::pango::Weight) -> i32 {
+    match weight {
+        gtk::pango::Weight::Thin => 100,
+        gtk::pango::Weight::Ultralight => 200,
+        gtk::pango::Weight::Light => 300,
+        gtk::pango::Weight::Semilight => 350,
+        gtk::pango::Weight::Book => 380,
+        gtk::pango::Weight::Medium => 500,
+        gtk::pango::Weight::Semibold => 600,
+        gtk::pango::Weight::Bold => 700,
+        gtk::pango::Weight::Ultrabold => 800,
+        gtk::pango::Weight::Heavy => 900,
+        gtk::pango::Weight::Ultraheavy => 1000,
+        gtk::pango::Weight::__Unknown(weight) => weight,
+        _ => 400,
+    }
+}
+
+fn desktop_font_settings(key: &str) -> Option<gtk::gio::Settings> {
     let schema = gtk::gio::SettingsSchemaSource::default()?
         .lookup(SYSTEM_INTERFACE_SCHEMA, true)
-        .filter(|schema| schema.has_key(SYSTEM_MONOSPACE_FONT_KEY))?;
+        .filter(|schema| schema.has_key(key))?;
     Some(gtk::gio::Settings::new_full(
         &schema,
         None::<&gtk::gio::SettingsBackend>,
@@ -288,6 +348,13 @@ fn system_monospace_font_from_settings(settings: Option<&gtk::gio::Settings>) ->
         .map(|settings| settings.string(SYSTEM_MONOSPACE_FONT_KEY).to_string())
         .and_then(|font| normalize_source_font_description(&font))
         .unwrap_or_else(|| FALLBACK_MONOSPACE_FONT.to_owned())
+}
+
+fn system_document_font_from_settings(settings: Option<&gtk::gio::Settings>) -> String {
+    settings
+        .map(|settings| settings.string(SYSTEM_DOCUMENT_FONT_KEY).to_string())
+        .and_then(|font| normalize_document_font_description(&font))
+        .unwrap_or_else(|| FALLBACK_DOCUMENT_FONT.to_owned())
 }
 
 fn source_font_css(description: &str) -> String {
@@ -303,7 +370,36 @@ fn source_font_css(description: &str) -> String {
 }
 
 fn escape_css_string(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('"', "\\\"")
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' => {
+                escaped.push('\\');
+                escaped.push('\\');
+            }
+            '"' => {
+                escaped.push('\\');
+                escaped.push('"');
+            }
+            '\n' => {
+                escaped.push('\\');
+                escaped.push('a');
+                escaped.push(' ');
+            }
+            '\r' => {
+                escaped.push('\\');
+                escaped.push('d');
+                escaped.push(' ');
+            }
+            '\u{c}' => {
+                escaped.push('\\');
+                escaped.push('c');
+                escaped.push(' ');
+            }
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn install_source_font_provider(view: &sourceview5::View, provider: &gtk::CssProvider) {

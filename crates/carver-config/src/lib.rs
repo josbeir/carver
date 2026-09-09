@@ -8,7 +8,7 @@ use std::{
 };
 
 use directories::ProjectDirs;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 const APPLICATION_QUALIFIER: &str = "io";
@@ -163,6 +163,32 @@ pub struct EditorConfig {
     /// preference instead of persisting a platform-specific default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_font: Option<String>,
+    /// Custom Pango font description for formatted editing and previews.
+    ///
+    /// When absent, the GTK frontend follows the desktop document-font
+    /// preference instead of persisting a platform-specific default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_font: Option<String>,
+    /// Line height for formatted editing and previews, as a percentage.
+    #[serde(
+        default = "default_document_line_height_percent",
+        deserialize_with = "deserialize_document_line_height_percent"
+    )]
+    pub document_line_height_percent: u16,
+    /// Maximum readable measure for formatted editing and previews.
+    #[serde(default)]
+    pub document_width: DocumentWidth,
+}
+
+const fn default_document_line_height_percent() -> u16 {
+    155
+}
+
+fn deserialize_document_line_height_percent<'de, D>(deserializer: D) -> Result<u16, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    u16::try_from(i64::deserialize(deserializer)?.clamp(100, 250)).map_err(serde::de::Error::custom)
 }
 
 /// An editor surface a user can select for a note.
@@ -176,6 +202,21 @@ pub enum EditorMode {
     Source,
     /// Present the rendered, read-only result.
     Rendered,
+}
+
+/// Maximum readable measure for the formatted editor and previews.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentWidth {
+    /// A compact 60-character reading column.
+    Narrow,
+    /// An 80-character reading column.
+    #[default]
+    Comfortable,
+    /// A 100-character reading column.
+    Wide,
+    /// Use all available horizontal space.
+    Full,
 }
 
 /// Visual density of Carve syntax highlighting in the source editor.
@@ -259,6 +300,9 @@ impl Default for EditorConfig {
             source_syntax_style: SourceSyntaxStyle::default(),
             show_formatting_toolbar: true,
             source_font: None,
+            document_font: None,
+            document_line_height_percent: default_document_line_height_percent(),
+            document_width: DocumentWidth::default(),
         }
     }
 }

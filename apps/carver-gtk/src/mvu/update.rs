@@ -263,6 +263,19 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.source_editor.font = font.clone();
             model.config.editor.source_font = font;
         }
+        PreferencesMsg::SetDocumentFont(font) => {
+            model.preferences.document.font = font.clone();
+            model.config.editor.document_font = font;
+        }
+        PreferencesMsg::SetDocumentLineHeightPercent(percent) => {
+            let percent = percent.clamp(100, 250);
+            model.preferences.document.line_height_percent = percent;
+            model.config.editor.document_line_height_percent = percent;
+        }
+        PreferencesMsg::SetDocumentWidth(width) => {
+            model.preferences.document.width = width;
+            model.config.editor.document_width = width;
+        }
     }
     persist_config_effect(model)
 }
