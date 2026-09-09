@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export LD_LIBRARY_PATH="$app_dir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+runtime_dir=''
+if [[ "${1:-}" != --command=carver-mcp ]]; then
+  # A short, private absolute path fits WebKit's compiled path on both Ubuntu
+  # and Arch. Never use a shared /tmp symlink or modify the mounted library.
+  runtime_dir="$(mktemp -d /tmp/cv.XXXXXXXX)"
+  cleanup() {
+    rm -f -- "$runtime_dir/libwebkitgtk-6.0.so.4" "$runtime_dir/w"
+    rmdir -- "$runtime_dir"
+  }
+  trap cleanup EXIT
+  ln -s "$app_dir/usr/lib/webkitgtk-6.0" "$runtime_dir/w"
+  IFS= read -r helper_dir < "$app_dir/usr/libexec/carver/webkit-helper-dir"
+  bash "$app_dir/usr/libexec/carver/relocate-webkit.sh" \
+    "$app_dir/usr/lib/libwebkitgtk-6.0.so.4" \
+    "$runtime_dir/libwebkitgtk-6.0.so.4" "$helper_dir" "$runtime_dir/w"
+fi
+export LD_LIBRARY_PATH="${runtime_dir:+$runtime_dir:}$app_dir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export XDG_DATA_DIRS="$app_dir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export GSETTINGS_SCHEMA_DIR="$app_dir/usr/share/glib-2.0/schemas"
 export GIO_MODULE_DIR="$app_dir/usr/lib/gio/modules"
-export WEBKIT_EXEC_PATH="$app_dir/usr/lib/webkitgtk-6.0"
 export WEBKIT_INJECTED_BUNDLE_PATH="$app_dir/usr/lib/webkitgtk-6.0/injected-bundle"
 export GST_PLUGIN_SYSTEM_PATH_1_0="$app_dir/usr/lib/gstreamer-1.0"
 export GST_PLUGIN_SCANNER="$app_dir/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
@@ -13,4 +28,8 @@ if [[ "${1:-}" == --command=carver-mcp ]]; then
   shift
   exec "$app_dir/usr/bin/carver-mcp" "$@"
 fi
-exec "$app_dir/usr/bin/carver-gtk" "$@"
+"$app_dir/usr/bin/carver-gtk" "$@" &
+child=$!
+trap 'kill -TERM "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; exit 143' TERM
+trap 'kill -INT "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; exit 130' INT
+wait "$child"

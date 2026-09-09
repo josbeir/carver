@@ -24,8 +24,16 @@ Glycin's sandbox uses host libraries to execute its loaders. WebKit's sandbox
 remains enabled. This is an experimental distribution format until the first
 Ubuntu CI build and manual editor checks have passed.
 
+Release WebKit ignores `WEBKIT_EXEC_PATH`. The launcher makes a private copy of
+its library and relocates the compiled helper directory using a fixed-width
+replacement. An absolute path is necessary for WebKit's process sandbox,
+which remains enabled. The temporary library and helper symlink are removed
+on normal exit; the mounted image is never modified. This costs roughly 90 MiB
+of temporary space per GUI launch. The MCP-only launcher needs no copy.
+
 The smoke test checks MCP launch and that the GUI survives startup under
-Weston. It does not establish compatibility with other distributions or verify
+Weston with the host WebKit helper directory hidden by Bubblewrap. It does not
+establish compatibility with other distributions or verify
 all editor interactions. Test those before advertising broader compatibility.
 
 AppImages use the native XDG library, separate from a Flatpak installation.

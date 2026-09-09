@@ -25,6 +25,11 @@ for directory in webkitgtk-6.0 gio/modules gstreamer-1.0; do
 done
 scanner="$(pkg-config --variable=pluginscannerdir gstreamer-1.0)/gst-plugin-scanner"
 install -Dm755 "$scanner" "$app_dir/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+# Release WebKit ignores WEBKIT_EXEC_PATH. Record its compiled helper path so
+# AppRun can relocate a private library copy to an absolute path at launch.
+helper_dir="$lib_dir/webkitgtk-6.0"
+install -Dm755 packaging/appimage/relocate-webkit.sh "$app_dir/usr/libexec/carver/relocate-webkit.sh"
+printf '%s\n' "$helper_dir" > "$app_dir/usr/libexec/carver/webkit-helper-dir"
 for directory in glib-2.0/schemas gtksourceview-5 icons/Adwaita icons/hicolor; do
   mkdir -p "$app_dir/usr/share/$(dirname "$directory")"
   cp -a "/usr/share/$directory" "$app_dir/usr/share/$directory"
