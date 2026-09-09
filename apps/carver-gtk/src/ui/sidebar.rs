@@ -25,6 +25,22 @@ pub(crate) struct SidebarSurface {
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
 
+/// Builds a consistently styled Back control that dispatches one MVU message.
+pub(crate) fn back_to_notes_button(
+    dispatcher: &AppDispatcher,
+    widget_name: &str,
+    message: AppMsg,
+) -> gtk::Button {
+    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    back.set_widget_name(widget_name);
+    back.set_tooltip_text(Some("Back to notes"));
+    let dispatcher = dispatcher.clone();
+    back.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(message.clone());
+    });
+    back
+}
+
 /// Builds the responsive category sidebar.
 pub(crate) fn build_sidebar(
     dispatcher: &AppDispatcher,

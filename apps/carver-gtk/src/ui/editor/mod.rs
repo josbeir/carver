@@ -18,7 +18,7 @@ use webkit6::prelude::*;
 
 use super::{
     dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
-    sidebar::{CompactNavigation, sidebar_toggle_button},
+    sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button},
 };
 use crate::mvu::{
     AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
@@ -523,9 +523,11 @@ pub(crate) fn build_editor(
         "editor-toggle-categories-button",
     );
     header.pack_start(&toggle_sidebar);
-    let back = gtk::Button::from_icon_name("go-previous-symbolic");
-    back.set_widget_name("back-to-notes-button");
-    back.set_tooltip_text(Some("Back to notes"));
+    let back = back_to_notes_button(
+        dispatcher,
+        "back-to-notes-button",
+        AppMsg::Editor(EditorMsg::BackRequested),
+    );
     header.pack_start(&back);
     let mode_group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     mode_group.add_css_class("linked");
@@ -712,7 +714,6 @@ pub(crate) fn build_editor(
         &source_mode,
         &rich,
     );
-    connect_back_action(dispatcher, &back);
     connect_source_preview(dispatcher, &source_buffer, &rendering);
     let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher, &rich);
     let _source_image_drop = render::install_image_drop(&source, dispatcher, &rich);
@@ -1669,13 +1670,6 @@ fn complete_native_print_failure(
 ) {
     print_window.destroy();
     let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
-}
-
-fn connect_back_action(dispatcher: &AppDispatcher, back: &gtk::Button) {
-    let dispatcher = dispatcher.clone();
-    back.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
-    });
 }
 
 fn connect_source_preview(

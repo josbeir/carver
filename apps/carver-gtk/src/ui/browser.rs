@@ -159,7 +159,7 @@ pub(crate) fn build_content(
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    install_editor_back_navigation(dispatcher, &stack);
+    install_page_back_navigation(dispatcher, &stack);
     Ok(ContentSurface {
         widget: stack.clone().upcast(),
         route_stack: stack,
@@ -171,14 +171,14 @@ pub(crate) fn build_content(
 }
 
 /// Routes conventional Back inputs through the active editor or base transition.
-fn install_editor_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
-    install_editor_mouse_back_navigation(dispatcher, route_stack);
-    install_editor_touchpad_back_navigation(dispatcher, route_stack);
+fn install_page_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+    install_mouse_back_navigation(dispatcher, route_stack);
+    install_touchpad_back_navigation(dispatcher, route_stack);
 }
 
-fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+fn install_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
     let back = gtk::EventControllerLegacy::new();
-    back.set_name(Some("editor-mouse-back-controller"));
+    back.set_name(Some("page-mouse-back-controller"));
     // Capture the event before an embedded rich editor can consume it.
     back.set_propagation_phase(gtk::PropagationPhase::Capture);
     let dispatcher = dispatcher.clone();
@@ -199,9 +199,9 @@ fn install_editor_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack:
     route_stack.add_controller(back);
 }
 
-fn install_editor_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
+fn install_touchpad_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
     let back = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
-    back.set_name(Some("editor-touchpad-back-controller"));
+    back.set_name(Some("page-touchpad-back-controller"));
     // Capture the scroll before a nested WebKit editor can claim a horizontal swipe.
     back.set_propagation_phase(gtk::PropagationPhase::Capture);
     let gesture = Rc::new(Cell::new(TouchpadBackGesture::Idle));

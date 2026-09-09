@@ -5,7 +5,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::mvu::{AppDispatcher, AppMsg, NavigationMsg};
-use crate::ui::sidebar::{CompactNavigation, sidebar_toggle_button};
+use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
@@ -26,13 +26,11 @@ pub(crate) fn build_base(
         compact_navigation,
         "base-toggle-categories-button",
     ));
-    let back = gtk::Button::from_icon_name("go-previous-symbolic");
-    back.set_widget_name("back-to-notes-from-base-button");
-    back.set_tooltip_text(Some("Back to notes"));
-    let dispatcher_for_back = dispatcher.clone();
-    back.connect_clicked(move |_| {
-        let _ = dispatcher_for_back.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser));
-    });
+    let back = back_to_notes_button(
+        dispatcher,
+        "back-to-notes-from-base-button",
+        AppMsg::Navigation(NavigationMsg::ShowBrowser),
+    );
     header.pack_start(&back);
     let title = gtk::Label::new(Some("Base"));
     title.add_css_class("title");
