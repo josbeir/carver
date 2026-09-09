@@ -317,6 +317,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
     assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
     let new_base = widget_as::<gtk::Button>(&root, "new-base-button").ok_or("new base button")?;
+    let bases_divider =
+        widget_as::<gtk::Separator>(&root, "bases-divider").ok_or("bases divider")?;
+    assert_eq!(
+        bases_divider.next_sibling().as_ref(),
+        Some(new_base.upcast_ref())
+    );
     let sidebar_scroll = widget_as::<gtk::ScrolledWindow>(&root, "sidebar-navigation-scroll")
         .ok_or("sidebar navigation scroll")?;
     assert!(new_base.is_ancestor(&sidebar_scroll));

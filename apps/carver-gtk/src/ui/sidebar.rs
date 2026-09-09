@@ -20,7 +20,7 @@ pub(crate) struct SidebarSurface {
     dispatcher: AppDispatcher,
     split_view: adw::NavigationSplitView,
     rendering: Rc<Cell<bool>>,
-    bases_box: gtk::Box,
+    base_rows: gtk::Box,
 }
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
@@ -68,6 +68,13 @@ pub(crate) fn build_sidebar(
 
     let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
     bases_box.set_margin_bottom(8);
+    let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
+    divider.set_widget_name("bases-divider");
+    divider.set_margin_start(8);
+    divider.set_margin_end(8);
+    divider.set_margin_top(6);
+    divider.set_margin_bottom(6);
+    bases_box.append(&divider);
     let new_base = gtk::Button::new();
     new_base.set_widget_name("new-base-button");
     new_base.add_css_class("base-sidebar-button");
@@ -81,6 +88,8 @@ pub(crate) fn build_sidebar(
     let dispatcher_for_base = dispatcher.clone();
     new_base.connect_clicked(move |button| show_new_base_dialog(button, &dispatcher_for_base));
     bases_box.append(&new_base);
+    let base_rows = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    bases_box.append(&base_rows);
     let scroll_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     scroll_content.append(&list);
     scroll_content.append(&bases_box);
@@ -96,7 +105,7 @@ pub(crate) fn build_sidebar(
         dispatcher: dispatcher.clone(),
         split_view: split_view.clone(),
         rendering,
-        bases_box,
+        base_rows,
     }
 }
 
@@ -153,7 +162,7 @@ impl SidebarSurface {
             categories,
             model.selected_category,
         );
-        render_bases(&self.bases_box, &self.dispatcher, &self.split_view, model);
+        render_bases(&self.base_rows, &self.dispatcher, &self.split_view, model);
         self.rendering.set(false);
     }
 }
@@ -164,15 +173,13 @@ fn render_bases(
     split_view: &adw::NavigationSplitView,
     model: &AppModel,
 ) {
-    while container.observe_children().n_items() > 1 {
-        if let Some(child) = container.last_child() {
-            container.remove(&child);
-        }
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
     }
     let LoadState::Ready(bases) = &model.bases.definitions.state else {
         return;
     };
-    for base in bases.iter().rev() {
+    for base in bases {
         let button = gtk::Button::new();
         button.set_widget_name(&format!("base:{}", base.id));
         button.add_css_class("base-sidebar-button");
@@ -192,7 +199,7 @@ fn render_bases(
                 split_view.set_show_content(true);
             }
         });
-        container.insert_child_after(&button, container.first_child().as_ref());
+        container.append(&button);
     }
 }
 
