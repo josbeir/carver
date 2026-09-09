@@ -53,9 +53,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "registered agent icons should be discoverable by GTK's icon theme"
     );
     assert!(
-        gtk::IconTheme::for_display(&display).has_icon("drive-harddisk-symbolic"),
-        "the Adwaita storage icon should be available for saved Bases"
+        gtk::IconTheme::for_display(&display).has_icon("carver-database-symbolic"),
+        "the bundled Lucide database icon should be available for saved Bases"
     );
+    let database_icon = include_str!("../../resources/icons/database.svg");
+    assert!(database_icon.contains("fill=\"currentColor\""));
+    assert!(!database_icon.contains("stroke="));
     assert!(
         gtk::IconTheme::for_display(&display).has_icon("package-x-generic-symbolic"),
         "the Adwaita package icon should be available to the category picker"
@@ -707,8 +710,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let mouse_back = (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
         .find_map(|controller| controller.downcast::<gtk::EventControllerLegacy>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("editor-mouse-back-controller"))
-        .ok_or("editor mouse back controller")?;
+        .filter(|controller| controller.name().as_deref() == Some("page-mouse-back-controller"))
+        .ok_or("page mouse back controller")?;
     assert_eq!(
         mouse_back.propagation_phase(),
         gtk::PropagationPhase::Capture
@@ -716,9 +719,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let touchpad_back = (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
         .find_map(|controller| controller.downcast::<gtk::EventControllerScroll>().ok())
-        .filter(|controller| {
-            controller.name().as_deref() == Some("editor-touchpad-back-controller")
-        })
+        .filter(|controller| controller.name().as_deref() == Some("page-touchpad-back-controller"))
         .ok_or("editor touchpad back controller")?;
     assert_eq!(
         touchpad_back.propagation_phase(),

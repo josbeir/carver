@@ -4,5 +4,6 @@
     <file alias="scalable/apps/carver-agent-codex-symbolic.svg">agent-icons/codex-openai.svg</file>
     <file alias="scalable/apps/carver-agent-claude-symbolic.svg">agent-icons/anthropic.svg</file>
     <file alias="scalable/apps/carver-agent-copilot-symbolic.svg">agent-icons/copilot.svg</file>
+    <file alias="scalable/apps/carver-database-symbolic.svg">icons/database.svg</file>
   </gresource>
 </gresources>
