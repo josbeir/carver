@@ -7,6 +7,8 @@ use std::{
     io::{Cursor, Seek, Write},
 };
 
+pub mod filename;
+
 use carve::{CheckedRenderOptions, to_html_with_report, to_markdown_with_report};
 use carver_domain::source_analysis::SourceAnalysis;
 use thiserror::Error;
@@ -338,20 +340,13 @@ fn archive_document_name(document_stem: &str, format: ExportFormat) -> Result<St
 /// Returns a safe desktop filename stem with a readable fallback.
 #[must_use]
 pub fn sanitized_filename_stem(title: &str) -> String {
-    let value = title
-        .trim()
-        .chars()
-        .map(|character| match character {
-            '/' | '\\' | ':' | '\0' => '-',
-            character if character.is_control() => ' ',
-            character => character,
-        })
-        .collect::<String>();
-    let value = value.trim_matches([' ', '.']).trim();
-    if value.is_empty() {
+    // Reserve the longest export suffix (".html") within a 255-byte component.
+    let title: String = title.trim().chars().take(120).collect();
+    let stem = filename::sanitized_component(&title, 250);
+    if stem.is_empty() {
         String::from("Untitled Note")
     } else {
-        value.chars().take(120).collect()
+        stem
     }
 }
 
