@@ -1471,7 +1471,7 @@ fn exercise_source_formatting_controls(
         .ok_or("format-ordered-button")?
         .emit_clicked();
     if buffer.text(&buffer.start_iter(), &buffer.end_iter(), false)
-        != "1. Level 1\n2. Level 2\n3. Level 3\n4. Level 4"
+        != ". Level 1\n. Level 2\n. Level 3\n. Level 4"
     {
         return Err("source ordered-list serialization".into());
     }

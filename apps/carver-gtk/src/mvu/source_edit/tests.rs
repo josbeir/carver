@@ -59,24 +59,30 @@ fn heading_command_should_replace_an_existing_level() {
 #[test]
 fn list_command_should_replace_existing_markers() {
     assert_eq!(strip_list_marker("- one"), "one");
-    assert_eq!(list_replacement("one", "1. ", false), "1. one");
+    assert_eq!(list_replacement("one", ". ", false), ". one");
 }
 
 #[test]
-fn ordered_list_command_should_number_selected_lines_consecutively() {
+fn ordered_list_command_should_use_automatic_bare_dot_markers() {
     let mut edit = SourceEdit::new("Level 1\nLevel 2\nLevel 3\nLevel 4".to_owned(), 0..31);
 
     edit.toggle_ordered_list();
 
-    assert_eq!(
-        edit.source(),
-        "1. Level 1\n2. Level 2\n3. Level 3\n4. Level 4"
-    );
+    assert_eq!(edit.source(), ". Level 1\n. Level 2\n. Level 3\n. Level 4");
 }
 
 #[test]
 fn ordered_list_command_should_remove_any_existing_ordered_markers() {
     let mut edit = SourceEdit::new("4. Level 1\n8. Level 2".to_owned(), 0..21);
+
+    edit.toggle_ordered_list();
+
+    assert_eq!(edit.source(), "Level 1\nLevel 2");
+}
+
+#[test]
+fn ordered_list_command_should_remove_bare_dot_markers() {
+    let mut edit = SourceEdit::new(". Level 1\n. Level 2".to_owned(), 0..19);
 
     edit.toggle_ordered_list();
 

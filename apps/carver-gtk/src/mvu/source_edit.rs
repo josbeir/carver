@@ -132,13 +132,12 @@ impl SourceEdit {
         let remove = lines.iter().all(|line| ordered_list_item(line).is_some());
         let replacement = lines
             .iter()
-            .enumerate()
-            .map(|(index, line)| {
+            .map(|line| {
                 let text = strip_list_marker(line);
                 if remove {
                     text.to_owned()
                 } else {
-                    format!("{}. {text}", index + 1)
+                    format!(". {text}")
                 }
             })
             .collect::<Vec<_>>()
@@ -290,6 +289,9 @@ fn strip_list_marker(line: &str) -> &str {
         .unwrap_or(line)
 }
 fn ordered_list_item(line: &str) -> Option<&str> {
+    if let Some(text) = line.strip_prefix(". ") {
+        return Some(text);
+    }
     let (number, text) = line.split_once(". ")?;
     (!number.is_empty() && number.chars().all(|character| character.is_ascii_digit()))
         .then_some(text)
