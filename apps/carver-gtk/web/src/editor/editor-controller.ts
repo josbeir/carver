@@ -186,8 +186,18 @@ export class EditorController implements RichEditorApi {
         return chain.toggleCode().run();
       case 'bullet-list':
         return chain.toggleBulletList().run();
-      case 'ordered-list':
-        return chain.toggleOrderedList().run();
+      case 'ordered-list': {
+        const removing = editor.isActive('orderedList');
+        const ordered = chain.toggleOrderedList();
+        return removing
+          ? ordered.run()
+          : ordered
+              .updateAttributes('orderedList', {
+                carveBareMarker: true,
+                carveDelim: '.',
+              })
+              .run();
+      }
       case 'task-list':
         return chain.toggleTaskList().run();
       case 'code-block':

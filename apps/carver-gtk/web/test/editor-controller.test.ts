@@ -28,6 +28,7 @@ function controllerFixture() {
     toggleCode: vi.fn(() => chain),
     toggleBulletList: vi.fn(() => chain),
     toggleOrderedList: vi.fn(() => chain),
+    updateAttributes: vi.fn(() => chain),
     toggleTaskList: vi.fn(() => chain),
     toggleCodeBlock: vi.fn(() => chain),
     toggleHeading: vi.fn(() => chain),
@@ -225,6 +226,30 @@ describe('EditorController', () => {
     expect(controller.command('bold')).toBe(true);
     expect(chain.toggleBold).toHaveBeenCalledOnce();
     expect(controller.command('unknown-command')).toBe(false);
+  });
+
+  it('creates ordered lists with Carve bare-dot markers', () => {
+    const { chain, controller } = controllerFixture();
+    controller.initialize();
+
+    expect(controller.command('ordered-list')).toBe(true);
+    expect(chain.toggleOrderedList).toHaveBeenCalledOnce();
+    expect(chain.updateAttributes).toHaveBeenCalledWith('orderedList', {
+      carveBareMarker: true,
+      carveDelim: '.',
+    });
+  });
+
+  it('removes an active ordered list without rewriting marker attributes', () => {
+    const { chain, controller, editor } = controllerFixture();
+    editor.isActive.mockImplementation(
+      (name?: string) => name === 'orderedList',
+    );
+    controller.initialize();
+
+    expect(controller.command('ordered-list')).toBe(true);
+    expect(chain.toggleOrderedList).toHaveBeenCalledOnce();
+    expect(chain.updateAttributes).not.toHaveBeenCalled();
   });
 
   it('returns a heading to normal text when given level zero', () => {
