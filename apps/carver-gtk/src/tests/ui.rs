@@ -384,6 +384,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             && widget_as::<gtk::Label>(&root, &format!("note-category:{}", note.id))
                 .is_some_and(|category| category.has_css_class("category-color-rose"))
     }));
+    let updated = widget_as::<gtk::Label>(&root, &format!("note-updated:{}", note.id))
+        .ok_or("note update time")?;
+    assert!(
+        run_main_context_until(|| { updated.width() > 0 && updated.layout_offsets().0 <= 1 }),
+        "update text should stay beside the category when the card expands"
+    );
     let note_menu = widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
         .ok_or("note actions")?;
     assert!(
