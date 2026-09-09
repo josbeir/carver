@@ -75,6 +75,7 @@ impl RichEditor {
         settings.set_enable_media(false);
         settings.set_enable_html5_database(false);
         settings.set_enable_html5_local_storage(false);
+        settings.set_enable_smooth_scrolling(false);
         settings.set_auto_load_images(true);
         let view = webkit6::WebView::builder()
             .web_context(&context)
