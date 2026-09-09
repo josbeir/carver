@@ -1835,10 +1835,7 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
 fn reload_return_surface(model: &mut AppModel) -> Vec<Effect> {
     match (model.route, model.bases.selected) {
         (super::Route::Base, Some(base_id)) => {
-            [reload_bases(model), reload_base_rows(model, base_id)]
-                .into_iter()
-                .flatten()
-                .collect()
+            reload_base_rows(model, base_id).into_iter().collect()
         }
         _ => reload_browser(model).into_iter().collect(),
     }

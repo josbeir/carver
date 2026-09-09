@@ -71,12 +71,11 @@ pub(crate) fn build_sidebar(
     scroll.set_vexpand(true);
     container.append(&scroll);
     let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    bases_box.set_margin_start(8);
-    bases_box.set_margin_end(8);
     bases_box.set_margin_bottom(8);
     container.append(&bases_box);
     let new_base = gtk::Button::new();
     new_base.set_widget_name("new-base-button");
+    new_base.add_css_class("base-sidebar-button");
     new_base.set_child(Some(&base_button_content(
         "list-add-symbolic",
         "New Base",
@@ -168,6 +167,7 @@ fn render_bases(container: &gtk::Box, dispatcher: &AppDispatcher, model: &AppMod
     for base in bases.iter().rev() {
         let button = gtk::Button::new();
         button.set_widget_name(&format!("base:{}", base.id));
+        button.add_css_class("base-sidebar-button");
         button.set_child(Some(&base_button_content(
             "view-grid-symbolic",
             &base.name,
@@ -191,11 +191,12 @@ fn base_button_content(
     count_widget_name: Option<&str>,
 ) -> gtk::Box {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    content.set_margin_start(8);
-    content.set_margin_end(8);
+    content.add_css_class("category-row-content");
+    content.set_margin_start(10);
+    content.set_margin_end(10);
     content.set_margin_top(6);
     content.set_margin_bottom(6);
-    content.append(&gtk::Image::from_icon_name(icon));
+    content.append(&sidebar_icon_tile(icon, "base-icon-tile"));
     let label = gtk::Label::new(Some(text));
     label.set_xalign(0.0);
     label.set_hexpand(true);

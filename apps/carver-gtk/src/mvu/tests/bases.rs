@@ -63,8 +63,7 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
 
     assert!(matches!(
         effects.as_slice(),
-        [Effect::LoadBases { .. }, Effect::LoadBaseRows { base_id: loaded, .. }]
-            if *loaded == base_id
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
     ));
     assert_eq!(model.route, Route::Base);
     assert_eq!(model.bases.selected, Some(base_id));

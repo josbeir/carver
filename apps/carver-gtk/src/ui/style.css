@@ -32,6 +32,12 @@
   padding: 0 5px;
 }
 
+.base-sidebar-button {
+  margin: 2px 4px;
+  padding: 0;
+  border-radius: 8px;
+}
+
 .all-notes-icon {
   background: alpha(@accent_bg_color, 0.24);
   color: @accent_color;
