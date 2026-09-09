@@ -18,7 +18,7 @@ fn rendered_document_keeps_full_carve_table_output() {
 #[test]
 fn rendered_document_matches_the_editor_block_presentation() {
     let html = rendered_document("# Heading\n\n- [x] Complete", false);
-    assert!(!html.contains("<style>"));
+    assert!(html.contains("<style>"));
     assert!(PREVIEW_STYLESHEET.contains("h1 {\n  font-size: 2em;"));
     assert!(PREVIEW_STYLESHEET.contains("ul.task-list"));
     assert!(PREVIEW_STYLESHEET.contains("ul:has(> li > input[type=checkbox])"));
@@ -49,28 +49,35 @@ fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance
 
     let html = rendered_document_with_theme("Preview", false, &theme, &appearance);
 
-    assert!(html.contains("--preview-accent-color: #358e45 !important"));
-    assert!(html.contains("--preview-selection-background: rgb(53 142 69 / 25%) !important"));
-    assert!(html.contains("--preview-selection-foreground: #333334 !important"));
+    assert!(html.contains("--preview-accent-color: #358e45"));
+    assert!(html.contains("--preview-selection-background: rgb(53 142 69 / 25%)"));
+    assert!(html.contains("--preview-selection-foreground: #333334"));
     assert!(html.contains("--document-font-family: \"Cantarell\""));
     assert!(html.contains("--document-line-height: 1.75"));
     assert!(html.contains("--document-content-width: 100ch"));
     assert!(html.contains("data-carver-heading-token=\""));
-    assert!(html.contains("style=\"--document-font-family:"));
-    assert!(html.contains("font-family: var(--document-font-family) !important"));
+    assert!(html.contains("<style>"));
+    let body_tag = html
+        .split("<body")
+        .nth(1)
+        .and_then(|body| body.split('>').next())
+        .unwrap_or_default();
+    assert!(!body_tag.contains("style="));
 }
 
 #[test]
-fn preview_styles_should_apply_document_appearance_at_the_webkit_user_level() {
+fn preview_styles_should_include_document_appearance_in_the_document_head() {
+    let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+    let theme = super::super::web::editor_theme(false, &accent);
     let appearance = super::super::web::document_appearance(&crate::mvu::DocumentPreferences {
         font: Some("Cantarell Bold Italic 14".to_owned()),
         line_height_percent: 175,
         width: carver_config::DocumentWidth::Wide,
     });
-    let style = super::preview_appearance_style(&appearance);
+    let style = super::preview_document_style(&theme, &appearance);
 
     assert!(style.contains("--document-font-family: \"Cantarell\""));
-    assert!(style.contains("font-family: var(--document-font-family)"));
+    assert!(style.contains("--preview-selection-background: rgb(53 142 69 / 25%)"));
 }
 
 #[test]

@@ -78,6 +78,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
+    config.editor.document_font = Some("DejaVu Serif Italic 15".to_owned());
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
     let (preferences_dialog, about_dialog) = crate::ui::dialogs::present_dialogs_for_test(
@@ -1115,6 +1116,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| !toolbar.is_sensitive()
         && !source_path.is_visible()
         && !find_bar.is_search_mode()));
+    let rendered_preview =
+        widget_as::<webkit6::WebView>(&root, "editor-rendered-preview").ok_or("preview")?;
+    assert_web_script_should_be_true(
+        &rendered_preview,
+        "getComputedStyle(document.body).fontFamily.includes('DejaVu Serif')",
+    );
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
     assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;

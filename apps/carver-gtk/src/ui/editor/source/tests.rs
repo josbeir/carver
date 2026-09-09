@@ -93,8 +93,12 @@ fn css_string_escaping_should_preserve_special_characters_inside_font_names() {
     expected.push('\\');
     expected.push('c');
     expected.push(' ');
+    expected.push('\\');
+    expected.push('3');
+    expected.push('c');
+    expected.push(' ');
 
-    assert_eq!(escape_css_string("A\\\"\n\r\u{c}"), expected);
+    assert_eq!(escape_css_string("A\\\"\n\r\u{c}<"), expected);
 }
 
 #[test]

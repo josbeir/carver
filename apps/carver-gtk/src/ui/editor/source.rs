@@ -381,6 +381,9 @@ fn escape_css_string(value: &str) -> String {
                 escaped.push('\\');
                 escaped.push('"');
             }
+            '<' => {
+                escaped.push_str("\\3c ");
+            }
             '\n' => {
                 escaped.push('\\');
                 escaped.push('a');

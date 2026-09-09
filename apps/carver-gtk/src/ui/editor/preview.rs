@@ -20,7 +20,6 @@ pub(super) fn build_preview(
     let context = webkit6::WebContext::new();
     install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
     let manager = webkit6::UserContentManager::new();
-    install_preview_styles(&manager, None);
     let settings = webkit6::Settings::new();
     // The preview document's CSP keeps document markup scriptless. JavaScript
     // stays enabled solely for the native split-preview scroll bridge, which
@@ -48,32 +47,19 @@ pub(super) fn build_preview(
     view
 }
 
-fn install_preview_styles(
-    manager: &webkit6::UserContentManager,
-    appearance: Option<&super::web::DocumentAppearance>,
-) {
-    manager.remove_all_style_sheets();
-    manager.add_style_sheet(&preview_style_sheet(PREVIEW_STYLESHEET));
-    if let Some(appearance) = appearance {
-        let appearance = preview_appearance_style(appearance);
-        manager.add_style_sheet(&preview_style_sheet(&appearance));
-    }
-}
-
-fn preview_appearance_style(appearance: &super::web::DocumentAppearance) -> String {
+fn preview_document_style(
+    theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
+) -> String {
     format!(
-        "body[data-preview] {{ {} font-family: var(--document-font-family); font-size: var(--document-font-size); font-style: var(--document-font-style); font-weight: var(--document-font-weight); line-height: var(--document-line-height); }}",
+        "{PREVIEW_STYLESHEET}\n:root {{ --accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {}; --preview-selection-background: {}; --preview-selection-foreground: {}; {} }}",
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
+        theme.selection.accent,
+        theme.selection.background,
+        theme.selection.foreground,
         super::web::appearance_style(appearance),
-    )
-}
-
-fn preview_style_sheet(source: &str) -> webkit6::UserStyleSheet {
-    webkit6::UserStyleSheet::new(
-        source,
-        webkit6::UserContentInjectedFrames::TopFrame,
-        webkit6::UserStyleLevel::User,
-        &[],
-        &[],
     )
 }
 
@@ -238,21 +224,9 @@ fn rendered_document_with_theme(
         &carve::Options::default().with_extension(&provenance),
     )
     .replace("src=\"assets/", "src=\"carver-asset:///assets/");
-    let selection_style = format!(
-        "--accent-color: {}; --selection-background: {}; --selection-foreground: {}; --preview-accent-color: {} !important; --preview-selection-background: {} !important; --preview-selection-foreground: {} !important;",
-        theme.selection.accent,
-        theme.selection.background,
-        theme.selection.foreground,
-        theme.selection.accent,
-        theme.selection.background,
-        theme.selection.foreground,
-    );
-    let appearance_style = format!(
-        "{} font-family: var(--document-font-family) !important; font-size: var(--document-font-size) !important; font-style: var(--document-font-style) !important; font-weight: var(--document-font-weight) !important; line-height: var(--document-line-height) !important;",
-        super::web::appearance_style(appearance),
-    );
+    let stylesheet = preview_document_style(theme, appearance);
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\" style=\"{selection_style}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"></head><body data-preview data-carver-heading-token=\"{heading_token}\" style=\"{appearance_style}\">{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )
@@ -274,9 +248,6 @@ pub(super) fn load_preview_with_theme(
     theme: &super::web::EditorTheme,
     appearance: &super::web::DocumentAppearance,
 ) {
-    if let Some(manager) = view.user_content_manager() {
-        install_preview_styles(&manager, Some(appearance));
-    }
     view.load_html(
         &rendered_document_with_theme(source, allow_remote_images, theme, appearance),
         Some("carver-preview://document/"),
