@@ -238,6 +238,9 @@ impl ViewRefs {
     }
 
     fn render_base(&self, model: &AppModel) {
+        if model.route != Route::Base {
+            return;
+        }
         let (Some(refs), Some(base_id), Some(dispatcher)) =
             (&self.base, model.bases.selected, &self.dispatcher)
         else {
@@ -686,7 +689,7 @@ fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjecti
         browser: model.browser.clone(),
         selected_category: model.selected_category,
         sidebar: model.sidebar.state.clone(),
-        route: model.route.clone(),
+        route: model.route,
         today,
     }
 }

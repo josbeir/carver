@@ -12,6 +12,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) title: gtk::Label,
     pub(crate) grid: gtk::ColumnView,
     pub(crate) pages: gtk::Stack,
+    pub(crate) scroll: gtk::ScrolledWindow,
 }
 
 pub(crate) fn build_base(
@@ -73,7 +74,15 @@ pub(crate) fn build_base(
     pages.add_named(&status, Some("status"));
     pages.set_visible_child_name("status");
     toolbar.set_content(Some(&pages));
-    (toolbar.upcast(), BaseViewRefs { title, grid, pages })
+    (
+        toolbar.upcast(),
+        BaseViewRefs {
+            title,
+            grid,
+            pages,
+            scroll,
+        },
+    )
 }
 
 pub(crate) fn render_base(
@@ -82,6 +91,8 @@ pub(crate) fn render_base(
     rows: &[BaseRow],
     dispatcher: &AppDispatcher,
 ) {
+    let horizontal = refs.scroll.hadjustment().value();
+    let vertical = refs.scroll.vadjustment().value();
     refs.title.set_text(&definition.name);
     while let Some(column) = refs
         .grid
@@ -119,6 +130,12 @@ pub(crate) fn render_base(
         .set_model(Some(&gtk::NoSelection::new(Some(model))));
     refs.pages
         .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
+    let horizontal_adjustment = refs.scroll.hadjustment();
+    let vertical_adjustment = refs.scroll.vadjustment();
+    glib::idle_add_local_once(move || {
+        horizontal_adjustment.set_value(horizontal);
+        vertical_adjustment.set_value(vertical);
+    });
 }
 
 fn append_column(

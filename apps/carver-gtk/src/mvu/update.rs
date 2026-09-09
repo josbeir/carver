@@ -147,6 +147,9 @@ fn request_editor_load(
     note_id: carver_sdk::NoteId,
     export_after_load: bool,
 ) -> Vec<Effect> {
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
+    }
     let request_id = model.next_request_id();
     model.editor_load_request = Some(request_id);
     model.editor_export_after_load = export_after_load.then_some(request_id);
@@ -245,6 +248,16 @@ fn open_browser_search(model: &mut AppModel) -> Vec<Effect> {
     }
     model.browser.search_open = true;
     Vec::new()
+}
+
+fn restore_editor_origin(model: &mut AppModel) {
+    model.route =
+        if model.editor_return_route == super::Route::Base && model.bases.selected.is_some() {
+            super::Route::Base
+        } else {
+            super::Route::Browser
+        };
+    model.editor_return_route = super::Route::Browser;
 }
 
 fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<Effect> {
@@ -718,7 +731,7 @@ fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec
     {
         return Vec::new();
     }
-    model.route = super::Route::Browser;
+    restore_editor_origin(model);
     model.editor = None;
     model.editor_preview = None;
     model.editor_copy_request = None;
@@ -1770,7 +1783,7 @@ fn update_editor_save(
         set_editor_favorite(model, is_favorite)
     });
     if close_requested {
-        model.route = super::Route::Browser;
+        restore_editor_origin(model);
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
@@ -1778,7 +1791,7 @@ fn update_editor_save(
     if close_requested {
         let pending_effects = complete_pending_category_selection(model);
         if pending_effects.is_empty() {
-            effects.extend(reload_browser(model));
+            effects.extend(reload_return_surface(model));
         } else {
             effects.extend(pending_effects);
         }
@@ -1804,21 +1817,31 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     if matches!(&document.save_state, super::EditorSaveState::Clean)
         && !document.favorite_mutation_in_flight
     {
-        model.route = super::Route::Browser;
+        restore_editor_origin(model);
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
-        return model
-            .pending_category_selection
-            .is_none()
-            .then(|| reload_browser(model))
-            .flatten()
-            .into_iter()
-            .collect();
+        return if model.pending_category_selection.is_none() {
+            reload_return_surface(model)
+        } else {
+            Vec::new()
+        };
     }
     document
         .begin_save()
         .map_or_else(Vec::new, save_note_effect)
+}
+
+fn reload_return_surface(model: &mut AppModel) -> Vec<Effect> {
+    match (model.route, model.bases.selected) {
+        (super::Route::Base, Some(base_id)) => {
+            [reload_bases(model), reload_base_rows(model, base_id)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        _ => reload_browser(model).into_iter().collect(),
+    }
 }
 
 fn update_undo_state(model: &mut AppModel, action: ActionKey) {

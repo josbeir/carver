@@ -120,7 +120,7 @@ impl<T> Resource<T> {
 }
 
 /// The currently visible high-level application surface.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Route {
     /// The category browser and note list.
     #[default]
@@ -533,6 +533,8 @@ pub struct AppModel {
     pub config: Config,
     /// Current high-level surface.
     pub route: Route,
+    /// Surface restored after the current editor session closes.
+    pub(crate) editor_return_route: Route,
     /// Category selected by the user, or all categories when absent.
     pub selected_category: Option<CategoryId>,
     /// Category to select once a pending editor close has safely completed.
@@ -597,6 +599,7 @@ impl AppModel {
         Self {
             config: config.clone(),
             route: Route::Browser,
+            editor_return_route: Route::Browser,
             selected_category: None,
             pending_category_selection: None,
             sidebar: Resource::default(),
