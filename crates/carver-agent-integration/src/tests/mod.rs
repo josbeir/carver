@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn appimage_setup_should_preserve_spaces_and_the_write_gate()
+-> Result<(), Box<dyn std::error::Error>> {
+    let channel = InstallChannel::AppImage {
+        path: "/home/user/My Apps/Carver.AppImage".into(),
+    };
+    for allow_write in [false, true] {
+        let instruction = setup_instruction(AgentClient::Codex, &channel, allow_write)?;
+        let words = shlex::split(&instruction.command.ok_or("command")?).ok_or("shell words")?;
+        let mut expected = vec![
+            "codex",
+            "mcp",
+            "add",
+            "carver",
+            "--",
+            "/home/user/My Apps/Carver.AppImage",
+            "--appimage-extract-and-run",
+            "--command=carver-mcp",
+        ];
+        if allow_write {
+            expected.push("--allow-write");
+        }
+        assert_eq!(words, expected);
+    }
+    Ok(())
+}
+
+#[test]
 fn flatpak_instruction_should_start_the_package_command() -> Result<(), Box<dyn std::error::Error>>
 {
     let instruction = setup_instruction(

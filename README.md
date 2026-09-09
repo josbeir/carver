@@ -41,13 +41,13 @@ Carver—turning them into a useful, organized project context instead of an iso
 
 ## Install
 
-Download `carver-x86_64.flatpak` and `carver-x86_64.flatpak.sha256` from the
+Download `carver-<version>-x86_64.flatpak` and its `.sha256` file from the
 [latest release](https://github.com/josbeir/carver/releases/latest). Verify the
 download, then install and launch Carver:
 
 ```sh
-sha256sum -c carver-x86_64.flatpak.sha256
-flatpak install --user --or-update --bundle ./carver-x86_64.flatpak
+sha256sum -c carver-0.2.2-x86_64.flatpak.sha256
+flatpak install --user --or-update --bundle ./carver-0.2.2-x86_64.flatpak
 flatpak run io.github.josbeir.Carver
 ```
 
@@ -61,6 +61,24 @@ flatpak remote-add --if-not-exists --user flathub \
 
 GitHub release bundles do not provide automatic updates yet. To update, download
 the bundle from a newer release and run the same install command.
+
+### AppImage builds
+
+The release CI workflow produces `carver-<version>-x86_64.AppImage` and a matching
+`.sha256` checksum on version tags and manual runs. Tagged builds attach them
+to the release. The current baseline is Ubuntu 26.04 or a compatible newer
+system, with `glycin-loaders` and Bubblewrap installed; use Flatpak on older
+distributions. AppImage support is experimental pending CI and editor validation.
+
+```sh
+sha256sum -c carver-0.2.2-x86_64.AppImage.sha256
+chmod +x carver-0.2.2-x86_64.AppImage
+./carver-0.2.2-x86_64.AppImage --appimage-extract-and-run
+```
+
+Extraction works without FUSE. If FUSE is available, the image can also be
+launched directly. AppImages use the native XDG data directories, separate from
+the Flatpak library. See [packaging details](packaging/appimage/README.md).
 
 ## Develop from source
 

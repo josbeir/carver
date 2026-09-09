@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="$app_dir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XDG_DATA_DIRS="$app_dir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export GSETTINGS_SCHEMA_DIR="$app_dir/usr/share/glib-2.0/schemas"
+export GIO_MODULE_DIR="$app_dir/usr/lib/gio/modules"
+export WEBKIT_EXEC_PATH="$app_dir/usr/lib/webkitgtk-6.0"
+export WEBKIT_INJECTED_BUNDLE_PATH="$app_dir/usr/lib/webkitgtk-6.0/injected-bundle"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$app_dir/usr/lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$app_dir/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+if [[ "${1:-}" == --command=carver-mcp ]]; then
+  shift
+  exec "$app_dir/usr/bin/carver-mcp" "$@"
+fi
+exec "$app_dir/usr/bin/carver-gtk" "$@"
