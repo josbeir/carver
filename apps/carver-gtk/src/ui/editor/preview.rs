@@ -20,19 +20,14 @@ pub(super) fn build_preview(
     let context = webkit6::WebContext::new();
     install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
     let manager = webkit6::UserContentManager::new();
-    manager.add_style_sheet(&webkit6::UserStyleSheet::new(
-        PREVIEW_STYLESHEET,
-        webkit6::UserContentInjectedFrames::TopFrame,
-        webkit6::UserStyleLevel::User,
-        &[],
-        &[],
-    ));
+    install_preview_styles(&manager, None);
     let settings = webkit6::Settings::new();
     // The preview document's CSP keeps document markup scriptless. JavaScript
     // stays enabled solely for the native split-preview scroll bridge, which
     // invokes a fixed host script through `WebView::evaluate_javascript`.
     settings.set_enable_javascript(true);
     settings.set_enable_javascript_markup(false);
+    settings.set_enable_developer_extras(cfg!(debug_assertions));
     settings.set_enable_media(false);
     settings.set_enable_html5_database(false);
     settings.set_enable_html5_local_storage(false);
@@ -51,6 +46,35 @@ pub(super) fn build_preview(
     view.set_widget_name("rendered-preview");
     connect_external_link_handler(&view, toast_overlay);
     view
+}
+
+fn install_preview_styles(
+    manager: &webkit6::UserContentManager,
+    appearance: Option<&super::web::DocumentAppearance>,
+) {
+    manager.remove_all_style_sheets();
+    manager.add_style_sheet(&preview_style_sheet(PREVIEW_STYLESHEET));
+    if let Some(appearance) = appearance {
+        let appearance = preview_appearance_style(appearance);
+        manager.add_style_sheet(&preview_style_sheet(&appearance));
+    }
+}
+
+fn preview_appearance_style(appearance: &super::web::DocumentAppearance) -> String {
+    format!(
+        "body[data-preview] {{ {} font-family: var(--document-font-family); font-size: var(--document-font-size); font-style: var(--document-font-style); font-weight: var(--document-font-weight); line-height: var(--document-line-height); }}",
+        super::web::appearance_style(appearance),
+    )
+}
+
+fn preview_style_sheet(source: &str) -> webkit6::UserStyleSheet {
+    webkit6::UserStyleSheet::new(
+        source,
+        webkit6::UserContentInjectedFrames::TopFrame,
+        webkit6::UserStyleLevel::User,
+        &[],
+        &[],
+    )
 }
 
 /// Sends user-activated web links to the desktop browser instead of navigating
@@ -250,6 +274,9 @@ pub(super) fn load_preview_with_theme(
     theme: &super::web::EditorTheme,
     appearance: &super::web::DocumentAppearance,
 ) {
+    if let Some(manager) = view.user_content_manager() {
+        install_preview_styles(&manager, Some(appearance));
+    }
     view.load_html(
         &rendered_document_with_theme(source, allow_remote_images, theme, appearance),
         Some("carver-preview://document/"),

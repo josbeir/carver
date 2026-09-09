@@ -61,6 +61,19 @@ fn rendered_document_should_keep_preview_selection_colors_with_custom_appearance
 }
 
 #[test]
+fn preview_styles_should_apply_document_appearance_at_the_webkit_user_level() {
+    let appearance = super::super::web::document_appearance(&crate::mvu::DocumentPreferences {
+        font: Some("Cantarell Bold Italic 14".to_owned()),
+        line_height_percent: 175,
+        width: carver_config::DocumentWidth::Wide,
+    });
+    let style = super::preview_appearance_style(&appearance);
+
+    assert!(style.contains("--document-font-family: \"Cantarell\""));
+    assert!(style.contains("font-family: var(--document-font-family)"));
+}
+
+#[test]
 fn rendered_document_routes_managed_assets_through_the_restricted_scheme() {
     let html = rendered_document("![image](assets/example.png)", false);
     assert!(html.contains("carver-asset:///assets/example.png"));
