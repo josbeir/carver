@@ -244,6 +244,7 @@ body[data-preview] > .preview-content > img {
   .ProseMirror,
   .preview-content {
     max-width: none;
+    line-height: 1.4;
   }
   :where(.ProseMirror, .preview-content) a {
     color: inherit;

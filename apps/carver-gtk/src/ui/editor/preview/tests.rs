@@ -143,6 +143,10 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     assert!(
         PREVIEW_STYLESHEET.contains("body[data-preview] {\n    padding: 0;\n    line-height: 1.4")
     );
+    assert!(
+        PREVIEW_STYLESHEET
+            .contains(".preview-content {\n    max-width: none;\n    line-height: 1.4")
+    );
     assert!(PREVIEW_STYLESHEET.contains("display: table-header-group"));
     assert!(PREVIEW_STYLESHEET.contains(".preview-content ul.task-list li"));
     assert!(PREVIEW_STYLESHEET.contains("white-space: pre-wrap"));
