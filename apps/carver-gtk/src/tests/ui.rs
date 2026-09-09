@@ -1175,7 +1175,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     assert_web_script_should_be_true(
         &rendered_preview,
-        "(() => { const image = document.querySelector('.preview-content > img'); const content = document.querySelector('.preview-content'); return image && content && Math.abs(image.getBoundingClientRect().width - content.getBoundingClientRect().width / 2) < 1; })()",
+        "(() => { const image = document.querySelector('body > img'); const body = document.body; const style = getComputedStyle(body); const contentWidth = body.clientWidth - parseFloat(style.paddingInlineStart) - parseFloat(style.paddingInlineEnd); return image && Math.abs(image.getBoundingClientRect().width - contentWidth / 2) < 1; })()",
     );
     source_mode.set_active(true);
     assert!(run_main_context_until(|| toolbar.is_sensitive()));

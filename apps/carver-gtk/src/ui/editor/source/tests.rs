@@ -2,9 +2,11 @@ use std::fs;
 
 use super::{
     FALLBACK_DOCUMENT_FONT, FALLBACK_MONOSPACE_FONT, document_font_css, document_font_stretch,
-    document_font_variant, document_font_variations, document_font_weight, escape_css_string,
-    install_syntax_assets, normalize_document_font_description, normalize_source_font_description,
-    source_font_css, system_document_font_from_settings, system_monospace_font_from_settings,
+    document_font_stretch_with_variations, document_font_style_with_variations,
+    document_font_variant, document_font_variations, document_font_weight,
+    document_font_weight_with_variations, escape_css_string, install_syntax_assets,
+    normalize_document_font_description, normalize_source_font_description, source_font_css,
+    system_document_font_from_settings, system_monospace_font_from_settings,
 };
 
 #[test]
@@ -88,10 +90,34 @@ fn document_font_face_attributes_should_map_to_css() {
         "small-caps"
     );
     assert_eq!(
-        document_font_variations(Some("wght=650, wdth=85")),
-        "\"wght\" 650, \"wdth\" 85"
+        document_font_variations(Some(
+            "wght=650, wdth=85, slnt=10, ital=1, opsz=12, GRAD=50, XTRA=100",
+        )),
+        "\"opsz\" 12, \"GRAD\" 50, \"XTRA\" 100"
     );
     assert_eq!(document_font_variations(Some("broken")), "normal");
+}
+
+#[test]
+fn registered_variable_axes_should_use_cascading_css_properties() {
+    let variations = Some("wght=650, wdth=85, slnt=10, ital=0");
+
+    assert_eq!(
+        document_font_weight_with_variations(gtk::pango::Weight::Normal, variations),
+        "650"
+    );
+    assert_eq!(
+        document_font_stretch_with_variations(gtk::pango::Stretch::Normal, variations),
+        "85%"
+    );
+    assert_eq!(
+        document_font_style_with_variations(gtk::pango::Style::Normal, variations),
+        "oblique -10deg"
+    );
+    assert_eq!(
+        document_font_style_with_variations(gtk::pango::Style::Normal, Some("ital=1")),
+        "italic"
+    );
 }
 
 #[test]
