@@ -6,6 +6,7 @@ cd "$project_root"
 linuxdeploy="${LINUXDEPLOY:?Set LINUXDEPLOY to the pinned linuxdeploy AppImage}"
 : "${LDAI_RUNTIME_FILE:?Set LDAI_RUNTIME_FILE to the pinned AppImage runtime}"
 : "${PATCHELF:?Set PATCHELF to the pinned modern ELF patcher}"
+pkg-config --print-errors --exists webkitgtk-6.0 gstreamer-1.0
 version="${CARVER_VERSION:-$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')}"
 build_dir="$(mktemp -d "$project_root/target/appimage.XXXXXX")"
 app_dir="$build_dir/AppDir"

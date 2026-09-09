@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good glib-networking adwaita-icon-theme weston
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good glib-networking adwaita-icon-theme weston
       - name: Build
         run: |
           npm ci --prefix apps/carver-gtk/web
