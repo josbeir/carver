@@ -201,22 +201,26 @@ fn append_column(
         let Ok(row) = serde_json::from_str::<BaseRow>(&string.string()) else {
             return;
         };
-        let value = match field_for_bind.as_deref() {
-            None => row.name.clone(),
-            Some("category") => row.category.clone(),
-            Some("updated") => row.updated.clone(),
-            Some(path) => row
-                .properties
-                .pointer(path)
-                .map(display_value)
-                .unwrap_or_default(),
-        };
+        let value = row_value(&row, field_for_bind.as_deref());
         label.set_text(&value);
     });
     let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_resizable(true);
     column.set_expand(field.is_none());
     grid.append_column(&column);
+}
+
+fn row_value(row: &BaseRow, field: Option<&str>) -> String {
+    match field {
+        None => row.name.clone(),
+        Some("category") => row.category.clone(),
+        Some("updated") => row.updated.clone(),
+        Some(path) => row
+            .properties
+            .pointer(path)
+            .map(display_value)
+            .unwrap_or_default(),
+    }
 }
 
 fn display_value(value: &serde_json::Value) -> String {
@@ -229,5 +233,42 @@ fn display_value(value: &serde_json::Value) -> String {
             .collect::<Vec<_>>()
             .join(", "),
         other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use carver_sdk::{NoteId, Revision};
+
+    use super::*;
+
+    fn row(properties: serde_json::Value) -> BaseRow {
+        BaseRow {
+            note_id: NoteId::new(),
+            revision: Revision(3),
+            name: "Roadmap".to_owned(),
+            category: "Projects".to_owned(),
+            updated: "2026-09-09T12:00:00Z".to_owned(),
+            properties,
+        }
+    }
+
+    #[test]
+    fn row_value_should_project_every_builtin_and_property_shape() {
+        let row = row(serde_json::json!({
+            "owner": {"name": "Ada"},
+            "tags": ["rust", 2, null],
+            "done": true,
+            "empty": null
+        }));
+
+        assert_eq!(row_value(&row, None), "Roadmap");
+        assert_eq!(row_value(&row, Some("category")), "Projects");
+        assert_eq!(row_value(&row, Some("updated")), "2026-09-09T12:00:00Z");
+        assert_eq!(row_value(&row, Some("/owner/name")), "Ada");
+        assert_eq!(row_value(&row, Some("/tags")), "rust, 2, ");
+        assert_eq!(row_value(&row, Some("/done")), "true");
+        assert_eq!(row_value(&row, Some("/empty")), "");
+        assert_eq!(row_value(&row, Some("/missing")), "");
     }
 }

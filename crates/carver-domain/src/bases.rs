@@ -205,4 +205,39 @@ mod tests {
         assert_eq!(malformed.format, Some("toml"));
         assert!(malformed.error.is_some());
     }
+
+    #[test]
+    fn projection_should_handle_absent_and_non_object_frontmatter() {
+        assert_eq!(
+            project_frontmatter("# No metadata"),
+            FrontmatterProjection {
+                format: None,
+                json: None,
+                error: None,
+            }
+        );
+        let scalar = project_frontmatter("---json\n[1, 2]\n---");
+        assert_eq!(scalar.format, Some("json"));
+        assert_eq!(scalar.json, None);
+        assert_eq!(
+            scalar.error.as_deref(),
+            Some("frontmatter root must be an object")
+        );
+    }
+
+    #[test]
+    fn property_paths_should_escape_json_pointer_tokens_and_ignore_scalar_roots() {
+        assert_eq!(property_paths(&serde_json::json!(true)), Vec::new());
+        assert_eq!(
+            property_paths(&serde_json::json!({"a/b": {"~key": 1}})),
+            vec![PropertyPath("/a~1b/~0key".to_owned())]
+        );
+    }
+
+    #[test]
+    fn base_id_should_round_trip_its_uuid_and_display() {
+        let id = BaseId::default();
+        assert_eq!(BaseId::from_uuid(id.as_uuid()), id);
+        assert_eq!(id.to_string(), id.as_uuid().to_string());
+    }
 }

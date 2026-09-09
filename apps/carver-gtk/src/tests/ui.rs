@@ -90,7 +90,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let destination = client.create_category("Projects")?;
     let base = glib::MainContext::default().block_on(client.create_base_async(
         "Review base".to_owned(),
-        vec![carver_sdk::BaseColumn::Category],
+        vec![
+            carver_sdk::BaseColumn::Name,
+            carver_sdk::BaseColumn::Category,
+            carver_sdk::BaseColumn::Updated,
+            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/status".to_owned())),
+        ],
     ))?;
     let application = adw::Application::new(
         Some("io.github.josbeir.Carver.Tests"),
