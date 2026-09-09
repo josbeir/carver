@@ -125,6 +125,9 @@ fn preview_stylesheet_should_use_a_compact_document_print_layout() {
     assert!(PREVIEW_STYLESHEET.contains("@media print"));
     assert!(PREVIEW_STYLESHEET.contains("background: #ffffff !important"));
     assert!(PREVIEW_STYLESHEET.contains("font-size: 10.5pt"));
+    assert!(PREVIEW_STYLESHEET.contains("font-stretch: normal"));
+    assert!(PREVIEW_STYLESHEET.contains("font-variant: normal"));
+    assert!(PREVIEW_STYLESHEET.contains("font-variation-settings: normal"));
     assert!(PREVIEW_STYLESHEET.contains("font-size: 21pt"));
     assert!(
         PREVIEW_STYLESHEET.contains("body[data-preview] {\n    padding: 0;\n    line-height: 1.4")

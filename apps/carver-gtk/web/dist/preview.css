@@ -235,6 +235,9 @@ body[data-preview] li > ul:has(> li > input[type=checkbox]) {
     font-family: Cantarell, sans-serif;
     font-style: normal;
     font-weight: 400;
+    font-stretch: normal;
+    font-variant: normal;
+    font-variation-settings: normal;
     line-height: 1.4;
   }
   body[data-preview] {
