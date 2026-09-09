@@ -9,13 +9,13 @@ license.workspace = true
 [dependencies]
 cssparser.workspace = true
 atomic-write-file.workspace = true
-carver-config = { path = "../../crates/carver-config", version = "0.2.1" }
-carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.2.1" }
-carver-domain = { path = "../../crates/carver-domain", version = "0.2.1" }
-carver-sdk = { path = "../../crates/carver-sdk", version = "0.2.1" }
-carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite", version = "0.2.1" }
-carver-editor-protocol = { path = "../../crates/carver-editor-protocol", version = "0.2.1" }
-carver-export = { path = "../../crates/carver-export", version = "0.2.1" }
+carver-config = { path = "../../crates/carver-config", version = "0.2.2" }
+carver-agent-integration = { path = "../../crates/carver-agent-integration", version = "0.2.2" }
+carver-domain = { path = "../../crates/carver-domain", version = "0.2.2" }
+carver-sdk = { path = "../../crates/carver-sdk", version = "0.2.2" }
+carver-storage-sqlite = { path = "../../crates/carver-storage-sqlite", version = "0.2.2" }
+carver-editor-protocol = { path = "../../crates/carver-editor-protocol", version = "0.2.2" }
+carver-export = { path = "../../crates/carver-export", version = "0.2.2" }
 base64.workspace = true
 carve-lang.workspace = true
 futures-util = { version = "0.3", default-features = false, features = ["std"] }

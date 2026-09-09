@@ -10,10 +10,10 @@ license.workspace = true
 json-schema = ["carver-domain/json-schema"]
 
 [dependencies]
-carver-config = { path = "../carver-config", version = "0.2.1" }
-carver-domain = { path = "../carver-domain", version = "0.2.1" }
-carver-library-port = { path = "../carver-library-port", version = "0.2.1" }
-carver-storage-sqlite = { path = "../carver-storage-sqlite", version = "0.2.1" }
+carver-config = { path = "../carver-config", version = "0.2.2" }
+carver-domain = { path = "../carver-domain", version = "0.2.2" }
+carver-library-port = { path = "../carver-library-port", version = "0.2.2" }
+carver-storage-sqlite = { path = "../carver-storage-sqlite", version = "0.2.2" }
 async-channel.workspace = true
 thiserror.workspace = true
 time.workspace = true

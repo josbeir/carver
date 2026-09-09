@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-carver-domain = { path = "../carver-domain", version = "0.2.1" }
+carver-domain = { path = "../carver-domain", version = "0.2.2" }
 time.workspace = true
 
 [lints]

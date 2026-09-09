@@ -9,8 +9,8 @@ license.workspace = true
 [dependencies]
 unicode-segmentation.workspace = true
 atomic-write-file.workspace = true
-carver-domain = { path = "../carver-domain", version = "0.2.1" }
-carver-library-port = { path = "../carver-library-port", version = "0.2.1" }
+carver-domain = { path = "../carver-domain", version = "0.2.2" }
+carver-library-port = { path = "../carver-library-port", version = "0.2.2" }
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
 sha2.workspace = true
