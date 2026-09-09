@@ -439,3 +439,27 @@ body[data-preview] li > ul:has(> li > input[type="checkbox"]) {
     block-size: auto;
   }
 }
+/* Native, script-free authoring helpers share the document's theme. */
+body[data-preview] nav.toc {
+  margin-block: 1em;
+  padding: 0.75em 1em;
+  border-inline-start: 2px solid currentColor;
+}
+
+body[data-preview] nav.toc ul {
+  margin-block: 0.25em;
+}
+
+body[data-preview] details {
+  margin-block: 1em;
+}
+
+body[data-preview] summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+body[data-preview] summary:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 3px;
+}

@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn enhanced_rendering_preference_should_persist_without_editing_the_note() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Preferences(PreferencesMsg::SetEnhancedCarveRendering(false)),
+    );
+    assert_eq!(
+        model.preferences.html_profile,
+        carver_domain::rendering::HtmlProfile::Core
+    );
+    assert!(
+        matches!(effects.as_slice(), [Effect::PersistConfig { config }] if !config.editor.enhanced_carve_rendering)
+    );
+}
+
+#[test]
 fn source_line_number_preference_should_persist_a_complete_config_snapshot() {
     let mut model = AppModel::new(&Config::default());
 
