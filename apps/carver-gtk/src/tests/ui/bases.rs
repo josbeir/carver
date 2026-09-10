@@ -163,6 +163,12 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ok_or("visible fields list")?;
     assert!(super::find_label(visible_fields.upcast_ref(), "Name").is_some());
     assert!(super::find_label(visible_fields.upcast_ref(), "priority").is_none());
+    let visible_fields_scroll = visible_fields
+        .ancestor(gtk::ScrolledWindow::static_type())
+        .and_downcast::<gtk::ScrolledWindow>()
+        .ok_or("visible fields scroll view")?;
+    assert!(visible_fields_scroll.propagates_natural_height());
+    assert!(visible_fields_scroll.min_content_height() >= 104);
     let add_field = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")
         .ok_or("add field button")?;
     add_field.emit_clicked();

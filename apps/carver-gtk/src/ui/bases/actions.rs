@@ -477,8 +477,12 @@ fn rebuild_visible_columns(
     for (index, field) in fields.into_iter().enumerate() {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         row.set_widget_name(&format!("base-visible-field-{index}"));
-        row.set_margin_top(2);
-        row.set_margin_bottom(2);
+        row.add_css_class("card");
+        row.set_margin_start(4);
+        row.set_margin_end(4);
+        row.set_margin_top(3);
+        row.set_margin_bottom(3);
+        row.set_valign(gtk::Align::Center);
         let handle = gtk::Image::from_icon_name("list-drag-handle-symbolic");
         handle.set_opacity(0.65);
         handle.set_tooltip_text(Some("Drag to reorder field"));
@@ -660,7 +664,8 @@ fn show_configuration_dialog(
     columns_box.set_widget_name("base-visible-fields-list");
     let columns_scroll = gtk::ScrolledWindow::new();
     columns_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-    columns_scroll.set_min_content_height(52);
+    columns_scroll.set_propagate_natural_height(true);
+    columns_scroll.set_min_content_height(104);
     columns_scroll.set_max_content_height(220);
     columns_scroll.set_child(Some(&columns_box));
     content.append(&section_label("Visible fields"));
