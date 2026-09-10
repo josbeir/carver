@@ -22,6 +22,38 @@ fn export_dialog(model: &mut AppModel) -> super::super::EditorExportDialogReques
 }
 
 #[test]
+fn export_should_keep_the_profile_captured_before_a_setting_change() {
+    for format in [EditorExportFormat::Html, EditorExportFormat::Pdf] {
+        let mut model = editor();
+        let request = export_dialog(&mut model);
+        let _ = update(
+            &mut model,
+            AppMsg::Preferences(PreferencesMsg::SetEnhancedCarveRendering(false)),
+        );
+        let effects = update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::ExportRequested {
+                request_id: request.request_id,
+                format,
+                include_assets: false,
+                target_uri: "file:///tmp/export".into(),
+            }),
+        );
+        match &effects[0] {
+            Effect::PrepareEditorExport { html_profile, .. } => assert_eq!(
+                *html_profile,
+                carver_domain::rendering::HtmlProfile::Enhanced
+            ),
+            Effect::ExportEditorPdf { request } => assert_eq!(
+                request.html_profile,
+                carver_domain::rendering::HtmlProfile::Enhanced
+            ),
+            effect => panic!("unexpected effect: {effect:?}"),
+        }
+    }
+}
+
+#[test]
 fn stale_export_dialog_response_should_preserve_the_newer_snapshot() {
     let mut model = editor();
     let old = export_dialog(&mut model);

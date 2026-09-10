@@ -228,6 +228,11 @@ fn open_browser_search(model: &mut AppModel) -> Vec<Effect> {
 
 fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<Effect> {
     match preference {
+        PreferencesMsg::SetEnhancedCarveRendering(enabled) => {
+            model.preferences.html_profile =
+                carver_domain::rendering::HtmlProfile::from_enabled(enabled);
+            model.config.editor.enhanced_carve_rendering = enabled;
+        }
         PreferencesMsg::SetRemoteImages(enabled) => {
             model.preferences.load_remote_images = enabled;
             model.config.images.load_remote_automatically = enabled;
@@ -898,6 +903,7 @@ fn request_editor_export_dialog(model: &mut AppModel) -> Vec<Effect> {
         return Vec::new();
     };
     let request = super::EditorExportDialogRequest {
+        html_profile: model.preferences.html_profile,
         request_id: model.next_editor_export_request_id(),
         session,
         note_id,
@@ -925,6 +931,7 @@ fn request_editor_export(
     };
     if matches!(format, super::EditorExportFormat::Pdf) {
         let pdf_request = super::EditorPdfExportRequest {
+            html_profile: request.html_profile,
             request_id,
             session: request.session,
             source: request.source,
@@ -941,6 +948,7 @@ fn request_editor_export(
         session: request.session,
     });
     vec![Effect::PrepareEditorExport {
+        html_profile: request.html_profile,
         request_id,
         session: request.session,
         note_id: request.note_id,
@@ -1022,6 +1030,7 @@ fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
         return Vec::new();
     };
     let pdf_request = super::EditorPdfExportRequest {
+        html_profile: model.preferences.html_profile,
         request_id: model.next_editor_export_request_id(),
         session,
         source,

@@ -4,6 +4,7 @@ pub(crate) mod document_sidebar;
 mod excerpts;
 mod html;
 pub(crate) mod interactions;
+mod rendering;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -29,6 +30,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    rendering::rendering_preference_should_refresh_previews_without_saving()?;
     excerpts::note_card_should_display_the_complete_final_grapheme()?;
     crate::mvu::export_runtime_should_cover_completion_cancellation_and_failures()?;
     interactions::cancelled_source_link_should_leave_the_document_unchanged()?;
@@ -161,6 +163,19 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     )
     .ok_or("formatting toolbar setting")?;
     assert!(formatting_toolbar_setting.is_active());
+    let enhancements = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "enhanced-carve-rendering-setting",
+    )
+    .ok_or("enhancements")?;
+    assert!(enhancements.is_active());
+    enhancements.set_active(false);
+    assert!(run_main_context_until(|| carver_config::load(&config_path)
+        .is_ok_and(|config| !config.editor.enhanced_carve_rendering)));
+    assert_eq!(
+        preferences_runtime.model().preferences.html_profile,
+        carver_domain::rendering::HtmlProfile::Core
+    );
     assert_eq!(
         formatting_toolbar_setting.subtitle(),
         Some("Show formatting controls at the bottom of the editor.".into())
@@ -872,6 +887,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_some()
     );
     let export_request = crate::mvu::EditorExportDialogRequest {
+        html_profile: carver_domain::rendering::HtmlProfile::Enhanced,
         request_id: 91,
         session: crate::mvu::EditorSessionId(1),
         note_id: note.id,
@@ -913,7 +929,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let pdf_path = export_directory.path().join("exported-note.pdf");
     let pdf_uri = gtk::gio::File::for_path(&pdf_path).uri().to_string();
     crate::ui::editor::export_rendered_snapshot(
-        "# Exported note\n\nPDF body",
+        "::: toc\n:::\n\n# Exported note\n\n::: details \"More\"\nPDF body\n:::",
         false,
         false,
         &pdf_uri,
@@ -921,6 +937,17 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         None,
         crate::mvu::AppDispatcher::default(),
         93,
+        carver_domain::rendering::HtmlProfile::Enhanced,
+    );
+    let print_preview = gtk::Window::list_toplevels()
+        .into_iter()
+        .filter_map(|widget| widget.downcast::<gtk::Window>().ok())
+        .filter(|window| window.transient_for().as_ref() == Some(&gtk_window))
+        .find_map(|window| window.child().and_downcast::<webkit6::WebView>())
+        .ok_or("PDF preview")?;
+    assert_web_script_should_be_true(
+        &print_preview,
+        "Boolean(document.querySelector('nav.toc')) && document.querySelector('details')?.open === true && document.body.textContent.includes('PDF body')",
     );
     assert!(run_main_context_until(|| {
         std::fs::read(&pdf_path).is_ok_and(|bytes| bytes.starts_with(b"%PDF"))
@@ -1586,6 +1613,7 @@ fn assert_native_print_dialog_cancels_without_invalid_window(parent: &gtk::Windo
         None,
         crate::mvu::AppDispatcher::default(),
         94,
+        carver_domain::rendering::HtmlProfile::Enhanced,
     );
     if !run_main_context_until(|| cancelled.get()) {
         return Err("native print dialog did not appear".into());

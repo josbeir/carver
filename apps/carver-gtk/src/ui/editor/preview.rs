@@ -5,6 +5,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use carver_domain::rendering::HtmlProfile;
 use webkit6::prelude::*;
 
 mod heading_provenance;
@@ -181,6 +182,7 @@ pub(super) fn mime_type(path: &str) -> &'static str {
 }
 
 /// Renders source using Carve's full HTML renderer under a restrictive CSP.
+#[cfg(test)]
 pub(crate) fn rendered_document(source: &str, allow_remote_images: bool) -> String {
     let (dark, accent) = if gtk::is_initialized() {
         let style_manager = libadwaita::StyleManager::default();
@@ -208,11 +210,30 @@ fn default_appearance() -> super::web::DocumentAppearance {
     })
 }
 
+#[cfg(test)]
 fn rendered_document_with_theme(
     source: &str,
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
     appearance: &super::web::DocumentAppearance,
+) -> String {
+    rendered_document_with_profile(
+        source,
+        allow_remote_images,
+        theme,
+        appearance,
+        HtmlProfile::Enhanced,
+        carve::Mode::Interactive,
+    )
+}
+
+pub(super) fn rendered_document_with_profile(
+    source: &str,
+    allow_remote_images: bool,
+    theme: &super::web::EditorTheme,
+    appearance: &super::web::DocumentAppearance,
+    profile: HtmlProfile,
+    mode: carve::Mode,
 ) -> String {
     let image_sources = if allow_remote_images {
         "img-src data: https: http: carver-asset:"
@@ -220,10 +241,15 @@ fn rendered_document_with_theme(
         "img-src data: carver-asset:"
     };
     let provenance = heading_provenance::HeadingProvenance(uuid::Uuid::now_v7().to_string());
-    let body = carve::to_html_with_options(
-        source,
-        &carve::Options::default().with_extension(&provenance),
-    );
+    let body = profile
+        .render_html(source, mode, &[&provenance])
+        .map_or_else(
+            |error| {
+                glib::g_warning!("carver", "Could not render note: {error}");
+                String::from("<p>Could not render the note preview.</p>")
+            },
+            |result| result.value,
+        );
     let body = rewrite_preview_images(&body).unwrap_or_else(|error| {
         glib::g_warning!("carver", "Could not rewrite preview images: {error}");
         String::from("<p>Could not render the note preview.</p>")
@@ -246,10 +272,22 @@ fn rewrite_preview_images(html: &str) -> Result<String, lol_html::errors::Rewrit
     })
 }
 
-/// Loads source into a preview while keeping the caller's UI state intact.
-pub(super) fn load_preview(view: &webkit6::WebView, source: &str, allow_remote_images: bool) {
+/// Loads a static print snapshot with disclosure contents expanded.
+pub(super) fn load_preview(
+    view: &webkit6::WebView,
+    source: &str,
+    allow_remote_images: bool,
+    profile: HtmlProfile,
+) {
     view.load_html(
-        &rendered_document(source, allow_remote_images),
+        &rendered_document_with_profile(
+            source,
+            allow_remote_images,
+            &super::editor_theme(),
+            &default_appearance(),
+            profile,
+            carve::Mode::Static,
+        ),
         Some("carver-preview://document/"),
     );
 }
@@ -261,9 +299,17 @@ pub(super) fn load_preview_with_theme(
     allow_remote_images: bool,
     theme: &super::web::EditorTheme,
     appearance: &super::web::DocumentAppearance,
+    profile: HtmlProfile,
 ) {
     view.load_html(
-        &rendered_document_with_theme(source, allow_remote_images, theme, appearance),
+        &rendered_document_with_profile(
+            source,
+            allow_remote_images,
+            theme,
+            appearance,
+            profile,
+            carve::Mode::Interactive,
+        ),
         Some("carver-preview://document/"),
     );
 }
