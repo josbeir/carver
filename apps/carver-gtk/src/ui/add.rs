@@ -73,7 +73,7 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
             "base",
             "Base",
             "carver-database-symbolic",
-            "See your notes in a table, with their properties as columns.",
+            "Build a custom view of your notes with chosen fields, a query, and a sort order.",
             "Examples: Project tracker, Reading list",
             &base_content,
             &base_entry,
