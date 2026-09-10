@@ -635,8 +635,9 @@ fn show_configuration_dialog(
 ) {
     let dialog = adw::Dialog::builder()
         .title("Configure Base")
-        .content_width(760)
-        .content_height(680)
+        .content_width(860)
+        .content_height(780)
+        .follows_content_size(true)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
     let toolbar = adw::ToolbarView::new();
@@ -850,8 +851,12 @@ fn show_configuration_dialog(
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
     scroll.set_hexpand(true);
     scroll.set_vexpand(true);
-    scroll.set_min_content_height(560);
-    scroll.set_size_request(-1, 560);
+    // Let the dialog grow with the form when there is room, while retaining a
+    // bounded viewport for bases with many fields and rules.
+    scroll.set_propagate_natural_height(true);
+    scroll.set_propagate_natural_width(true);
+    scroll.set_min_content_height(640);
+    scroll.set_max_content_height(760);
     scroll.set_child(Some(&content));
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     footer.set_margin_start(24);

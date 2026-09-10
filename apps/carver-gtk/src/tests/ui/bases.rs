@@ -152,6 +152,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .visible_dialog()
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
+    assert!(dialog.follows_content_size());
+    assert_eq!(dialog.content_width(), 860);
+    assert_eq!(dialog.content_height(), 780);
     let preview =
         find_widget(dialog.upcast_ref(), "base-configuration-preview").ok_or("preview label")?;
     let preview_label = preview
@@ -189,6 +192,13 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
             .ok_or("field search")?;
     search.set_text("priority");
     search.emit_by_name::<()>("search-changed", &[]);
+    let picker_scroll = widget_as::<gtk::ScrolledWindow>(
+        dialog.upcast_ref(),
+        "base-add-visible-field-picker-scroll",
+    )
+    .ok_or("field picker scroll view")?;
+    assert!(picker_scroll.min_content_width() >= 520);
+    assert!(picker_scroll.max_content_width() >= 680);
     let priority = super::find_label(dialog.upcast_ref(), "priority").ok_or("priority option")?;
     assert!(super::find_label(dialog.upcast_ref(), "Text · high").is_some());
     let priority_button = priority
@@ -234,7 +244,10 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .and_downcast::<gtk::ScrolledWindow>()
         .ok_or("configuration scroll view")?;
     assert!(scroll.vexpands());
-    assert!(scroll.min_content_height() >= 560);
+    assert!(scroll.propagates_natural_height());
+    assert!(scroll.propagates_natural_width());
+    assert!(scroll.min_content_height() >= 640);
+    assert!(scroll.max_content_height() >= 760);
     dialog.close();
     window.close();
     Ok(())

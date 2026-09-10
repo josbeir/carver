@@ -164,10 +164,11 @@ impl FieldPicker {
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_propagate_natural_height(true);
         scroll.set_propagate_natural_width(true);
-        scroll.set_min_content_width(460);
-        scroll.set_max_content_width(600);
+        scroll.set_min_content_width(520);
+        scroll.set_max_content_width(680);
         scroll.set_min_content_height(112);
         scroll.set_max_content_height(440);
+        scroll.set_widget_name(&format!("{widget_name}-scroll"));
         scroll.set_child(Some(&list));
         root.append(&scroll);
         let custom = gtk::Button::with_label("Add custom field…");
