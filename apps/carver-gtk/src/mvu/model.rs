@@ -148,6 +148,8 @@ pub struct BasesModel {
     pub selected: Option<carver_sdk::BaseId>,
     /// Rows of the selected definition.
     pub rows: Resource<Vec<carver_sdk::BaseRow>>,
+    /// Typed frontmatter properties currently present in active notes.
+    pub property_descriptors: Resource<Vec<carver_sdk::PropertyDescriptor>>,
 }
 
 /// The single navigation destination highlighted in the sidebar.

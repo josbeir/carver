@@ -229,6 +229,19 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn update_base(
+        &self,
+        _base_id: BaseId,
+        _revision: Revision,
+        _name: &str,
+        _columns: &[BaseColumn],
+        _filter_mode: BaseFilterMode,
+        _filters: &[BaseFilter],
+        _sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::unsupported()
+    }
+
     fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error> {
         Self::unsupported()
     }
@@ -241,7 +254,7 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
-    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
+    fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, Self::Error> {
         Self::unsupported()
     }
 

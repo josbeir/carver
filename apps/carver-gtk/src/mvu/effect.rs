@@ -3,7 +3,8 @@
 use carver_config::Config;
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
-    BaseColumn, BaseId, CategoryAppearance, CategoryId, DocumentImportFormat, NoteId, Revision,
+    BaseColumn, BaseFilter, BaseFilterMode, BaseId, BaseSort, CategoryAppearance, CategoryId,
+    DocumentImportFormat, NoteId, Revision,
 };
 
 use super::{
@@ -25,6 +26,11 @@ pub enum Effect {
         /// Identity for stale-completion protection.
         request_id: RequestId,
     },
+    /// Load the library-wide frontmatter property descriptors used by Base configuration.
+    LoadPropertyDescriptors {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+    },
     /// Load rows for one saved base.
     LoadBaseRows {
         /// Identity for stale-completion protection.
@@ -38,6 +44,23 @@ pub enum Effect {
         name: String,
         /// Ordered initial columns.
         columns: Vec<BaseColumn>,
+    },
+    /// Save a complete Base configuration.
+    UpdateBase {
+        /// Definition identity.
+        base_id: BaseId,
+        /// Revision read when the editor opened.
+        revision: Revision,
+        /// User-visible name.
+        name: String,
+        /// Ordered visible columns.
+        columns: Vec<BaseColumn>,
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Visual filters.
+        filters: Vec<BaseFilter>,
+        /// Ordered sort rules.
+        sorts: Vec<BaseSort>,
     },
     /// Read and store native files sequentially with a bounded per-file read.
     ImportEditorFiles {

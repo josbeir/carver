@@ -20,18 +20,21 @@ fn startup_should_initialize_then_request_sidebar_and_browser_data() {
             Effect::LoadBases {
                 request_id: RequestId(2)
             },
+            Effect::LoadPropertyDescriptors {
+                request_id: RequestId(3)
+            },
             Effect::LoadBrowser {
-                request_id: RequestId(3),
+                request_id: RequestId(4),
                 category_id: None,
                 query: String::new(),
             },
             Effect::LoadLibraryRevision {
-                request_id: RequestId(4),
+                request_id: RequestId(5),
             },
         ]
     );
     assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
-    assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(3)));
+    assert_eq!(model.browser.notes.state, LoadState::Loading(RequestId(4)));
 }
 
 #[test]
@@ -63,13 +66,16 @@ fn external_library_change_should_reload_visible_resources_after_the_revision_ch
             Effect::LoadBases {
                 request_id: RequestId(3)
             },
+            Effect::LoadPropertyDescriptors {
+                request_id: RequestId(4)
+            },
             Effect::LoadBrowser {
-                request_id: RequestId(4),
+                request_id: RequestId(5),
                 category_id: None,
                 query: String::new(),
             },
             Effect::LoadTrash {
-                request_id: RequestId(5),
+                request_id: RequestId(6),
             },
         ]
     );

@@ -1,7 +1,7 @@
 use carver_config::{AppPaths, Config};
 use carver_sdk::{
-    BaseColumn, BaseDefinition, BaseId, CategoryId, DocumentImportFormat, LibraryRevision, Note,
-    NoteId, Revision,
+    BaseColumn, BaseDefinition, BaseFilterMode, BaseId, CategoryId, DocumentImportFormat,
+    LibraryRevision, Note, NoteId, Revision,
 };
 use carver_sdk::{LibraryBackend, LibraryClient};
 use carver_storage_sqlite::SqliteLibrary;

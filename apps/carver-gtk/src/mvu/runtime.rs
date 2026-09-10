@@ -211,11 +211,31 @@ impl<B: LibraryBackend> AppRuntime<B> {
     fn run_effect(&self, effect: Effect) {
         match effect {
             Effect::LoadBases { request_id } => self.load_bases(request_id),
+            Effect::LoadPropertyDescriptors { request_id } => {
+                self.load_property_descriptors(request_id);
+            }
             Effect::LoadBaseRows {
                 request_id,
                 base_id,
             } => self.load_base_rows(request_id, base_id),
             Effect::CreateBase { name, columns } => self.create_base(name, columns),
+            Effect::UpdateBase {
+                base_id,
+                revision,
+                name,
+                columns,
+                filter_mode,
+                filters,
+                sorts,
+            } => self.update_base(
+                base_id,
+                revision,
+                name,
+                columns,
+                filter_mode,
+                filters,
+                sorts,
+            ),
             Effect::DeleteBase { base_id } => self.delete_base(base_id),
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
@@ -545,6 +565,21 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
+    fn load_property_descriptors(&self, request_id: super::RequestId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .property_descriptors_async()
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
     fn load_base_rows(&self, request_id: super::RequestId, base_id: carver_sdk::BaseId) {
         self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
             request_id,
@@ -570,6 +605,40 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));
+        });
+    }
+
+    // CONTEXT: Runtime forwards the typed effect without collapsing configuration fields.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Base configuration fields are explicit"
+    )]
+    fn update_base(
+        &self,
+        base_id: carver_sdk::BaseId,
+        revision: carver_sdk::Revision,
+        name: String,
+        columns: Vec<carver_sdk::BaseColumn>,
+        filter_mode: carver_sdk::BaseFilterMode,
+        filters: Vec<carver_sdk::BaseFilter>,
+        sorts: Vec<carver_sdk::BaseSort>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .update_base_async(
+                    base_id,
+                    revision,
+                    name,
+                    columns,
+                    filter_mode,
+                    filters,
+                    sorts,
+                )
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseUpdated { result }));
         });
     }
 

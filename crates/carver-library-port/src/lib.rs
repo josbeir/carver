@@ -8,8 +8,9 @@
 use std::error::Error;
 
 use carver_domain::{
-    BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryId, CategorySummary,
-    Note, NoteId, NoteSummary, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
+    CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteSummary, PropertyDescriptor,
+    PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -130,7 +131,24 @@ pub trait LibraryBackend: Send + 'static {
     fn create_base(
         &self,
         name: &str,
-        columns: &[carver_domain::BaseColumn],
+        columns: &[BaseColumn],
+    ) -> Result<BaseDefinition, Self::Error>;
+    /// Updates a saved view guarded by its current revision.
+    // CONTEXT: Keep the persistence boundary explicit; each configuration component maps to one
+    // independently serialized Base setting and grouping it would leak storage concerns inward.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Base configuration fields are explicit at the port"
+    )]
+    fn update_base(
+        &self,
+        base_id: BaseId,
+        revision: Revision,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
     ) -> Result<BaseDefinition, Self::Error>;
     /// Lists saved bases in name order.
     fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error>;
@@ -139,7 +157,16 @@ pub trait LibraryBackend: Send + 'static {
     /// Returns rows for a saved base.
     fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error>;
     /// Discovers all flattened properties currently present in active notes.
-    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error>;
+    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
+        self.property_descriptors().map(|descriptors| {
+            descriptors
+                .into_iter()
+                .map(|descriptor| descriptor.path)
+                .collect()
+        })
+    }
+    /// Discovers typed property descriptors currently present in active notes.
+    fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, Self::Error>;
     /// Lists recoverable trash contents.
     fn trash_contents(&self) -> Result<TrashContents, Self::Error>;
     /// Permanently removes trashed content and unreferenced managed assets.

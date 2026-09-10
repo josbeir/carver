@@ -5,9 +5,9 @@ use std::ops::Range;
 use carver_config::{DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
-    BaseColumn, BaseDefinition, BaseId, BaseRow, CategoryAppearance, CategoryId, CategorySummary,
-    DocumentImportFormat, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
-    TrashPurgeResult,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort,
+    CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
+    NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{
@@ -73,6 +73,8 @@ pub enum AppMsg {
 /// Events for saved database-style views.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BasesMsg {
+    /// Open the configuration dialog for the selected Base.
+    Configure,
     /// Delete a saved Base after user confirmation; notes are retained.
     Delete(BaseId),
     /// Show loading feedback only if this request is still pending.
@@ -85,6 +87,23 @@ pub enum BasesMsg {
         name: String,
         /// Ordered initial columns.
         columns: Vec<BaseColumn>,
+    },
+    /// Save a complete Base configuration guarded by its revision.
+    Update {
+        /// Definition identity.
+        base_id: BaseId,
+        /// Revision read when the editor opened.
+        revision: Revision,
+        /// User-visible name.
+        name: String,
+        /// Ordered visible columns.
+        columns: Vec<BaseColumn>,
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Visual filters.
+        filters: Vec<BaseFilter>,
+        /// Ordered sort rules.
+        sorts: Vec<BaseSort>,
     },
     /// Reload saved definitions.
     Reload,
@@ -564,6 +583,13 @@ pub enum LibraryReply {
         /// Saved definitions or a displayable failure.
         result: Result<Vec<BaseDefinition>, UiError>,
     },
+    /// The active-note frontmatter property descriptors completed loading.
+    PropertyDescriptorsLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Typed descriptors or a displayable failure.
+        result: Result<Vec<carver_sdk::PropertyDescriptor>, UiError>,
+    },
     /// Rows for the selected base completed loading.
     BaseRowsLoaded {
         /// Identity of the initiating request.
@@ -576,6 +602,11 @@ pub enum LibraryReply {
     /// A base creation completed.
     BaseCreated {
         /// Created definition or a displayable failure.
+        result: Result<BaseDefinition, UiError>,
+    },
+    /// A Base configuration save completed.
+    BaseUpdated {
+        /// Updated definition or a displayable failure.
         result: Result<BaseDefinition, UiError>,
     },
     /// A semantic library revision completed loading.

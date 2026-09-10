@@ -25,16 +25,19 @@ fn successful_trash_mutation_should_reload_each_dependent_resource_once() {
             Effect::LoadBases {
                 request_id: RequestId(2)
             },
+            Effect::LoadPropertyDescriptors {
+                request_id: RequestId(3)
+            },
             Effect::LoadBrowser {
-                request_id: RequestId(3),
+                request_id: RequestId(4),
                 category_id: None,
                 query: String::new(),
             },
             Effect::LoadTrash {
-                request_id: RequestId(4),
+                request_id: RequestId(5),
             },
             Effect::LoadLibraryRevision {
-                request_id: RequestId(5),
+                request_id: RequestId(6),
             },
         ]
     );
@@ -225,6 +228,7 @@ fn moved_note_should_offer_undo_and_reload_dependent_resources_once() {
         [
             Effect::LoadSidebar { .. },
             Effect::LoadBases { .. },
+            Effect::LoadPropertyDescriptors { .. },
             Effect::LoadBrowser { .. },
             Effect::LoadTrash { .. },
             Effect::LoadLibraryRevision { .. }
@@ -278,6 +282,7 @@ fn creating_a_category_for_a_note_should_move_it_as_one_undoable_action() {
         [
             Effect::LoadSidebar { .. },
             Effect::LoadBases { .. },
+            Effect::LoadPropertyDescriptors { .. },
             Effect::LoadBrowser { .. },
             Effect::LoadTrash { .. },
             Effect::LoadLibraryRevision { .. }

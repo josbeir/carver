@@ -1,5 +1,6 @@
 //! Native database-style grid for saved note bases.
 pub(crate) mod actions;
+pub(crate) mod field_picker;
 
 use carver_sdk::{BaseColumn, BaseDefinition, BaseRow};
 use gtk::prelude::*;
@@ -10,6 +11,7 @@ use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
+    pub(crate) configure: gtk::Button,
     pub(crate) delete: gtk::Button,
     pub(crate) title: gtk::Label,
     pub(crate) grid: gtk::ColumnView,
@@ -45,18 +47,12 @@ pub(crate) fn build_base(
     delete.set_tooltip_text(Some("Delete Base"));
     delete.set_action_name(Some("base.delete"));
     header.pack_end(&delete);
-    for (label, icon) in [
-        ("Columns", "view-list-symbolic"),
-        ("Filter", "funnel-symbolic"),
-        ("Sort", "view-sort-descending-symbolic"),
-    ] {
-        let button = gtk::Button::with_label(label);
-        button.set_icon_name(icon);
-        button.add_css_class("flat");
-        button.set_sensitive(false);
-        button.set_tooltip_text(Some("Coming in the next Bases iteration"));
-        header.pack_end(&button);
-    }
+    let configure = gtk::Button::with_label("Configure");
+    configure.set_icon_name("emblem-system-symbolic");
+    configure.add_css_class("flat");
+    configure.set_widget_name("configure-base-button");
+    configure.set_action_name(Some("base.configure"));
+    header.pack_end(&configure);
     toolbar.add_top_bar(&header);
 
     let model = gtk::StringList::new(&[]);
@@ -88,6 +84,7 @@ pub(crate) fn build_base(
     (
         toolbar.upcast(),
         BaseViewRefs {
+            configure,
             delete,
             title,
             grid,

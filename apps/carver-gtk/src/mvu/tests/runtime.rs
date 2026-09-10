@@ -40,6 +40,10 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     assert!(crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().sidebar.state, LoadState::Ready(_))
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
+            && matches!(
+                runtime.model().bases.property_descriptors.state,
+                LoadState::Ready(_)
+            )
     }));
     assert_eq!(client.categories()?.len(), 1);
 
@@ -163,6 +167,10 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
     if !crate::ui::tests::support::run_main_context_until(|| {
         matches!(runtime.model().sidebar.state, LoadState::Ready(_))
             && matches!(runtime.model().browser.notes.state, LoadState::Ready(_))
+            && matches!(
+                runtime.model().bases.property_descriptors.state,
+                LoadState::Ready(_)
+            )
             && runtime.model().library_revision.is_some()
     }) {
         return Err("initial library resources did not load".into());
