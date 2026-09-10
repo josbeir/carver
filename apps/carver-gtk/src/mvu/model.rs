@@ -148,6 +148,36 @@ pub struct BasesModel {
     pub rows: Resource<Vec<carver_sdk::BaseRow>>,
 }
 
+/// The single navigation destination highlighted in the sidebar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SidebarSelection {
+    /// All notes (`None`) or one category.
+    Category(Option<CategoryId>),
+    /// One saved Base.
+    Base(carver_sdk::BaseId),
+    /// No category or Base is active (for example, Trash).
+    None,
+}
+
+impl AppModel {
+    /// Derives sidebar selection from navigation, preserving an editor's origin.
+    pub fn sidebar_selection(&self) -> SidebarSelection {
+        let route = if self.route == Route::Editor {
+            self.editor_return_route
+        } else {
+            self.route
+        };
+        match route {
+            Route::Base => self
+                .bases
+                .selected
+                .map_or(SidebarSelection::None, SidebarSelection::Base),
+            Route::Browser => SidebarSelection::Category(self.selected_category),
+            _ => SidebarSelection::None,
+        }
+    }
+}
+
 /// A destination waiting for an active editor to finish closing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PendingNavigation {

@@ -1868,6 +1868,19 @@ fn assert_base_reload_preserves_buttons() -> TestResult {
     sidebar.render(&model);
     let name = format!("base:{}", base.id);
     let button = widget_as::<gtk::Button>(&sidebar.widget, &name).ok_or("base button")?;
+    model.route = crate::mvu::Route::Base;
+    model.bases.selected = Some(base.id);
+    sidebar.render(&model);
+    assert!(button.has_css_class("sidebar-active"));
+    assert!(sidebar.list.selected_row().is_none());
+    model.route = crate::mvu::Route::Editor;
+    model.editor_return_route = crate::mvu::Route::Base;
+    sidebar.render(&model);
+    assert!(button.has_css_class("sidebar-active"));
+    model.route = crate::mvu::Route::Browser;
+    sidebar.render(&model);
+    assert!(!button.has_css_class("sidebar-active"));
+    assert!(sidebar.list.selected_row().is_some());
     for state in [
         crate::mvu::LoadState::Loading(crate::mvu::RequestId(1)),
         crate::mvu::LoadState::Failed(crate::mvu::UiError::new("offline")),

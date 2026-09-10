@@ -16,7 +16,7 @@ pub use model::{
     EditorCopyScope, EditorDocument, EditorExportDialogRequest, EditorExportProgress,
     EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview, EditorSaveRequest,
     EditorSaveState, EditorSessionId, LoadState, MediaFile, MoveUndo, Preferences, RequestId,
-    Resource, Route, SourceEditorPreferences, TimerId, UiError,
+    Resource, Route, SidebarSelection, SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,

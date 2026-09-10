@@ -23,6 +23,7 @@ struct SidebarSnapshot {
     categories: Vec<carver_sdk::CategorySummary>,
     bases: LoadState<Vec<carver_sdk::BaseDefinition>>,
     selected_category: Option<carver_sdk::CategoryId>,
+    selection: crate::mvu::SidebarSelection,
 }
 
 impl SidebarSnapshot {
@@ -34,6 +35,7 @@ impl SidebarSnapshot {
             categories: categories.clone(),
             bases: model.bases.definitions.state.clone(),
             selected_category: model.selected_category,
+            selection: model.sidebar_selection(),
         })
     }
 }

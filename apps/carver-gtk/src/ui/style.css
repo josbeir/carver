@@ -38,6 +38,11 @@
   border-radius: 8px;
 }
 
+.navigation-sidebar row:selected,
+.base-sidebar-button.sidebar-active {
+  background: alpha(currentColor, 0.10);
+}
+
 .all-notes-icon {
   background: alpha(@accent_bg_color, 0.24);
   color: @accent_color;

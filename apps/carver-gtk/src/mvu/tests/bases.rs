@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn sidebar_selection_should_follow_the_editor_origin_and_current_route() {
+    use crate::mvu::SidebarSelection;
+    let mut model = AppModel::new(&Config::default());
+    assert_eq!(model.sidebar_selection(), SidebarSelection::Category(None));
+    let base = BaseId::new();
+    model.bases.selected = Some(base);
+    model.route = Route::Base;
+    assert_eq!(model.sidebar_selection(), SidebarSelection::Base(base));
+    model.route = Route::Editor;
+    model.editor_return_route = Route::Base;
+    assert_eq!(model.sidebar_selection(), SidebarSelection::Base(base));
+    model.route = Route::Browser;
+    assert_eq!(model.sidebar_selection(), SidebarSelection::Category(None));
+    model.route = Route::Trash;
+    assert_eq!(model.sidebar_selection(), SidebarSelection::None);
+}
+
+#[test]
 fn base_loading_delay_should_ignore_completed_and_superseded_requests() {
     let mut model = AppModel::new(&Config::default());
     let request = RequestId(20);

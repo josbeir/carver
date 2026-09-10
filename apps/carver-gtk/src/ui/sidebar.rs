@@ -1,6 +1,9 @@
 //! Category sidebar construction and snapshot rendering.
 
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use carver_sdk::{Category, CategoryId, CategorySummary};
 use gtk::prelude::*;
@@ -18,6 +21,7 @@ pub(crate) struct SidebarSurface {
     split_view: adw::NavigationSplitView,
     rendering: Rc<Cell<bool>>,
     base_rows: gtk::Box,
+    rendered_bases: Rc<RefCell<Vec<carver_sdk::BaseDefinition>>>,
 }
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
@@ -87,6 +91,7 @@ pub(crate) fn build_sidebar(
         split_view: split_view.clone(),
         rendering,
         base_rows,
+        rendered_bases: Rc::new(RefCell::new(Vec::new())),
     }
 }
 
@@ -143,7 +148,31 @@ impl SidebarSurface {
             categories,
             model.selected_category,
         );
-        render_bases(&self.base_rows, &self.dispatcher, &self.split_view, model);
+        if let LoadState::Ready(bases) = &model.bases.definitions.state {
+            let changed = *self.rendered_bases.borrow() != *bases;
+            if changed {
+                render_bases(&self.base_rows, &self.dispatcher, &self.split_view, model);
+                self.rendered_bases.replace(bases.clone());
+            }
+        }
+        let selection = model.sidebar_selection();
+        if !matches!(selection, crate::mvu::SidebarSelection::Category(_)) {
+            self.list.unselect_all();
+        }
+        let selected_name = match selection {
+            crate::mvu::SidebarSelection::Base(id) => format!("base:{id}"),
+            _ => String::new(),
+        };
+        let mut child = self.base_rows.first_child();
+        while let Some(button) = child {
+            let active = button.widget_name() == selected_name;
+            if active {
+                button.add_css_class("sidebar-active");
+            } else {
+                button.remove_css_class("sidebar-active");
+            }
+            child = button.next_sibling();
+        }
         self.rendering.set(false);
     }
 }
