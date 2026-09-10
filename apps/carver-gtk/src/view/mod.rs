@@ -247,6 +247,16 @@ impl ViewRefs {
             return;
         };
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
+            refs.grid.set_sensitive(false);
+            if let LoadState::Failed(error) = &model.bases.definitions.state {
+                crate::ui::bases::render_base_status(refs, "Couldn’t load base", &error.message);
+                return;
+            }
+            if !matches!(model.bases.definitions.state, LoadState::Loading(id)
+                if model.bases.definitions_loading_elapsed == Some(id))
+            {
+                return;
+            }
             crate::ui::bases::render_base_status(refs, "Loading base…", "Loading its definition.");
             return;
         };
@@ -257,6 +267,12 @@ impl ViewRefs {
                 return;
             }
             LoadState::Idle | LoadState::Loading(_) => {
+                refs.grid.set_sensitive(false);
+                if !matches!(model.bases.rows.state, LoadState::Loading(id)
+                    if model.bases.rows_loading_elapsed == Some(id))
+                {
+                    return;
+                }
                 crate::ui::bases::render_base_status(
                     refs,
                     "Loading rows…",

@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn base_loading_delay_should_ignore_completed_and_superseded_requests() {
+    let mut model = AppModel::new(&Config::default());
+    let request = RequestId(20);
+    model.bases.rows.state = LoadState::Loading(request);
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(19))),
+    );
+    assert_eq!(model.bases.rows_loading_elapsed, None);
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(request)),
+    );
+    assert_eq!(model.bases.rows_loading_elapsed, Some(request));
+    model.bases.definitions.state = LoadState::Ready(Vec::new());
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(21))),
+    );
+    assert_eq!(model.bases.definitions_loading_elapsed, None);
+}
+
+#[test]
 fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

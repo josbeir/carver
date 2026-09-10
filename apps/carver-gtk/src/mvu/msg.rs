@@ -73,6 +73,8 @@ pub enum AppMsg {
 /// Events for saved database-style views.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BasesMsg {
+    /// Show loading feedback only if this request is still pending.
+    LoadingIndicatorElapsed(RequestId),
     /// Open and load a saved base.
     Open(BaseId),
     /// Create a base with ordered columns.

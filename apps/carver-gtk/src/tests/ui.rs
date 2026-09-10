@@ -40,6 +40,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_pdf_page_setup()?;
     assert_sidebar_reload_preserves_rows()?;
     assert_base_reload_preserves_buttons()?;
+    assert_base_loading_delay()?;
     assert_base_note_keyboard_activation()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     document_sidebar::webkit_views_should_disable_smooth_scrolling()?;
@@ -1717,6 +1718,54 @@ fn select_all(buffer: &gtk::TextBuffer) {
 
 fn all_notes_row(sidebar: &gtk::ListBox) -> Option<gtk::ListBoxRow> {
     sidebar.first_child().and_downcast::<gtk::ListBoxRow>()
+}
+
+fn assert_base_loading_delay() -> TestResult {
+    use crate::mvu::{
+        AppDispatcher, AppModel, AppMsg, BasesMsg, LoadState, RequestId, Route, update,
+    };
+    let dispatcher = AppDispatcher::default();
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let pages = refs.pages.clone();
+    let routes = gtk::Stack::new();
+    routes.add_named(&widget, Some("base"));
+    let view = crate::view::ViewRefs::new(routes, adw::StatusPage::new(), adw::StatusPage::new())
+        .with_dispatcher(dispatcher)
+        .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(carver_sdk::BaseId::new());
+    model.bases.definitions.state = LoadState::Loading(RequestId(1));
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(1))),
+    );
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("status"));
+    model.bases.definitions.state = LoadState::Ready(vec![carver_sdk::BaseDefinition {
+        id: model.bases.selected.ok_or("selected base")?,
+        name: "Projects".to_owned(),
+        columns: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 0,
+    }]);
+    pages.set_visible_child_name("grid");
+    model.bases.rows.state = LoadState::Loading(RequestId(2));
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(2))),
+    );
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("status"));
+    Ok(())
 }
 
 fn assert_base_note_keyboard_activation() -> TestResult {

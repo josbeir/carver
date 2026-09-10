@@ -76,7 +76,7 @@ pub(crate) fn build_base(
     pages.set_widget_name("base-pages");
     pages.add_named(&scroll, Some("grid"));
     pages.add_named(&status, Some("status"));
-    pages.set_visible_child_name("status");
+    pages.set_visible_child_name("grid");
     toolbar.set_content(Some(&pages));
     (
         toolbar.upcast(),
@@ -105,6 +105,7 @@ pub(crate) fn render_base(
     let horizontal = refs.scroll.hadjustment().value();
     let vertical = refs.scroll.vadjustment().value();
     refs.title.set_text(&definition.name);
+    refs.grid.set_sensitive(true);
     while let Some(column) = refs
         .grid
         .columns()

@@ -136,6 +136,10 @@ pub enum Route {
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
+    /// Definition request whose loading-indicator delay has elapsed.
+    pub definitions_loading_elapsed: Option<RequestId>,
+    /// Row request whose loading-indicator delay has elapsed.
+    pub rows_loading_elapsed: Option<RequestId>,
     /// Saved definitions rendered in the sidebar.
     pub definitions: Resource<Vec<carver_sdk::BaseDefinition>>,
     /// Selected definition.

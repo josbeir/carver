@@ -29,7 +29,7 @@ mod media_preview;
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 type PreviewCopies = BTreeMap<(carver_sdk::NoteId, String), (tempfile::TempDir, PathBuf)>;
 
-const BROWSER_LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
+const LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
 
 /// A weak, window-local route for GTK/WebKit adapters to submit MVU messages.
 #[derive(Clone, Default)]
@@ -477,7 +477,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
         category_id: Option<carver_sdk::CategoryId>,
         query: String,
     ) {
-        self.schedule_browser_loading_indicator(request_id);
+        self.schedule_loading_indicator(AppMsg::Browser(
+            super::BrowserMsg::LoadingIndicatorElapsed(request_id),
+        ));
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -502,13 +504,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn schedule_browser_loading_indicator(&self, request_id: super::RequestId) {
+    fn schedule_loading_indicator(&self, message: AppMsg) {
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            glib::timeout_future(BROWSER_LOADING_INDICATOR_DELAY).await;
-            runtime.dispatch(AppMsg::Browser(super::BrowserMsg::LoadingIndicatorElapsed(
-                request_id,
-            )));
+            glib::timeout_future(LOADING_INDICATOR_DELAY).await;
+            runtime.dispatch(message);
         });
     }
 
@@ -528,6 +528,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
     }
 
     fn load_bases(&self, request_id: super::RequestId) {
+        self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
+            request_id,
+        )));
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -540,6 +543,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
     }
 
     fn load_base_rows(&self, request_id: super::RequestId, base_id: carver_sdk::BaseId) {
+        self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
+            request_id,
+        )));
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {

@@ -133,6 +133,15 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
         }
         BasesMsg::Reload => reload_bases(model).into_iter().collect(),
+        BasesMsg::LoadingIndicatorElapsed(request_id) => {
+            if model.bases.definitions.state == super::LoadState::Loading(request_id) {
+                model.bases.definitions_loading_elapsed = Some(request_id);
+            }
+            if model.bases.rows.state == super::LoadState::Loading(request_id) {
+                model.bases.rows_loading_elapsed = Some(request_id);
+            }
+            Vec::new()
+        }
     }
 }
 
