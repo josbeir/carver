@@ -1,4 +1,4 @@
-//! Saved Base context-action interaction coverage.
+//! Saved Base header-action interaction coverage.
 use crate::mvu::{AppDispatcher, AppModel, AppRuntime, LoadState, Route};
 use crate::ui::tests::support::{TestResult, run_main_context_until, test_state, widget_as};
 use gtk::prelude::*;
@@ -17,46 +17,41 @@ pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestRe
     model.sidebar.state = LoadState::Ready(Vec::new());
     model.bases.definitions.state = LoadState::Ready(vec![base.clone()]);
     model.bases.selected = Some(base.id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
     model.route = Route::Base;
     sidebar.render(&model);
     let routes = gtk::Stack::new();
-    for name in ["browser", "base"] {
-        routes.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
-    }
-    let runtime = AppRuntime::new(
-        client.clone(),
-        model,
-        crate::view::ViewRefs::new(routes, adw::StatusPage::new(), adw::StatusPage::new())
-            .with_sidebar_renderer(move |model| sidebar_for_view.render(model)),
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &std::rc::Rc::new(std::cell::Cell::new(false)),
     );
+    routes.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs)
+    .with_sidebar_renderer(move |model| sidebar_for_view.render(model));
+    view.render(&model);
+    let runtime = AppRuntime::new(client.clone(), model, view);
     runtime.bind_dispatcher(&dispatcher);
     let window = adw::Window::new();
     window.set_default_size(500, 700);
-    window.set_content(Some(&sidebar.widget));
+    window.set_content(Some(&routes));
     window.present();
-    let button = widget_as::<gtk::Button>(&sidebar.widget, &format!("base:{}", base.id))
-        .ok_or("base button")?;
+    let button =
+        widget_as::<gtk::Button>(&base_widget, "delete-base-button").ok_or("header delete")?;
+    assert_eq!(button.icon_name().as_deref(), Some("user-trash-symbolic"));
     assert!(run_main_context_until(|| button.is_mapped()));
-    let controllers = button.observe_controllers();
-    let keys = (0..controllers.n_items())
-        .find_map(|i| {
-            controllers
-                .item(i)
-                .and_downcast::<gtk::EventControllerKey>()
-        })
-        .ok_or("context keys")?;
     for response in ["cancel", "delete"] {
-        assert!(keys.emit_by_name::<bool>(
-            "key-pressed",
-            &[
-                &gtk::gdk::Key::Menu,
-                &0_u32,
-                &gtk::gdk::ModifierType::empty()
-            ]
-        ));
-        let delete = widget_as::<gtk::Button>(button.upcast_ref(), "delete-base-action")
-            .ok_or("delete action")?;
-        delete.emit_clicked();
+        button.emit_clicked();
         let dialog = window
             .visible_dialog()
             .and_downcast::<adw::AlertDialog>()

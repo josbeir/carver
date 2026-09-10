@@ -10,6 +10,7 @@ use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
+    pub(crate) delete: gtk::Button,
     pub(crate) title: gtk::Label,
     pub(crate) grid: gtk::ColumnView,
     pub(crate) pages: gtk::Stack,
@@ -39,6 +40,11 @@ pub(crate) fn build_base(
     title.set_widget_name("base-title");
     title.add_css_class("title");
     header.set_title_widget(Some(&title));
+    let delete = gtk::Button::from_icon_name("user-trash-symbolic");
+    delete.set_widget_name("delete-base-button");
+    delete.set_tooltip_text(Some("Delete Base"));
+    delete.set_action_name(Some("base.delete"));
+    header.pack_end(&delete);
     for (label, icon) in [
         ("Columns", "view-list-symbolic"),
         ("Filter", "funnel-symbolic"),
@@ -82,6 +88,7 @@ pub(crate) fn build_base(
     (
         toolbar.upcast(),
         BaseViewRefs {
+            delete,
             title,
             grid,
             pages,

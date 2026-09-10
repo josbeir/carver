@@ -360,6 +360,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let base_pages = widget_as::<gtk::Stack>(&root, "base-pages").ok_or("base pages")?;
     crate::ui::bases::render_base_status(
         &crate::ui::bases::BaseViewRefs {
+            delete: widget_as::<gtk::Button>(&root, "delete-base-button")
+                .ok_or("delete base button")?,
             title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
             grid: bases_grid.clone(),
             pages: base_pages.clone(),
