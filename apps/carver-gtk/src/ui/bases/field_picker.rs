@@ -9,6 +9,13 @@ use libadwaita::{self as adw, prelude::*};
 type PopulateFn = Rc<dyn Fn(&str)>;
 type PopulateSlot = Rc<RefCell<Option<PopulateFn>>>;
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FieldPickerOptions<'a> {
+    pub(crate) keep_open: bool,
+    pub(crate) button_label: Option<&'a str>,
+    pub(crate) button_icon_name: Option<&'a str>,
+}
+
 /// One field offered by a Base configuration picker.
 #[derive(Clone, Debug)]
 pub(crate) struct FieldOption {
@@ -99,8 +106,11 @@ impl FieldPicker {
             catalog,
             initial,
             widget_name,
-            keep_open,
-            button_label,
+            FieldPickerOptions {
+                keep_open,
+                button_label,
+                button_icon_name: None,
+            },
             &is_selected,
             on_selected,
         )
@@ -115,19 +125,22 @@ impl FieldPicker {
         catalog: &FieldCatalog,
         initial: &BaseColumn,
         widget_name: &str,
-        keep_open: bool,
-        button_label: Option<&str>,
+        options: FieldPickerOptions<'_>,
         is_selected: &Rc<dyn Fn(&BaseColumn) -> bool>,
         on_selected: impl Fn(BaseColumn) + 'static,
     ) -> Self {
         catalog.ensure(initial);
         let selected = Rc::new(RefCell::new(initial.clone()));
         let initial_label = field_label(initial);
-        let action_label = button_label.map(ToOwned::to_owned);
-        let button = gtk::Button::with_label(action_label.as_deref().unwrap_or(&initial_label));
+        let action_label = options.button_label.map(ToOwned::to_owned);
+        let button = options.button_icon_name.map_or_else(
+            || gtk::Button::with_label(action_label.as_deref().unwrap_or(&initial_label)),
+            gtk::Button::from_icon_name,
+        );
         button.set_widget_name(widget_name);
         button.add_css_class("field-picker");
-        button.set_tooltip_text(Some(&initial_label));
+        let initial_tooltip = picker_tooltip(action_label.as_deref(), &initial_label);
+        button.set_tooltip_text(Some(&initial_tooltip));
         update_accessibility_with_label(&button, initial, catalog, action_label.as_deref());
 
         let popover = gtk::Popover::new();
@@ -135,23 +148,24 @@ impl FieldPicker {
         popover.set_autohide(true);
         popover.set_parent(&button);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        root.set_margin_start(8);
-        root.set_margin_end(8);
-        root.set_margin_top(8);
-        root.set_margin_bottom(8);
+        root.set_margin_start(12);
+        root.set_margin_end(12);
+        root.set_margin_top(12);
+        root.set_margin_bottom(12);
         let search = gtk::SearchEntry::new();
         search.set_placeholder_text(Some("Search fields"));
         search.set_widget_name(&format!("{widget_name}-search"));
+        search.set_height_request(42);
         root.append(&search);
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::None);
         list.add_css_class("boxed-list");
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_min_content_width(280);
-        scroll.set_max_content_width(420);
-        scroll.set_min_content_height(80);
-        scroll.set_max_content_height(300);
+        scroll.set_min_content_width(360);
+        scroll.set_max_content_width(500);
+        scroll.set_min_content_height(96);
+        scroll.set_max_content_height(360);
         scroll.set_child(Some(&list));
         root.append(&scroll);
         let custom = gtk::Button::with_label("Add custom field…");
@@ -168,10 +182,18 @@ impl FieldPicker {
         let populate_slot: PopulateSlot = Rc::new(RefCell::new(None));
         let populate_slot_for_selection = Rc::downgrade(&populate_slot);
         let button_label = action_label.clone();
+        let button_icon_name = options.button_icon_name.map(ToOwned::to_owned);
+        let keep_open = options.keep_open;
         let callback: Rc<dyn Fn(BaseColumn)> = Rc::new(move |field: BaseColumn| {
             *selected_for_render.borrow_mut() = field.clone();
-            button_for_render.set_label(button_label.as_deref().unwrap_or(&field_label(&field)));
-            button_for_render.set_tooltip_text(Some(&field_label(&field)));
+            if let Some(icon_name) = button_icon_name.as_deref() {
+                button_for_render.set_icon_name(icon_name);
+            } else {
+                button_for_render
+                    .set_label(button_label.as_deref().unwrap_or(&field_label(&field)));
+            }
+            let tooltip = picker_tooltip(button_label.as_deref(), &field_label(&field));
+            button_for_render.set_tooltip_text(Some(&tooltip));
             update_accessibility_with_label(
                 &button_for_render,
                 &field,
@@ -452,11 +474,19 @@ fn update_accessibility_with_label(
         .into_iter()
         .find(|option| option.field == *field)
         .map_or_else(|| "Field".to_owned(), |option| option.metadata);
-    let label = label_override.map_or_else(|| field_label(field), ToOwned::to_owned);
+    let label = picker_accessible_label(label_override, field);
     button.update_property(&[
         gtk::accessible::Property::Label(&label),
         gtk::accessible::Property::Description(&metadata),
     ]);
+}
+
+fn picker_accessible_label(label_override: Option<&str>, field: &BaseColumn) -> String {
+    label_override.map_or_else(|| field_label(field), ToOwned::to_owned)
+}
+
+fn picker_tooltip(label_override: Option<&str>, field_label: &str) -> String {
+    label_override.map_or_else(|| field_label.to_owned(), ToOwned::to_owned)
 }
 
 pub(crate) fn field_id(field: &BaseColumn) -> String {

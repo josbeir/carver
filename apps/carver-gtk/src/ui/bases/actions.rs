@@ -12,7 +12,7 @@ use carver_sdk::{
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
-use super::field_picker::{FieldCatalog, FieldPicker, field_label};
+use super::field_picker::{FieldCatalog, FieldPicker, FieldPickerOptions, field_label};
 
 pub(crate) fn render_delete(
     button: &gtk::Button,
@@ -94,20 +94,18 @@ impl RuleWidgets for SortWidgets {
     }
 }
 
-fn rebuild_rule_rows<T: RuleWidgets>(container: &gtk::Box, rows: &[T], add_button: &gtk::Button) {
+fn rebuild_rule_rows<T: RuleWidgets>(container: &gtk::Box, rows: &[T]) {
     while let Some(child) = container.first_child() {
         container.remove(&child);
     }
     for rule in rows {
         container.append(rule.row());
     }
-    container.append(add_button);
 }
 
 fn reorder_rule<T: RuleWidgets>(
     rows: &Rc<RefCell<Vec<T>>>,
     container: &gtk::Box,
-    add_button: &gtk::Button,
     id: u64,
     offset: isize,
 ) {
@@ -126,15 +124,10 @@ fn reorder_rule<T: RuleWidgets>(
         };
         rows.swap(index, target);
     }
-    rebuild_rule_rows(container, &rows.borrow(), add_button);
+    rebuild_rule_rows(container, &rows.borrow());
 }
 
-fn remove_rule<T: RuleWidgets>(
-    rows: &Rc<RefCell<Vec<T>>>,
-    container: &gtk::Box,
-    add_button: &gtk::Button,
-    id: u64,
-) {
+fn remove_rule<T: RuleWidgets>(rows: &Rc<RefCell<Vec<T>>>, container: &gtk::Box, id: u64) {
     let removed = {
         let mut rows = rows.borrow_mut();
         rows.iter()
@@ -142,7 +135,7 @@ fn remove_rule<T: RuleWidgets>(
             .map(|index| rows.remove(index))
     };
     if removed.is_some() {
-        rebuild_rule_rows(container, &rows.borrow(), add_button);
+        rebuild_rule_rows(container, &rows.borrow());
     }
 }
 
@@ -159,7 +152,6 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     id: u64,
     container: &gtk::Box,
     rows: &Rc<RefCell<Vec<T>>>,
-    add_button: &gtk::Button,
     refresh_preview: Option<&Rc<dyn Fn()>>,
 ) {
     let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -173,10 +165,9 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     {
         let rows = Rc::clone(rows);
         let container = container.clone();
-        let add_button = add_button.clone();
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         up.connect_clicked(move |_| {
-            reorder_rule(&rows, &container, &add_button, id, -1);
+            reorder_rule(&rows, &container, id, -1);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
@@ -186,10 +177,9 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     {
         let rows = Rc::clone(rows);
         let container = container.clone();
-        let add_button = add_button.clone();
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         down.connect_clicked(move |_| {
-            reorder_rule(&rows, &container, &add_button, id, 1);
+            reorder_rule(&rows, &container, id, 1);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
@@ -199,10 +189,9 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     {
         let rows = Rc::clone(rows);
         let container = container.clone();
-        let add_button = add_button.clone();
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         remove.connect_clicked(move |_| {
-            remove_rule(&rows, &container, &add_button, id);
+            remove_rule(&rows, &container, id);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
@@ -483,10 +472,20 @@ fn rebuild_visible_columns(
         row.set_margin_top(3);
         row.set_margin_bottom(3);
         row.set_valign(gtk::Align::Center);
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        content.set_hexpand(true);
+        content.set_margin_start(10);
+        content.set_margin_end(10);
+        content.set_margin_top(7);
+        content.set_margin_bottom(7);
         let handle = gtk::Image::from_icon_name("list-drag-handle-symbolic");
         handle.set_opacity(0.65);
-        handle.set_tooltip_text(Some("Drag to reorder field"));
-        row.append(&handle);
+        handle.set_tooltip_text(Some(if matches!(field, BaseColumn::Name) {
+            "Name is fixed first"
+        } else {
+            "Drag to reorder field"
+        }));
+        content.append(&handle);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 1);
         labels.set_hexpand(true);
         let label = gtk::Label::new(Some(&field_label(&field)));
@@ -501,7 +500,7 @@ fn rebuild_visible_columns(
         metadata_label.set_xalign(0.0);
         metadata_label.add_css_class("dim-label");
         labels.append(&metadata_label);
-        row.append(&labels);
+        content.append(&labels);
         if !matches!(field, BaseColumn::Name) {
             install_column_drag_and_drop(&row, &field, selected, container, catalog);
         }
@@ -520,8 +519,9 @@ fn rebuild_visible_columns(
                     .retain(|candidate| candidate != &field);
                 rebuild_visible_columns(&container, &selected, &catalog);
             });
-            row.append(&remove);
+            content.append(&remove);
         }
+        row.append(&content);
         container.append(&row);
     }
 }
@@ -662,17 +662,6 @@ fn show_configuration_dialog(
     let selected_columns = Rc::new(RefCell::new(visible_columns(definition)));
     let columns_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
     columns_box.set_widget_name("base-visible-fields-list");
-    let columns_scroll = gtk::ScrolledWindow::new();
-    columns_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-    columns_scroll.set_propagate_natural_height(true);
-    columns_scroll.set_min_content_height(104);
-    columns_scroll.set_max_content_height(220);
-    columns_scroll.set_child(Some(&columns_box));
-    content.append(&section_label("Visible fields"));
-    content.append(&description_label(
-        "Choose the columns shown in this Base. Name is always included.",
-    ));
-    content.append(&columns_scroll);
     rebuild_visible_columns(&columns_box, &selected_columns, &catalog);
     {
         let selected_columns = Rc::clone(&selected_columns);
@@ -686,8 +675,11 @@ fn show_configuration_dialog(
             &catalog,
             &BaseColumn::Name,
             "base-add-visible-field-picker",
-            true,
-            Some("Add field…"),
+            FieldPickerOptions {
+                keep_open: true,
+                button_label: Some("Add visible field"),
+                button_icon_name: Some("list-add-symbolic"),
+            },
             &is_selected,
             move |field| {
                 let mut columns = selected_columns.borrow_mut();
@@ -699,10 +691,13 @@ fn show_configuration_dialog(
             },
         );
         add_picker.button.set_widget_name("base-add-visible-field");
-        add_picker.button.add_css_class("flat");
-        add_picker.button.set_halign(gtk::Align::Start);
-        content.append(&add_picker.button);
+        style_section_action(&add_picker.button, "Add visible field");
+        content.append(&section_header("Visible fields", &add_picker.button));
     }
+    content.append(&description_label(
+        "Choose the columns shown in this Base. Name is always included.",
+    ));
+    content.append(&columns_box);
 
     let filter_mode = gtk::ComboBoxText::new();
     filter_mode.append(Some("all"), "Match all filters");
@@ -714,7 +709,11 @@ fn show_configuration_dialog(
             "all"
         },
     ));
-    content.append(&section_label("Filters"));
+    let add_filter = section_action("Add filter");
+    add_filter.set_widget_name("base-add-filter");
+    let add_sort = section_action("Add sort rule");
+    add_sort.set_widget_name("base-add-sort");
+    content.append(&section_header("Filters", &add_filter));
     content.append(&description_label(
         "Use the arrows to set rule priority, or remove a rule you no longer need.",
     ));
@@ -736,10 +735,6 @@ fn show_configuration_dialog(
     let filter_widgets: Rc<RefCell<Vec<FilterWidgets>>> = Rc::new(RefCell::new(Vec::new()));
     let sort_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let sort_widgets: Rc<RefCell<Vec<SortWidgets>>> = Rc::new(RefCell::new(Vec::new()));
-    let add_filter = gtk::Button::with_label("Add filter");
-    add_filter.set_widget_name("base-add-filter");
-    let add_sort = gtk::Button::with_label("Add sort rule");
-    add_sort.set_widget_name("base-add-sort");
     let next_filter_id = Rc::new(Cell::new(definition.filters.len() as u64));
     let next_sort_id = Rc::new(Cell::new(definition.sorts.len() as u64));
     let refresh_preview: Rc<dyn Fn()> = {
@@ -786,7 +781,6 @@ fn show_configuration_dialog(
             id,
             &filter_box,
             &filter_widgets,
-            &add_filter,
             Some(&refresh_preview),
         );
         filter_box.append(&row);
@@ -796,7 +790,6 @@ fn show_configuration_dialog(
         let filter_box = filter_box.clone();
         let filter_widgets = Rc::clone(&filter_widgets);
         let next_filter_id = Rc::clone(&next_filter_id);
-        let add_filter_for_rows = add_filter.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
         add_filter.connect_clicked(move |_| {
             let id = allocate_rule_id(&next_filter_id);
@@ -811,17 +804,15 @@ fn show_configuration_dialog(
                 id,
                 &filter_box,
                 &filter_widgets,
-                &add_filter_for_rows,
                 Some(&refresh_preview),
             );
-            rebuild_rule_rows(&filter_box, &filter_widgets.borrow(), &add_filter_for_rows);
+            rebuild_rule_rows(&filter_box, &filter_widgets.borrow());
             refresh_preview();
         });
     }
-    filter_box.append(&add_filter);
     content.append(&filter_box);
 
-    content.append(&section_label("Sort"));
+    content.append(&section_header("Sort", &add_sort));
     content.append(&description_label(
         "Sort rules are applied from top to bottom.",
     ));
@@ -829,15 +820,7 @@ fn show_configuration_dialog(
         let id = index as u64;
         let (row, widgets) = sort_row(&catalog, Some(sort), id);
         sort_widgets.borrow_mut().push(widgets);
-        append_rule_controls(
-            &row,
-            "sort rule",
-            id,
-            &sort_box,
-            &sort_widgets,
-            &add_sort,
-            None,
-        );
+        append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
         sort_box.append(&row);
     }
     {
@@ -845,24 +828,14 @@ fn show_configuration_dialog(
         let sort_box = sort_box.clone();
         let sort_widgets = Rc::clone(&sort_widgets);
         let next_sort_id = Rc::clone(&next_sort_id);
-        let add_sort_for_rows = add_sort.clone();
         add_sort.connect_clicked(move |_| {
             let id = allocate_rule_id(&next_sort_id);
             let (row, widgets) = sort_row(&catalog, None, id);
             sort_widgets.borrow_mut().push(widgets);
-            append_rule_controls(
-                &row,
-                "sort rule",
-                id,
-                &sort_box,
-                &sort_widgets,
-                &add_sort_for_rows,
-                None,
-            );
-            rebuild_rule_rows(&sort_box, &sort_widgets.borrow(), &add_sort_for_rows);
+            append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
+            rebuild_rule_rows(&sort_box, &sort_widgets.borrow());
         });
     }
-    sort_box.append(&add_sort);
     content.append(&sort_box);
     refresh_preview();
 
@@ -921,6 +894,32 @@ fn section_label(text: &str) -> gtk::Label {
     label.set_xalign(0.0);
     label.add_css_class("heading");
     label
+}
+
+fn section_header(text: &str, action: &gtk::Button) -> gtk::Box {
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    header.set_hexpand(true);
+    let label = section_label(text);
+    label.set_hexpand(true);
+    header.append(&label);
+    header.append(action);
+    header
+}
+
+fn section_action(tooltip: &str) -> gtk::Button {
+    let button = gtk::Button::from_icon_name("list-add-symbolic");
+    style_section_action(&button, tooltip);
+    button
+}
+
+fn style_section_action(button: &gtk::Button, accessible_label: &str) {
+    button.add_css_class("flat");
+    button.add_css_class("circular");
+    button.set_size_request(32, 32);
+    button.set_halign(gtk::Align::End);
+    button.set_valign(gtk::Align::Center);
+    button.set_tooltip_text(Some(accessible_label));
+    button.update_property(&[gtk::accessible::Property::Label(accessible_label)]);
 }
 
 fn description_label(text: &str) -> gtk::Label {
