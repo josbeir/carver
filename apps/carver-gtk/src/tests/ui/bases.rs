@@ -248,6 +248,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(scroll.propagates_natural_width());
     assert!(scroll.min_content_height() >= 640);
     assert!(scroll.max_content_height() >= 760);
+    let footer = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-configuration-footer")
+        .ok_or("configuration footer")?;
+    assert!(footer.margin_top() >= 12);
     dialog.close();
     window.close();
     Ok(())

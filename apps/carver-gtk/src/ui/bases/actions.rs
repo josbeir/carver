@@ -859,8 +859,10 @@ fn show_configuration_dialog(
     scroll.set_max_content_height(760);
     scroll.set_child(Some(&content));
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    footer.set_widget_name("base-configuration-footer");
     footer.set_margin_start(24);
     footer.set_margin_end(24);
+    footer.set_margin_top(12);
     footer.set_margin_bottom(16);
     footer.append(&save);
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
