@@ -96,6 +96,52 @@ fn base_loading_delay_should_ignore_completed_and_superseded_requests() {
 }
 
 #[test]
+fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
+    let mut model = AppModel::new(&Config::default());
+    let current = RequestId(8);
+    model.bases.property_descriptors.state = LoadState::Loading(current);
+    let stale = carver_sdk::PropertyDescriptor {
+        path: carver_sdk::PropertyPath("/stale".to_owned()),
+        kind: carver_sdk::PropertyKind::Text,
+        example: Some("old".to_owned()),
+    };
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
+                request_id: RequestId(7),
+                result: Ok(vec![stale]),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model.bases.property_descriptors.state,
+        LoadState::Loading(current)
+    );
+
+    let descriptor = carver_sdk::PropertyDescriptor {
+        path: carver_sdk::PropertyPath("/status".to_owned()),
+        kind: carver_sdk::PropertyKind::Text,
+        example: Some("ready".to_owned()),
+    };
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
+                request_id: current,
+                result: Ok(vec![descriptor.clone()]),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model.bases.property_descriptors.state,
+        LoadState::Ready(vec![descriptor])
+    );
+}
+
+#[test]
 fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
@@ -115,6 +161,9 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         id: BaseId::new(),
         name: "Projects".to_owned(),
         columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
     };
@@ -171,6 +220,9 @@ fn created_base_should_reload_definitions_and_open_its_grid() {
         id: BaseId::new(),
         name: "Projects".to_owned(),
         columns: vec![BaseColumn::Category],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
     };
@@ -325,4 +377,43 @@ fn external_library_change_should_reload_selected_base_rows() {
     assert!(effects.iter().any(
         |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
     ));
+}
+
+#[test]
+fn base_update_should_forward_configuration_and_reload_rows() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::Update {
+            base_id,
+            revision: Revision(3),
+            name: "Projects".to_owned(),
+            columns: vec![BaseColumn::Category],
+            filter_mode: BaseFilterMode::All,
+            filters: Vec::new(),
+            sorts: Vec::new(),
+        }),
+    );
+    assert!(
+        matches!(effects.as_slice(), [Effect::UpdateBase { base_id: id, revision: Revision(3), .. }] if *id == base_id)
+    );
+}
+
+#[test]
+fn stale_base_update_should_leave_a_notice_without_reloading() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseUpdated {
+            result: Err(UiError::new("base changed")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("base changed")
+    );
 }

@@ -132,6 +132,32 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 vec![Effect::CreateBase { name, columns }]
             }
         }
+        BasesMsg::Configure => Vec::new(),
+        BasesMsg::Update {
+            base_id,
+            revision,
+            name,
+            columns,
+            filter_mode,
+            filters,
+            sorts,
+        } => {
+            let name = name.trim().to_owned();
+            if name.is_empty() {
+                model.notice = Some(UiError::new("Base names cannot be empty."));
+                Vec::new()
+            } else {
+                vec![Effect::UpdateBase {
+                    base_id,
+                    revision,
+                    name,
+                    columns,
+                    filter_mode,
+                    filters,
+                    sorts,
+                }]
+            }
+        }
         BasesMsg::Reload => reload_bases(model).into_iter().collect(),
         BasesMsg::Delete(base_id) => {
             if model.bases.deleting.insert(base_id) {
@@ -1230,10 +1256,17 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
     (!name.is_empty()).then(|| effect(name))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Library completions stay centralized so every async reply follows one reducer path"
+)]
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
         LibraryReply::BasesLoaded { request_id, result } => {
             update_bases_loaded(model, request_id, result)
+        }
+        LibraryReply::PropertyDescriptorsLoaded { request_id, result } => {
+            update_property_descriptors_loaded(model, request_id, result)
         }
         LibraryReply::BaseRowsLoaded {
             request_id,
@@ -1241,6 +1274,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             result,
         } => update_base_rows_loaded(model, request_id, base_id, result),
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
+        LibraryReply::BaseUpdated { result } => update_base_updated(model, result),
         LibraryReply::BaseDeleted { base_id, result } => {
             update_base_deleted(model, base_id, result)
         }
@@ -1374,6 +1408,19 @@ fn update_bases_loaded(
         .collect()
 }
 
+fn update_property_descriptors_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<Vec<carver_sdk::PropertyDescriptor>, UiError>,
+) -> Vec<Effect> {
+    let reload = model.bases.property_descriptors.finish(request_id, result);
+    reload
+        .then(|| reload_property_descriptors(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
 fn update_base_rows_loaded(
     model: &mut AppModel,
     request_id: super::RequestId,
@@ -1401,6 +1448,26 @@ fn update_base_created(
             model.notice = None;
             let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
             effects.extend(update_bases(model, BasesMsg::Open(base.id)));
+            effects
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
+}
+
+fn update_base_updated(
+    model: &mut AppModel,
+    result: Result<carver_sdk::BaseDefinition, UiError>,
+) -> Vec<Effect> {
+    match result {
+        Ok(base) => {
+            model.notice = None;
+            let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
+            if model.route == super::Route::Base && model.bases.selected == Some(base.id) {
+                effects.extend(reload_base_rows(model, base.id));
+            }
             effects
         }
         Err(error) => {
@@ -1679,6 +1746,7 @@ fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) ->
             let mut effects = [
                 reload_sidebar(model),
                 reload_bases(model),
+                reload_property_descriptors(model),
                 reload_browser(model),
             ]
             .into_iter()
@@ -1973,6 +2041,7 @@ fn reload_all_resources(model: &mut AppModel) -> Vec<Effect> {
     let mut effects: Vec<_> = [
         reload_sidebar(model),
         reload_bases(model),
+        reload_property_descriptors(model),
         reload_browser(model),
         reload_trash(model),
     ]
@@ -2176,6 +2245,15 @@ fn reload_bases(model: &mut AppModel) -> Option<Effect> {
         .definitions
         .begin_reload(request_id)
         .then_some(Effect::LoadBases { request_id })
+}
+
+fn reload_property_descriptors(model: &mut AppModel) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .bases
+        .property_descriptors
+        .begin_reload(request_id)
+        .then_some(Effect::LoadPropertyDescriptors { request_id })
 }
 
 fn reload_base_rows(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Option<Effect> {

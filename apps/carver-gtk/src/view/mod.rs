@@ -250,6 +250,13 @@ impl ViewRefs {
         };
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
             crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
+            crate::ui::bases::actions::render_configure(
+                &refs.configure,
+                None,
+                &[],
+                &[],
+                dispatcher,
+            );
             refs.grid.set_sensitive(false);
             if let LoadState::Failed(error) = &model.bases.definitions.state {
                 crate::ui::bases::render_base_status(refs, "Couldn’t load base", &error.message);
@@ -291,6 +298,17 @@ impl ViewRefs {
             }
         };
         if let Some(definition) = definitions.iter().find(|base| base.id == base_id) {
+            let property_descriptors = match &model.bases.property_descriptors.state {
+                LoadState::Ready(descriptors) => descriptors.as_slice(),
+                _ => &[],
+            };
+            crate::ui::bases::actions::render_configure(
+                &refs.configure,
+                Some(definition),
+                rows,
+                property_descriptors,
+                dispatcher,
+            );
             crate::ui::bases::render_base(refs, definition, rows, dispatcher);
         }
     }

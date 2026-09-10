@@ -7,10 +7,11 @@ use std::{error::Error, path::Path, thread};
 use async_channel::{Receiver, Sender};
 use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
-    BaseColumn, BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryColor,
-    CategoryIcon, CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
-    PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary,
-    TrashedNoteSummary,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
+    BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
+    CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
+    PropertyDescriptor, PropertyKind, PropertyPath, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -228,6 +229,36 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Updates a saved base configuration without blocking the caller.
+    // CONTEXT: Preserve one-to-one async forwarding for every user-editable Base setting.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Base configuration fields are explicit"
+    )]
+    pub async fn update_base_async(
+        &self,
+        base_id: BaseId,
+        revision: Revision,
+        name: String,
+        columns: Vec<BaseColumn>,
+        filter_mode: BaseFilterMode,
+        filters: Vec<BaseFilter>,
+        sorts: Vec<BaseSort>,
+    ) -> Result<BaseDefinition, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.update_base(
+                base_id,
+                revision,
+                &name,
+                &columns,
+                filter_mode,
+                &filters,
+                &sorts,
+            )
+        })
+        .await
+    }
+
     /// Lists saved bases without blocking the caller.
     pub async fn bases_async(&self) -> Result<Vec<BaseDefinition>, LibraryError<B::Error>> {
         self.request(LibraryBackend::bases).await
@@ -251,6 +282,13 @@ impl<B: LibraryBackend> LibraryClient<B> {
     /// Discovers current frontmatter properties without blocking the caller.
     pub async fn property_paths_async(&self) -> Result<Vec<PropertyPath>, LibraryError<B::Error>> {
         self.request(LibraryBackend::property_paths).await
+    }
+
+    /// Discovers typed frontmatter property descriptors without blocking the caller.
+    pub async fn property_descriptors_async(
+        &self,
+    ) -> Result<Vec<PropertyDescriptor>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::property_descriptors).await
     }
 
     /// Creates a blank note without blocking the caller.

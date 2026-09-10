@@ -12,10 +12,11 @@ use atomic_write_file::AtomicWriteFile;
 use std::time::Duration;
 
 use carver_domain::{
-    BaseColumn, BaseDefinition, BaseId, BaseRow, Category, CategoryAppearance, CategoryColor,
-    CategoryIcon, CategoryId, CategorySummary, Note, NoteId, NoteSummary, PropertyPath, Revision,
-    SearchHit, TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
-    derive_content, project_frontmatter, property_paths,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
+    CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note, NoteId,
+    NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    project_base_rows, project_frontmatter, property_descriptors,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -89,6 +90,60 @@ pub enum StorageError {
     /// A saved base definition was malformed.
     #[error("invalid saved base definition: {0}")]
     InvalidBaseDefinition(String),
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+struct BaseDefinitionPayload {
+    #[serde(default = "base_definition_version")]
+    version: u8,
+    columns: Vec<BaseColumn>,
+    #[serde(default)]
+    filter_mode: BaseFilterMode,
+    #[serde(default)]
+    filters: Vec<BaseFilter>,
+    #[serde(default)]
+    sorts: Vec<BaseSort>,
+}
+
+const fn base_definition_version() -> u8 {
+    1
+}
+
+fn decode_base_payload(raw: &str) -> Result<BaseDefinitionPayload, StorageError> {
+    if let Ok(payload) = serde_json::from_str::<BaseDefinitionPayload>(raw) {
+        if payload.version != 1 {
+            return Err(StorageError::InvalidBaseDefinition(format!(
+                "unsupported definition version {}",
+                payload.version
+            )));
+        }
+        return Ok(payload);
+    }
+    let columns = serde_json::from_str::<Vec<BaseColumn>>(raw)
+        .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))?;
+    Ok(BaseDefinitionPayload {
+        version: 1,
+        columns,
+        filter_mode: BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+    })
+}
+
+fn encode_base_payload(
+    columns: &[BaseColumn],
+    filter_mode: BaseFilterMode,
+    filters: &[BaseFilter],
+    sorts: &[BaseSort],
+) -> Result<String, StorageError> {
+    serde_json::to_string(&BaseDefinitionPayload {
+        version: 1,
+        columns: columns.to_vec(),
+        filter_mode,
+        filters: filters.to_vec(),
+        sorts: sorts.to_vec(),
+    })
+    .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))
 }
 
 /// The complete schema for libraries created before schema versioning was introduced.
@@ -313,19 +368,15 @@ impl SqliteLibrary {
         }
         let id = BaseId::new();
         let revision = Revision(1);
-        let definition_json = serde_json::to_string(columns)
-            .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))?;
+        let definition_json = encode_base_payload(columns, BaseFilterMode::All, &[], &[])?;
         self.connection.execute(
             "INSERT INTO bases (id, name, definition_json, revision) VALUES (?1, ?2, ?3, ?4)",
             params![id.to_string(), name, definition_json, revision.0],
         )?;
-        Ok(BaseDefinition {
-            id,
-            name: name.to_owned(),
-            columns: columns.to_vec(),
-            revision,
-            row_count: self.active_note_count()?,
-        })
+        let mut definition =
+            BaseDefinition::defaults(id, name.to_owned(), columns.to_vec(), revision);
+        definition.row_count = self.base_rows(id)?.len();
+        Ok(definition)
     }
 
     /// Lists saved bases in case-insensitive name order.
@@ -335,43 +386,31 @@ impl SqliteLibrary {
     /// Returns an error when stored values are malformed or cannot be read.
     pub fn bases(&self) -> Result<Vec<BaseDefinition>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT b.id, b.name, b.definition_json, b.revision,
-                    (SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
-                     WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL)
+            "SELECT b.id, b.name, b.definition_json, b.revision
              FROM bases b ORDER BY b.name COLLATE NOCASE",
         )?;
-        statement
+        let mut definitions = statement
             .query_map([], |row| {
                 let id = base_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?;
-                let columns = serde_json::from_str::<Vec<BaseColumn>>(&row.get::<_, String>(2)?)
-                    .map_err(|error| {
-                        to_sql_error(StorageError::InvalidBaseDefinition(error.to_string()))
-                    })?;
+                let payload =
+                    decode_base_payload(&row.get::<_, String>(2)?).map_err(to_sql_error)?;
                 Ok(BaseDefinition {
                     id,
                     name: row.get(1)?,
-                    columns,
+                    columns: payload.columns,
+                    filter_mode: payload.filter_mode,
+                    filters: payload.filters,
+                    sorts: payload.sorts,
                     revision: Revision(row.get(3)?),
-                    row_count: usize::try_from(row.get::<_, i64>(4)?).map_err(|_| {
-                        to_sql_error(StorageError::Corrupt(
-                            "base row count does not fit usize".to_owned(),
-                        ))
-                    })?,
+                    row_count: 0,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
-    }
-
-    fn active_note_count(&self) -> Result<usize, StorageError> {
-        let count = self.connection.query_row(
-            "SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
-             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL",
-            [],
-            |row| row.get::<_, i64>(0),
-        )?;
-        usize::try_from(count)
-            .map_err(|_| StorageError::Corrupt("base row count does not fit usize".to_owned()))
+            .map_err(StorageError::Database)?;
+        for definition in &mut definitions {
+            definition.row_count = self.base_rows(definition.id)?.len();
+        }
+        Ok(definitions)
     }
 
     /// Deletes only the saved view definition.
@@ -390,26 +429,82 @@ impl SqliteLibrary {
         }
     }
 
+    /// Updates a saved base configuration guarded by its revision.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::Conflict`] when another session changed the definition.
+    // CONTEXT: This mirrors the UI-neutral library port without hiding individual editable fields.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Base configuration fields are explicit"
+    )]
+    pub fn update_base(
+        &self,
+        base_id: BaseId,
+        revision: Revision,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, StorageError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(StorageError::InvalidBaseName);
+        }
+        let next_revision = Revision(revision.0.saturating_add(1));
+        let definition_json = encode_base_payload(columns, filter_mode, filters, sorts)?;
+        let changed = self.connection.execute(
+            "UPDATE bases SET name = ?1, definition_json = ?2, revision = ?3
+             WHERE id = ?4 AND revision = ?5",
+            params![
+                name,
+                definition_json,
+                next_revision.0,
+                base_id.to_string(),
+                revision.0
+            ],
+        )?;
+        if changed != 1 {
+            return Err(StorageError::Conflict);
+        }
+        let mut definition = BaseDefinition {
+            id: base_id,
+            name: name.to_owned(),
+            columns: columns.to_vec(),
+            filter_mode,
+            filters: filters.to_vec(),
+            sorts: sorts.to_vec(),
+            revision: next_revision,
+            row_count: 0,
+        };
+        definition.row_count = self.base_rows(base_id)?.len();
+        Ok(definition)
+    }
+
     /// Returns every active note projected as a base row.
     ///
     /// # Errors
     ///
     /// Returns an error when the base is missing or rows cannot be read.
     pub fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, StorageError> {
-        let exists = self.connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM bases WHERE id = ?1)",
-            [base_id.to_string()],
-            |row| row.get::<_, bool>(0),
-        )?;
-        if !exists {
-            return Err(StorageError::MutationUnavailable);
-        }
+        let raw_definition: String = self
+            .connection
+            .query_row(
+                "SELECT definition_json FROM bases WHERE id = ?1",
+                [base_id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(StorageError::MutationUnavailable)?;
+        let payload = decode_base_payload(&raw_definition)?;
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL ORDER BY n.updated_at DESC",
         )?;
-        statement
+        let rows = statement
             .query_map([], |row| {
                 let raw: Option<String> = row.get(5)?;
                 let properties = raw
@@ -435,7 +530,13 @@ impl SqliteLibrary {
                 })
             })?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
+            .map_err(StorageError::Database)?;
+        Ok(project_base_rows(
+            rows,
+            payload.filter_mode,
+            &payload.filters,
+            &payload.sorts,
+        ))
     }
 
     /// Discovers flattened leaf paths across active notes.
@@ -444,18 +545,38 @@ impl SqliteLibrary {
     ///
     /// Returns an error when indexed JSON cannot be read.
     pub fn property_paths(&self) -> Result<Vec<PropertyPath>, StorageError> {
+        Ok(self
+            .property_descriptors()?
+            .into_iter()
+            .map(|descriptor| descriptor.path)
+            .collect())
+    }
+
+    /// Discovers typed property descriptors across active notes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when indexed JSON cannot be read.
+    pub fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, StorageError> {
         let mut statement = self.connection.prepare(
             "SELECT n.frontmatter_json FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.frontmatter_json IS NOT NULL",
         )?;
         let values = statement.query_map([], |row| row.get::<_, String>(0))?;
-        let mut found = std::collections::BTreeSet::new();
+        let mut found: std::collections::BTreeMap<String, PropertyDescriptor> =
+            std::collections::BTreeMap::new();
         for value in values {
             let value = serde_json::from_str(&value?)
                 .map_err(|error| StorageError::Corrupt(error.to_string()))?;
-            found.extend(property_paths(&value));
+            for descriptor in property_descriptors(&value) {
+                if let Some(existing) = found.get_mut(&descriptor.path.0) {
+                    existing.merge_observation(&descriptor);
+                } else {
+                    found.insert(descriptor.path.0.clone(), descriptor);
+                }
+            }
         }
-        Ok(found.into_iter().collect())
+        Ok(found.into_values().collect())
     }
 
     /// Creates a category at the end of the sidebar.
@@ -1384,6 +1505,28 @@ impl LibraryBackend for SqliteLibrary {
         Self::create_base(self, name, columns)
     }
 
+    fn update_base(
+        &self,
+        base_id: BaseId,
+        revision: Revision,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::update_base(
+            self,
+            base_id,
+            revision,
+            name,
+            columns,
+            filter_mode,
+            filters,
+            sorts,
+        )
+    }
+
     fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error> {
         Self::bases(self)
     }
@@ -1396,8 +1539,8 @@ impl LibraryBackend for SqliteLibrary {
         Self::base_rows(self, base_id)
     }
 
-    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
-        Self::property_paths(self)
+    fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, Self::Error> {
+        Self::property_descriptors(self)
     }
 
     fn trash_contents(&self) -> Result<TrashContents, Self::Error> {

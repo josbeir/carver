@@ -57,6 +57,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     add::add_dialog_should_create_and_preserve_drafts()?;
     add::add_dialog_should_resize_for_the_active_form()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
+    bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
         gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),
@@ -360,6 +361,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let base_pages = widget_as::<gtk::Stack>(&root, "base-pages").ok_or("base pages")?;
     crate::ui::bases::render_base_status(
         &crate::ui::bases::BaseViewRefs {
+            configure: widget_as::<gtk::Button>(&root, "configure-base-button")
+                .ok_or("configure base button")?,
             delete: widget_as::<gtk::Button>(&root, "delete-base-button")
                 .ok_or("delete base button")?,
             title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
@@ -1784,6 +1787,9 @@ fn assert_base_loading_delay() -> TestResult {
         id: model.bases.selected.ok_or("selected base")?,
         name: "Projects".to_owned(),
         columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 0,
     }]);
@@ -1825,6 +1831,9 @@ fn assert_base_note_keyboard_activation() -> TestResult {
         id: carver_sdk::BaseId::new(),
         name: "Projects".to_owned(),
         columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
     };
@@ -1863,6 +1872,9 @@ fn assert_base_reload_preserves_buttons() -> TestResult {
         id: carver_sdk::BaseId::new(),
         name: "Projects".to_owned(),
         columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 7,
     };
