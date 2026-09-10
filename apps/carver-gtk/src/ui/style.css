@@ -339,6 +339,7 @@ popover button:checked {
 }
 
 .sidebar-add-panel { padding: 8px 18px 18px; }
+#add-base-page { padding: 12px; }
 .add-choice { padding: 14px; border-radius: 12px; border: 1px solid alpha(currentColor, 0.12); background: alpha(currentColor, 0.025); font-weight: normal; }
 .add-choice .heading { font-weight: 700; }
 .add-choice:hover, .add-choice:focus-visible { background: alpha(@accent_bg_color, 0.09); }

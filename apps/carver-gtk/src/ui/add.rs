@@ -56,6 +56,7 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
     let category = category_form("", CategoryAppearance::default());
     let base_entry = gtk::Entry::builder().placeholder_text("Base name").build();
     base_entry.set_widget_name("base-name-entry");
+    base_entry.set_max_width_chars(36);
     let base_content = gtk::Box::new(gtk::Orientation::Vertical, 12);
     base_content.append(&base_entry);
     let submitted = Rc::new(Cell::new(false));
@@ -81,23 +82,7 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
     ] {
         let choice = choice_card(name, title, icon, description, example);
         chooser.append(&choice);
-        let page = gtk::Box::new(gtk::Orientation::Vertical, 14);
-        let back = gtk::Button::from_icon_name("go-previous-symbolic");
-        back.set_widget_name(&format!("add-{name}-back"));
-        back.set_tooltip_text(Some("Back"));
-        back.add_css_class("flat");
-        let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        header.append(&back);
-        let title = gtk::Label::new(Some(&format!("New {title}")));
-        title.add_css_class("heading");
-        header.append(&title);
-        page.append(&header);
-        page.append(form);
-        let create = gtk::Button::with_label("Create");
-        create.set_widget_name(&format!("add-{name}-create"));
-        create.add_css_class("suggested-action");
-        create.set_sensitive(false);
-        page.append(&create);
+        let (page, back, create) = form_page(name, title, form);
         stack.add_named(&page, Some(name));
         connect_form_navigation(&stack, name, &choice, &back, entry, &create);
         let entry = entry.clone();
@@ -140,6 +125,28 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
         .build();
     scroll.add_css_class("sidebar-add-panel");
     scroll
+}
+
+fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button, gtk::Button) {
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    page.set_widget_name(&format!("add-{name}-page"));
+    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    back.set_widget_name(&format!("add-{name}-back"));
+    back.set_tooltip_text(Some("Back"));
+    back.add_css_class("flat");
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    header.append(&back);
+    let title = gtk::Label::new(Some(&format!("New {title}")));
+    title.add_css_class("heading");
+    header.append(&title);
+    page.append(&header);
+    page.append(form);
+    let create = gtk::Button::with_label("Create");
+    create.set_widget_name(&format!("add-{name}-create"));
+    create.add_css_class("suggested-action");
+    create.set_sensitive(false);
+    page.append(&create);
+    (page, back, create)
 }
 
 fn connect_form_navigation(
