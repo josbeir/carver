@@ -11,6 +11,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub mod bases;
+pub mod rendering;
 pub mod source_analysis;
 
 pub use bases::{

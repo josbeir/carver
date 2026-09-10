@@ -172,6 +172,8 @@ pub enum Effect {
     },
     /// Prepare a non-PDF export from an immutable editor snapshot.
     PrepareEditorExport {
+        /// HTML profile captured with the export source.
+        html_profile: carver_domain::rendering::HtmlProfile,
         /// Request identity used to retain and later write the prepared bytes.
         request_id: u64,
         /// Editor session that owns the source and assets.

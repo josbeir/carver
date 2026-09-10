@@ -214,3 +214,30 @@ fn document_sidebar_preference_should_keep_the_legacy_toml_key()
     assert!(!serialized.contains("show_document_sidebar"));
     Ok(())
 }
+#[test]
+fn enhanced_rendering_should_default_on_for_existing_configuration() {
+    let config: super::Config = toml::from_str("[editor]\nsource_split_view = true\n")
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert!(config.editor.enhanced_carve_rendering);
+    assert!(super::Config::default().editor.enhanced_carve_rendering);
+}
+
+#[test]
+fn enhanced_rendering_should_persist_disabled_preference() {
+    let directory = tempfile::tempdir().unwrap_or_else(|error| panic!("{error}"));
+    let path = directory.path().join("config.toml");
+    let mut config = super::Config::default();
+    config.editor.enhanced_carve_rendering = false;
+    super::save(&path, &config).unwrap_or_else(|error| panic!("{error}"));
+    assert!(
+        !super::load(&path)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .editor
+            .enhanced_carve_rendering
+    );
+    assert!(
+        std::fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .contains("enhanced_carve_rendering = false")
+    );
+}

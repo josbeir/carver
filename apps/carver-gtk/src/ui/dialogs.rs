@@ -499,6 +499,20 @@ fn show_preferences_dialog(
     );
     group.add(&formatting_toolbar);
 
+    let enhancements = preference_switch_row(
+        "enhanced-carve-rendering-setting",
+        "Enable enhanced Carve rendering",
+        "Render tables of contents, collapsible details, and automatic web links in previews and HTML/PDF exports.",
+        config.editor.enhanced_carve_rendering,
+    );
+    group.add(&enhancements);
+    let dispatcher_for_enhancements = dispatcher.clone();
+    enhancements.connect_active_notify(move |row| {
+        let _ = dispatcher_for_enhancements.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetEnhancedCarveRendering(row.is_active()),
+        ));
+    });
+
     let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
     page.add(&group);

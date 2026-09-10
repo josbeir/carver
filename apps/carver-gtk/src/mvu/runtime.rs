@@ -387,6 +387,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
     fn run_editor_export_effect(&self, effect: Effect) {
         match effect {
             Effect::PrepareEditorExport {
+                html_profile,
                 request_id,
                 session,
                 note_id,
@@ -396,6 +397,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 include_assets,
                 target_uri,
             } => self.prepare_editor_export(
+                html_profile,
                 request_id,
                 session,
                 note_id,
@@ -746,6 +748,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
     )]
     fn prepare_editor_export(
         &self,
+        html_profile: carver_domain::rendering::HtmlProfile,
         request_id: u64,
         session: super::EditorSessionId,
         note_id: carver_sdk::NoteId,
@@ -774,20 +777,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 }
             };
             let result = if include_assets {
-                stage_portable_export(client, note_id, source, filename_stem, format)
+                stage_portable_export(client, note_id, source, filename_stem, format, html_profile)
                     .await
                     .map(|(directory, path, warnings)| {
                         (PreparedExportArtifact::File { directory, path }, warnings)
                     })
             } else {
-                carver_export::prepare_export(&source, &filename_stem, format, false, &[])
-                    .map_err(display_error)
-                    .map(|artifact| {
-                        (
-                            PreparedExportArtifact::Bytes(artifact.bytes),
-                            artifact.warnings,
-                        )
-                    })
+                carver_export::prepare_export_with_profile(
+                    &source,
+                    &filename_stem,
+                    format,
+                    false,
+                    &[],
+                    html_profile,
+                )
+                .map_err(display_error)
+                .map(|artifact| {
+                    (
+                        PreparedExportArtifact::Bytes(artifact.bytes),
+                        artifact.warnings,
+                    )
+                })
             };
 
             let result = result.map(|(artifact, warnings)| {
@@ -1014,6 +1024,7 @@ async fn stage_portable_export<B: LibraryBackend>(
     source: String,
     filename_stem: String,
     format: carver_export::ExportFormat,
+    html_profile: carver_domain::rendering::HtmlProfile,
 ) -> Result<
     (
         tempfile::TempDir,
@@ -1028,11 +1039,12 @@ async fn stage_portable_export<B: LibraryBackend>(
             .prefix("carver-export-")
             .tempdir()?;
         let path = directory.path().join("export.zip");
-        let archive = carver_export::begin_portable_export(
+        let archive = carver_export::begin_portable_export_with_profile(
             &archive_source,
             &filename_stem,
             format,
             File::create(&path)?,
+            html_profile,
         )?;
         Ok::<_, carver_export::ExportError>(PortableExportStaging {
             directory,

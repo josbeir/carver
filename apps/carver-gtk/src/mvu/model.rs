@@ -184,6 +184,8 @@ pub struct BrowserModel {
 /// User preferences needed by the renderer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Preferences {
+    /// HTML rendering behavior for previews and presentation exports.
+    pub html_profile: carver_domain::rendering::HtmlProfile,
     /// Whether the preview may load remote HTTP(S) images.
     pub load_remote_images: bool,
     /// The editor surface last explicitly selected by the user.
@@ -231,6 +233,9 @@ pub struct DocumentPreferences {
 impl From<&Config> for Preferences {
     fn from(config: &Config) -> Self {
         Self {
+            html_profile: carver_domain::rendering::HtmlProfile::from_enabled(
+                config.editor.enhanced_carve_rendering,
+            ),
             load_remote_images: config.images.load_remote_automatically,
             editor_mode: config.editor.last_mode,
             autosave_delay_ms: config.editor.autosave_delay_ms,
@@ -362,6 +367,8 @@ pub struct EditorCopyRequest {
 /// A requested native export dialog for the active editor snapshot.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorExportDialogRequest {
+    /// HTML behavior captured with the source when export starts.
+    pub html_profile: carver_domain::rendering::HtmlProfile,
     /// Monotonic identity used to ignore duplicate view renders.
     pub request_id: u64,
     /// Editor lifetime that owns the snapshot.
@@ -397,6 +404,8 @@ pub struct EditorExportProgress {
 /// A one-shot request for the GTK adapter to render and print a PDF export.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorPdfExportRequest {
+    /// HTML behavior captured with the source when export starts.
+    pub html_profile: carver_domain::rendering::HtmlProfile,
     /// Monotonic identity used to ignore duplicate view renders.
     pub request_id: u64,
     /// Editor lifetime that owns the source snapshot.

@@ -1,11 +1,36 @@
 import { describe, expect, it } from 'vitest';
+import { getSchema } from '@tiptap/core';
+import { EditorState } from '@tiptap/pm/state';
 
 import {
   carveToProseMirrorWithReport,
   serializeToCarve,
+  CarveKit,
 } from '@markup-carve/carve-grammars/tiptap';
 
 describe('Carve adapter', () => {
+  it.each([
+    '::: toc\n:::\n\n# Intro',
+    '{depth="2"}\n::: toc\n:::\n\n# Intro',
+    '{from="2" to="4"}\n::: toc\n:::\n\n# Intro',
+    '::: details "More"\nHidden *body*\n:::',
+    'Visit https://example.com today.',
+  ])(
+    'preserves authoring helpers after an unrelated rich edit: %s',
+    (source) => {
+      const input = `${source}\n\nTail`;
+      const result = carveToProseMirrorWithReport(input, {
+        unsupported: 'preserve',
+      });
+      const schema = getSchema([CarveKit]);
+      const doc = schema.nodeFromJSON(result.doc);
+      const state = EditorState.create({ doc });
+      const edited = state.apply(
+        state.tr.insertText('!', doc.content.size - 1),
+      );
+      expect(serializeToCarve(edited.doc.toJSON())).toBe(`${input}!`);
+    },
+  );
   it('preserves editable Carve blocks through the ProseMirror bridge', () => {
     const source =
       '# Heading\n\nParagraph with *bold* and /italic/.\n\n```rust\nlet value = 1;\n```';

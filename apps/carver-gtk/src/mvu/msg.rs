@@ -409,6 +409,8 @@ pub enum EditorMsg {
 /// Preference changes requested by a view.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PreferencesMsg {
+    /// Enable the shared HTML authoring helpers.
+    SetEnhancedCarveRendering(bool),
     /// Set the remote-image loading policy.
     SetRemoteImages(bool),
     /// Set the preferred editor surface.

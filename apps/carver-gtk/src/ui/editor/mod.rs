@@ -86,6 +86,7 @@ pub(crate) struct EditorViewRefs {
     rendered_preview: webkit6::WebView,
     rendering: Rc<Cell<bool>>,
     remote_images: Rc<Cell<bool>>,
+    html_profile: Rc<Cell<carver_domain::rendering::HtmlProfile>>,
     split_supported: Rc<Cell<bool>>,
     split_preview_source: PreviewSourceCache,
     latest_split_preview_source: PreviewSourceCache,
@@ -145,7 +146,10 @@ impl EditorViewRefs {
         let appearance = web::document_appearance(&model.preferences.document);
         let previous_appearance = self.rendered_appearance.replace(Some(appearance.clone()));
         let appearance_changed = previous_appearance.as_ref() != Some(&appearance);
-        let presentation_changed = remote_images_changed || theme_changed || appearance_changed;
+        let profile_changed = self.html_profile.replace(model.preferences.html_profile)
+            != model.preferences.html_profile;
+        let presentation_changed =
+            remote_images_changed || theme_changed || appearance_changed || profile_changed;
         if presentation_changed {
             invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
         }
@@ -276,6 +280,7 @@ impl EditorViewRefs {
                 allow_remote_images,
                 theme,
                 appearance,
+                self.html_profile.get(),
             );
             rendered_source.replace(Some((preview.session, preview.source.clone())));
         }
@@ -423,6 +428,7 @@ impl EditorViewRefs {
             self.assets_dir.as_deref(),
             self.dispatcher.clone(),
             request.request_id,
+            request.html_profile,
         );
     }
 }
@@ -468,6 +474,7 @@ fn refresh_split_preview(
     allow_remote_images: bool,
     navigation: &document_navigation::PreviewNavigation,
     appearance: &web::DocumentAppearance,
+    profile: carver_domain::rendering::HtmlProfile,
 ) {
     let Some((session, source)) = latest.borrow().clone() else {
         return;
@@ -482,6 +489,7 @@ fn refresh_split_preview(
         allow_remote_images,
         &editor_theme(),
         appearance,
+        profile,
     );
     loaded.replace(Some((session, source)));
 }
@@ -647,6 +655,11 @@ pub(crate) fn build_editor(
     });
     install_source_shortcuts(source.upcast_ref(), &toolbar);
     let split_preview_state = SplitPreviewState::new();
+    split_preview_state
+        .html_profile
+        .set(carver_domain::rendering::HtmlProfile::from_enabled(
+            config.editor.enhanced_carve_rendering,
+        ));
     let document_appearance = Rc::new(RefCell::new(None));
     let pages = add_editor_pages(
         &editor_stack,
@@ -758,6 +771,7 @@ pub(crate) fn build_editor(
         rendered_preview,
         rendering,
         remote_images,
+        html_profile: Rc::clone(&split_preview_state.html_profile),
         split_supported: split_preview_state.supported,
         split_preview_source: split_preview_state.loaded_source,
         latest_split_preview_source: split_preview_state.latest_source,
@@ -881,6 +895,7 @@ struct EditorPageViews<'a> {
 }
 
 struct SplitPreviewState {
+    html_profile: Rc<Cell<carver_domain::rendering::HtmlProfile>>,
     supported: Rc<Cell<bool>>,
     loaded_source: PreviewSourceCache,
     latest_source: PreviewSourceCache,
@@ -889,6 +904,7 @@ struct SplitPreviewState {
 impl SplitPreviewState {
     fn new() -> Self {
         Self {
+            html_profile: Rc::new(Cell::new(carver_domain::rendering::HtmlProfile::Enhanced)),
             supported: Rc::new(Cell::new(true)),
             loaded_source: Rc::new(RefCell::new(None)),
             latest_source: Rc::new(RefCell::new(None)),
@@ -947,6 +963,7 @@ fn add_editor_pages(
     let split_preview_source_for_unapply = Rc::clone(&split_preview_state.loaded_source);
     let latest_split_preview_source_for_unapply = Rc::clone(&split_preview_state.latest_source);
     let remote_images_for_unapply = Rc::clone(remote_images);
+    let profile_for_unapply = Rc::clone(&split_preview_state.html_profile);
     let appearance_for_unapply = Rc::clone(document_appearance);
     let navigation = views.split_navigation.clone();
     breakpoint.connect_unapply(move |_| {
@@ -967,6 +984,7 @@ fn add_editor_pages(
                 remote_images_for_unapply.get(),
                 &navigation,
                 &appearance,
+                profile_for_unapply.get(),
             );
         }
     });
@@ -1498,6 +1516,7 @@ pub(crate) fn export_rendered_snapshot(
     assets_dir: Option<&Path>,
     dispatcher: AppDispatcher,
     request_id: u64,
+    html_profile: carver_domain::rendering::HtmlProfile,
 ) {
     let toast_overlay = adw::ToastOverlay::new();
     let preview = build_preview(assets_dir, &toast_overlay);
@@ -1575,7 +1594,7 @@ pub(crate) fn export_rendered_snapshot(
         });
         operation.print();
     });
-    load_preview(&preview, &source, allow_remote_images);
+    load_preview(&preview, &source, allow_remote_images, html_profile);
 }
 
 pub(crate) fn pdf_page_setup() -> gtk::PageSetup {

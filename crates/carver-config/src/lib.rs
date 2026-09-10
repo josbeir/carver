@@ -124,6 +124,9 @@ pub struct Config {
 )]
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EditorConfig {
+    /// Enable author-placed contents, disclosures, and automatic web links in HTML.
+    #[serde(default = "default_true")]
+    pub enhanced_carve_rendering: bool,
     /// The editor surface selected most recently by the user.
     ///
     /// `default_mode` was written before this became a session preference.
@@ -293,6 +296,7 @@ impl Default for Config {
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
+            enhanced_carve_rendering: true,
             last_mode: EditorMode::default(),
             autosave_delay_ms: default_autosave_delay(),
             source_split_view: false,

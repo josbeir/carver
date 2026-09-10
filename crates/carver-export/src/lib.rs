@@ -9,7 +9,8 @@ use std::{
 
 pub mod filename;
 
-use carve::{CheckedRenderOptions, to_html_with_report, to_markdown_with_report};
+use carve::{CheckedRenderOptions, to_markdown_with_report};
+use carver_domain::rendering::HtmlProfile;
 use carver_domain::source_analysis::SourceAnalysis;
 use thiserror::Error;
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
@@ -155,8 +156,31 @@ pub fn prepare_export(
     include_assets: bool,
     assets: &[ManagedAsset],
 ) -> Result<ExportArtifact, ExportError> {
+    prepare_export_with_profile(
+        source,
+        document_stem,
+        format,
+        include_assets,
+        assets,
+        HtmlProfile::Core,
+    )
+}
+
+/// Prepares an export using the requested HTML presentation profile.
+/// Carve and Markdown output are independent of this profile.
+///
+/// # Errors
+/// Returns an error when document conversion or archive construction fails.
+pub fn prepare_export_with_profile(
+    source: &str,
+    document_stem: &str,
+    format: ExportFormat,
+    include_assets: bool,
+    assets: &[ManagedAsset],
+    profile: HtmlProfile,
+) -> Result<ExportArtifact, ExportError> {
     if !include_assets {
-        let (document, warnings) = document_bytes(source, format)?;
+        let (document, warnings) = document_bytes(source, format, profile)?;
         return Ok(ExportArtifact {
             bytes: document,
             extension: format.extension(),
@@ -164,8 +188,13 @@ pub fn prepare_export(
         });
     }
 
-    let mut archive =
-        begin_portable_export(source, document_stem, format, Cursor::new(Vec::new()))?;
+    let mut archive = begin_portable_export_with_profile(
+        source,
+        document_stem,
+        format,
+        Cursor::new(Vec::new()),
+        profile,
+    )?;
     for asset in assets {
         archive.add_asset(&asset.path, &asset.bytes)?;
     }
@@ -194,7 +223,27 @@ pub fn begin_portable_export<W>(
 where
     W: Write + Seek,
 {
-    let (document, warnings) = document_bytes(source, format)?;
+    begin_portable_export_with_profile(
+        source,
+        document_stem,
+        format,
+        destination,
+        HtmlProfile::Core,
+    )
+}
+
+/// Starts a portable archive using the selected HTML presentation profile.
+///
+/// # Errors
+/// Returns an error when source conversion or ZIP initialization fails.
+pub fn begin_portable_export_with_profile<W: Write + Seek>(
+    source: &str,
+    document_stem: &str,
+    format: ExportFormat,
+    destination: W,
+    profile: HtmlProfile,
+) -> Result<PortableArchive<W>, ExportError> {
+    let (document, warnings) = document_bytes(source, format, profile)?;
     let document_name = archive_document_name(document_stem, format)?;
     let mut writer = ZipWriter::new(destination);
     writer.start_file(document_name, portable_file_options())?;
@@ -248,6 +297,7 @@ fn portable_file_options() -> SimpleFileOptions {
 fn document_bytes(
     source: &str,
     format: ExportFormat,
+    profile: HtmlProfile,
 ) -> Result<(Vec<u8>, Vec<ExportWarning>), ExportError> {
     match format {
         ExportFormat::Carve => Ok((source.as_bytes().to_vec(), Vec::new())),
@@ -262,7 +312,8 @@ fn document_bytes(
             Ok((result.value.into_bytes(), warnings))
         }
         ExportFormat::Html => {
-            let result = to_html_with_report(source, CheckedRenderOptions::default())
+            let result = profile
+                .render_html(source, carve::Mode::Interactive, &[])
                 .map_err(ExportError::Html)?;
             let warnings = (result.total_losses > 0)
                 .then_some(ExportWarning::HtmlLoss {
@@ -286,6 +337,10 @@ fn html_document(body: &str, title: &str) -> String {
 <title>"#;
     const HEAD_AFTER_TITLE: &str = r"</title>
 <style>
+nav.toc { margin-block: 1em; padding: .75em 1em; border-inline-start: 2px solid currentColor; }
+nav.toc ul { margin-block: .25em; }
+details { margin-block: 1em; }
+summary { cursor: pointer; font-weight: 600; }
 :root { color-scheme: light; font-family: system-ui, sans-serif; line-height: 1.6; }
 body { max-width: 48rem; margin: 0 auto; padding: 3rem 1.5rem; color: #202124; background: #fff; }
 h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin-block: 1.5em 0.5em; }
@@ -578,3 +633,7 @@ mod tests {
 #[cfg(test)]
 #[path = "tests/escaping.rs"]
 mod escaping_tests;
+
+#[cfg(test)]
+#[path = "tests/rendering.rs"]
+mod rendering_tests;
