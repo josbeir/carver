@@ -664,9 +664,10 @@ fn show_configuration_dialog(
     let columns_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
     columns_box.set_widget_name("base-visible-fields-list");
     rebuild_visible_columns(&columns_box, &selected_columns, &catalog);
+    let visible_content = section_content();
     {
         let selected_columns = Rc::clone(&selected_columns);
-        let columns_box = columns_box.clone();
+        let columns_box_for_callback = columns_box.clone();
         let catalog = catalog.clone();
         let catalog_for_callback = catalog.clone();
         let selected_for_marker = Rc::clone(&selected_columns);
@@ -687,18 +688,28 @@ fn show_configuration_dialog(
                 if !columns.contains(&field) {
                     columns.push(field);
                     drop(columns);
-                    rebuild_visible_columns(&columns_box, &selected_columns, &catalog_for_callback);
+                    rebuild_visible_columns(
+                        &columns_box_for_callback,
+                        &selected_columns,
+                        &catalog_for_callback,
+                    );
                 }
             },
         );
         add_picker.button.set_widget_name("base-add-visible-field");
         style_section_action(&add_picker.button, "Add visible field");
-        content.append(&section_header("Visible fields", &add_picker.button));
+        visible_content.append(&description_label(
+            "Choose the columns shown in this Base. Name is always included.",
+        ));
+        visible_content.append(&columns_box);
+        content.append(&collapsible_section(
+            "Visible fields",
+            &add_picker.button,
+            &visible_content,
+            true,
+            "base-visible-fields-section",
+        ));
     }
-    content.append(&description_label(
-        "Choose the columns shown in this Base. Name is always included.",
-    ));
-    content.append(&columns_box);
 
     let filter_mode = gtk::ComboBoxText::new();
     filter_mode.append(Some("all"), "Match all filters");
@@ -714,11 +725,6 @@ fn show_configuration_dialog(
     add_filter.set_widget_name("base-add-filter");
     let add_sort = section_action("Add sort rule");
     add_sort.set_widget_name("base-add-sort");
-    content.append(&section_header("Filters", &add_filter));
-    content.append(&description_label(
-        "Use the arrows to set rule priority, or remove a rule you no longer need.",
-    ));
-    content.append(&filter_mode);
     let preview = gtk::Label::new(Some(&format!(
         "Currently matches {} {}",
         definition.row_count,
@@ -731,7 +737,6 @@ fn show_configuration_dialog(
     preview.set_xalign(0.0);
     preview.add_css_class("dim-label");
     preview.set_widget_name("base-configuration-preview");
-    content.append(&preview);
     let filter_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let filter_widgets: Rc<RefCell<Vec<FilterWidgets>>> = Rc::new(RefCell::new(Vec::new()));
     let sort_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
@@ -786,12 +791,28 @@ fn show_configuration_dialog(
         );
         filter_box.append(&row);
     }
+    let filter_content = section_content();
+    filter_content.append(&description_label(
+        "Use the arrows to set rule priority, or remove a rule you no longer need.",
+    ));
+    filter_content.append(&filter_mode);
+    filter_content.append(&preview);
+    filter_content.append(&filter_box);
+    let filters_section = collapsible_section(
+        "Filters",
+        &add_filter,
+        &filter_content,
+        !definition.filters.is_empty(),
+        "base-filters-section",
+    );
+    content.append(&filters_section);
     {
         let catalog = catalog.clone();
         let filter_box = filter_box.clone();
         let filter_widgets = Rc::clone(&filter_widgets);
         let next_filter_id = Rc::clone(&next_filter_id);
         let refresh_preview = Rc::clone(&refresh_preview);
+        let filters_section = filters_section.clone();
         add_filter.connect_clicked(move |_| {
             let id = allocate_rule_id(&next_filter_id);
             let refresh_preview_for_field = Rc::clone(&refresh_preview);
@@ -808,15 +829,11 @@ fn show_configuration_dialog(
                 Some(&refresh_preview),
             );
             rebuild_rule_rows(&filter_box, &filter_widgets.borrow());
+            filters_section.set_expanded(true);
             refresh_preview();
         });
     }
-    content.append(&filter_box);
 
-    content.append(&section_header("Sort", &add_sort));
-    content.append(&description_label(
-        "Sort rules are applied from top to bottom.",
-    ));
     for (index, sort) in definition.sorts.iter().enumerate() {
         let id = index as u64;
         let (row, widgets) = sort_row(&catalog, Some(sort), id);
@@ -824,20 +841,34 @@ fn show_configuration_dialog(
         append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
         sort_box.append(&row);
     }
+    let sort_content = section_content();
+    sort_content.append(&description_label(
+        "Sort rules are applied from top to bottom.",
+    ));
+    sort_content.append(&sort_box);
+    let sort_section = collapsible_section(
+        "Sort",
+        &add_sort,
+        &sort_content,
+        !definition.sorts.is_empty(),
+        "base-sort-section",
+    );
+    content.append(&sort_section);
     {
         let catalog = catalog.clone();
         let sort_box = sort_box.clone();
         let sort_widgets = Rc::clone(&sort_widgets);
         let next_sort_id = Rc::clone(&next_sort_id);
+        let sort_section = sort_section.clone();
         add_sort.connect_clicked(move |_| {
             let id = allocate_rule_id(&next_sort_id);
             let (row, widgets) = sort_row(&catalog, None, id);
             sort_widgets.borrow_mut().push(widgets);
             append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
             rebuild_rule_rows(&sort_box, &sort_widgets.borrow());
+            sort_section.set_expanded(true);
         });
     }
-    content.append(&sort_box);
     refresh_preview();
 
     let save = gtk::Button::with_label("Save");
@@ -911,6 +942,34 @@ fn section_header(text: &str, action: &gtk::Button) -> gtk::Box {
     header.append(&label);
     header.append(action);
     header
+}
+
+fn section_content() -> gtk::Box {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_hexpand(true);
+    content.set_margin_start(4);
+    content.set_margin_end(4);
+    content.set_margin_top(8);
+    content.set_margin_bottom(4);
+    content
+}
+
+fn collapsible_section(
+    title: &str,
+    action: &gtk::Button,
+    child: &gtk::Box,
+    initial_expanded: bool,
+    widget_name: &str,
+) -> gtk::Expander {
+    let expander = gtk::Expander::new(None);
+    expander.set_widget_name(widget_name);
+    expander.set_hexpand(true);
+    expander.set_resize_toplevel(true);
+    expander.set_label_widget(Some(&section_header(title, action)));
+    expander.set_child(Some(child));
+    expander.set_expanded(initial_expanded);
+    expander.update_property(&[gtk::accessible::Property::Label(title)]);
+    expander
 }
 
 fn section_action(tooltip: &str) -> gtk::Button {

@@ -155,6 +155,21 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(dialog.follows_content_size());
     assert_eq!(dialog.content_width(), 860);
     assert_eq!(dialog.content_height(), 780);
+    let visible_section =
+        widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-visible-fields-section")
+            .ok_or("visible fields section")?;
+    assert!(visible_section.is_expanded());
+    assert!(visible_section.resizes_toplevel());
+    let filters_section = widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-filters-section")
+        .ok_or("filters section")?;
+    assert!(filters_section.is_expanded());
+    let sort_section = widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-sort-section")
+        .ok_or("sort section")?;
+    assert!(sort_section.is_expanded());
+    sort_section.emit_activate();
+    assert!(!sort_section.is_expanded());
+    sort_section.emit_activate();
+    assert!(sort_section.is_expanded());
     let preview =
         find_widget(dialog.upcast_ref(), "base-configuration-preview").ok_or("preview label")?;
     let preview_label = preview
