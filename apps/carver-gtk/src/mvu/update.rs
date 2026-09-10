@@ -133,6 +133,13 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
         }
         BasesMsg::Reload => reload_bases(model).into_iter().collect(),
+        BasesMsg::Delete(base_id) => {
+            if model.bases.deleting.insert(base_id) {
+                vec![Effect::DeleteBase { base_id }]
+            } else {
+                Vec::new()
+            }
+        }
         BasesMsg::LoadingIndicatorElapsed(request_id) => {
             if model.bases.definitions.state == super::LoadState::Loading(request_id) {
                 model.bases.definitions_loading_elapsed = Some(request_id);
@@ -1234,6 +1241,9 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             result,
         } => update_base_rows_loaded(model, request_id, base_id, result),
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
+        LibraryReply::BaseDeleted { base_id, result } => {
+            update_base_deleted(model, base_id, result)
+        }
         LibraryReply::LibraryRevisionLoaded { request_id, result } => {
             update_library_revision(model, request_id, result)
         }
@@ -1319,6 +1329,36 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             update_editor_save(model, &request, result)
         }
     }
+}
+
+fn update_base_deleted(
+    model: &mut AppModel,
+    base_id: carver_sdk::BaseId,
+    result: Result<(), UiError>,
+) -> Vec<Effect> {
+    if !model.bases.deleting.remove(&base_id) {
+        return Vec::new();
+    }
+    if let Err(error) = result {
+        model.notice = Some(error);
+        return Vec::new();
+    }
+    if model.bases.selected == Some(base_id) {
+        model.bases.selected = None;
+        if model.route == super::Route::Base {
+            model.route = super::Route::Browser;
+        }
+        if model.editor_return_route == super::Route::Base {
+            model.editor_return_route = super::Route::Browser;
+        }
+    }
+    if model.pending_navigation == Some(super::model::PendingNavigation::Base(base_id)) {
+        model.pending_navigation = Some(super::model::PendingNavigation::Browser(
+            model.selected_category,
+        ));
+    }
+    model.notice = None;
+    reload_bases(model).into_iter().collect()
 }
 
 fn update_bases_loaded(

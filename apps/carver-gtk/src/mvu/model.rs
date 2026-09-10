@@ -136,6 +136,8 @@ pub enum Route {
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
+    /// Base deletions currently in flight.
+    pub deleting: BTreeSet<carver_sdk::BaseId>,
     /// Definition request whose loading-indicator delay has elapsed.
     pub definitions_loading_elapsed: Option<RequestId>,
     /// Row request whose loading-indicator delay has elapsed.

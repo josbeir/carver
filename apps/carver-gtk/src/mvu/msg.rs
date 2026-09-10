@@ -73,6 +73,8 @@ pub enum AppMsg {
 /// Events for saved database-style views.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BasesMsg {
+    /// Delete a saved Base after user confirmation; notes are retained.
+    Delete(BaseId),
     /// Show loading feedback only if this request is still pending.
     LoadingIndicatorElapsed(RequestId),
     /// Open and load a saved base.
@@ -548,6 +550,13 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A confirmed Base deletion completed.
+    BaseDeleted {
+        /// Deleted definition identity.
+        base_id: BaseId,
+        /// Completion or displayable failure.
+        result: Result<(), UiError>,
+    },
     /// Saved base definitions completed loading.
     BasesLoaded {
         /// Identity of the initiating request.

@@ -1,6 +1,7 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
 mod add;
+mod bases;
 pub(crate) mod document_sidebar;
 mod excerpts;
 mod html;
@@ -55,6 +56,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     crate::app::load_styles();
     add::add_dialog_should_create_and_preserve_drafts()?;
     add::add_dialog_should_resize_for_the_active_form()?;
+    bases::delete_base_should_require_confirmation_and_keep_notes()?;
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
         gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),

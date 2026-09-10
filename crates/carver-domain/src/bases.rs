@@ -11,6 +11,7 @@ use crate::{NoteId, Revision};
 
 /// A stable saved-base identifier.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct BaseId(Uuid);
 
 impl BaseId {
@@ -46,10 +47,12 @@ impl fmt::Display for BaseId {
 
 /// A flattened property path using JSON Pointer escaping.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PropertyPath(pub String);
 
 /// A column displayed by a saved base.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum BaseColumn {
     /// Derived note title.
     Name,
@@ -63,6 +66,7 @@ pub enum BaseColumn {
 
 /// A saved database-style view over active notes.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct BaseDefinition {
     /// Stable identity.
     pub id: BaseId,
@@ -79,6 +83,7 @@ pub struct BaseDefinition {
 
 /// One row returned for a base.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct BaseRow {
     /// Source note.
     pub note_id: NoteId,
@@ -185,6 +190,15 @@ pub fn property_paths(value: &Value) -> Vec<PropertyPath> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "json-schema")]
+    #[test]
+    fn base_wire_types_should_support_schema_generation() {
+        let definition = schemars::schema_for!(BaseDefinition);
+        assert!(definition.as_value()["properties"]["columns"].is_object());
+        let row = schemars::schema_for!(BaseRow);
+        assert!(row.as_value()["properties"]["properties"].is_object());
+    }
 
     #[test]
     fn projection_should_accept_typed_json_and_flatten_nested_leaves() {

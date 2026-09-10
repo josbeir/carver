@@ -196,6 +196,7 @@ fn render_bases(
         let button = gtk::Button::new();
         button.set_widget_name(&format!("base:{}", base.id));
         button.add_css_class("base-sidebar-button");
+        super::bases::actions::install(&button, base, dispatcher);
         button.set_child(Some(&base_button_content(
             "carver-database-symbolic",
             &base.name,

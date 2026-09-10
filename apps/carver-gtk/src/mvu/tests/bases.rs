@@ -1,6 +1,60 @@
 use super::*;
 
 #[test]
+fn deleting_a_base_should_preserve_an_open_draft_and_redirect_its_return_route() {
+    let mut model = AppModel::new(&Config::default());
+    let base = BaseId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Draft".to_owned(),
+        }),
+    );
+    model.editor_return_route = Route::Base;
+    model.bases.selected = Some(base);
+    let original = model.editor.clone();
+    assert!(matches!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).as_slice(),
+        [Effect::DeleteBase { .. }]
+    ));
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).is_empty());
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseDeleted {
+            base_id: base,
+            result: Ok(()),
+        }),
+    );
+    assert_eq!(model.route, Route::Editor);
+    assert_eq!(model.editor, original);
+    assert_eq!(model.editor_return_route, Route::Browser);
+    assert_eq!(model.bases.selected, None);
+}
+
+#[test]
+fn failed_base_deletion_should_leave_the_selection_and_allow_retry() {
+    let mut model = AppModel::new(&Config::default());
+    let base = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base);
+    let _ = update(&mut model, AppMsg::Bases(BasesMsg::Delete(base)));
+    let error = UiError::new("read only");
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseDeleted {
+            base_id: base,
+            result: Err(error.clone()),
+        }),
+    );
+    assert_eq!(model.notice, Some(error));
+    assert_eq!(model.bases.selected, Some(base));
+    assert_eq!(model.route, Route::Base);
+    assert!(!update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).is_empty());
+}
+
+#[test]
 fn sidebar_selection_should_follow_the_editor_origin_and_current_route() {
     use crate::mvu::SidebarSelection;
     let mut model = AppModel::new(&Config::default());

@@ -15,6 +15,11 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Delete only a saved Base definition, preserving its notes.
+    DeleteBase {
+        /// Definition to remove.
+        base_id: BaseId,
+    },
     /// Load saved base definitions.
     LoadBases {
         /// Identity for stale-completion protection.

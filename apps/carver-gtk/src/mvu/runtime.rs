@@ -216,6 +216,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 base_id,
             } => self.load_base_rows(request_id, base_id),
             Effect::CreateBase { name, columns } => self.create_base(name, columns),
+            Effect::DeleteBase { base_id } => self.delete_base(base_id),
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
@@ -569,6 +570,21 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));
+        });
+    }
+
+    fn delete_base(&self, base_id: carver_sdk::BaseId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .delete_base_async(base_id)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseDeleted {
+                base_id,
+                result,
+            }));
         });
     }
 

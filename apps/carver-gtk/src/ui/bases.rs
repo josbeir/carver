@@ -1,4 +1,5 @@
 //! Native database-style grid for saved note bases.
+pub(crate) mod actions;
 
 use carver_sdk::{BaseColumn, BaseDefinition, BaseRow};
 use gtk::prelude::*;
