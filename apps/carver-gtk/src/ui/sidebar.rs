@@ -173,12 +173,12 @@ fn render_bases(
     split_view: &adw::NavigationSplitView,
     model: &AppModel,
 ) {
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
-    }
     let LoadState::Ready(bases) = &model.bases.definitions.state else {
         return;
     };
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
     for base in bases {
         let button = gtk::Button::new();
         button.set_widget_name(&format!("base:{}", base.id));

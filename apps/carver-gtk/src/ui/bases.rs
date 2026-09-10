@@ -170,10 +170,15 @@ fn append_column(
         label.set_ellipsize(gtk::pango::EllipsizeMode::End);
         if let Some(dispatcher) = &dispatcher_for_setup {
             label.add_css_class("link");
-            let click = gtk::GestureClick::new();
+            let button = gtk::Button::new();
+            button.add_css_class("flat");
+            button.set_child(Some(&label));
             let dispatcher = dispatcher.clone();
-            let item = item.clone();
-            click.connect_released(move |_, _, _, _| {
+            let weak_item = item.downgrade();
+            button.connect_clicked(move |_| {
+                let Some(item) = weak_item.upgrade() else {
+                    return;
+                };
                 let Some(string) = item.item().and_downcast::<gtk::StringObject>() else {
                     return;
                 };
@@ -183,9 +188,10 @@ fn append_column(
                 let _ =
                     dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(row.note_id)));
             });
-            label.add_controller(click);
+            item.set_child(Some(&button));
+        } else {
+            item.set_child(Some(&label));
         }
-        item.set_child(Some(&label));
     });
     let field_for_bind = field.map(ToOwned::to_owned);
     factory.connect_bind(move |_, item| {
@@ -195,12 +201,27 @@ fn append_column(
         let Some(string) = item.item().and_downcast::<gtk::StringObject>() else {
             return;
         };
-        let Some(label) = item.child().and_downcast::<gtk::Label>() else {
+        let Some(child) = item.child() else {
+            return;
+        };
+        let label = child.clone().downcast::<gtk::Label>().ok().or_else(|| {
+            child
+                .clone()
+                .downcast::<gtk::Button>()
+                .ok()?
+                .child()?
+                .downcast::<gtk::Label>()
+                .ok()
+        });
+        let Some(label) = label else {
             return;
         };
         let Ok(row) = serde_json::from_str::<BaseRow>(&string.string()) else {
             return;
         };
+        if child.is::<gtk::Button>() {
+            child.set_widget_name(&format!("base-note:{}", row.note_id));
+        }
         let value = row_value(&row, field_for_bind.as_deref());
         label.set_text(&value);
     });

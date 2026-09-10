@@ -1,6 +1,61 @@
 use super::*;
 
 #[test]
+fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "Initial".to_owned(),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Unsaved".to_owned())),
+    );
+    let base = BaseDefinition {
+        id: BaseId::new(),
+        name: "Projects".to_owned(),
+        columns: Vec::new(),
+        revision: Revision(1),
+        row_count: 0,
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCreated { result: Ok(base) }),
+    );
+    let request = match effects.as_slice() {
+        [Effect::LoadBases { .. }, Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("creating a base should save before navigating"),
+    };
+    assert_eq!(request.source, "Unsaved");
+    assert_eq!(model.route, Route::Editor);
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Err(UiError::new("save failed")),
+        }),
+    );
+    assert_eq!(model.route, Route::Editor);
+    assert!(model.editor.is_some());
+}
+
+#[test]
+fn opening_a_base_should_retry_failed_definitions() {
+    let mut model = AppModel::new(&Config::default());
+    model.bases.definitions.state = LoadState::Failed(UiError::new("offline"));
+    let effects = update(&mut model, AppMsg::Bases(BasesMsg::Open(BaseId::new())));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { .. }, Effect::LoadBases { .. }]
+    ));
+}
+
+#[test]
 fn opening_a_base_should_change_route_and_load_its_rows() {
     let mut model = AppModel::new(&Config::default());
     let base_id = BaseId::new();
@@ -63,7 +118,7 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
 
     assert!(matches!(
         effects.as_slice(),
-        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+        [Effect::LoadBaseRows { base_id: loaded, .. }, Effect::LoadBrowser { .. }] if *loaded == base_id
     ));
     assert_eq!(model.route, Route::Base);
     assert_eq!(model.bases.selected, Some(base_id));

@@ -201,7 +201,11 @@ fn complete_pending_navigation(model: &mut AppModel) -> Vec<Effect> {
 fn open_base(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Vec<Effect> {
     model.route = super::Route::Base;
     model.bases.selected = Some(base_id);
-    reload_base_rows(model, base_id).into_iter().collect()
+    let mut effects: Vec<_> = reload_base_rows(model, base_id).into_iter().collect();
+    if matches!(model.bases.definitions.state, super::LoadState::Failed(_)) {
+        effects.extend(reload_bases(model));
+    }
+    effects
 }
 
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
@@ -1337,12 +1341,9 @@ fn update_base_created(
     match result {
         Ok(base) => {
             model.notice = None;
-            model.route = super::Route::Base;
-            model.bases.selected = Some(base.id);
-            [reload_bases(model), reload_base_rows(model, base.id)]
-                .into_iter()
-                .flatten()
-                .collect()
+            let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
+            effects.extend(update_bases(model, BasesMsg::Open(base.id)));
+            effects
         }
         Err(error) => {
             model.notice = Some(error);
@@ -1856,7 +1857,10 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
 fn reload_return_surface(model: &mut AppModel) -> Vec<Effect> {
     match (model.route, model.bases.selected) {
         (super::Route::Base, Some(base_id)) => {
-            reload_base_rows(model, base_id).into_iter().collect()
+            [reload_base_rows(model, base_id), reload_browser(model)]
+                .into_iter()
+                .flatten()
+                .collect()
         }
         _ => reload_browser(model).into_iter().collect(),
     }
