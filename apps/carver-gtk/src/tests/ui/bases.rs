@@ -182,10 +182,13 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert_eq!(add_sort.icon_name().as_deref(), Some("list-add-symbolic"));
     assert!(add_sort.has_css_class("circular"));
     add_field.emit_clicked();
+    assert!(super::find_label(dialog.upcast_ref(), "Category").is_some());
+    assert!(super::find_label(dialog.upcast_ref(), "priority").is_none());
     let search =
         widget_as::<gtk::SearchEntry>(dialog.upcast_ref(), "base-add-visible-field-picker-search")
             .ok_or("field search")?;
     search.set_text("priority");
+    search.emit_by_name::<()>("search-changed", &[]);
     let priority = super::find_label(dialog.upcast_ref(), "priority").ok_or("priority option")?;
     assert!(super::find_label(dialog.upcast_ref(), "Text · high").is_some());
     let priority_button = priority
@@ -195,6 +198,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     priority_button.emit_clicked();
     assert!(super::find_label(visible_fields.upcast_ref(), "priority").is_some());
     search.set_text("owner");
+    search.emit_by_name::<()>("search-changed", &[]);
     let owner = super::find_label(dialog.upcast_ref(), "owner").ok_or("owner option")?;
     owner
         .ancestor(gtk::Button::static_type())

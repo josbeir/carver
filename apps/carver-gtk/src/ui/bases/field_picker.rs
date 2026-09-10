@@ -147,11 +147,11 @@ impl FieldPicker {
         popover.set_has_arrow(true);
         popover.set_autohide(true);
         popover.set_parent(&button);
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        root.set_margin_start(12);
-        root.set_margin_end(12);
-        root.set_margin_top(12);
-        root.set_margin_bottom(12);
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 12);
+        root.set_margin_start(16);
+        root.set_margin_end(16);
+        root.set_margin_top(16);
+        root.set_margin_bottom(16);
         let search = gtk::SearchEntry::new();
         search.set_placeholder_text(Some("Search fields"));
         search.set_widget_name(&format!("{widget_name}-search"));
@@ -162,10 +162,12 @@ impl FieldPicker {
         list.add_css_class("boxed-list");
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_min_content_width(360);
-        scroll.set_max_content_width(500);
-        scroll.set_min_content_height(96);
-        scroll.set_max_content_height(360);
+        scroll.set_propagate_natural_height(true);
+        scroll.set_propagate_natural_width(true);
+        scroll.set_min_content_width(460);
+        scroll.set_max_content_width(600);
+        scroll.set_min_content_height(112);
+        scroll.set_max_content_height(440);
         scroll.set_child(Some(&list));
         root.append(&scroll);
         let custom = gtk::Button::with_label("Add custom field…");
@@ -284,8 +286,13 @@ fn populate_options(
     }
     let query = query.trim().to_lowercase();
     let mut matches = 0;
+    let mut deferred = 0;
     for option in catalog.options() {
         if !matches_query(&option, &query) {
+            continue;
+        }
+        if query.is_empty() && !show_initial_option(&option.field, selected, is_selected) {
+            deferred += 1;
             continue;
         }
         matches += 1;
@@ -299,6 +306,32 @@ fn populate_options(
         label.set_margin_bottom(10);
         list.append(&label);
     }
+    if query.is_empty() && deferred > 0 {
+        let label = gtk::Label::new(Some(&format!(
+            "Type to search {deferred} more {}",
+            if deferred == 1 { "field" } else { "fields" }
+        )));
+        label.set_xalign(0.0);
+        label.set_wrap(true);
+        label.add_css_class("dim-label");
+        label.set_margin_start(12);
+        label.set_margin_end(12);
+        label.set_margin_top(8);
+        label.set_margin_bottom(8);
+        list.append(&label);
+    }
+}
+
+fn show_initial_option(
+    field: &BaseColumn,
+    selected: &BaseColumn,
+    is_selected: &Rc<dyn Fn(&BaseColumn) -> bool>,
+) -> bool {
+    matches!(
+        field,
+        BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated
+    ) || field == selected
+        || is_selected(field)
 }
 
 fn matches_query(option: &FieldOption, query: &str) -> bool {
@@ -320,10 +353,10 @@ fn field_option_row(
         gtk::accessible::Property::Description(&option.metadata),
     ]);
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    content.set_margin_start(8);
-    content.set_margin_end(8);
-    content.set_margin_top(6);
-    content.set_margin_bottom(6);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+    content.set_margin_top(10);
+    content.set_margin_bottom(10);
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
     labels.set_hexpand(true);
     let label = gtk::Label::new(Some(&option.label));
@@ -544,6 +577,26 @@ mod tests {
         assert!(matches_query(&option, "/project/status"));
         assert!(matches_query(&option, "status"));
         assert!(!matches_query(&option, "owner"));
+    }
+
+    #[test]
+    fn initial_picker_options_should_keep_builtins_and_selected_fields() {
+        let selected = BaseColumn::Property(PropertyPath("/project/status".to_owned()));
+        let selected_for_marker = selected.clone();
+        let marked: Rc<dyn Fn(&BaseColumn) -> bool> =
+            Rc::new(move |field: &BaseColumn| field == &selected_for_marker);
+        assert!(show_initial_option(&BaseColumn::Name, &selected, &marked));
+        assert!(show_initial_option(
+            &BaseColumn::Category,
+            &selected,
+            &marked
+        ));
+        assert!(show_initial_option(&selected, &selected, &marked));
+        assert!(!show_initial_option(
+            &BaseColumn::Property(PropertyPath("/project/owner".to_owned())),
+            &selected,
+            &marked,
+        ));
     }
 
     #[test]
