@@ -1156,6 +1156,34 @@ pub(crate) fn show_category_name_dialog(
 }
 
 /// Presents one category form with a validated name and an explicit visual identity.
+pub(crate) struct CategoryForm {
+    pub(crate) content: gtk::Box,
+    pub(crate) entry: gtk::Entry,
+    pub(crate) icon: Rc<std::cell::Cell<CategoryIcon>>,
+    pub(crate) color: Rc<std::cell::Cell<CategoryColor>>,
+}
+
+pub(crate) fn category_form(
+    initial_name: &str,
+    initial_appearance: CategoryAppearance,
+) -> CategoryForm {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.set_widget_name("category-dialog-content");
+    let entry = gtk::Entry::new();
+    entry.set_widget_name("category-name-entry");
+    entry.set_text(initial_name);
+    entry.set_placeholder_text(Some("Category name"));
+    content.append(&entry);
+    let (picker, icon, color) = category_appearance_picker(initial_appearance);
+    content.append(&picker);
+    CategoryForm {
+        content,
+        entry,
+        icon,
+        color,
+    }
+}
+
 pub(crate) fn show_category_dialog(
     parent: Option<&gtk::Window>,
     title: &str,
@@ -1163,16 +1191,13 @@ pub(crate) fn show_category_dialog(
     initial_appearance: CategoryAppearance,
     on_submit: impl Fn(String, CategoryAppearance) + 'static,
 ) {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    content.set_widget_name("category-dialog-content");
-    let entry = gtk::Entry::new();
-    entry.set_widget_name("category-name-entry");
-    entry.set_text(initial_name);
-    entry.set_placeholder_text(Some("Category name"));
+    let CategoryForm {
+        content,
+        entry,
+        icon,
+        color,
+    } = category_form(initial_name, initial_appearance);
     entry.set_activates_default(true);
-    content.append(&entry);
-    let (appearance_picker, icon, color) = category_appearance_picker(initial_appearance);
-    content.append(&appearance_picker);
     let dialog = adw::AlertDialog::builder()
         .heading(title)
         .extra_child(&content)
@@ -1215,6 +1240,7 @@ fn category_appearance_picker(
     icon_label.add_css_class("heading");
     picker.append(&icon_label);
     let icons = gtk::FlowBox::new();
+    icons.set_max_children_per_line(3);
     icons.set_selection_mode(gtk::SelectionMode::None);
     icons.set_column_spacing(6);
     icons.set_row_spacing(6);
@@ -1243,6 +1269,7 @@ fn category_appearance_picker(
     color_label.add_css_class("heading");
     picker.append(&color_label);
     let colors = gtk::FlowBox::new();
+    colors.set_max_children_per_line(3);
     colors.set_selection_mode(gtk::SelectionMode::None);
     colors.set_column_spacing(6);
     colors.set_row_spacing(6);

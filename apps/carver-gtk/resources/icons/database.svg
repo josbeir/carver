@@ -1,0 +1,5 @@
+<!-- Lucide Database, https://lucide.dev/icons/database, ISC License. -->
+<!-- Stroke geometry expanded into filled paths for GTK symbolic recoloring. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path fill="currentColor" fill-rule="evenodd" d="M12 2c5.35 0 10 1.13 10 3v14c0 1.87-4.65 3-10 3S2 20.87 2 19V5c0-1.87 4.65-3 10-3Zm0 2c-4.42 0-7.2.72-7.9 1 .7.28 3.48 1 7.9 1s7.2-.72 7.9-1c-.7-.28-3.48-1-7.9-1ZM4 7.43v3.5C4.31 11.3 7.12 12 12 12s7.69-.7 8-1.07v-3.5C18.06 7.83 15.32 8 12 8s-6.06-.17-8-.57Zm0 5.9v3.6C4.31 17.3 7.12 18 12 18s7.69-.7 8-1.07v-3.6c-1.94.5-4.68.67-8 .67s-6.06-.17-8-.67Zm0 5.9C4.53 19.57 7.29 20 12 20s7.47-.43 8-.77v-.3c-1.94.9-4.68 1.07-8 1.07s-6.06-.17-8-1.07v.3Z"/>
+</svg>

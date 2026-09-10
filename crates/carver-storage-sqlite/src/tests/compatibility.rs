@@ -33,5 +33,5 @@ fn opening_a_legacy_library_should_assign_the_default_category_appearance() {
 
     assert_eq!(categories[0].appearance, CategoryAppearance::default());
     drop(library);
-    assert_eq!(schema_version(&database_path), 2);
+    assert_eq!(schema_version(&database_path), 3);
 }

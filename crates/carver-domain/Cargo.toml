@@ -13,10 +13,12 @@ json-schema = ["dep:schemars"]
 schemars = { workspace = true, optional = true, features = ["uuid1"] }
 carve-lang.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 time.workspace = true
+toml.workspace = true
 uuid.workspace = true
+yaml_serde.workspace = true
 
 [lints]
 workspace = true
-

@@ -53,6 +53,7 @@ zip = { version = "8.6", default-features = false }
 time = { version = "0.3", features = ["formatting", "macros", "parsing", "serde", "local-offset"] }
 toml = "1.1"
 uuid = { version = "1.18", features = ["serde", "v7"] }
+yaml_serde = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

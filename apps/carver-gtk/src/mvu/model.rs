@@ -120,24 +120,73 @@ impl<T> Resource<T> {
 }
 
 /// The currently visible high-level application surface.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Route {
     /// The category browser and note list.
     #[default]
     Browser,
+    /// A saved database-style note view.
+    Base,
     /// The recovery and permanent-deletion surface.
     Trash,
     /// The active note editor.
     Editor,
 }
 
-/// A browser selection waiting for an active editor to finish closing.
+/// Saved bases and the currently visible grid.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct BasesModel {
+    /// Base deletions currently in flight.
+    pub deleting: BTreeSet<carver_sdk::BaseId>,
+    /// Definition request whose loading-indicator delay has elapsed.
+    pub definitions_loading_elapsed: Option<RequestId>,
+    /// Row request whose loading-indicator delay has elapsed.
+    pub rows_loading_elapsed: Option<RequestId>,
+    /// Saved definitions rendered in the sidebar.
+    pub definitions: Resource<Vec<carver_sdk::BaseDefinition>>,
+    /// Selected definition.
+    pub selected: Option<carver_sdk::BaseId>,
+    /// Rows of the selected definition.
+    pub rows: Resource<Vec<carver_sdk::BaseRow>>,
+}
+
+/// The single navigation destination highlighted in the sidebar.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PendingCategorySelection {
-    /// Show notes from every active category.
-    AllNotes,
-    /// Show notes from one category.
-    Category(CategoryId),
+pub enum SidebarSelection {
+    /// All notes (`None`) or one category.
+    Category(Option<CategoryId>),
+    /// One saved Base.
+    Base(carver_sdk::BaseId),
+    /// No category or Base is active (for example, Trash).
+    None,
+}
+
+impl AppModel {
+    /// Derives sidebar selection from navigation, preserving an editor's origin.
+    pub fn sidebar_selection(&self) -> SidebarSelection {
+        let route = if self.route == Route::Editor {
+            self.editor_return_route
+        } else {
+            self.route
+        };
+        match route {
+            Route::Base => self
+                .bases
+                .selected
+                .map_or(SidebarSelection::None, SidebarSelection::Base),
+            Route::Browser => SidebarSelection::Category(self.selected_category),
+            _ => SidebarSelection::None,
+        }
+    }
+}
+
+/// A destination waiting for an active editor to finish closing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PendingNavigation {
+    /// Show the browser, optionally scoped to one category.
+    Browser(Option<CategoryId>),
+    /// Show one saved base.
+    Base(carver_sdk::BaseId),
 }
 
 /// Browser-specific UI-neutral state.
@@ -529,14 +578,18 @@ pub struct AppModel {
     pub config: Config,
     /// Current high-level surface.
     pub route: Route,
+    /// Surface restored after the current editor session closes.
+    pub(crate) editor_return_route: Route,
     /// Category selected by the user, or all categories when absent.
     pub selected_category: Option<CategoryId>,
-    /// Category to select once a pending editor close has safely completed.
-    pub(crate) pending_category_selection: Option<PendingCategorySelection>,
+    /// Destination to show once a pending editor close has safely completed.
+    pub(crate) pending_navigation: Option<PendingNavigation>,
     /// Categories rendered by the sidebar.
     pub sidebar: Resource<Vec<CategorySummary>>,
     /// Browser state and its loaded note summaries.
     pub browser: BrowserModel,
+    /// Saved database-style views.
+    pub bases: BasesModel,
     /// Recoverable deleted content.
     pub trash: Resource<TrashContents>,
     /// The most recent mutation error for the view to surface.
@@ -591,10 +644,12 @@ impl AppModel {
         Self {
             config: config.clone(),
             route: Route::Browser,
+            editor_return_route: Route::Browser,
             selected_category: None,
-            pending_category_selection: None,
+            pending_navigation: None,
             sidebar: Resource::default(),
             browser: BrowserModel::default(),
+            bases: BasesModel::default(),
             trash: Resource::default(),
             notice: None,
             pending_actions: BTreeSet::new(),

@@ -32,6 +32,17 @@
   padding: 0 5px;
 }
 
+.base-sidebar-button {
+  margin: 2px 4px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.navigation-sidebar row:selected,
+.base-sidebar-button.sidebar-active {
+  background: alpha(currentColor, 0.10);
+}
+
 .all-notes-icon {
   background: alpha(@accent_bg_color, 0.24);
   color: @accent_color;
@@ -324,4 +335,39 @@ popover button:checked {
   font-weight: 600;
   min-width: 20px;
   opacity: 0.65;
+}
+.bases-grid {
+  font-size: 0.9em;
+  border: 1px solid alpha(currentColor, 0.12);
+  border-radius: 8px;
+  background: @view_bg_color;
+}
+
+.sidebar-add-panel { padding: 8px 18px 18px; }
+#add-base-page { padding: 12px; }
+.add-choice { padding: 14px; border-radius: 12px; border: 1px solid alpha(currentColor, 0.12); background: alpha(currentColor, 0.025); font-weight: normal; }
+.add-choice .heading { font-weight: 700; }
+.add-choice:hover, .add-choice:focus-visible { background: alpha(@accent_bg_color, 0.09); }
+.add-choice-icon { padding: 10px; border-radius: 10px; background: alpha(@accent_bg_color, 0.12); color: @accent_color; }
+
+.bases-grid row:nth-child(even) {
+  background: alpha(currentColor, 0.025);
+}
+
+.bases-grid row:hover {
+  background: alpha(@accent_bg_color, 0.08);
+}
+
+.bases-grid row:selected {
+  background: alpha(@accent_bg_color, 0.14);
+}
+
+.bases-grid header button {
+  background: alpha(currentColor, 0.035);
+  font-weight: 600;
+}
+
+.bases-grid label.link {
+  color: @accent_color;
+  text-decoration-line: underline;
 }

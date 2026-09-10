@@ -29,7 +29,7 @@ mod media_preview;
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 type PreviewCopies = BTreeMap<(carver_sdk::NoteId, String), (tempfile::TempDir, PathBuf)>;
 
-const BROWSER_LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
+const LOADING_INDICATOR_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
 
 /// A weak, window-local route for GTK/WebKit adapters to submit MVU messages.
 #[derive(Clone, Default)]
@@ -210,6 +210,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
+            Effect::LoadBases { request_id } => self.load_bases(request_id),
+            Effect::LoadBaseRows {
+                request_id,
+                base_id,
+            } => self.load_base_rows(request_id, base_id),
+            Effect::CreateBase { name, columns } => self.create_base(name, columns),
+            Effect::DeleteBase { base_id } => self.delete_base(base_id),
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
@@ -473,7 +480,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
         category_id: Option<carver_sdk::CategoryId>,
         query: String,
     ) {
-        self.schedule_browser_loading_indicator(request_id);
+        self.schedule_loading_indicator(AppMsg::Browser(
+            super::BrowserMsg::LoadingIndicatorElapsed(request_id),
+        ));
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -498,13 +507,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn schedule_browser_loading_indicator(&self, request_id: super::RequestId) {
+    fn schedule_loading_indicator(&self, message: AppMsg) {
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            glib::timeout_future(BROWSER_LOADING_INDICATOR_DELAY).await;
-            runtime.dispatch(AppMsg::Browser(super::BrowserMsg::LoadingIndicatorElapsed(
-                request_id,
-            )));
+            glib::timeout_future(LOADING_INDICATOR_DELAY).await;
+            runtime.dispatch(message);
         });
     }
 
@@ -518,6 +525,64 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::SidebarLoaded {
                 request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_bases(&self, request_id: super::RequestId) {
+        self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
+            request_id,
+        )));
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.bases_async().await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BasesLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    fn load_base_rows(&self, request_id: super::RequestId, base_id: carver_sdk::BaseId) {
+        self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
+            request_id,
+        )));
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client.base_rows_async(base_id).await.map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseRowsLoaded {
+                request_id,
+                base_id,
+                result,
+            }));
+        });
+    }
+
+    fn create_base(&self, name: String, columns: Vec<carver_sdk::BaseColumn>) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .create_base_async(name, columns)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));
+        });
+    }
+
+    fn delete_base(&self, base_id: carver_sdk::BaseId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .delete_base_async(base_id)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseDeleted {
+                base_id,
                 result,
             }));
         });

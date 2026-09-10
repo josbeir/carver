@@ -10,8 +10,14 @@ use thiserror::Error;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+pub mod bases;
 pub mod rendering;
 pub mod source_analysis;
+
+pub use bases::{
+    BaseColumn, BaseDefinition, BaseId, BaseRow, FrontmatterProjection, PropertyPath,
+    project_frontmatter, property_paths,
+};
 
 /// A document representation accepted by Carver's import pipeline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

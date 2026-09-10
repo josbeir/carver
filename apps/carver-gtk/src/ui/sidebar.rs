@@ -1,15 +1,16 @@
 //! Category sidebar construction and snapshot rendering.
 
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
-use carver_sdk::{Category, CategoryAppearance, CategoryId, CategorySummary};
+use carver_sdk::{Category, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use super::dialogs::{category_color_css_class, category_icon_name, show_category_dialog};
-use crate::mvu::{
-    ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserMsg, LoadState, NavigationMsg,
-};
+use super::dialogs::{category_color_css_class, category_icon_name};
+use crate::mvu::{AppDispatcher, AppModel, AppMsg, BasesMsg, BrowserMsg, LoadState, NavigationMsg};
 
 /// Responsive category sidebar and its snapshot renderer.
 #[derive(Clone)]
@@ -19,9 +20,27 @@ pub(crate) struct SidebarSurface {
     dispatcher: AppDispatcher,
     split_view: adw::NavigationSplitView,
     rendering: Rc<Cell<bool>>,
+    base_rows: gtk::Box,
+    rendered_bases: Rc<RefCell<Vec<carver_sdk::BaseDefinition>>>,
 }
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
+
+/// Builds a consistently styled Back control that dispatches one MVU message.
+pub(crate) fn back_to_notes_button(
+    dispatcher: &AppDispatcher,
+    widget_name: &str,
+    message: AppMsg,
+) -> gtk::Button {
+    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    back.set_widget_name(widget_name);
+    back.set_tooltip_text(Some("Back to notes"));
+    let dispatcher = dispatcher.clone();
+    back.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(message.clone());
+    });
+    back
+}
 
 /// Builds the responsive category sidebar.
 pub(crate) fn build_sidebar(
@@ -32,10 +51,7 @@ pub(crate) fn build_sidebar(
     container.set_widget_name("sidebar-surface");
     container.add_css_class("sidebar");
     let header = adw::HeaderBar::new();
-    let new_category = gtk::Button::from_icon_name("folder-new-symbolic");
-    new_category.set_widget_name("new-category-button");
-    new_category.set_tooltip_text(Some("New Category"));
-    header.pack_start(&new_category);
+    header.pack_start(&super::add::button(dispatcher));
     header.pack_end(&settings_menu_button());
     container.append(&header);
 
@@ -45,11 +61,26 @@ pub(crate) fn build_sidebar(
     list.add_css_class("navigation-sidebar");
     let rendering = Rc::new(Cell::new(false));
     connect_selection(dispatcher, split_view, &list, &rendering);
-    connect_new_category(dispatcher, &new_category);
     install_sidebar_search_shortcut(&container, dispatcher);
 
+    let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    bases_box.set_visible(false);
+    bases_box.set_margin_bottom(8);
+    let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
+    divider.set_widget_name("bases-divider");
+    divider.set_margin_start(8);
+    divider.set_margin_end(8);
+    divider.set_margin_top(6);
+    divider.set_margin_bottom(6);
+    bases_box.append(&divider);
+    let base_rows = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    bases_box.append(&base_rows);
+    let scroll_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    scroll_content.append(&list);
+    scroll_content.append(&bases_box);
     let scroll = gtk::ScrolledWindow::new();
-    scroll.set_child(Some(&list));
+    scroll.set_widget_name("sidebar-navigation-scroll");
+    scroll.set_child(Some(&scroll_content));
     scroll.set_vexpand(true);
     container.append(&scroll);
     container.append(&trash_footer(dispatcher, split_view));
@@ -59,6 +90,8 @@ pub(crate) fn build_sidebar(
         dispatcher: dispatcher.clone(),
         split_view: split_view.clone(),
         rendering,
+        base_rows,
+        rendered_bases: Rc::new(RefCell::new(Vec::new())),
     }
 }
 
@@ -115,8 +148,102 @@ impl SidebarSurface {
             categories,
             model.selected_category,
         );
+        if let LoadState::Ready(bases) = &model.bases.definitions.state {
+            let changed = *self.rendered_bases.borrow() != *bases;
+            if changed {
+                render_bases(&self.base_rows, &self.dispatcher, &self.split_view, model);
+                self.rendered_bases.replace(bases.clone());
+            }
+        }
+        let selection = model.sidebar_selection();
+        if !matches!(selection, crate::mvu::SidebarSelection::Category(_)) {
+            self.list.unselect_all();
+        }
+        let selected_name = match selection {
+            crate::mvu::SidebarSelection::Base(id) => format!("base:{id}"),
+            _ => String::new(),
+        };
+        let mut child = self.base_rows.first_child();
+        while let Some(button) = child {
+            let active = button.widget_name() == selected_name;
+            if active {
+                button.add_css_class("sidebar-active");
+            } else {
+                button.remove_css_class("sidebar-active");
+            }
+            child = button.next_sibling();
+        }
         self.rendering.set(false);
     }
+}
+
+fn render_bases(
+    container: &gtk::Box,
+    dispatcher: &AppDispatcher,
+    split_view: &adw::NavigationSplitView,
+    model: &AppModel,
+) {
+    let LoadState::Ready(bases) = &model.bases.definitions.state else {
+        return;
+    };
+    if let Some(section) = container.parent() {
+        section.set_visible(!bases.is_empty());
+    }
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+    for base in bases {
+        let button = gtk::Button::new();
+        button.set_widget_name(&format!("base:{}", base.id));
+        button.add_css_class("base-sidebar-button");
+        button.set_child(Some(&base_button_content(
+            "carver-database-symbolic",
+            &base.name,
+            Some(base.row_count),
+            Some(&format!("base-count:{}", base.id)),
+        )));
+        button.add_css_class("flat");
+        let dispatcher = dispatcher.clone();
+        let split_view = split_view.clone();
+        let base_id = base.id;
+        button.connect_clicked(move |_| {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Open(base_id)));
+            if split_view.is_collapsed() {
+                split_view.set_show_content(true);
+            }
+        });
+        container.append(&button);
+    }
+}
+
+fn base_button_content(
+    icon: &str,
+    text: &str,
+    count: Option<usize>,
+    count_widget_name: Option<&str>,
+) -> gtk::Box {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    content.add_css_class("category-row-content");
+    content.set_margin_start(10);
+    content.set_margin_end(10);
+    content.set_margin_top(6);
+    content.set_margin_bottom(6);
+    content.append(&sidebar_icon_tile(icon, "base-icon-tile"));
+    let label = gtk::Label::new(Some(text));
+    label.set_xalign(0.0);
+    label.set_hexpand(true);
+    label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    content.append(&label);
+    if let Some(count) = count {
+        let badge = gtk::Label::new(Some(&count.to_string()));
+        if let Some(widget_name) = count_widget_name {
+            badge.set_widget_name(widget_name);
+        }
+        badge.set_tooltip_text(Some(&note_count_label(count)));
+        badge.add_css_class("category-count-badge");
+        content.append(&badge);
+    }
+    content
 }
 
 /// Builds the shared control that expands or collapses the category sidebar.
@@ -186,29 +313,6 @@ fn connect_selection(
         if split_view.is_collapsed() {
             split_view.set_show_content(true);
         }
-    });
-}
-
-fn connect_new_category(dispatcher: &AppDispatcher, button: &gtk::Button) {
-    let dispatcher = dispatcher.clone();
-    button.connect_clicked(move |button| {
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        let dispatcher = dispatcher.clone();
-        show_category_dialog(
-            parent.as_ref(),
-            "New Category",
-            "",
-            CategoryAppearance::default(),
-            move |name, appearance| {
-                let _ =
-                    dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
-                        name,
-                        appearance,
-                    }));
-            },
-        );
     });
 }
 

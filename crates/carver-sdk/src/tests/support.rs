@@ -221,6 +221,30 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn create_base(
+        &self,
+        _name: &str,
+        _columns: &[BaseColumn],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::unsupported()
+    }
+
+    fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error> {
+        Self::unsupported()
+    }
+
+    fn delete_base(&self, _base_id: BaseId) -> Result<(), Self::Error> {
+        Self::unsupported()
+    }
+
+    fn base_rows(&self, _base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {
+        Self::unsupported()
+    }
+
+    fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
+        Self::unsupported()
+    }
+
     fn trash_contents(&self) -> Result<TrashContents, Self::Error> {
         Self::unsupported()
     }

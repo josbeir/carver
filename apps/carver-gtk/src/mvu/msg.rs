@@ -5,8 +5,9 @@ use std::ops::Range;
 use carver_config::{DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
-    CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
-    NoteSummary, Revision, TrashContents, TrashPurgeResult,
+    BaseColumn, BaseDefinition, BaseId, BaseRow, CategoryAppearance, CategoryId, CategorySummary,
+    DocumentImportFormat, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
+    TrashPurgeResult,
 };
 
 use super::{
@@ -65,6 +66,28 @@ pub enum AppMsg {
     LibraryChangedExternally,
     /// Completion from an effect that accessed the library.
     Library(LibraryReply),
+    /// Saved database-style view intent.
+    Bases(BasesMsg),
+}
+
+/// Events for saved database-style views.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BasesMsg {
+    /// Delete a saved Base after user confirmation; notes are retained.
+    Delete(BaseId),
+    /// Show loading feedback only if this request is still pending.
+    LoadingIndicatorElapsed(RequestId),
+    /// Open and load a saved base.
+    Open(BaseId),
+    /// Create a base with ordered columns.
+    Create {
+        /// User-visible view name.
+        name: String,
+        /// Ordered initial columns.
+        columns: Vec<BaseColumn>,
+    },
+    /// Reload saved definitions.
+    Reload,
 }
 
 /// Messages that change the high-level visible surface.
@@ -527,6 +550,34 @@ impl ActionMsg {
 /// Values returned by asynchronous library effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LibraryReply {
+    /// A confirmed Base deletion completed.
+    BaseDeleted {
+        /// Deleted definition identity.
+        base_id: BaseId,
+        /// Completion or displayable failure.
+        result: Result<(), UiError>,
+    },
+    /// Saved base definitions completed loading.
+    BasesLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Saved definitions or a displayable failure.
+        result: Result<Vec<BaseDefinition>, UiError>,
+    },
+    /// Rows for the selected base completed loading.
+    BaseRowsLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Queried saved view.
+        base_id: BaseId,
+        /// Projected rows or a displayable failure.
+        result: Result<Vec<BaseRow>, UiError>,
+    },
+    /// A base creation completed.
+    BaseCreated {
+        /// Created definition or a displayable failure.
+        result: Result<BaseDefinition, UiError>,
+    },
     /// A semantic library revision completed loading.
     LibraryRevisionLoaded {
         /// Identity of the initiating request.

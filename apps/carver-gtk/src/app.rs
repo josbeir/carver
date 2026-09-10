@@ -155,6 +155,7 @@ fn build_window(
     let trash_status = content.trash.status.clone();
     let view = ViewRefs::new(content.route_stack, browser_status, trash_status)
         .with_browser(content.browser)
+        .with_base(content.base)
         .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
         .with_editor(content.editor)
         .with_trash(

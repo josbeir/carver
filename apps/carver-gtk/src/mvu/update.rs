@@ -1,10 +1,10 @@
 //! Pure state transitions for the application model.
 
 use super::model::{
-    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingCategorySelection,
+    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingNavigation,
 };
 use super::{
-    ActionKey, ActionMsg, AppModel, AppMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
+    ActionKey, ActionMsg, AppModel, AppMsg, BasesMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
     EditorSessionId, Effect, LibraryReply, MoveUndo, NavigationMsg, PreferencesMsg, SidebarMsg,
     SourceEdit, TrashMsg, UiError, WindowMsg,
 };
@@ -73,6 +73,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 .collect()
         }
         AppMsg::Library(reply) => update_library(model, reply),
+        AppMsg::Bases(message) => update_bases(model, message),
     };
     resume_editor_refresh(model, &mut effects);
     if let Some(document) = model.editor.as_mut()
@@ -108,6 +109,49 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     effects
 }
 
+fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
+    match message {
+        BasesMsg::Open(base_id) => {
+            if model.route == super::Route::Editor {
+                model.pending_navigation = Some(PendingNavigation::Base(base_id));
+                let effects = request_editor_close(model);
+                return if model.editor.is_none() {
+                    complete_pending_navigation(model)
+                } else {
+                    effects
+                };
+            }
+            open_base(model, base_id)
+        }
+        BasesMsg::Create { name, columns } => {
+            let name = name.trim().to_owned();
+            if name.is_empty() {
+                model.notice = Some(UiError::new("Base names cannot be empty."));
+                Vec::new()
+            } else {
+                vec![Effect::CreateBase { name, columns }]
+            }
+        }
+        BasesMsg::Reload => reload_bases(model).into_iter().collect(),
+        BasesMsg::Delete(base_id) => {
+            if model.bases.deleting.insert(base_id) {
+                vec![Effect::DeleteBase { base_id }]
+            } else {
+                Vec::new()
+            }
+        }
+        BasesMsg::LoadingIndicatorElapsed(request_id) => {
+            if model.bases.definitions.state == super::LoadState::Loading(request_id) {
+                model.bases.definitions_loading_elapsed = Some(request_id);
+            }
+            if model.bases.rows.state == super::LoadState::Loading(request_id) {
+                model.bases.rows_loading_elapsed = Some(request_id);
+            }
+            Vec::new()
+        }
+    }
+}
+
 fn resume_editor_refresh(model: &mut AppModel, effects: &mut Vec<Effect>) {
     if model.editor_refresh_pending
         && model.editor_refresh_request.is_none()
@@ -126,6 +170,9 @@ fn request_editor_load(
     note_id: carver_sdk::NoteId,
     export_after_load: bool,
 ) -> Vec<Effect> {
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
+    }
     let request_id = model.next_request_id();
     model.editor_load_request = Some(request_id);
     model.editor_export_after_load = export_after_load.then_some(request_id);
@@ -140,13 +187,10 @@ fn select_category(
     category_id: Option<carver_sdk::CategoryId>,
 ) -> Vec<Effect> {
     if model.route == super::Route::Editor {
-        model.pending_category_selection = Some(category_id.map_or(
-            PendingCategorySelection::AllNotes,
-            PendingCategorySelection::Category,
-        ));
+        model.pending_navigation = Some(PendingNavigation::Browser(category_id));
         let effects = request_editor_close(model);
         return if model.editor.is_none() {
-            complete_pending_category_selection(model)
+            complete_pending_navigation(model)
         } else {
             effects
         };
@@ -156,17 +200,28 @@ fn select_category(
     reload_browser(model).into_iter().collect()
 }
 
-fn complete_pending_category_selection(model: &mut AppModel) -> Vec<Effect> {
-    let Some(selection) = model.pending_category_selection.take() else {
+fn complete_pending_navigation(model: &mut AppModel) -> Vec<Effect> {
+    let Some(destination) = model.pending_navigation.take() else {
         return Vec::new();
     };
-    let category_id = match selection {
-        PendingCategorySelection::AllNotes => None,
-        PendingCategorySelection::Category(category_id) => Some(category_id),
-    };
-    model.selected_category = category_id;
-    model.route = super::Route::Browser;
-    reload_browser(model).into_iter().collect()
+    match destination {
+        PendingNavigation::Browser(category_id) => {
+            model.selected_category = category_id;
+            model.route = super::Route::Browser;
+            reload_browser(model).into_iter().collect()
+        }
+        PendingNavigation::Base(base_id) => open_base(model, base_id),
+    }
+}
+
+fn open_base(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Vec<Effect> {
+    model.route = super::Route::Base;
+    model.bases.selected = Some(base_id);
+    let mut effects: Vec<_> = reload_base_rows(model, base_id).into_iter().collect();
+    if matches!(model.bases.definitions.state, super::LoadState::Failed(_)) {
+        effects.extend(reload_bases(model));
+    }
+    effects
 }
 
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
@@ -224,6 +279,16 @@ fn open_browser_search(model: &mut AppModel) -> Vec<Effect> {
     }
     model.browser.search_open = true;
     Vec::new()
+}
+
+fn restore_editor_origin(model: &mut AppModel) {
+    model.route =
+        if model.editor_return_route == super::Route::Base && model.bases.selected.is_some() {
+            super::Route::Base
+        } else {
+            super::Route::Browser
+        };
+    model.editor_return_route = super::Route::Browser;
 }
 
 fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<Effect> {
@@ -297,7 +362,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                     && !matches!(document.save_state, super::EditorSaveState::Saving(_))
             }) {
                 let _ = close_editor(model, session);
-                model.pending_category_selection = None;
+                model.pending_navigation = None;
                 model.route = super::Route::Trash;
                 reload_trash(model).into_iter().collect()
             } else {
@@ -373,7 +438,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .and_then(super::EditorDocument::begin_save)
             .map_or_else(Vec::new, save_note_effect),
         EditorMsg::BackRequested => {
-            model.pending_category_selection = None;
+            model.pending_navigation = None;
             request_editor_close(model)
         }
         EditorMsg::TrashRequested => model
@@ -702,7 +767,7 @@ fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec
     {
         return Vec::new();
     }
-    model.route = super::Route::Browser;
+    restore_editor_origin(model);
     model.editor = None;
     model.editor_preview = None;
     model.editor_copy_request = None;
@@ -1167,6 +1232,18 @@ fn category_name_effect(name: &str, effect: impl FnOnce(String) -> Effect) -> Op
 
 fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     match reply {
+        LibraryReply::BasesLoaded { request_id, result } => {
+            update_bases_loaded(model, request_id, result)
+        }
+        LibraryReply::BaseRowsLoaded {
+            request_id,
+            base_id,
+            result,
+        } => update_base_rows_loaded(model, request_id, base_id, result),
+        LibraryReply::BaseCreated { result } => update_base_created(model, result),
+        LibraryReply::BaseDeleted { base_id, result } => {
+            update_base_deleted(model, base_id, result)
+        }
         LibraryReply::LibraryRevisionLoaded { request_id, result } => {
             update_library_revision(model, request_id, result)
         }
@@ -1254,6 +1331,85 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
     }
 }
 
+fn update_base_deleted(
+    model: &mut AppModel,
+    base_id: carver_sdk::BaseId,
+    result: Result<(), UiError>,
+) -> Vec<Effect> {
+    if !model.bases.deleting.remove(&base_id) {
+        return Vec::new();
+    }
+    if let Err(error) = result {
+        model.notice = Some(error);
+        return Vec::new();
+    }
+    if model.bases.selected == Some(base_id) {
+        model.bases.selected = None;
+        if model.route == super::Route::Base {
+            model.route = super::Route::Browser;
+        }
+        if model.editor_return_route == super::Route::Base {
+            model.editor_return_route = super::Route::Browser;
+        }
+    }
+    if model.pending_navigation == Some(super::model::PendingNavigation::Base(base_id)) {
+        model.pending_navigation = Some(super::model::PendingNavigation::Browser(
+            model.selected_category,
+        ));
+    }
+    model.notice = None;
+    reload_bases(model).into_iter().collect()
+}
+
+fn update_bases_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<Vec<carver_sdk::BaseDefinition>, UiError>,
+) -> Vec<Effect> {
+    let reload = model.bases.definitions.finish(request_id, result);
+    reload
+        .then(|| reload_bases(model))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+fn update_base_rows_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    _base_id: carver_sdk::BaseId,
+    result: Result<Vec<carver_sdk::BaseRow>, UiError>,
+) -> Vec<Effect> {
+    let reload = model.bases.rows.finish(request_id, result);
+    if reload {
+        return model
+            .bases
+            .selected
+            .and_then(|selected| reload_base_rows(model, selected))
+            .into_iter()
+            .collect();
+    }
+    Vec::new()
+}
+
+fn update_base_created(
+    model: &mut AppModel,
+    result: Result<carver_sdk::BaseDefinition, UiError>,
+) -> Vec<Effect> {
+    match result {
+        Ok(base) => {
+            model.notice = None;
+            let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
+            effects.extend(update_bases(model, BasesMsg::Open(base.id)));
+            effects
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
+}
+
 fn update_favorite_changed(
     model: &mut AppModel,
     action: ActionKey,
@@ -1307,7 +1463,7 @@ fn update_favorite_changed(
                     effects.extend(
                         session.map_or_else(Vec::new, |session| close_editor(model, session)),
                     );
-                    let pending_effects = complete_pending_category_selection(model);
+                    let pending_effects = complete_pending_navigation(model);
                     if pending_effects.is_empty() {
                         effects.extend(reload_browser(model));
                     } else {
@@ -1520,10 +1676,14 @@ fn update_config_persisted(model: &mut AppModel, result: Result<(), UiError>) ->
 fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
     match result {
         Ok(()) => {
-            let mut effects = [reload_sidebar(model), reload_browser(model)]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
+            let mut effects = [
+                reload_sidebar(model),
+                reload_bases(model),
+                reload_browser(model),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
             effects.extend(request_library_revision(
                 model,
                 LibraryRevisionCheckReason::InitialLoad,
@@ -1703,15 +1863,15 @@ fn update_editor_save(
         set_editor_favorite(model, is_favorite)
     });
     if close_requested {
-        model.route = super::Route::Browser;
+        restore_editor_origin(model);
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
     }
     if close_requested {
-        let pending_effects = complete_pending_category_selection(model);
+        let pending_effects = complete_pending_navigation(model);
         if pending_effects.is_empty() {
-            effects.extend(reload_browser(model));
+            effects.extend(reload_return_surface(model));
         } else {
             effects.extend(pending_effects);
         }
@@ -1737,21 +1897,31 @@ fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
     if matches!(&document.save_state, super::EditorSaveState::Clean)
         && !document.favorite_mutation_in_flight
     {
-        model.route = super::Route::Browser;
+        restore_editor_origin(model);
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
-        return model
-            .pending_category_selection
-            .is_none()
-            .then(|| reload_browser(model))
-            .flatten()
-            .into_iter()
-            .collect();
+        return if model.pending_navigation.is_none() {
+            reload_return_surface(model)
+        } else {
+            Vec::new()
+        };
     }
     document
         .begin_save()
         .map_or_else(Vec::new, save_note_effect)
+}
+
+fn reload_return_surface(model: &mut AppModel) -> Vec<Effect> {
+    match (model.route, model.bases.selected) {
+        (super::Route::Base, Some(base_id)) => {
+            [reload_base_rows(model, base_id), reload_browser(model)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        _ => reload_browser(model).into_iter().collect(),
+    }
 }
 
 fn update_undo_state(model: &mut AppModel, action: ActionKey) {
@@ -1800,14 +1970,19 @@ fn reload_trash_after(reload: bool, model: &mut AppModel) -> Vec<Effect> {
 }
 
 fn reload_all_resources(model: &mut AppModel) -> Vec<Effect> {
-    [
+    let mut effects: Vec<_> = [
         reload_sidebar(model),
+        reload_bases(model),
         reload_browser(model),
         reload_trash(model),
     ]
     .into_iter()
     .flatten()
-    .collect()
+    .collect();
+    if let Some(base_id) = model.bases.selected {
+        effects.extend(reload_base_rows(model, base_id));
+    }
+    effects
 }
 
 fn reload_after_local_mutation(model: &mut AppModel) -> Vec<Effect> {
@@ -1992,6 +2167,27 @@ fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
         .sidebar
         .begin_reload(request_id)
         .then_some(Effect::LoadSidebar { request_id })
+}
+
+fn reload_bases(model: &mut AppModel) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .bases
+        .definitions
+        .begin_reload(request_id)
+        .then_some(Effect::LoadBases { request_id })
+}
+
+fn reload_base_rows(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .bases
+        .rows
+        .begin_reload(request_id)
+        .then_some(Effect::LoadBaseRows {
+            request_id,
+            base_id,
+        })
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {

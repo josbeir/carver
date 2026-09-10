@@ -21,7 +21,9 @@ type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SidebarSnapshot {
     categories: Vec<carver_sdk::CategorySummary>,
+    bases: LoadState<Vec<carver_sdk::BaseDefinition>>,
     selected_category: Option<carver_sdk::CategoryId>,
+    selection: crate::mvu::SidebarSelection,
 }
 
 impl SidebarSnapshot {
@@ -31,7 +33,9 @@ impl SidebarSnapshot {
         };
         Some(Self {
             categories: categories.clone(),
+            bases: model.bases.definitions.state.clone(),
             selected_category: model.selected_category,
+            selection: model.sidebar_selection(),
         })
     }
 }
@@ -80,6 +84,7 @@ pub struct ViewRefs {
     browser_category_empty_new_note_button: Option<gtk::Button>,
     browser_category_hero: Option<gtk::Box>,
     browser_status: adw::StatusPage,
+    base: Option<crate::ui::bases::BaseViewRefs>,
     trash_list: Option<gtk::ListBox>,
     trash_pages: Option<gtk::Stack>,
     empty_trash_button: Option<gtk::Button>,
@@ -123,6 +128,7 @@ impl ViewRefs {
             browser_category_empty_new_note_button: None,
             browser_category_hero: None,
             browser_status,
+            base: None,
             trash_list: None,
             trash_pages: None,
             empty_trash_button: None,
@@ -190,6 +196,13 @@ impl ViewRefs {
         self
     }
 
+    /// Adds the native saved-base grid.
+    #[must_use]
+    pub(crate) fn with_base(mut self, base: crate::ui::bases::BaseViewRefs) -> Self {
+        self.base = Some(base);
+        self
+    }
+
     /// Uses the complete category-row renderer for changed MVU snapshots.
     #[must_use]
     pub fn with_sidebar_renderer(mut self, renderer: impl Fn(&AppModel) + 'static) -> Self {
@@ -209,11 +222,13 @@ impl ViewRefs {
         self.rendering.set(true);
         self.route_stack.set_visible_child_name(match model.route {
             Route::Browser => "browser",
+            Route::Base => "base",
             Route::Trash => "trash",
             Route::Editor => "editor",
         });
         self.render_sidebar(model);
         self.render_browser(model);
+        self.render_base(model);
         self.render_trash(model);
         self.render_editor(model);
         self.clear_resolved_external_notice(model);
@@ -222,6 +237,62 @@ impl ViewRefs {
         self.render_undo_move(model);
         self.render_undo_trash_note(model);
         self.rendering.set(false);
+    }
+
+    fn render_base(&self, model: &AppModel) {
+        if model.route != Route::Base {
+            return;
+        }
+        let (Some(refs), Some(base_id), Some(dispatcher)) =
+            (&self.base, model.bases.selected, &self.dispatcher)
+        else {
+            return;
+        };
+        let LoadState::Ready(definitions) = &model.bases.definitions.state else {
+            crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
+            refs.grid.set_sensitive(false);
+            if let LoadState::Failed(error) = &model.bases.definitions.state {
+                crate::ui::bases::render_base_status(refs, "Couldn’t load base", &error.message);
+                return;
+            }
+            if !matches!(model.bases.definitions.state, LoadState::Loading(id)
+                if model.bases.definitions_loading_elapsed == Some(id))
+            {
+                return;
+            }
+            crate::ui::bases::render_base_status(refs, "Loading base…", "Loading its definition.");
+            return;
+        };
+        let definition = definitions.iter().find(|base| base.id == base_id);
+        crate::ui::bases::actions::render_delete(
+            &refs.delete,
+            definition.filter(|base| !model.bases.deleting.contains(&base.id)),
+            dispatcher,
+        );
+        let rows = match &model.bases.rows.state {
+            LoadState::Ready(rows) => rows,
+            LoadState::Failed(error) => {
+                crate::ui::bases::render_base_status(refs, "Couldn’t load rows", &error.message);
+                return;
+            }
+            LoadState::Idle | LoadState::Loading(_) => {
+                refs.grid.set_sensitive(false);
+                if !matches!(model.bases.rows.state, LoadState::Loading(id)
+                    if model.bases.rows_loading_elapsed == Some(id))
+                {
+                    return;
+                }
+                crate::ui::bases::render_base_status(
+                    refs,
+                    "Loading rows…",
+                    "Refreshing this base.",
+                );
+                return;
+            }
+        };
+        if let Some(definition) = definitions.iter().find(|base| base.id == base_id) {
+            crate::ui::bases::render_base(refs, definition, rows, dispatcher);
+        }
     }
 
     /// Executes a native GTK adapter effect after the runtime has rendered its model snapshot.
@@ -656,7 +727,7 @@ fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjecti
         browser: model.browser.clone(),
         selected_category: model.selected_category,
         sidebar: model.sidebar.state.clone(),
-        route: model.route.clone(),
+        route: model.route,
         today,
     }
 }
