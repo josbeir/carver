@@ -2,15 +2,12 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use carver_sdk::{BaseColumn, Category, CategoryAppearance, CategoryId, CategorySummary};
+use carver_sdk::{Category, CategoryId, CategorySummary};
 use gtk::prelude::*;
 use libadwaita as adw;
-use libadwaita::prelude::*;
 
-use super::dialogs::{category_color_css_class, category_icon_name, show_category_dialog};
-use crate::mvu::{
-    ActionMsg, AppDispatcher, AppModel, AppMsg, BasesMsg, BrowserMsg, LoadState, NavigationMsg,
-};
+use super::dialogs::{category_color_css_class, category_icon_name};
+use crate::mvu::{AppDispatcher, AppModel, AppMsg, BasesMsg, BrowserMsg, LoadState, NavigationMsg};
 
 /// Responsive category sidebar and its snapshot renderer.
 #[derive(Clone)]
@@ -50,10 +47,7 @@ pub(crate) fn build_sidebar(
     container.set_widget_name("sidebar-surface");
     container.add_css_class("sidebar");
     let header = adw::HeaderBar::new();
-    let new_category = gtk::Button::from_icon_name("folder-new-symbolic");
-    new_category.set_widget_name("new-category-button");
-    new_category.set_tooltip_text(Some("New Category"));
-    header.pack_start(&new_category);
+    header.pack_start(&super::add::button(dispatcher));
     header.pack_end(&settings_menu_button());
     container.append(&header);
 
@@ -63,10 +57,10 @@ pub(crate) fn build_sidebar(
     list.add_css_class("navigation-sidebar");
     let rendering = Rc::new(Cell::new(false));
     connect_selection(dispatcher, split_view, &list, &rendering);
-    connect_new_category(dispatcher, &new_category);
     install_sidebar_search_shortcut(&container, dispatcher);
 
     let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    bases_box.set_visible(false);
     bases_box.set_margin_bottom(8);
     let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
     divider.set_widget_name("bases-divider");
@@ -75,19 +69,6 @@ pub(crate) fn build_sidebar(
     divider.set_margin_top(6);
     divider.set_margin_bottom(6);
     bases_box.append(&divider);
-    let new_base = gtk::Button::new();
-    new_base.set_widget_name("new-base-button");
-    new_base.add_css_class("base-sidebar-button");
-    new_base.set_child(Some(&base_button_content(
-        "list-add-symbolic",
-        "New Base",
-        None,
-        None,
-    )));
-    new_base.add_css_class("flat");
-    let dispatcher_for_base = dispatcher.clone();
-    new_base.connect_clicked(move |button| show_new_base_dialog(button, &dispatcher_for_base));
-    bases_box.append(&new_base);
     let base_rows = gtk::Box::new(gtk::Orientation::Vertical, 2);
     bases_box.append(&base_rows);
     let scroll_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -176,6 +157,9 @@ fn render_bases(
     let LoadState::Ready(bases) = &model.bases.definitions.state else {
         return;
     };
+    if let Some(section) = container.parent() {
+        section.set_visible(!bases.is_empty());
+    }
     while let Some(child) = container.first_child() {
         container.remove(&child);
     }
@@ -231,35 +215,6 @@ fn base_button_content(
         content.append(&badge);
     }
     content
-}
-
-fn show_new_base_dialog(button: &gtk::Button, dispatcher: &AppDispatcher) {
-    let entry = gtk::Entry::builder()
-        .placeholder_text("Projects")
-        .activates_default(true)
-        .build();
-    let dialog = adw::AlertDialog::builder()
-        .heading("New Base")
-        .body("Create a database-style view of your notes.")
-        .extra_child(&entry)
-        .build();
-    dialog.add_response("cancel", "Cancel");
-    dialog.add_response("create", "Create");
-    dialog.set_response_appearance("create", adw::ResponseAppearance::Suggested);
-    dialog.set_default_response(Some("create"));
-    dialog.set_close_response("cancel");
-    let dispatcher = dispatcher.clone();
-    dialog.connect_response(None, move |_, response| {
-        if response == "create" {
-            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Create {
-                name: entry.text().to_string(),
-                columns: vec![BaseColumn::Category, BaseColumn::Updated],
-            }));
-        }
-    });
-    if let Some(parent) = button.root().and_downcast::<gtk::Window>() {
-        dialog.present(Some(&parent));
-    }
 }
 
 /// Builds the shared control that expands or collapses the category sidebar.
@@ -329,29 +284,6 @@ fn connect_selection(
         if split_view.is_collapsed() {
             split_view.set_show_content(true);
         }
-    });
-}
-
-fn connect_new_category(dispatcher: &AppDispatcher, button: &gtk::Button) {
-    let dispatcher = dispatcher.clone();
-    button.connect_clicked(move |button| {
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        let dispatcher = dispatcher.clone();
-        show_category_dialog(
-            parent.as_ref(),
-            "New Category",
-            "",
-            CategoryAppearance::default(),
-            move |name, appearance| {
-                let _ =
-                    dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
-                        name,
-                        appearance,
-                    }));
-            },
-        );
     });
 }
 

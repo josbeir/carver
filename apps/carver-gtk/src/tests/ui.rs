@@ -1,5 +1,6 @@
 //! Display-backed interaction coverage for the MVU window surface.
 
+mod add;
 pub(crate) mod document_sidebar;
 mod excerpts;
 mod html;
@@ -52,6 +53,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     html::document_font_should_remain_css_text_inside_the_preview_head()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
+    add::add_dialog_should_create_and_preserve_drafts()?;
+    add::add_dialog_should_resize_for_the_active_form()?;
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
         gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),
@@ -338,17 +341,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(source_font_filter.match_(&monospace_family));
     assert!(source_font_filter.match_(&monospace_face));
     let sidebar = widget_as::<gtk::ListBox>(&root, "category-list").ok_or("category list")?;
-    assert!(widget_as::<gtk::Button>(&root, "new-category-button").is_some());
-    let new_base = widget_as::<gtk::Button>(&root, "new-base-button").ok_or("new base button")?;
+    assert!(widget_as::<gtk::Button>(&root, "sidebar-add-button").is_some());
+    assert!(find_widget(&root, "new-base-button").is_none());
     let bases_divider =
         widget_as::<gtk::Separator>(&root, "bases-divider").ok_or("bases divider")?;
-    assert_eq!(
-        bases_divider.next_sibling().as_ref(),
-        Some(new_base.upcast_ref())
-    );
+    assert!(bases_divider.next_sibling().is_some());
     let sidebar_scroll = widget_as::<gtk::ScrolledWindow>(&root, "sidebar-navigation-scroll")
         .ok_or("sidebar navigation scroll")?;
-    assert!(new_base.is_ancestor(&sidebar_scroll));
+    assert!(bases_divider.is_ancestor(&sidebar_scroll));
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
     assert!(widget_as::<gtk::Button>(&root, "back-to-notes-from-base-button").is_some());
     assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());

@@ -338,6 +338,12 @@ popover button:checked {
   background: @view_bg_color;
 }
 
+.sidebar-add-panel { padding: 8px 18px 18px; }
+.add-choice { padding: 14px; border-radius: 12px; border: 1px solid alpha(currentColor, 0.12); background: alpha(currentColor, 0.025); font-weight: normal; }
+.add-choice .heading { font-weight: 700; }
+.add-choice:hover, .add-choice:focus-visible { background: alpha(@accent_bg_color, 0.09); }
+.add-choice-icon { padding: 10px; border-radius: 10px; background: alpha(@accent_bg_color, 0.12); color: @accent_color; }
+
 .bases-grid row:nth-child(even) {
   background: alpha(currentColor, 0.025);
 }
