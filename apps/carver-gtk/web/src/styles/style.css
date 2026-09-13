@@ -1,3 +1,6 @@
+/* CarveKit node views rely on this interaction chrome for tab visibility,
+ * inline attribute editors, definition cards, comments, and embed controls. */
+@import "@markup-carve/carve-grammars/tiptap/editor.css";
 @import "./document.css";
 
 #editor {
