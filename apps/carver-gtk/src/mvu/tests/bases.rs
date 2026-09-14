@@ -326,3 +326,73 @@ fn external_library_change_should_reload_selected_base_rows() {
         |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
     ));
 }
+
+#[test]
+fn external_base_deletion_should_return_the_window_to_the_browser() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.editor_return_route = Route::Base;
+    model.library_revision = Some(LibraryRevision(1));
+
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+    let request_id = match effects.as_slice() {
+        [Effect::LoadLibraryRevision { request_id }] => *request_id,
+        _ => panic!("external wakeup should check the revision"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id,
+            result: Ok(LibraryRevision(2)),
+        }),
+    );
+    let definitions_request = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::LoadBases { request_id } => Some(*request_id),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("external refresh should reload Bases"));
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BasesLoaded {
+                request_id: definitions_request,
+                result: Ok(Vec::new()),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.bases.selected, None);
+    assert_eq!(model.editor_return_route, Route::Browser);
+}
+
+#[test]
+fn coalesced_base_reload_should_wait_for_the_latest_definitions_before_clearing_selection() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+
+    let initial = update(&mut model, AppMsg::Bases(BasesMsg::Reload));
+    let initial_request = match initial.as_slice() {
+        [Effect::LoadBases { request_id }] => *request_id,
+        _ => panic!("initial Base reload should start"),
+    };
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Reload)).is_empty());
+
+    let reload = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasesLoaded {
+            request_id: initial_request,
+            result: Ok(Vec::new()),
+        }),
+    );
+    assert!(matches!(reload.as_slice(), [Effect::LoadBases { .. }]));
+    assert_eq!(model.route, Route::Base);
+    assert_eq!(model.bases.selected, Some(base_id));
+}
