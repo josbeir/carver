@@ -596,7 +596,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     });
     assert!(favorite_row);
     let favorite_row = find_widget(&root, &format!("favorite-note:{}", note.id))
-        .and_downcast::<gtk::ListBoxRow>()
+        .and_downcast::<gtk::Box>()
         .ok_or("favorite note row")?;
     assert!(widget_as::<gtk::Image>(&root, "favorites-heading-icon").is_some());
     assert!(favorite_row.has_css_class("card"));

@@ -935,13 +935,19 @@ fn show_base_configuration_dialog(
         let filters = selected_filters(&filter_widgets.borrow());
         let sorts = selected_sorts(&sort_widgets.borrow());
         let message = match mode {
-            BaseConfigurationMode::Create => BasesMsg::CreateConfigured {
-                name: name_for_save.text().to_string(),
-                columns,
-                filter_mode: selected_filter_mode(&filter_mode),
-                filters,
-                sorts,
-            },
+            BaseConfigurationMode::Create => {
+                dialog_for_save.set_can_close(false);
+                if let Some(child) = dialog_for_save.child() {
+                    child.set_sensitive(false);
+                }
+                BasesMsg::CreateConfigured {
+                    name: name_for_save.text().to_string(),
+                    columns,
+                    filter_mode: selected_filter_mode(&filter_mode),
+                    filters,
+                    sorts,
+                }
+            }
             BaseConfigurationMode::Update { base_id, revision } => {
                 dialog_for_save.set_can_close(false);
                 if let Some(child) = dialog_for_save.child() {
@@ -959,9 +965,6 @@ fn show_base_configuration_dialog(
             }
         };
         let _ = dispatcher.dispatch(AppMsg::Bases(message));
-        if matches!(mode, BaseConfigurationMode::Create) {
-            dialog_for_save.close();
-        }
     });
     name.grab_focus();
     dialog.present(Some(parent));

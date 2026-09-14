@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
     let mut model = AppModel::new(&Config::default());
+    model.bases.property_descriptors.state = LoadState::Ready(Vec::new());
     let definition = BaseDefinition {
         id: BaseId::new(),
         name: "Projects".into(),
@@ -57,6 +58,7 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
 #[test]
 fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows() {
     let mut model = AppModel::new(&Config::default());
+    model.bases.property_descriptors.state = LoadState::Ready(Vec::new());
     let effects = update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew));
     let [Effect::PrepareNewBaseConfiguration { request_id }] = effects.as_slice() else {
         panic!("new Base configuration should prepare its rows");
@@ -83,6 +85,37 @@ fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows
         .as_slice(),
         [Effect::ShowNewBaseConfiguration { .. }]
     ));
+}
+
+#[test]
+fn configuring_a_new_base_should_wait_for_property_descriptors() {
+    let mut model = AppModel::new(&Config::default());
+    let descriptor_request = RequestId(8);
+    model.bases.property_descriptors.state = LoadState::Loading(descriptor_request);
+
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
+    assert!(matches!(
+        model.bases.configuration_request,
+        Some(RequestId(1))
+    ));
+
+    let descriptor = carver_sdk::PropertyDescriptor {
+        path: carver_sdk::PropertyPath("/project/status".to_owned()),
+        kind: carver_sdk::PropertyKind::Text,
+        example: Some("planned".to_owned()),
+    };
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
+                request_id: descriptor_request,
+                result: Ok(vec![descriptor.clone()]),
+            }),
+        )
+        .as_slice(),
+        [Effect::ShowNewBaseConfiguration { descriptors }] if descriptors == &vec![descriptor]
+    ));
+    assert!(model.bases.configuration_request.is_none());
 }
 
 #[test]
@@ -181,6 +214,34 @@ fn configured_base_creation_should_trim_its_name_and_preserve_its_query() {
             sorts: vec![sort],
         }]
     );
+    assert!(model.bases.saving_configuration);
+}
+
+#[test]
+fn failed_configured_base_creation_should_reenable_the_new_base_draft() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CreateConfigured {
+            name: "Projects".to_owned(),
+            columns: Vec::new(),
+            filter_mode: BaseFilterMode::All,
+            filters: Vec::new(),
+            sorts: Vec::new(),
+        }),
+    );
+
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BaseCreated {
+                result: Err(UiError::new("duplicate Base")),
+            }),
+        ),
+        vec![Effect::FinishBaseConfiguration { success: false }]
+    );
+    assert!(!model.bases.saving_configuration);
+    assert_eq!(model.notice, Some(UiError::new("duplicate Base")));
 }
 
 #[test]

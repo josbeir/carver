@@ -16,7 +16,7 @@ fn query_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
         .unwrap_or_else(|error| panic!("category failed: {error}"));
     for (source, updated) in [
         (
-            "---yaml\nstatus: État\nscore: 2\nenabled: true\ntags: [Rust, notes]\nproject/status: ready\n---\n# First",
+            "---yaml\nstatus: État\nscore: 2\nenabled: true\ntags: [Rust, notes]\n2026: planned\nproject/status: ready\n---\n# First",
             OffsetDateTime::UNIX_EPOCH,
         ),
         (
@@ -188,6 +188,64 @@ fn json1_query_should_match_numeric_filters_and_property_sorts() {
         }],
         &[BaseSort {
             field: BaseColumn::Property(PropertyPath("/score".to_owned())),
+            direction: BaseSortDirection::Descending,
+        }],
+    );
+}
+
+#[test]
+fn json1_query_should_distinguish_numeric_object_keys_from_array_indexes() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/2026".to_owned())),
+            operator: BaseFilterOperator::Equals,
+            value: Some(serde_json::json!("planned")),
+        }],
+        &[],
+    );
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/tags/0".to_owned())),
+            operator: BaseFilterOperator::Equals,
+            value: Some(serde_json::json!("Rust")),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_reverse_mixed_property_types_for_descending_sorts() {
+    let (_directory, library) = library();
+    let category = library
+        .create_category("Projects", OffsetDateTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    for source in [
+        "---yaml\nmixed: false\n---\n# Boolean",
+        "---yaml\nmixed: 2\n---\n# Number",
+        "---yaml\nmixed: text\n---\n# Text",
+    ] {
+        library
+            .create_note_with_source(category.id, source, OffsetDateTime::UNIX_EPOCH)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+    }
+    let base = library
+        .create_base("Query", &[])
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[],
+        &[BaseSort {
+            field: BaseColumn::Property(PropertyPath("/mixed".to_owned())),
             direction: BaseSortDirection::Descending,
         }],
     );

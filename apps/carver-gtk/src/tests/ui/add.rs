@@ -12,9 +12,15 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     let (_temporary, client) = test_state()?;
     let dispatcher = AppDispatcher::default();
     let routes = gtk::Stack::new();
-    for name in ["browser", "base"] {
-        routes.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
-    }
+    routes.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    let split_view = adw::NavigationSplitView::new();
+    let compact_navigation = std::rc::Rc::new(std::cell::Cell::new(false));
+    let (base, base_refs) =
+        crate::ui::bases::build_base(&dispatcher, &split_view, &compact_navigation);
+    routes.add_named(&base, Some("base"));
     routes.set_visible_child_name("browser");
     let runtime = AppRuntime::new(
         client.clone(),
@@ -24,7 +30,8 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
             adw::StatusPage::new(),
             adw::StatusPage::new(),
         )
-        .with_dispatcher(dispatcher.clone()),
+        .with_dispatcher(dispatcher.clone())
+        .with_base(base_refs),
     );
     runtime.bind_dispatcher(&dispatcher);
     let button = crate::ui::add::button(&dispatcher);
@@ -113,6 +120,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         || matches!(&runtime.model().bases.definitions.state,
         crate::mvu::LoadState::Ready(items) if items.len() == 1 && items[0].name == "Reading list")
     ));
+    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
     let root = dialog.upcast_ref();
@@ -124,11 +132,23 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
             dialog.widget_name() == "base-configuration-dialog" && dialog.is_mapped()
         })
     }));
-    let dialog = window.visible_dialog().ok_or("discard configuration")?;
+    let dialog = window.visible_dialog().ok_or("duplicate configuration")?;
     let root = dialog.upcast_ref();
-    widget_as::<gtk::Entry>(root, "base-configuration-name")
-        .ok_or("new Base name")?
-        .set_text("Discard");
+    let duplicate_name =
+        widget_as::<gtk::Entry>(root, "base-configuration-name").ok_or("new Base name")?;
+    duplicate_name.set_text("Reading list");
+    widget_as::<gtk::Button>(root, "base-configuration-save")
+        .ok_or("create duplicate Base")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| runtime.model().notice.is_some()));
+    assert!(dialog.can_close());
+    assert!(
+        dialog
+            .child()
+            .ok_or("preserved duplicate Base draft")?
+            .is_sensitive()
+    );
+    assert_eq!(duplicate_name.text(), "Reading list");
     dialog.close();
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;

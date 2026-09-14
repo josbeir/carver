@@ -1,6 +1,5 @@
 use carver_domain::{
     BaseColumn, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort, BaseSortDirection,
-    PropertyPath,
 };
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
@@ -144,14 +143,12 @@ fn scalar_equal(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String {
 
 fn list_match(filter: &BaseFilter, parameters: &mut Vec<SqlValue>, negated: bool) -> String {
     let value_type = field_type(&filter.field, parameters);
-    let Some(path) = property_path(&filter.field) else {
+    let Some(value) = property_value(&filter.field, parameters) else {
         return "0".to_owned();
     };
-    parameters.push(SqlValue::Text(path));
     let entry_matches = list_entry_match(filter.value.as_ref(), parameters);
-    let exists = format!(
-        "EXISTS (SELECT 1 FROM json_each(n.frontmatter_json, ?) AS entry WHERE {entry_matches})"
-    );
+    let exists =
+        format!("EXISTS (SELECT 1 FROM json_each({value}) AS entry WHERE {entry_matches})");
     let not = if negated { "NOT " } else { "" };
     format!("({value_type} = 'array' AND {not}({exists}))")
 }
@@ -192,7 +189,7 @@ fn compile_order_sql(sorts: &[BaseSort], parameters: &mut Vec<SqlValue>) -> Stri
 
         let value_type = field_type(&sort.field, parameters);
         terms.push(format!(
-            "CASE {value_type} WHEN 'false' THEN 1 WHEN 'true' THEN 1 WHEN 'integer' THEN 2 WHEN 'real' THEN 2 WHEN 'text' THEN 3 WHEN 'array' THEN 4 WHEN 'object' THEN 5 ELSE 0 END ASC"
+            "CASE {value_type} WHEN 'false' THEN 1 WHEN 'true' THEN 1 WHEN 'integer' THEN 2 WHEN 'real' THEN 2 WHEN 'text' THEN 3 WHEN 'array' THEN 4 WHEN 'object' THEN 5 ELSE 0 END {direction}"
         ));
 
         let text_type = field_type(&sort.field, parameters);
@@ -237,11 +234,10 @@ fn field_type(field: &BaseColumn, parameters: &mut Vec<SqlValue>) -> String {
     match field {
         BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => "'text'".to_owned(),
         BaseColumn::Property(_) => {
-            let Some(path) = property_path(field) else {
+            let Some(value_type) = property_type(field, parameters) else {
                 return "NULL".to_owned();
             };
-            parameters.push(SqlValue::Text(path));
-            "json_type(n.frontmatter_json, ?)".to_owned()
+            value_type
         }
     }
 }
@@ -254,37 +250,89 @@ fn field_value(field: &BaseColumn, parameters: &mut Vec<SqlValue>) -> String {
             "strftime('%Y-%m-%dT%H:%M:%SZ', n.updated_at, 'unixepoch')".to_owned()
         }
         BaseColumn::Property(_) => {
-            let Some(path) = property_path(field) else {
+            let Some(value) = property_value(field, parameters) else {
                 return "NULL".to_owned();
             };
-            parameters.push(SqlValue::Text(path));
-            "json_extract(n.frontmatter_json, ?)".to_owned()
+            value
         }
     }
 }
 
-fn property_path(field: &BaseColumn) -> Option<String> {
+fn property_segments(field: &BaseColumn) -> Option<Vec<String>> {
     let BaseColumn::Property(path) = field else {
         return None;
     };
-    sqlite_json_path(path)
+    let raw = path.0.strip_prefix('/')?;
+    raw.split('/').map(unescape_pointer_segment).collect()
 }
 
-fn sqlite_json_path(pointer: &PropertyPath) -> Option<String> {
-    let mut path = "$".to_owned();
-    let raw = pointer.0.strip_prefix('/')?;
-    for segment in raw.split('/') {
-        let segment = unescape_pointer_segment(segment)?;
-        if let Ok(index) = segment.parse::<usize>() {
-            path.push('[');
-            path.push_str(&index.to_string());
-            path.push(']');
-        } else {
-            path.push('.');
-            path.push_str(&serde_json::to_string(&segment).ok()?);
-        }
+fn property_type(field: &BaseColumn, parameters: &mut Vec<SqlValue>) -> Option<String> {
+    property_expression(field, parameters, "json_type")
+}
+
+fn property_value(field: &BaseColumn, parameters: &mut Vec<SqlValue>) -> Option<String> {
+    property_expression(field, parameters, "json_extract")
+}
+
+/// Compiles a JSON Pointer without treating a digit-only object key as an array index.
+///
+/// JSON Pointers do not encode container types, so a numeric segment must be resolved against
+/// its parent at query time. Each nested subquery names that parent once, keeping SQL parameters
+/// aligned while selecting either an array index or a quoted object key.
+fn property_expression(
+    field: &BaseColumn,
+    parameters: &mut Vec<SqlValue>,
+    function: &str,
+) -> Option<String> {
+    let segments = property_segments(field)?;
+    let (last, parents) = segments.split_last()?;
+    let mut parent = ("n.frontmatter_json".to_owned(), Vec::new());
+    for segment in parents {
+        parent = select_json_value(parent, segment)?;
     }
-    Some(path)
+    let (sql, expression_parameters) = select_json_function(parent, last, function)?;
+    parameters.extend(expression_parameters);
+    Some(sql)
+}
+
+fn select_json_value(
+    parent: (String, Vec<SqlValue>),
+    segment: &str,
+) -> Option<(String, Vec<SqlValue>)> {
+    select_json_function(parent, segment, "json_extract")
+}
+
+fn select_json_function(
+    parent: (String, Vec<SqlValue>),
+    segment: &str,
+    function: &str,
+) -> Option<(String, Vec<SqlValue>)> {
+    let (parent, parent_parameters) = parent;
+    let object_path = json_object_path(segment)?;
+    if let Ok(index) = segment.parse::<usize>() {
+        let mut parameters = vec![
+            SqlValue::Text(format!("$[{index}]")),
+            SqlValue::Text(object_path),
+        ];
+        parameters.extend(parent_parameters);
+        Some((
+            format!(
+                "(SELECT CASE json_type(value) WHEN 'array' THEN {function}(value, ?) ELSE {function}(value, ?) END FROM (SELECT {parent} AS value))"
+            ),
+            parameters,
+        ))
+    } else {
+        let mut parameters = vec![SqlValue::Text(object_path)];
+        parameters.extend(parent_parameters);
+        Some((
+            format!("(SELECT {function}(value, ?) FROM (SELECT {parent} AS value))"),
+            parameters,
+        ))
+    }
+}
+
+fn json_object_path(segment: &str) -> Option<String> {
+    Some(format!("$.{}", serde_json::to_string(segment).ok()?))
 }
 
 fn unescape_pointer_segment(segment: &str) -> Option<String> {
@@ -307,12 +355,42 @@ fn unescape_pointer_segment(segment: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use carver_domain::PropertyPath;
 
     #[test]
-    fn json_pointer_should_escape_object_labels_for_json1() {
+    fn property_segments_should_unescape_pointer_labels() {
         assert_eq!(
-            sqlite_json_path(&PropertyPath("/project~1status/a.b/~0name".to_owned())),
-            Some("$.\"project/status\".\"a.b\".\"~name\"".to_owned())
+            property_segments(&BaseColumn::Property(PropertyPath(
+                "/project~1status/a.b/~0name".to_owned()
+            ))),
+            Some(vec![
+                "project/status".to_owned(),
+                "a.b".to_owned(),
+                "~name".to_owned()
+            ])
+        );
+    }
+
+    #[test]
+    fn numeric_object_key_filter_should_compile_to_a_type_aware_lookup() {
+        let (sql, parameters) = compile_base_filter(
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/2026".to_owned())),
+                operator: BaseFilterOperator::Equals,
+                value: Some(Value::String("planned".to_owned())),
+            }],
+        );
+        assert!(sql.is_some_and(|sql| sql.contains("CASE json_type(value)")));
+        assert_eq!(
+            parameters,
+            vec![
+                SqlValue::Text("$[2026]".to_owned()),
+                SqlValue::Text("$.\"2026\"".to_owned()),
+                SqlValue::Text("$[2026]".to_owned()),
+                SqlValue::Text("$.\"2026\"".to_owned()),
+                SqlValue::Text("planned".to_owned()),
+            ]
         );
     }
 }

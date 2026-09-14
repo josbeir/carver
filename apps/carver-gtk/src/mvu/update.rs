@@ -1,7 +1,8 @@
 //! Pure state transitions for the application model.
 
 use super::model::{
-    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingNavigation,
+    ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingBaseConfiguration,
+    PendingNavigation,
 };
 use super::{
     ActionKey, ActionMsg, AppModel, AppMsg, BasesMsg, BrowserMsg, EditorMsg, EditorSaveRequest,
@@ -140,6 +141,10 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 model.notice = Some(UiError::new("Base names cannot be empty."));
                 Vec::new()
             } else {
+                if model.bases.saving_configuration {
+                    return Vec::new();
+                }
+                model.bases.saving_configuration = true;
                 vec![Effect::CreateConfiguredBase {
                     name,
                     columns,
@@ -153,9 +158,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             if model.bases.configuration_request.is_some() || model.bases.saving_configuration {
                 return Vec::new();
             }
-            let request_id = model.next_request_id();
-            model.bases.configuration_request = Some(request_id);
-            vec![Effect::PrepareNewBaseConfiguration { request_id }]
+            request_base_configuration(model, PendingBaseConfiguration::New)
         }
         BasesMsg::Configure => {
             if model.bases.saving_configuration || model.route != super::Route::Base {
@@ -171,12 +174,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             else {
                 return Vec::new();
             };
-            let request_id = model.next_request_id();
-            model.bases.configuration_request = Some(request_id);
-            vec![Effect::PrepareBaseConfiguration {
-                request_id,
-                definition,
-            }]
+            request_base_configuration(model, PendingBaseConfiguration::Existing(definition))
         }
         BasesMsg::Update {
             base_id,
@@ -251,6 +249,40 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             Vec::new()
         }
         BasesMsg::PreviewCountTimerFired(_) => Vec::new(),
+    }
+}
+
+fn request_base_configuration(
+    model: &mut AppModel,
+    target: PendingBaseConfiguration,
+) -> Vec<Effect> {
+    let request_id = model.next_request_id();
+    model.bases.configuration_request = Some(request_id);
+    match &model.bases.property_descriptors.state {
+        super::LoadState::Ready(_) => prepare_base_configuration(request_id, target),
+        super::LoadState::Loading(_) => {
+            model.bases.pending_configuration = Some(target);
+            Vec::new()
+        }
+        super::LoadState::Idle | super::LoadState::Failed(_) => {
+            model.bases.pending_configuration = Some(target);
+            reload_property_descriptors(model).into_iter().collect()
+        }
+    }
+}
+
+fn prepare_base_configuration(
+    request_id: super::RequestId,
+    target: PendingBaseConfiguration,
+) -> Vec<Effect> {
+    match target {
+        PendingBaseConfiguration::New => vec![Effect::PrepareNewBaseConfiguration { request_id }],
+        PendingBaseConfiguration::Existing(definition) => {
+            vec![Effect::PrepareBaseConfiguration {
+                request_id,
+                definition,
+            }]
+        }
     }
 }
 
@@ -1560,11 +1592,46 @@ fn update_property_descriptors_loaded(
     result: Result<Vec<carver_sdk::PropertyDescriptor>, UiError>,
 ) -> Vec<Effect> {
     let reload = model.bases.property_descriptors.finish(request_id, result);
-    reload
-        .then(|| reload_property_descriptors(model))
-        .flatten()
-        .into_iter()
-        .collect()
+    if reload {
+        return reload_property_descriptors(model).into_iter().collect();
+    }
+    resume_pending_base_configuration(model)
+}
+
+fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
+    let Some(target) = model.bases.pending_configuration.take() else {
+        return Vec::new();
+    };
+    let request_id = model.bases.configuration_request.take();
+    let Some(request_id) = request_id else {
+        return Vec::new();
+    };
+    match &model.bases.property_descriptors.state {
+        super::LoadState::Ready(descriptors) => match target {
+            PendingBaseConfiguration::New => vec![Effect::ShowNewBaseConfiguration {
+                descriptors: descriptors.clone(),
+            }],
+            PendingBaseConfiguration::Existing(definition)
+                if model.route == super::Route::Base
+                    && model.bases.selected == Some(definition.id) =>
+            {
+                vec![Effect::ShowBaseConfiguration {
+                    definition,
+                    descriptors: descriptors.clone(),
+                }]
+            }
+            PendingBaseConfiguration::Existing(_) => Vec::new(),
+        },
+        super::LoadState::Failed(error) => {
+            model.notice = Some(error.clone());
+            Vec::new()
+        }
+        super::LoadState::Idle | super::LoadState::Loading(_) => {
+            model.bases.configuration_request = Some(request_id);
+            model.bases.pending_configuration = Some(target);
+            Vec::new()
+        }
+    }
 }
 
 fn update_base_rows_loaded(
@@ -1631,16 +1698,24 @@ fn update_base_created(
     model: &mut AppModel,
     result: Result<carver_sdk::BaseDefinition, UiError>,
 ) -> Vec<Effect> {
+    let was_saving = std::mem::take(&mut model.bases.saving_configuration);
+    let completion: Vec<_> = was_saving
+        .then_some(Effect::FinishBaseConfiguration {
+            success: result.is_ok(),
+        })
+        .into_iter()
+        .collect();
     match result {
         Ok(base) => {
             model.notice = None;
-            let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
+            let mut effects = completion;
+            effects.extend(reload_bases(model));
             effects.extend(update_bases(model, BasesMsg::Open(base.id)));
             effects
         }
         Err(error) => {
             model.notice = Some(error);
-            Vec::new()
+            completion
         }
     }
 }

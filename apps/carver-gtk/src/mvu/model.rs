@@ -133,11 +133,22 @@ pub enum Route {
     Editor,
 }
 
+/// A Base configuration dialog waiting for the library-wide field catalog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum PendingBaseConfiguration {
+    /// Configure a new, not-yet-persisted Base.
+    New,
+    /// Configure an existing saved Base definition.
+    Existing(carver_sdk::BaseDefinition),
+}
+
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
     /// Latest configuration snapshot request.
     pub configuration_request: Option<RequestId>,
+    /// Dialog intent retained until the field catalog becomes ready.
+    pub(crate) pending_configuration: Option<PendingBaseConfiguration>,
     /// Latest configuration preview-count request.
     pub configuration_preview_request: Option<RequestId>,
     /// Debounce timer for the latest configuration preview draft.
