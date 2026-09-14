@@ -853,9 +853,14 @@ fn append_browser_prelude(feed_store: &gtk::gio::ListStore, model: &AppModel) {
         && let LoadState::Ready(notes) = &model.browser.favorites.state
         && !notes.is_empty()
     {
-        feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Favorites(
-            notes.clone(),
-        )));
+        feed_store.append(&glib::BoxedAnyObject::new(
+            BrowserFeedItem::FavoritesHeading,
+        ));
+        for note in notes {
+            feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Favorite(
+                note.clone(),
+            )));
+        }
     }
 }
 

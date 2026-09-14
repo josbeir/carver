@@ -114,7 +114,8 @@ pub(crate) struct BrowserFeedContext {
 #[derive(Clone)]
 pub(crate) enum BrowserFeedItem {
     Hero,
-    Favorites(Vec<NoteSummary>),
+    FavoritesHeading,
+    Favorite(NoteSummary),
     SearchEmpty,
     CategoryEmpty,
     Heading(NoteDateGroup),
@@ -387,7 +388,7 @@ pub(crate) fn build_browser(
         let note_id = {
             let item = item.borrow::<BrowserFeedItem>();
             match &*item {
-                BrowserFeedItem::Note(note) => note.id,
+                BrowserFeedItem::Note(note) | BrowserFeedItem::Favorite(note) => note.id,
                 _ => return,
             }
         };
@@ -422,18 +423,6 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
             let _ = dispatcher_for_scroll.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
         }
     });
-}
-
-fn build_favorites_section() -> (gtk::Box, gtk::ListBox) {
-    let section = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    section.set_widget_name("favorites-section");
-    section.set_visible(false);
-    let list = gtk::ListBox::new();
-    list.set_widget_name("favorites-list");
-    list.set_selection_mode(gtk::SelectionMode::Single);
-    list.add_css_class("note-feed");
-    section.append(&list);
-    (section, list)
 }
 
 fn browser_menu_button() -> gtk::MenuButton {
@@ -621,10 +610,20 @@ fn browser_feed_factory(
                 );
                 container.append(&hero);
             }
-            BrowserFeedItem::Favorites(notes) => {
+            BrowserFeedItem::FavoritesHeading => {
+                container.set_margin_top(12);
+                container.set_margin_bottom(2);
+                container.append(&favorites_heading());
+            }
+            BrowserFeedItem::Favorite(note) => {
                 let context = context.borrow().clone();
-                container.set_margin_bottom(4);
-                container.append(&favorites_feed_section(&notes, &context, &dispatcher));
+                container.set_widget_name(&format!("favorite-note:{}", note.id));
+                container.set_css_classes(&["card", "activatable", "note-card"]);
+                container.set_margin_start(4);
+                container.set_margin_end(4);
+                container.set_margin_top(6);
+                container.set_margin_bottom(6);
+                populate_note_card(&container, &note, &context, Some(&dispatcher));
             }
             BrowserFeedItem::SearchEmpty => {
                 container.set_margin_top(12);
@@ -668,33 +667,10 @@ fn browser_feed_factory(
     factory
 }
 
-fn favorites_feed_section(
-    notes: &[NoteSummary],
-    context: &BrowserFeedContext,
-    dispatcher: &AppDispatcher,
-) -> gtk::Widget {
-    let (section, list) = build_favorites_section();
-    section.set_visible(!notes.is_empty());
-    if notes.is_empty() {
-        return section.upcast();
-    }
-    append_favorites_heading(&list);
-    for note in notes {
-        let row = gtk::ListBoxRow::new();
-        row.set_widget_name(&format!("favorite-note:{}", note.id));
-        row.add_css_class("card");
-        row.add_css_class("activatable");
-        row.add_css_class("note-card");
-        row.set_child(Some(&note_feed_card(note, context, Some(dispatcher))));
-        list.append(&row);
-    }
-    connect_note_row_activation(dispatcher, &list);
-    section.upcast()
-}
-
-fn append_favorites_heading(list: &gtk::ListBox) {
+fn favorites_heading() -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     content.set_halign(gtk::Align::Start);
+    content.set_widget_name("favorites-section");
     let label = gtk::Label::new(Some("Favorites"));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
@@ -704,11 +680,7 @@ fn append_favorites_heading(list: &gtk::ListBox) {
     icon.set_pixel_size(14);
     icon.set_valign(gtk::Align::Center);
     content.append(&icon);
-    let row = gtk::ListBoxRow::new();
-    row.set_selectable(false);
-    row.add_css_class("date-heading");
-    row.set_child(Some(&content));
-    list.append(&row);
+    content.upcast()
 }
 
 fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {
@@ -722,17 +694,6 @@ fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {
     heading.set_margin_bottom(6);
     heading.append(&label);
     heading.upcast()
-}
-
-pub(crate) fn note_feed_card(
-    note: &NoteSummary,
-    context: &BrowserFeedContext,
-    dispatcher: Option<&AppDispatcher>,
-) -> gtk::Widget {
-    let card = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    card.set_widget_name(&format!("note:{}", note.id));
-    populate_note_card(&card, note, context, dispatcher);
-    card.upcast()
 }
 
 fn populate_note_card(
@@ -861,25 +822,6 @@ fn note_actions(
     popover.set_child(Some(&actions));
     menu.set_popover(Some(&popover));
     menu
-}
-
-fn connect_note_row_activation(dispatcher: &AppDispatcher, list: &gtk::ListBox) {
-    let dispatcher = dispatcher.clone();
-    list.connect_row_activated(move |_list, row| {
-        let widget_name = row.widget_name();
-        let raw_id = widget_name
-            .strip_prefix("note:")
-            .or_else(|| widget_name.strip_prefix("favorite-note:"));
-        let Some(raw_id) = raw_id else {
-            return;
-        };
-        let Ok(id) = uuid::Uuid::parse_str(raw_id) else {
-            return;
-        };
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(
-            carver_sdk::NoteId::from_uuid(id),
-        )));
-    });
 }
 
 fn connect_new_note_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
