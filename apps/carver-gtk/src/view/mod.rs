@@ -237,6 +237,11 @@ impl ViewRefs {
         else {
             return;
         };
+        crate::ui::bases::render_base_search(
+            refs,
+            model.bases.search_open,
+            &model.bases.search_query,
+        );
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
             crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
             crate::ui::bases::actions::render_configure(&refs.configure, None, dispatcher);

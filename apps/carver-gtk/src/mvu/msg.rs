@@ -73,6 +73,16 @@ pub enum AppMsg {
 /// Events for saved database-style views.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BasesMsg {
+    /// Open Base search from the Base header or a keyboard shortcut.
+    SearchShortcutRequested,
+    /// Reveal the Base search controls and focus their entry.
+    SearchOpened,
+    /// Synchronize visibility changes made by the native Base search bar.
+    SearchVisibilityChanged(bool),
+    /// Replace the user-entered Base search text.
+    SearchChanged(String),
+    /// A delayed Base search timer fired.
+    SearchTimerFired(TimerId),
     /// Open the configuration dialog for the selected Base.
     Configure,
     /// Prepare the shared configuration dialog for a new Base.
@@ -154,6 +164,8 @@ pub enum NavigationMsg {
     ShowTrash,
     /// Return to the browser surface.
     ShowBrowser,
+    /// Open search for the active top-level surface.
+    SearchShortcutRequested,
 }
 
 /// Browser events.

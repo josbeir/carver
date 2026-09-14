@@ -7,6 +7,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
+use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
 
 /// Widgets needed to render the current saved base.
@@ -15,6 +16,10 @@ pub(crate) struct BaseViewRefs {
     pub(crate) configure: gtk::Button,
     pub(crate) delete: gtk::Button,
     pub(crate) title: gtk::Label,
+    pub(crate) search_bar: gtk::SearchBar,
+    pub(crate) search_entry: gtk::SearchEntry,
+    pub(crate) search_toggle: gtk::ToggleButton,
+    pub(crate) last_search_open: std::cell::Cell<bool>,
     pub(crate) grid: gtk::ColumnView,
     pub(crate) pages: gtk::Stack,
     pub(crate) scroll: gtk::ScrolledWindow,
@@ -25,6 +30,10 @@ pub(crate) struct BaseViewRefs {
     pub(crate) rendered_rows: std::cell::RefCell<Vec<(NoteId, Revision)>>,
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the one-time Base composition keeps its widgets and paired view references together"
+)]
 pub(crate) fn build_base(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
@@ -43,6 +52,8 @@ pub(crate) fn build_base(
         AppMsg::Navigation(NavigationMsg::ShowBrowser),
     );
     header.pack_start(&back);
+    let search = build_search_controls("base", "Search this Base", "Search this Base (Ctrl+F)");
+    header.pack_start(&search.toggle);
     let title = gtk::Label::new(Some("Base"));
     title.set_widget_name("base-title");
     title.add_css_class("title");
@@ -59,6 +70,7 @@ pub(crate) fn build_base(
     configure.set_action_name(Some("base.configure"));
     header.pack_end(&configure);
     toolbar.add_top_bar(&header);
+    toolbar.add_top_bar(&search.bar);
 
     let rows = gtk::gio::ListStore::new::<glib::BoxedAnyObject>();
     let selection = gtk::NoSelection::new(Some(rows.clone()));
@@ -110,6 +122,19 @@ pub(crate) fn build_base(
                 let _ = dispatcher_for_scroll.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
             }
         });
+    connect_search_controls(
+        dispatcher,
+        &search,
+        |query| AppMsg::Bases(BasesMsg::SearchChanged(query)),
+        AppMsg::Bases(BasesMsg::SearchOpened),
+        |visible| AppMsg::Bases(BasesMsg::SearchVisibilityChanged(visible)),
+    );
+    install_search_shortcut(
+        &toolbar,
+        dispatcher,
+        "base-search-shortcut",
+        AppMsg::Bases(BasesMsg::SearchShortcutRequested),
+    );
     (
         toolbar.upcast(),
         BaseViewRefs {
@@ -117,6 +142,10 @@ pub(crate) fn build_base(
             configure,
             delete,
             title,
+            search_bar: search.bar,
+            search_entry: search.entry,
+            search_toggle: search.toggle,
+            last_search_open: std::cell::Cell::new(false),
             grid,
             pages,
             scroll,
@@ -133,6 +162,34 @@ pub(crate) fn render_base_status(refs: &BaseViewRefs, title: &str, description: 
     refs.status.set_title(title);
     refs.status.set_description(Some(description));
     refs.pages.set_visible_child_name("status");
+}
+
+pub(crate) fn render_base_search(refs: &BaseViewRefs, open: bool, query: &str) {
+    let was_open = refs.last_search_open.replace(open);
+    let opening = open && !was_open;
+    let closing = was_open && !open;
+    if refs.search_bar.is_search_mode() != open {
+        refs.search_bar.set_search_mode(open);
+    }
+    if refs.search_toggle.is_active() != open {
+        refs.search_toggle.set_active(open);
+    }
+    if refs.search_entry.text().as_str() != query {
+        refs.search_entry.set_text(query);
+    }
+    if opening {
+        let bar = refs.search_bar.clone();
+        let entry = refs.search_entry.clone();
+        glib::idle_add_local_once(move || {
+            if bar.is_search_mode() {
+                entry.grab_focus();
+                entry.select_region(0, -1);
+            }
+        });
+    }
+    if closing {
+        refs.grid.grab_focus();
+    }
 }
 
 pub(crate) fn render_base(

@@ -18,6 +18,7 @@ use super::{
         show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
     },
     editor::{EditorViewRefs, SourceSyntaxError, build_editor},
+    search::{build_search_controls, connect_search_controls, install_search_shortcut},
     sidebar::{CompactNavigation, sidebar_toggle_button},
     trash::{TrashViewRefs, build_trash},
 };
@@ -306,6 +307,10 @@ fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
 }
 
 /// Builds the default recent-note and search view.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the one-time Browser composition keeps its widgets and paired view references together"
+)]
 pub(crate) fn build_browser(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
@@ -324,10 +329,10 @@ pub(crate) fn build_browser(
         compact_navigation,
         "toggle-categories-button",
     ));
-    let (search_bar, search, search_toggle) = build_note_search_controls();
-    header.pack_start(&search_toggle);
+    let search = build_search_controls("note", "Search notes", "Search notes (Ctrl+F)");
+    header.pack_start(&search.toggle);
     view.add_top_bar(&header);
-    view.add_top_bar(&search_bar);
+    view.add_top_bar(&search.bar);
 
     let feed_store = gtk::gio::ListStore::new::<glib::BoxedAnyObject>();
     let feed_context = Rc::new(RefCell::new(BrowserFeedContext {
@@ -395,20 +400,33 @@ pub(crate) fn build_browser(
         let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
     });
 
+    connect_search_controls(
+        dispatcher,
+        &search,
+        |query| AppMsg::Browser(BrowserMsg::SearchChanged(query)),
+        AppMsg::Browser(BrowserMsg::SearchOpened),
+        |visible| AppMsg::Browser(BrowserMsg::SearchVisibilityChanged(visible)),
+    );
+    install_search_shortcut(
+        &view,
+        dispatcher,
+        "browser-search-shortcut",
+        AppMsg::Browser(BrowserMsg::SearchShortcutRequested),
+    );
     let references = BrowserViewRefs {
         list,
         feed_store,
         feed_context,
         pages,
-        search_bar,
-        search_entry: search,
-        search_toggle,
+        search_bar: search.bar,
+        search_entry: search.entry,
+        search_toggle: search.toggle,
         empty_new_note_button: empty_new_note,
         status,
     };
     connect_browser_actions(dispatcher, &references, &new_note);
     connect_browser_paging(dispatcher, &references);
-    install_browser_shortcuts(&view, dispatcher);
+    install_browser_shortcuts(&view);
     (view.upcast(), references)
 }
 
@@ -476,42 +494,18 @@ fn build_search_empty_card() -> gtk::Box {
     card
 }
 
-fn build_note_search_controls() -> (gtk::SearchBar, gtk::SearchEntry, gtk::ToggleButton) {
-    let search_toggle = gtk::ToggleButton::new();
-    search_toggle.set_widget_name("note-search-toggle");
-    search_toggle.set_icon_name("system-search-symbolic");
-    search_toggle.set_tooltip_text(Some("Search notes (Ctrl+F)"));
-    search_toggle.add_css_class("flat");
-    let search_bar = gtk::SearchBar::new();
-    search_bar.set_widget_name("note-search-bar");
-    search_bar.set_size_request(0, -1);
-    search_bar.set_show_close_button(true);
-    let search = gtk::SearchEntry::new();
-    search.set_widget_name("note-search-entry");
-    search.set_placeholder_text(Some("Search notes"));
-    search.set_hexpand(true);
-    search_bar.set_child(Some(&search));
-    search_bar.connect_entry(&search);
-    (search_bar, search, search_toggle)
-}
-
 /// Captures browser shortcuts before child widgets consume them.
-fn install_browser_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDispatcher) {
+fn install_browser_shortcuts(view: &adw::ToolbarView) {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("browser-shortcuts"));
     controller.set_propagation_phase(gtk::PropagationPhase::Capture);
     let action_host = view.clone().upcast::<gtk::Widget>();
     let action_host_for_callback = action_host.clone();
-    let dispatcher = dispatcher.clone();
     controller.connect_key_pressed(move |_, key, _, modifiers| {
         if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
             || modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK)
         {
             return glib::Propagation::Proceed;
-        }
-        if key == gtk::gdk::Key::f {
-            let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::SearchShortcutRequested));
-            return glib::Propagation::Stop;
         }
         let action = match key {
             gtk::gdk::Key::n => NEW_NOTE_ACTION,
@@ -529,34 +523,6 @@ fn connect_browser_actions(
     references: &BrowserViewRefs,
     new_note: &gtk::Button,
 ) {
-    let dispatcher_for_search = dispatcher.clone();
-    references.search_entry.connect_changed(move |entry| {
-        let _ = dispatcher_for_search.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
-            entry.text().to_string(),
-        )));
-    });
-    let dispatcher_for_toggle = dispatcher.clone();
-    references.search_toggle.connect_toggled(move |toggle| {
-        let message = if toggle.is_active() {
-            BrowserMsg::SearchOpened
-        } else {
-            BrowserMsg::SearchVisibilityChanged(false)
-        };
-        let _ = dispatcher_for_toggle.dispatch(AppMsg::Browser(message));
-    });
-    let dispatcher_for_search_bar = dispatcher.clone();
-    references
-        .search_bar
-        .connect_search_mode_enabled_notify(move |bar| {
-            let _ = dispatcher_for_search_bar.dispatch(AppMsg::Browser(
-                BrowserMsg::SearchVisibilityChanged(bar.is_search_mode()),
-            ));
-        });
-    let dispatcher_for_search_stop = dispatcher.clone();
-    references.search_entry.connect_stop_search(move |_| {
-        let _ = dispatcher_for_search_stop
-            .dispatch(AppMsg::Browser(BrowserMsg::SearchVisibilityChanged(false)));
-    });
     connect_new_note_action(dispatcher, new_note);
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
 }

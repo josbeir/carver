@@ -10,7 +10,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use super::dialogs::{category_color_css_class, category_icon_name};
-use crate::mvu::{AppDispatcher, AppModel, AppMsg, BasesMsg, BrowserMsg, LoadState, NavigationMsg};
+use crate::mvu::{AppDispatcher, AppModel, AppMsg, BasesMsg, LoadState, NavigationMsg};
 
 /// Responsive category sidebar and its snapshot renderer.
 #[derive(Clone)]
@@ -108,7 +108,7 @@ fn install_sidebar_search_shortcut(container: &gtk::Box, dispatcher: &AppDispatc
         {
             return glib::Propagation::Proceed;
         }
-        let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::SearchShortcutRequested));
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::SearchShortcutRequested));
         glib::Propagation::Stop
     });
     container.add_controller(controller);

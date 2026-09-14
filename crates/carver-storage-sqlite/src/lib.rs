@@ -523,6 +523,39 @@ impl SqliteLibrary {
         base_id: BaseId,
         page: PageRequest,
     ) -> Result<Page<BaseRow>, StorageError> {
+        let payload = self.base_payload(base_id)?;
+        self.query_base_rows(
+            payload.filter_mode,
+            &payload.filters,
+            &payload.sorts,
+            None,
+            page,
+        )
+    }
+
+    /// Searches one saved Base by title and body while retaining its JSON1 query and ordering.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the base is missing, the search index cannot be queried, or rows
+    /// cannot be read.
+    pub fn search_base_rows(
+        &self,
+        base_id: BaseId,
+        query: &str,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, StorageError> {
+        let payload = self.base_payload(base_id)?;
+        self.query_base_rows(
+            payload.filter_mode,
+            &payload.filters,
+            &payload.sorts,
+            (!query.trim().is_empty()).then_some(query),
+            page,
+        )
+    }
+
+    fn base_payload(&self, base_id: BaseId) -> Result<BaseDefinitionPayload, StorageError> {
         let raw_definition: String = self
             .connection
             .query_row(
@@ -532,8 +565,7 @@ impl SqliteLibrary {
             )
             .optional()?
             .ok_or(StorageError::MutationUnavailable)?;
-        let payload = decode_base_payload(&raw_definition)?;
-        self.query_base_rows(payload.filter_mode, &payload.filters, &payload.sorts, page)
+        decode_base_payload(&raw_definition)
     }
 
     fn query_base_rows(
@@ -541,6 +573,7 @@ impl SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        search_query: Option<&str>,
         page: PageRequest,
     ) -> Result<Page<BaseRow>, StorageError> {
         let plan = base_query::compile_base_query(filter_mode, filters, sorts);
@@ -548,14 +581,31 @@ impl SqliteLibrary {
             .filter_sql
             .as_deref()
             .map_or_else(String::new, |filter| format!(" AND {filter}"));
+        let (from, search) = search_query.map_or_else(
+            || {
+                (
+                    "FROM notes n JOIN categories c ON c.id = n.category_id",
+                    String::new(),
+                )
+            },
+            |_query| {
+                (
+                    "FROM note_fts JOIN notes n ON n.id = note_fts.note_id JOIN categories c ON c.id = n.category_id",
+                    " AND note_fts MATCH ?".to_owned(),
+                )
+            },
+        );
         let sql = format!(
             "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
-             FROM notes n JOIN categories c ON c.id = n.category_id
-             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{filter}
+             {from}
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{search}{filter}
              ORDER BY {} LIMIT ? OFFSET ?",
             plan.order_sql
         );
         let mut parameters = plan.parameters;
+        if let Some(query) = search_query {
+            parameters.insert(0, SqlValue::Text(fts_query(query)));
+        }
         parameters.push(SqlValue::Integer(page_limit(page)));
         parameters.push(SqlValue::Integer(page_offset(page)));
         let mut statement = self.connection.prepare(&sql)?;
@@ -1612,6 +1662,15 @@ impl LibraryBackend for SqliteLibrary {
 
     fn base_rows(&self, base_id: BaseId, page: PageRequest) -> Result<Page<BaseRow>, Self::Error> {
         Self::base_rows(self, base_id, page)
+    }
+
+    fn search_base_rows(
+        &self,
+        base_id: BaseId,
+        query: &str,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, Self::Error> {
+        Self::search_base_rows(self, base_id, query, page)
     }
 
     fn base_row_count(

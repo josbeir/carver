@@ -183,6 +183,13 @@ pub trait LibraryBackend: Send + 'static {
     fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error>;
     /// Returns one ordered page of rows for a saved base.
     fn base_rows(&self, base_id: BaseId, page: PageRequest) -> Result<Page<BaseRow>, Self::Error>;
+    /// Searches one saved Base's active rows by note title and body, preserving its query and sort.
+    fn search_base_rows(
+        &self,
+        base_id: BaseId,
+        query: &str,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, Self::Error>;
     /// Counts active rows matching a Base filter independently of saved definitions.
     fn base_row_count(
         &self,

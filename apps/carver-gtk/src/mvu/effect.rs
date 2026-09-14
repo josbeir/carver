@@ -80,6 +80,8 @@ pub enum Effect {
         request_id: RequestId,
         /// Saved view to query.
         base_id: BaseId,
+        /// Optional full-text search input for the Base's title and body.
+        query: String,
     },
     /// Load one additional page for a visible Base.
     LoadMoreBaseRows {
@@ -87,6 +89,8 @@ pub enum Effect {
         request_id: RequestId,
         /// Saved view to query.
         base_id: BaseId,
+        /// Full-text search input for the Base's title and body.
+        query: String,
         /// Starting position of the requested page.
         offset: usize,
     },
@@ -232,6 +236,11 @@ pub enum Effect {
     },
     /// Wait before dispatching the current search timer identity.
     ScheduleSearch {
+        /// Identity used to ignore a superseded debounce timer.
+        timer_id: TimerId,
+    },
+    /// Wait before dispatching the current Base search timer identity.
+    ScheduleBaseSearch {
         /// Identity used to ignore a superseded debounce timer.
         timer_id: TimerId,
     },

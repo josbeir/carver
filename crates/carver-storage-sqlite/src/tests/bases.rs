@@ -68,6 +68,100 @@ fn base_rows_should_page_without_duplicates_and_report_more_results() {
     assert_ne!(first.items[1].note_id, second.items[0].note_id);
 }
 
+#[test]
+fn base_search_should_intersect_full_text_with_saved_json1_filters() {
+    let (_directory, library, base) = query_fixture();
+    let filter = BaseFilter {
+        field: BaseColumn::Property(PropertyPath("/status".to_owned())),
+        operator: BaseFilterOperator::Equals,
+        value: Some(serde_json::json!("done")),
+    };
+    let configured = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            BaseFilterMode::All,
+            std::slice::from_ref(&filter),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+
+    let matching = library
+        .search_base_rows(configured.id, "Second", all_page())
+        .unwrap_or_else(|error| panic!("Base search failed: {error}"));
+    let excluded = library
+        .search_base_rows(configured.id, "First", all_page())
+        .unwrap_or_else(|error| panic!("Base search failed: {error}"));
+
+    assert_eq!(matching.items.len(), 1);
+    assert_eq!(matching.items[0].name, "Second");
+    assert!(excluded.items.is_empty());
+}
+
+#[test]
+fn base_search_should_page_in_the_saved_base_sort_order() {
+    let (_directory, library) = library();
+    let category = library
+        .create_category("Projects", OffsetDateTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    for (name, rank) in [("Third", 3), ("First", 1), ("Second", 2)] {
+        library
+            .create_note_with_source(
+                category.id,
+                &format!("---yaml\nrank: {rank}\n---\n# Roadmap {name}"),
+                OffsetDateTime::UNIX_EPOCH,
+            )
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+    }
+    let sort = BaseSort {
+        field: BaseColumn::Property(PropertyPath("/rank".to_owned())),
+        direction: BaseSortDirection::Ascending,
+    };
+    let base = library
+        .create_base_with_configuration(
+            "Roadmap",
+            &[],
+            BaseFilterMode::All,
+            &[],
+            std::slice::from_ref(&sort),
+        )
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    let first = library
+        .search_base_rows(
+            base.id,
+            "Roadmap",
+            PageRequest {
+                limit: 2,
+                offset: 0,
+            },
+        )
+        .unwrap_or_else(|error| panic!("first page failed: {error}"));
+    let second = library
+        .search_base_rows(
+            base.id,
+            "Roadmap",
+            PageRequest {
+                limit: 2,
+                offset: first.items.len(),
+            },
+        )
+        .unwrap_or_else(|error| panic!("second page failed: {error}"));
+
+    assert_eq!(
+        first
+            .items
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Roadmap First", "Roadmap Second"]
+    );
+    assert!(first.has_more);
+    assert_eq!(second.items[0].name, "Roadmap Third");
+    assert!(!second.has_more);
+}
+
 fn assert_sql_projection_matches_domain(
     library: &SqliteLibrary,
     base: &BaseDefinition,

@@ -63,6 +63,11 @@ const BROWSER_SHORTCUTS: &[Shortcut] = &[Shortcut {
     accelerator: "<Control>f",
 }];
 
+const BASE_SHORTCUTS: &[Shortcut] = &[Shortcut {
+    title: "Search Base rows",
+    accelerator: "<Control>f",
+}];
+
 const EDITOR_SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         title: "Toggle favorite",
@@ -168,6 +173,10 @@ const SHORTCUT_SECTIONS: &[ShortcutSection] = &[
     ShortcutSection {
         title: "Browser",
         shortcuts: BROWSER_SHORTCUTS,
+    },
+    ShortcutSection {
+        title: "Base",
+        shortcuts: BASE_SHORTCUTS,
     },
     ShortcutSection {
         title: "Editor",

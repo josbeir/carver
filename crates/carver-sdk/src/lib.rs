@@ -295,6 +295,17 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Searches one saved Base without blocking the caller.
+    pub async fn search_base_rows_async(
+        &self,
+        base_id: BaseId,
+        query: String,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.search_base_rows(base_id, &query, page))
+            .await
+    }
+
     /// Counts rows matching a prospective Base filter without loading them.
     ///
     /// # Errors
@@ -732,6 +743,17 @@ impl<B: LibraryBackend> LibraryClient<B> {
     ) -> Result<Page<SearchHit>, LibraryError<B::Error>> {
         let query = query.to_owned();
         self.blocking(move |backend| backend.search(&query, category_id, page))
+    }
+
+    /// Searches one saved Base synchronously for bootstrap code and tests.
+    pub fn search_base_rows(
+        &self,
+        base_id: BaseId,
+        query: &str,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, LibraryError<B::Error>> {
+        let query = query.to_owned();
+        self.blocking(move |backend| backend.search_base_rows(base_id, &query, page))
     }
 
     /// Stores an image asset synchronously for bootstrap code and tests.

@@ -56,6 +56,57 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
 }
 
 #[test]
+fn base_search_should_debounce_and_reload_the_selected_base() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
+
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::SearchOpened)).is_empty());
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::SearchChanged("roadmap".to_owned())),
+    );
+    let [Effect::ScheduleBaseSearch { timer_id }] = effects.as_slice() else {
+        panic!("Base search should schedule one debounce");
+    };
+
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Bases(BasesMsg::SearchTimerFired(*timer_id)),
+        )
+        .as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, query, .. }]
+            if *loaded == base_id && query == "roadmap"
+    ));
+}
+
+#[test]
+fn closing_base_search_should_clear_its_query_and_reload_all_rows() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
+    model.bases.search_open = true;
+    model.bases.search_query = "roadmap".to_owned();
+
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Bases(BasesMsg::SearchVisibilityChanged(false)),
+        )
+        .as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, query, .. }]
+            if *loaded == base_id && query.is_empty()
+    ));
+    assert!(!model.bases.search_open);
+    assert!(model.bases.search_query.is_empty());
+}
+
+#[test]
 fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows() {
     let mut model = AppModel::new(&Config::default());
     model.bases.property_descriptors.state = LoadState::Ready(Vec::new());

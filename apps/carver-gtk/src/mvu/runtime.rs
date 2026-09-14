@@ -218,12 +218,14 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::LoadBaseRows {
                 request_id,
                 base_id,
-            } => self.load_base_rows(request_id, base_id),
+                query,
+            } => self.load_base_rows(request_id, base_id, query),
             Effect::LoadMoreBaseRows {
                 request_id,
                 base_id,
+                query,
                 offset,
-            } => self.load_more_base_rows(request_id, base_id, offset),
+            } => self.load_more_base_rows(request_id, base_id, query, offset),
             Effect::PreviewBaseRowCount {
                 request_id,
                 filter_mode,
@@ -314,6 +316,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 source,
             } => self.import_note(category_id, format, source),
             Effect::ScheduleSearch { timer_id } => self.schedule_search(timer_id),
+            Effect::ScheduleBaseSearch { timer_id } => self.schedule_base_search(timer_id),
             Effect::ScheduleBasePreview { timer_id } => self.schedule_base_preview(timer_id),
             Effect::ScheduleEditorSave {
                 session,
@@ -496,6 +499,14 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
+    fn schedule_base_search(&self, timer_id: super::TimerId) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(std::time::Duration::from_millis(250)).await;
+            runtime.dispatch(AppMsg::Bases(super::BasesMsg::SearchTimerFired(timer_id)));
+        });
+    }
+
     fn schedule_base_preview(&self, timer_id: super::TimerId) {
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -656,23 +667,28 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn load_base_rows(&self, request_id: super::RequestId, base_id: carver_sdk::BaseId) {
+    fn load_base_rows(
+        &self,
+        request_id: super::RequestId,
+        base_id: carver_sdk::BaseId,
+        query: String,
+    ) {
         self.schedule_loading_indicator(AppMsg::Bases(super::BasesMsg::LoadingIndicatorElapsed(
             request_id,
         )));
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = client
-                .base_rows_async(
-                    base_id,
-                    PageRequest {
-                        limit: RESULT_PAGE_SIZE,
-                        offset: 0,
-                    },
-                )
-                .await
-                .map_err(display_error);
+            let page = PageRequest {
+                limit: RESULT_PAGE_SIZE,
+                offset: 0,
+            };
+            let result = if query.trim().is_empty() {
+                client.base_rows_async(base_id, page).await
+            } else {
+                client.search_base_rows_async(base_id, query, page).await
+            }
+            .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseRowsLoaded {
                 request_id,
                 base_id,
@@ -729,21 +745,22 @@ impl<B: LibraryBackend> AppRuntime<B> {
         &self,
         request_id: super::RequestId,
         base_id: carver_sdk::BaseId,
+        query: String,
         offset: usize,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = client
-                .base_rows_async(
-                    base_id,
-                    PageRequest {
-                        limit: RESULT_PAGE_SIZE,
-                        offset,
-                    },
-                )
-                .await
-                .map_err(display_error);
+            let page = PageRequest {
+                limit: RESULT_PAGE_SIZE,
+                offset,
+            };
+            let result = if query.trim().is_empty() {
+                client.base_rows_async(base_id, page).await
+            } else {
+                client.search_base_rows_async(base_id, query, page).await
+            }
+            .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseRowsAppended {
                 request_id,
                 base_id,

@@ -76,6 +76,82 @@ pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestRe
     Ok(())
 }
 
+pub(super) fn base_search_should_open_and_clear_from_native_controls() -> TestResult {
+    let (_temp, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let _note = client.create_note(category.id)?;
+    let base = glib::MainContext::default()
+        .block_on(client.create_base_async("Projects".to_owned(), Vec::new()))?;
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &std::rc::Rc::new(std::cell::Cell::new(false)),
+    );
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&carver_config::Config::default());
+    model.bases.definitions.state = LoadState::Ready(vec![base.clone()]);
+    model.bases.selected = Some(base.id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
+    model.route = Route::Base;
+    view.render(&model);
+    let runtime = AppRuntime::new(client, model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+
+    let search_bar =
+        widget_as::<gtk::SearchBar>(&base_widget, "base-search-bar").ok_or("Base search bar")?;
+    let search_entry = widget_as::<gtk::SearchEntry>(&base_widget, "base-search-entry")
+        .ok_or("Base search entry")?;
+    let search_toggle = widget_as::<gtk::ToggleButton>(&base_widget, "base-search-toggle")
+        .ok_or("Base search toggle")?;
+    let controllers = base_widget.observe_controllers();
+    let shortcut = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("base-search-shortcut"))
+        .ok_or("Base search shortcut")?;
+
+    assert!(run_main_context_until(|| search_toggle.is_mapped()));
+
+    let handled = shortcut.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::f,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(handled);
+    assert!(run_main_context_until(|| {
+        search_bar.is_search_mode() && search_toggle.is_active()
+    }));
+
+    search_entry.set_text("roadmap");
+    assert!(run_main_context_until(|| {
+        runtime.model().bases.search_query == "roadmap"
+    }));
+    search_entry.emit_stop_search();
+    assert!(run_main_context_until(|| {
+        !search_bar.is_search_mode()
+            && !search_toggle.is_active()
+            && runtime.model().bases.search_query.is_empty()
+    }));
+    window.close();
+    Ok(())
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "The display-backed scenario exercises the complete configuration flow"

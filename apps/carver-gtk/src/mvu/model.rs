@@ -145,6 +145,12 @@ pub(crate) enum PendingBaseConfiguration {
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
+    /// Whether the native Base search bar is currently shown.
+    pub search_open: bool,
+    /// Current untrimmed Base search text as entered by the user.
+    pub search_query: String,
+    /// The debounce timer authorized to reload after the latest Base search change.
+    pub search_timer: Option<TimerId>,
     /// Latest configuration snapshot request.
     pub configuration_request: Option<RequestId>,
     /// Dialog intent retained until the field catalog becomes ready.

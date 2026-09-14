@@ -315,6 +315,15 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn search_base_rows(
+        &self,
+        _base_id: BaseId,
+        _query: &str,
+        _page: carver_library_port::PageRequest,
+    ) -> Result<carver_library_port::Page<BaseRow>, Self::Error> {
+        Self::unsupported()
+    }
+
     fn store_asset(
         &self,
         _note_id: NoteId,

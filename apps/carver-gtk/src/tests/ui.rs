@@ -57,6 +57,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     add::add_dialog_should_create_category_and_configure_new_base()?;
     add::add_dialog_should_resize_for_the_active_form()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
+    bases::base_search_should_open_and_clear_from_native_controls()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
@@ -355,6 +356,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
     assert!(widget_as::<gtk::Button>(&root, "back-to-notes-from-base-button").is_some());
     assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());
+    assert!(widget_as::<gtk::SearchBar>(&root, "base-search-bar").is_some());
+    assert!(widget_as::<gtk::SearchEntry>(&root, "base-search-entry").is_some());
+    assert!(widget_as::<gtk::ToggleButton>(&root, "base-search-toggle").is_some());
     assert!(bases_grid.shows_row_separators());
     assert!(bases_grid.shows_column_separators());
     let base_status = widget_as::<adw::StatusPage>(&root, "base-status").ok_or("base status")?;
@@ -367,6 +371,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             delete: widget_as::<gtk::Button>(&root, "delete-base-button")
                 .ok_or("delete base button")?,
             title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
+            search_bar: widget_as::<gtk::SearchBar>(&root, "base-search-bar")
+                .ok_or("base search bar")?,
+            search_entry: widget_as::<gtk::SearchEntry>(&root, "base-search-entry")
+                .ok_or("base search entry")?,
+            search_toggle: widget_as::<gtk::ToggleButton>(&root, "base-search-toggle")
+                .ok_or("base search toggle")?,
+            last_search_open: std::cell::Cell::new(false),
             grid: bases_grid.clone(),
             pages: base_pages.clone(),
             scroll: widget_as::<gtk::ScrolledWindow>(&root, "base-scroll").ok_or("base scroll")?,

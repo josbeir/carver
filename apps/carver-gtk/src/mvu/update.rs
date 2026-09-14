@@ -42,6 +42,11 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             model.route = super::Route::Browser;
             Vec::new()
         }
+        AppMsg::Navigation(NavigationMsg::SearchShortcutRequested) => match model.route {
+            super::Route::Browser => open_browser_search(model),
+            super::Route::Base => open_base_search(model),
+            super::Route::Trash | super::Route::Editor => Vec::new(),
+        },
         AppMsg::Browser(message) => update_browser(model, message),
         AppMsg::Sidebar(SidebarMsg::Reload) => reload_sidebar(model).into_iter().collect(),
         AppMsg::Trash(TrashMsg::Reload) => reload_trash(model).into_iter().collect(),
@@ -117,6 +122,29 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
 )]
 fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
     match message {
+        BasesMsg::SearchShortcutRequested if model.route == super::Route::Base => {
+            open_base_search(model)
+        }
+        BasesMsg::SearchOpened => open_base_search(model),
+        BasesMsg::SearchVisibilityChanged(visible) => update_base_search_visibility(model, visible),
+        BasesMsg::SearchChanged(query) => {
+            if model.bases.search_query == query {
+                return Vec::new();
+            }
+            model.bases.search_query = query;
+            let timer_id = model.next_timer_id();
+            model.bases.search_timer = Some(timer_id);
+            vec![Effect::ScheduleBaseSearch { timer_id }]
+        }
+        BasesMsg::SearchTimerFired(timer_id) if model.bases.search_timer == Some(timer_id) => {
+            model.bases.search_timer = None;
+            model
+                .bases
+                .selected
+                .and_then(|base_id| reload_base_rows(model, base_id))
+                .into_iter()
+                .collect()
+        }
         BasesMsg::Open(base_id) => {
             if model.route == super::Route::Editor {
                 model.pending_navigation = Some(PendingNavigation::Base(base_id));
@@ -248,7 +276,9 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
-        BasesMsg::PreviewCountTimerFired(_) => Vec::new(),
+        BasesMsg::PreviewCountTimerFired(_)
+        | BasesMsg::SearchShortcutRequested
+        | BasesMsg::SearchTimerFired(_) => Vec::new(),
     }
 }
 
@@ -349,6 +379,9 @@ fn complete_pending_navigation(model: &mut AppModel) -> Vec<Effect> {
 }
 
 fn open_base(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Vec<Effect> {
+    if model.bases.selected != Some(base_id) {
+        reset_base_search(model);
+    }
     model.route = super::Route::Base;
     model.bases.selected = Some(base_id);
     let mut effects: Vec<_> = reload_base_rows(model, base_id).into_iter().collect();
@@ -356,6 +389,41 @@ fn open_base(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Vec<Effect> {
         effects.extend(reload_bases(model));
     }
     effects
+}
+
+fn open_base_search(model: &mut AppModel) -> Vec<Effect> {
+    if model.bases.search_open {
+        return Vec::new();
+    }
+    model.bases.search_open = true;
+    Vec::new()
+}
+
+fn update_base_search_visibility(model: &mut AppModel, visible: bool) -> Vec<Effect> {
+    if model.bases.search_open == visible {
+        return Vec::new();
+    }
+    model.bases.search_open = visible;
+    if visible {
+        return Vec::new();
+    }
+    let search_changed = !model.bases.search_query.is_empty();
+    reset_base_search(model);
+    if !search_changed {
+        return Vec::new();
+    }
+    model
+        .bases
+        .selected
+        .and_then(|base_id| reload_base_rows(model, base_id))
+        .into_iter()
+        .collect()
+}
+
+fn reset_base_search(model: &mut AppModel) {
+    model.bases.search_open = false;
+    model.bases.search_query.clear();
+    model.bases.search_timer = None;
 }
 
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
@@ -2592,6 +2660,7 @@ fn reload_base_rows(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Option
         .then_some(Effect::LoadBaseRows {
             request_id,
             base_id,
+            query: model.bases.search_query.clone(),
         });
     if started.is_some() {
         model.bases.rows_next_offset = 0;
@@ -2616,6 +2685,7 @@ fn load_more_base_rows(model: &mut AppModel) -> Option<Effect> {
     Some(Effect::LoadMoreBaseRows {
         request_id,
         base_id,
+        query: model.bases.search_query.clone(),
         offset: model.bases.rows_next_offset,
     })
 }
