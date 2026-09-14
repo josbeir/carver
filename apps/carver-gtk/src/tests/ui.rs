@@ -712,6 +712,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .ok_or("browser content scroll")?;
     let browser_clamp =
         widget_as::<adw::Clamp>(&root, "browser-content-clamp").ok_or("browser content clamp")?;
+    let browser_viewport = browser_scroll
+        .child()
+        .and_downcast::<gtk::Viewport>()
+        .ok_or("browser content viewport")?;
+    assert!(
+        browser_viewport
+            .child()
+            .is_some_and(|child| child == browser_clamp)
+    );
     let browser_content = browser_clamp
         .child()
         .and_downcast::<gtk::Box>()
@@ -720,9 +729,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(
         note_list
             .parent()
-            .is_some_and(|parent| parent == browser_scroll)
+            .is_some_and(|parent| parent == browser_content)
     );
-    assert!(browser_scroll.is_ancestor(&browser_content));
+    assert_eq!(
+        note_list.vadjustment().as_ref(),
+        Some(&browser_scroll.vadjustment()),
+        "the virtual feed must use the enclosing document scroll adjustment"
+    );
     let destination_category_row = find_widget(
         sidebar.upcast_ref(),
         &format!("category:{}", destination.id),

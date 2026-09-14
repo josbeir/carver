@@ -375,26 +375,31 @@ pub(crate) fn build_browser(
     list.set_widget_name("note-list");
     list.add_css_class("note-feed");
     list.set_single_click_activate(true);
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_widget_name("browser-content-scroll");
-    scroll.set_vexpand(true);
-    scroll.set_child(Some(&list));
-    content.append(&scroll);
+    content.append(&list);
     let load_more = gtk::Button::with_label("Load more notes");
     load_more.set_widget_name("browser-load-more");
     load_more.add_css_class("flat");
     load_more.set_halign(gtk::Align::Center);
     load_more.set_visible(false);
     content.append(&load_more);
+
+    // The browser is one document: its hero, Favorites spotlight, note feed, and
+    // paging footer must all move through the same scroll surface.  ListView still
+    // needs that adjustment so it can virtualize its rows instead of measuring the
+    // complete feed as a static child of the document.
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("browser-content-scroll");
+    scroll.set_vexpand(true);
     let clamp = adw::Clamp::new();
     clamp.set_widget_name("browser-content-clamp");
     clamp.set_maximum_size(720);
     clamp.set_tightening_threshold(520);
-    clamp.set_vexpand(true);
     clamp.set_child(Some(&content));
+    scroll.set_child(Some(&clamp));
+    list.set_vadjustment(Some(&scroll.vadjustment()));
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
-    pages.add_named(&clamp, Some("contents"));
+    pages.add_named(&scroll, Some("contents"));
     let status = adw::StatusPage::builder()
         .title("No notes yet")
         .description("Create a note to get started.")
