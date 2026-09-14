@@ -619,8 +619,8 @@ fn browser_feed_factory(
                 let context = context.borrow().clone();
                 container.set_widget_name(&format!("favorite-note:{}", note.id));
                 container.set_css_classes(&["card", "activatable", "note-card"]);
-                container.set_margin_start(4);
-                container.set_margin_end(4);
+                container.set_margin_start(18);
+                container.set_margin_end(18);
                 container.set_margin_top(6);
                 container.set_margin_bottom(6);
                 populate_note_card(&container, &note, &context, Some(&dispatcher));
@@ -641,9 +641,9 @@ fn browser_feed_factory(
                 let context = context.borrow().clone();
                 container.set_widget_name(&format!("note:{}", note.id));
                 container.set_css_classes(&["card", "activatable", "note-card"]);
-                // Match the former ListBox row's card spacing without nesting a second card.
-                container.set_margin_start(4);
-                container.set_margin_end(4);
+                // All feed entries share the same horizontal reading measure.
+                container.set_margin_start(18);
+                container.set_margin_end(18);
                 container.set_margin_top(6);
                 container.set_margin_bottom(6);
                 populate_note_card(&container, &note, &context, Some(&dispatcher));
