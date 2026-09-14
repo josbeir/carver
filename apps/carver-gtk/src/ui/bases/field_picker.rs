@@ -133,9 +133,14 @@ impl FieldPicker {
         let selected = Rc::new(RefCell::new(initial.clone()));
         let initial_label = field_label(initial);
         let action_label = options.button_label.map(ToOwned::to_owned);
-        let button = options.button_icon_name.map_or_else(
-            || gtk::Button::with_label(action_label.as_deref().unwrap_or(&initial_label)),
-            gtk::Button::from_icon_name,
+        let button = action_label.as_deref().map_or_else(
+            || {
+                options.button_icon_name.map_or_else(
+                    || gtk::Button::with_label(&initial_label),
+                    gtk::Button::from_icon_name,
+                )
+            },
+            |label| labelled_button(label, options.button_icon_name),
         );
         button.set_widget_name(widget_name);
         button.add_css_class("field-picker");
@@ -189,11 +194,12 @@ impl FieldPicker {
         let keep_open = options.keep_open;
         let callback: Rc<dyn Fn(BaseColumn)> = Rc::new(move |field: BaseColumn| {
             *selected_for_render.borrow_mut() = field.clone();
-            if let Some(icon_name) = button_icon_name.as_deref() {
-                button_for_render.set_icon_name(icon_name);
-            } else {
-                button_for_render
-                    .set_label(button_label.as_deref().unwrap_or(&field_label(&field)));
+            if button_label.is_none() {
+                if let Some(icon_name) = button_icon_name.as_deref() {
+                    button_for_render.set_icon_name(icon_name);
+                } else {
+                    button_for_render.set_label(&field_label(&field));
+                }
             }
             let tooltip = picker_tooltip(button_label.as_deref(), &field_label(&field));
             button_for_render.set_tooltip_text(Some(&tooltip));
@@ -272,6 +278,17 @@ impl FieldPicker {
     pub(crate) fn selected(&self) -> BaseColumn {
         self.selected.borrow().clone()
     }
+}
+
+fn labelled_button(label: &str, icon_name: Option<&str>) -> gtk::Button {
+    let button = gtk::Button::new();
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    if let Some(icon_name) = icon_name {
+        content.append(&gtk::Image::from_icon_name(icon_name));
+    }
+    content.append(&gtk::Label::new(Some(label)));
+    button.set_child(Some(&content));
+    button
 }
 
 fn populate_options(

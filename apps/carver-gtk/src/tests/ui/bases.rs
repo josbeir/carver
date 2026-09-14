@@ -194,16 +194,13 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     );
     let add_field = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")
         .ok_or("add field button")?;
-    assert_eq!(add_field.icon_name().as_deref(), Some("list-add-symbolic"));
-    assert!(add_field.has_css_class("circular"));
+    assert!(super::find_label(add_field.upcast_ref(), "Add field").is_some());
     let add_filter = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-filter")
         .ok_or("add filter button")?;
-    assert_eq!(add_filter.icon_name().as_deref(), Some("list-add-symbolic"));
-    assert!(add_filter.has_css_class("circular"));
+    assert!(super::find_label(add_filter.upcast_ref(), "Add filter").is_some());
     let add_sort =
         widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-sort").ok_or("add sort button")?;
-    assert_eq!(add_sort.icon_name().as_deref(), Some("list-add-symbolic"));
-    assert!(add_sort.has_css_class("circular"));
+    assert!(super::find_label(add_sort.upcast_ref(), "Add sort rule").is_some());
     add_field.emit_clicked();
     assert!(super::find_label(dialog.upcast_ref(), "Category").is_some());
     assert!(super::find_label(dialog.upcast_ref(), "priority").is_none());
@@ -235,26 +232,18 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .and_downcast::<gtk::Button>()
         .ok_or("owner option button")?
         .emit_clicked();
-    let priority_row =
-        find_widget(dialog.upcast_ref(), "base-visible-field-3").ok_or("priority row")?;
-    let controllers = priority_row.observe_controllers();
-    let drop_target = (0..controllers.n_items())
-        .find_map(|index| controllers.item(index)?.downcast::<gtk::DropTarget>().ok())
-        .ok_or("visible field drop target")?;
-    assert!(drop_target.emit_by_name::<bool>(
-        "drop",
-        &[
-            &glib::BoxedValue("property:/owner".to_value()),
-            &0.0_f64.to_value(),
-            &0.0_f64.to_value(),
-        ]
-    ));
-    let reordered_first =
-        find_widget(dialog.upcast_ref(), "base-visible-field-3").ok_or("reordered first row")?;
-    let reordered_second =
-        find_widget(dialog.upcast_ref(), "base-visible-field-4").ok_or("reordered second row")?;
-    assert!(super::find_label(&reordered_first, "owner").is_some());
-    assert!(super::find_label(&reordered_second, "priority").is_some());
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-visible-field-move-up-4")
+        .ok_or("move custom field up")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-visible-field-move-up-3")
+        .ok_or("move custom field up")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-visible-field-move-up-2")
+        .ok_or("move custom field before built-in field")?
+        .emit_clicked();
+    let moved_up =
+        find_widget(dialog.upcast_ref(), "base-visible-field-1").ok_or("moved-up custom row")?;
+    assert!(super::find_label(&moved_up, "owner").is_some());
     let remove_filter = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-remove-0")
         .ok_or("remove filter button")?;
     remove_filter.emit_clicked();

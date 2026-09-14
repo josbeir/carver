@@ -476,14 +476,6 @@ fn rebuild_visible_columns(
         content.set_margin_end(10);
         content.set_margin_top(7);
         content.set_margin_bottom(7);
-        let handle = gtk::Image::from_icon_name("list-drag-handle-symbolic");
-        handle.set_opacity(0.65);
-        handle.set_tooltip_text(Some(if matches!(field, BaseColumn::Name) {
-            "Name is fixed first"
-        } else {
-            "Drag to reorder field"
-        }));
-        content.append(&handle);
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 1);
         labels.set_hexpand(true);
         let label = gtk::Label::new(Some(&field_label(&field)));
@@ -500,9 +492,33 @@ fn rebuild_visible_columns(
         labels.append(&metadata_label);
         content.append(&labels);
         if !matches!(field, BaseColumn::Name) {
-            install_column_drag_and_drop(&row, &field, selected, container, catalog);
-        }
-        if !matches!(field, BaseColumn::Name) {
+            let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            let move_up = rule_button("go-up-symbolic", "Move field up");
+            move_up.set_widget_name(&format!("base-visible-field-move-up-{index}"));
+            let move_down = rule_button("go-down-symbolic", "Move field down");
+            move_down.set_widget_name(&format!("base-visible-field-move-down-{index}"));
+            {
+                let field = field.clone();
+                let selected = Rc::clone(selected);
+                let container = container.clone();
+                let catalog = catalog.clone();
+                move_up.connect_clicked(move |_| {
+                    if move_visible_column_by_offset(&mut selected.borrow_mut(), &field, -1) {
+                        rebuild_visible_columns(&container, &selected, &catalog);
+                    }
+                });
+            }
+            {
+                let field = field.clone();
+                let selected = Rc::clone(selected);
+                let container = container.clone();
+                let catalog = catalog.clone();
+                move_down.connect_clicked(move |_| {
+                    if move_visible_column_by_offset(&mut selected.borrow_mut(), &field, 1) {
+                        rebuild_visible_columns(&container, &selected, &catalog);
+                    }
+                });
+            }
             let remove = gtk::Button::from_icon_name("list-remove-symbolic");
             remove.set_widget_name(&format!("base-visible-field-remove-{index}"));
             remove.set_tooltip_text(Some("Remove field"));
@@ -517,71 +533,41 @@ fn rebuild_visible_columns(
                     .retain(|candidate| candidate != &field);
                 rebuild_visible_columns(&container, &selected, &catalog);
             });
-            content.append(&remove);
+            controls.append(&move_up);
+            controls.append(&move_down);
+            controls.append(&remove);
+            content.append(&controls);
         }
         row.append(&content);
         container.append(&row);
     }
 }
 
-fn install_column_drag_and_drop(
-    row: &gtk::Box,
+/// Moves a non-Name visible column relative to its current position.
+///
+/// Name is intentionally kept at index zero, while built-in and custom fields may be freely
+/// reordered around one another.
+fn move_visible_column_by_offset(
+    fields: &mut [BaseColumn],
     field: &BaseColumn,
-    selected: &Rc<RefCell<Vec<BaseColumn>>>,
-    container: &gtk::Box,
-    catalog: &FieldCatalog,
-) {
-    use glib::{prelude::ToValue, types::StaticType};
-
-    let source = gtk::DragSource::new();
-    source.set_actions(gtk::gdk::DragAction::MOVE);
-    let source_id = super::field_picker::field_id(field);
-    source.connect_prepare(move |_source, _x, _y| {
-        Some(gtk::gdk::ContentProvider::for_value(&source_id.to_value()))
-    });
-    row.add_controller(source);
-
-    let target = gtk::DropTarget::new(String::static_type(), gtk::gdk::DragAction::MOVE);
-    let selected = Rc::clone(selected);
-    let container = container.clone();
-    let catalog = catalog.clone();
-    let target_field = field.clone();
-    target.connect_drop(move |_target, value, _x, _y| {
-        if matches!(target_field, BaseColumn::Name) {
-            return false;
-        }
-        let Ok(source_id) = value.get::<String>() else {
-            return false;
-        };
-        let target_id = super::field_picker::field_id(&target_field);
-        if source_id == target_id {
-            return false;
-        }
-        let changed = {
-            let mut fields = selected.borrow_mut();
-            let Some(source_index) = fields
-                .iter()
-                .position(|field| super::field_picker::field_id(field) == source_id)
-            else {
-                return false;
-            };
-            let Some(target_index) = fields.iter().position(|field| field == &target_field) else {
-                return false;
-            };
-            let field = fields.remove(source_index);
-            let target_index = fields
-                .iter()
-                .position(|candidate| candidate == &target_field)
-                .unwrap_or(target_index.min(fields.len()));
-            fields.insert(target_index, field);
-            true
-        };
-        if changed {
-            rebuild_visible_columns(&container, &selected, &catalog);
-        }
-        changed
-    });
-    row.add_controller(target);
+    offset: isize,
+) -> bool {
+    let Some(index) = fields.iter().position(|candidate| candidate == field) else {
+        return false;
+    };
+    let target = match offset {
+        -1 => index.checked_sub(1),
+        1 => index.checked_add(1).filter(|target| *target < fields.len()),
+        _ => None,
+    };
+    let Some(target) = target else {
+        return false;
+    };
+    if index == 0 || target == 0 {
+        return false;
+    }
+    fields.swap(index, target);
+    true
 }
 
 /// Installs the Configure action for the current Base header.
@@ -663,7 +649,7 @@ pub(crate) fn show_configuration_dialog(
             "base-add-visible-field-picker",
             FieldPickerOptions {
                 keep_open: true,
-                button_label: Some("Add visible field"),
+                button_label: Some("Add field"),
                 button_icon_name: Some("list-add-symbolic"),
             },
             &is_selected,
@@ -681,7 +667,7 @@ pub(crate) fn show_configuration_dialog(
             },
         );
         add_picker.button.set_widget_name("base-add-visible-field");
-        style_section_action(&add_picker.button, "Add visible field");
+        style_section_action(&add_picker.button, "Add field");
         visible_content.append(&description_label(
             "Choose the columns shown in this Base. Name is always included.",
         ));
@@ -974,16 +960,18 @@ fn collapsible_section(
     expander
 }
 
-fn section_action(tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::from_icon_name("list-add-symbolic");
-    style_section_action(&button, tooltip);
+fn section_action(label: &str) -> gtk::Button {
+    let button = gtk::Button::new();
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.append(&gtk::Image::from_icon_name("list-add-symbolic"));
+    content.append(&gtk::Label::new(Some(label)));
+    button.set_child(Some(&content));
+    style_section_action(&button, label);
     button
 }
 
 fn style_section_action(button: &gtk::Button, accessible_label: &str) {
-    button.add_css_class("flat");
-    button.add_css_class("circular");
-    button.set_size_request(32, 32);
+    button.set_size_request(-1, 32);
     button.set_halign(gtk::Align::End);
     button.set_valign(gtk::Align::Center);
     button.set_tooltip_text(Some(accessible_label));
