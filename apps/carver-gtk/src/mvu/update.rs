@@ -132,7 +132,27 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 vec![Effect::CreateBase { name, columns }]
             }
         }
-        BasesMsg::Configure => Vec::new(),
+        BasesMsg::Configure => {
+            if model.bases.saving_configuration || model.route != super::Route::Base {
+                return Vec::new();
+            }
+            let super::LoadState::Ready(definitions) = &model.bases.definitions.state else {
+                return Vec::new();
+            };
+            let Some(definition) = definitions
+                .iter()
+                .find(|base| Some(base.id) == model.bases.selected)
+                .cloned()
+            else {
+                return Vec::new();
+            };
+            let request_id = model.next_request_id();
+            model.bases.configuration_request = Some(request_id);
+            vec![Effect::PrepareBaseConfiguration {
+                request_id,
+                definition,
+            }]
+        }
         BasesMsg::Update {
             base_id,
             revision,
@@ -147,6 +167,10 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 model.notice = Some(UiError::new("Base names cannot be empty."));
                 Vec::new()
             } else {
+                if model.bases.saving_configuration {
+                    return Vec::new();
+                }
+                model.bases.saving_configuration = true;
                 vec![Effect::UpdateBase {
                     base_id,
                     revision,
@@ -1275,6 +1299,36 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         } => update_base_rows_loaded(model, request_id, base_id, result),
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
         LibraryReply::BaseUpdated { result } => update_base_updated(model, result),
+        LibraryReply::BaseConfigurationLoaded {
+            request_id,
+            definition,
+            result,
+        } => {
+            if model.bases.configuration_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.bases.configuration_request = None;
+            if model.route != super::Route::Base || model.bases.selected != Some(definition.id) {
+                return Vec::new();
+            }
+            match result {
+                Ok(rows) => {
+                    let descriptors = match &model.bases.property_descriptors.state {
+                        super::LoadState::Ready(items) => items.clone(),
+                        _ => Vec::new(),
+                    };
+                    vec![Effect::ShowBaseConfiguration {
+                        definition,
+                        rows,
+                        descriptors,
+                    }]
+                }
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
         LibraryReply::BaseDeleted { base_id, result } => {
             update_base_deleted(model, base_id, result)
         }
@@ -1461,10 +1515,18 @@ fn update_base_updated(
     model: &mut AppModel,
     result: Result<carver_sdk::BaseDefinition, UiError>,
 ) -> Vec<Effect> {
+    let was_saving = std::mem::take(&mut model.bases.saving_configuration);
+    let completion: Vec<_> = was_saving
+        .then_some(Effect::FinishBaseConfiguration {
+            success: result.is_ok(),
+        })
+        .into_iter()
+        .collect();
     match result {
         Ok(base) => {
             model.notice = None;
-            let mut effects: Vec<_> = reload_bases(model).into_iter().collect();
+            let mut effects = completion;
+            effects.extend(reload_bases(model));
             if model.route == super::Route::Base && model.bases.selected == Some(base.id) {
                 effects.extend(reload_base_rows(model, base.id));
             }
@@ -1472,7 +1534,7 @@ fn update_base_updated(
         }
         Err(error) => {
             model.notice = Some(error);
-            Vec::new()
+            completion
         }
     }
 }

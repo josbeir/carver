@@ -250,6 +250,10 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn active_base_rows(&self) -> Result<Vec<BaseRow>, Self::Error> {
+        Ok(Vec::new())
+    }
+
     fn base_rows(&self, _base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {
         Self::unsupported()
     }

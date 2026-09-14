@@ -16,6 +16,27 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Prepare an unfiltered snapshot for a configuration dialog.
+    PrepareBaseConfiguration {
+        /// Request identity used to reject stale completions.
+        request_id: RequestId,
+        /// Saved configuration to edit.
+        definition: carver_sdk::BaseDefinition,
+    },
+    /// Present the prepared Base configuration through the GTK adapter.
+    ShowBaseConfiguration {
+        /// Saved configuration to edit.
+        definition: carver_sdk::BaseDefinition,
+        /// All active rows, independent of saved filters.
+        rows: Vec<carver_sdk::BaseRow>,
+        /// Library-wide field catalog.
+        descriptors: Vec<carver_sdk::PropertyDescriptor>,
+    },
+    /// Complete a configuration save without discarding a failed draft.
+    FinishBaseConfiguration {
+        /// Whether persistence succeeded.
+        success: bool,
+    },
     /// Delete only a saved Base definition, preserving its notes.
     DeleteBase {
         /// Definition to remove.

@@ -1,6 +1,76 @@
 use super::*;
 
 #[test]
+fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
+    let mut model = AppModel::new(&Config::default());
+    let definition = BaseDefinition {
+        id: BaseId::new(),
+        name: "Projects".into(),
+        columns: vec![BaseColumn::Name],
+        filter_mode: BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: Revision(1),
+        row_count: 0,
+    };
+    model.route = Route::Base;
+    model.bases.selected = Some(definition.id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+    let first = update(&mut model, AppMsg::Bases(BasesMsg::Configure));
+    let [
+        Effect::PrepareBaseConfiguration {
+            request_id: old_id, ..
+        },
+    ] = first.as_slice()
+    else {
+        panic!("prepare effect");
+    };
+    let second = update(&mut model, AppMsg::Bases(BasesMsg::Configure));
+    let [Effect::PrepareBaseConfiguration { request_id, .. }] = second.as_slice() else {
+        panic!("prepare effect");
+    };
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
+                request_id: *old_id,
+                definition: definition.clone(),
+                result: Ok(Vec::new())
+            })
+        )
+        .is_empty()
+    );
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
+                request_id: *request_id,
+                definition,
+                result: Ok(Vec::new())
+            })
+        )
+        .as_slice(),
+        [Effect::ShowBaseConfiguration { .. }]
+    ));
+}
+
+#[test]
+fn failed_configuration_save_should_reenable_the_existing_draft() {
+    let mut model = AppModel::new(&Config::default());
+    model.bases.saving_configuration = true;
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BaseUpdated {
+                result: Err(UiError::new("conflict"))
+            })
+        ),
+        vec![Effect::FinishBaseConfiguration { success: false }]
+    );
+    assert!(!model.bases.saving_configuration);
+}
+
+#[test]
 fn deleting_a_base_should_preserve_an_open_draft_and_redirect_its_return_route() {
     let mut model = AppModel::new(&Config::default());
     let base = BaseId::new();

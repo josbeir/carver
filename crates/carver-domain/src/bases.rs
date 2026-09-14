@@ -259,9 +259,15 @@ fn field_value(row: &BaseRow, field: &BaseColumn) -> Option<Value> {
     }
 }
 
+fn folded(text: &str) -> String {
+    use caseless::Caseless;
+    use unicode_normalization::UnicodeNormalization;
+    text.nfd().default_case_fold().nfd().collect()
+}
+
 fn scalar_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::String(left), Value::String(right)) => left.eq_ignore_ascii_case(right),
+        (Value::String(left), Value::String(right)) => folded(left) == folded(right),
         (Value::Number(left), Value::Number(right)) => left == right,
         (Value::Bool(left), Value::Bool(right)) => left == right,
         _ => false,
@@ -298,8 +304,8 @@ fn filter_matches(row: &BaseRow, filter: &BaseFilter) -> bool {
             let Some(Value::String(expected)) = filter.value.as_ref() else {
                 return false;
             };
-            let actual = actual.to_ascii_lowercase();
-            let expected = expected.to_ascii_lowercase();
+            let actual = folded(actual);
+            let expected = folded(expected);
             if matches!(filter.operator, BaseFilterOperator::Contains) {
                 actual.contains(&expected)
             } else {
@@ -371,17 +377,10 @@ pub fn project_base_rows(
                     left_value.filter(|value| !value.is_null()),
                     right_value.filter(|value| !value.is_null()),
                 ) {
-                    (None, Some(_)) => Ordering::Greater,
-                    (Some(_), None) => Ordering::Less,
-                    (Some(Value::String(left)), Some(Value::String(right))) => {
-                        left.to_ascii_lowercase().cmp(&right.to_ascii_lowercase())
-                    }
-                    (Some(Value::Number(left)), Some(Value::Number(right))) => left
-                        .as_f64()
-                        .partial_cmp(&right.as_f64())
-                        .unwrap_or(Ordering::Equal),
-                    (Some(Value::Bool(left)), Some(Value::Bool(right))) => left.cmp(&right),
-                    _ => Ordering::Equal,
+                    (None, Some(_)) => return Some(Ordering::Greater),
+                    (Some(_), None) => return Some(Ordering::Less),
+                    (Some(left), Some(right)) => compare_values(&left, &right),
+                    (None, None) => Ordering::Equal,
                 };
                 (ordering != Ordering::Equal).then_some(
                     if matches!(sort.direction, BaseSortDirection::Ascending) {
@@ -403,6 +402,30 @@ pub fn project_base_rows(
         });
     }
     rows
+}
+
+fn compare_values(left: &Value, right: &Value) -> Ordering {
+    fn rank(value: &Value) -> u8 {
+        match value {
+            Value::Null => 0,
+            Value::Bool(_) => 1,
+            Value::Number(_) => 2,
+            Value::String(_) => 3,
+            Value::Array(_) => 4,
+            Value::Object(_) => 5,
+        }
+    }
+    rank(left)
+        .cmp(&rank(right))
+        .then_with(|| match (left, right) {
+            (Value::String(left), Value::String(right)) => folded(left).cmp(&folded(right)),
+            (Value::Number(left), Value::Number(right)) => left
+                .as_f64()
+                .partial_cmp(&right.as_f64())
+                .unwrap_or(Ordering::Equal),
+            (Value::Bool(left), Value::Bool(right)) => left.cmp(right),
+            _ => left.to_string().cmp(&right.to_string()),
+        })
 }
 
 /// Result of indexing one Carve document's typed frontmatter.
@@ -532,6 +555,96 @@ pub fn property_descriptors(value: &Value) -> Vec<PropertyDescriptor> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sorting_should_keep_null_and_missing_last_in_both_directions() {
+        for direction in [BaseSortDirection::Ascending, BaseSortDirection::Descending] {
+            let rows = [
+                serde_json::json!({}),
+                serde_json::json!({"v": null}),
+                serde_json::json!({"v": 1}),
+                serde_json::json!({"v": 2}),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(id, properties)| BaseRow {
+                note_id: NoteId::from_uuid(Uuid::from_u128(id as u128)),
+                revision: Revision(1),
+                name: id.to_string(),
+                category: String::new(),
+                updated: String::new(),
+                properties,
+            })
+            .collect();
+            let sorted = project_base_rows(
+                rows,
+                BaseFilterMode::All,
+                &[],
+                &[BaseSort {
+                    field: BaseColumn::Property(PropertyPath("/v".into())),
+                    direction,
+                }],
+            );
+            let names: Vec<_> = sorted.iter().map(|row| row.name.as_str()).collect();
+            assert_eq!(
+                names,
+                if direction == BaseSortDirection::Ascending {
+                    vec!["2", "3", "0", "1"]
+                } else {
+                    vec!["3", "2", "0", "1"]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_value_ordering_should_be_transitive() {
+        let values = [
+            serde_json::json!("z"),
+            serde_json::json!(2),
+            serde_json::json!("a"),
+            serde_json::json!(false),
+            serde_json::json!([1]),
+            serde_json::json!({"a": 1}),
+            Value::Null,
+        ];
+        for a in &values {
+            for b in &values {
+                for c in &values {
+                    if compare_values(a, b).is_le() && compare_values(b, c).is_le() {
+                        assert!(compare_values(a, c).is_le());
+                    }
+                    assert_eq!(compare_values(a, b), compare_values(b, a).reverse());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn text_filters_should_fold_unicode_and_canonical_equivalents() {
+        let row = BaseRow {
+            note_id: NoteId::default(),
+            revision: Revision(1),
+            name: "État Straße Σ".into(),
+            category: String::new(),
+            updated: String::new(),
+            properties: Value::Null,
+        };
+        for (operator, text) in [
+            (BaseFilterOperator::Equals, "e\u{301}TAT STRASSE ς"),
+            (BaseFilterOperator::Contains, "STRASSE"),
+            (BaseFilterOperator::StartsWith, "état"),
+        ] {
+            assert!(filter_matches(
+                &row,
+                &BaseFilter {
+                    field: BaseColumn::Name,
+                    operator,
+                    value: Some(Value::String(text.into()))
+                }
+            ));
+        }
+    }
 
     #[cfg(feature = "json-schema")]
     #[test]

@@ -609,6 +609,15 @@ pub enum LibraryReply {
         /// Updated definition or a displayable failure.
         result: Result<BaseDefinition, UiError>,
     },
+    /// Unfiltered configuration data finished loading.
+    BaseConfigurationLoaded {
+        /// Request identity.
+        request_id: RequestId,
+        /// Configuration captured when the user requested the dialog.
+        definition: BaseDefinition,
+        /// All active note projections.
+        result: Result<Vec<BaseRow>, UiError>,
+    },
     /// A semantic library revision completed loading.
     LibraryRevisionLoaded {
         /// Identity of the initiating request.

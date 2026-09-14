@@ -407,8 +407,22 @@ impl SqliteLibrary {
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
+        let rows = if definitions.is_empty() {
+            Vec::new()
+        } else {
+            self.active_base_rows()?
+        };
         for definition in &mut definitions {
-            definition.row_count = self.base_rows(definition.id)?.len();
+            definition.row_count = rows
+                .iter()
+                .filter(|row| {
+                    carver_domain::base_row_matches(
+                        row,
+                        definition.filter_mode,
+                        &definition.filters,
+                    )
+                })
+                .count();
         }
         Ok(definitions)
     }
@@ -499,6 +513,19 @@ impl SqliteLibrary {
             .optional()?
             .ok_or(StorageError::MutationUnavailable)?;
         let payload = decode_base_payload(&raw_definition)?;
+        Ok(project_base_rows(
+            self.active_base_rows()?,
+            payload.filter_mode,
+            &payload.filters,
+            &payload.sorts,
+        ))
+    }
+
+    /// Returns unfiltered projections of all active notes for configuration previews.
+    ///
+    /// # Errors
+    /// Returns an error if stored rows cannot be decoded or read.
+    pub fn active_base_rows(&self) -> Result<Vec<BaseRow>, StorageError> {
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
              FROM notes n JOIN categories c ON c.id = n.category_id
@@ -531,12 +558,7 @@ impl SqliteLibrary {
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
-        Ok(project_base_rows(
-            rows,
-            payload.filter_mode,
-            &payload.filters,
-            &payload.sorts,
-        ))
+        Ok(rows)
     }
 
     /// Discovers flattened leaf paths across active notes.
@@ -1533,6 +1555,10 @@ impl LibraryBackend for SqliteLibrary {
 
     fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error> {
         Self::delete_base(self, base_id)
+    }
+
+    fn active_base_rows(&self) -> Result<Vec<BaseRow>, Self::Error> {
+        Self::active_base_rows(self)
     }
 
     fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {

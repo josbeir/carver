@@ -250,13 +250,7 @@ impl ViewRefs {
         };
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
             crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
-            crate::ui::bases::actions::render_configure(
-                &refs.configure,
-                None,
-                &[],
-                &[],
-                dispatcher,
-            );
+            crate::ui::bases::actions::render_configure(&refs.configure, None, dispatcher);
             refs.grid.set_sensitive(false);
             if let LoadState::Failed(error) = &model.bases.definitions.state {
                 crate::ui::bases::render_base_status(refs, "Couldn’t load base", &error.message);
@@ -298,15 +292,9 @@ impl ViewRefs {
             }
         };
         if let Some(definition) = definitions.iter().find(|base| base.id == base_id) {
-            let property_descriptors = match &model.bases.property_descriptors.state {
-                LoadState::Ready(descriptors) => descriptors.as_slice(),
-                _ => &[],
-            };
             crate::ui::bases::actions::render_configure(
                 &refs.configure,
                 Some(definition),
-                rows,
-                property_descriptors,
                 dispatcher,
             );
             crate::ui::bases::render_base(refs, definition, rows, dispatcher);
@@ -318,6 +306,45 @@ impl ViewRefs {
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
+        if let Effect::ShowBaseConfiguration {
+            definition,
+            rows,
+            descriptors,
+        } = &effect
+        {
+            if let (Some(refs), Some(dispatcher)) = (&self.base, &self.dispatcher) {
+                use adw::prelude::*;
+                if let Some(parent) = refs.configure.root().and_downcast::<gtk::Window>() {
+                    let existing = refs.configuration.borrow().clone();
+                    if let Some(dialog) = existing.filter(WidgetExt::is_mapped) {
+                        dialog.grab_focus();
+                        return;
+                    }
+                    let dialog = crate::ui::bases::actions::show_configuration_dialog(
+                        &parent,
+                        dispatcher,
+                        definition,
+                        rows,
+                        descriptors,
+                    );
+                    refs.configuration.replace(Some(dialog));
+                }
+            }
+            return;
+        }
+        if let Effect::FinishBaseConfiguration { success } = effect {
+            if let Some(refs) = &self.base {
+                let dialog = if success {
+                    refs.configuration.take()
+                } else {
+                    refs.configuration.borrow().clone()
+                };
+                if let Some(dialog) = dialog {
+                    crate::ui::bases::actions::finish_configuration(&dialog, success);
+                }
+            }
+            return;
+        }
         if let Effect::ShowExternalEdit { session, deleted } = effect {
             self.show_external_edit(session, deleted);
             return;

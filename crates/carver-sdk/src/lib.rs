@@ -279,6 +279,14 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Loads all active note projections for a Base configuration preview.
+    ///
+    /// # Errors
+    /// Returns an error when the worker or backend cannot load the rows.
+    pub async fn active_base_rows_async(&self) -> Result<Vec<BaseRow>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::active_base_rows).await
+    }
+
     /// Discovers current frontmatter properties without blocking the caller.
     pub async fn property_paths_async(&self) -> Result<Vec<PropertyPath>, LibraryError<B::Error>> {
         self.request(LibraryBackend::property_paths).await

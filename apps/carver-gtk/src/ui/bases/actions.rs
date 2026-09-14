@@ -373,9 +373,7 @@ fn filter_row(
     if let Some(filter) = initial {
         operator.set_active_id(Some(operator_id(filter.operator)));
         if let Some(value_json) = &filter.value {
-            let text = value_json
-                .as_str()
-                .map_or_else(|| value_json.to_string(), ToOwned::to_owned);
+            let text = filter_value_text(value_json);
             value.set_text(&text);
         }
     } else {
@@ -590,29 +588,15 @@ fn install_column_drag_and_drop(
 pub(crate) fn render_configure(
     button: &gtk::Button,
     base: Option<&BaseDefinition>,
-    rows: &[carver_sdk::BaseRow],
-    property_descriptors: &[carver_sdk::PropertyDescriptor],
     dispatcher: &AppDispatcher,
 ) {
     let group = gtk::gio::SimpleActionGroup::new();
     let action = gtk::gio::SimpleAction::new("configure", None);
     action.set_enabled(base.is_some());
-    if let Some(base) = base.cloned() {
-        let rows = rows.to_vec();
-        let property_descriptors = property_descriptors.to_vec();
-        let dispatcher = dispatcher.clone();
-        let weak_button = button.downgrade();
-        action.connect_activate(move |_, _| {
-            let Some(parent) = weak_button
-                .upgrade()
-                .and_then(|button| button.root())
-                .and_downcast::<gtk::Window>()
-            else {
-                return;
-            };
-            show_configuration_dialog(&parent, &dispatcher, &base, &rows, &property_descriptors);
-        });
-    }
+    let dispatcher = dispatcher.clone();
+    action.connect_activate(move |_, _| {
+        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Configure));
+    });
     group.add_action(&action);
     button.insert_action_group("base", Some(&group));
 }
@@ -626,13 +610,13 @@ pub(crate) fn render_configure(
     deprecated,
     reason = "ComboBoxText remains supported by the minimum GTK runtime"
 )]
-fn show_configuration_dialog(
+pub(crate) fn show_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     definition: &BaseDefinition,
     rows: &[carver_sdk::BaseRow],
     property_descriptors: &[carver_sdk::PropertyDescriptor],
-) {
+) -> adw::Dialog {
     let dialog = adw::Dialog::builder()
         .title("Configure Base")
         .content_width(860)
@@ -872,6 +856,7 @@ fn show_configuration_dialog(
     refresh_preview();
 
     let save = gtk::Button::with_label("Save");
+    save.set_widget_name("base-configuration-save");
     save.add_css_class("suggested-action");
     save.set_sensitive(!definition.name.trim().is_empty());
     {
@@ -909,6 +894,13 @@ fn show_configuration_dialog(
     let name_for_save = name.clone();
     let dialog_for_save = dialog.clone();
     save.connect_clicked(move |_| {
+        if !dialog_for_save.can_close() {
+            return;
+        }
+        dialog_for_save.set_can_close(false);
+        if let Some(child) = dialog_for_save.child() {
+            child.set_sensitive(false);
+        }
         let columns = selected_columns.borrow().clone();
         let filters = selected_filters(&filter_widgets.borrow());
         let sorts = selected_sorts(&sort_widgets.borrow());
@@ -921,10 +913,20 @@ fn show_configuration_dialog(
             filters,
             sorts,
         }));
-        dialog_for_save.close();
     });
     name.grab_focus();
     dialog.present(Some(parent));
+    dialog
+}
+
+pub(crate) fn finish_configuration(dialog: &adw::Dialog, success: bool) {
+    dialog.set_can_close(true);
+    if let Some(child) = dialog.child() {
+        child.set_sensitive(true);
+    }
+    if success {
+        dialog.close();
+    }
 }
 
 fn section_label(text: &str) -> gtk::Label {
@@ -995,3 +997,16 @@ fn description_label(text: &str) -> gtk::Label {
     label.add_css_class("dim-label");
     label
 }
+
+fn filter_value_text(value: &serde_json::Value) -> String {
+    if let Some(text) = value.as_str()
+        && value_from_text(text).as_ref() == Some(value)
+    {
+        return text.to_owned();
+    }
+    value.to_string()
+}
+
+#[cfg(test)]
+#[path = "actions/tests.rs"]
+mod tests;

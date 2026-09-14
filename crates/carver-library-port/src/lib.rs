@@ -156,6 +156,8 @@ pub trait LibraryBackend: Send + 'static {
     fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error>;
     /// Returns rows for a saved base.
     fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error>;
+    /// Returns all active note projections, independently of saved Base filters.
+    fn active_base_rows(&self) -> Result<Vec<BaseRow>, Self::Error>;
     /// Discovers all flattened properties currently present in active notes.
     fn property_paths(&self) -> Result<Vec<PropertyPath>, Self::Error> {
         self.property_descriptors().map(|descriptors| {

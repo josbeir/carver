@@ -213,6 +213,20 @@ fn base_configuration_should_filter_rows_and_guard_revision() {
         .base_rows(base.id)
         .unwrap_or_else(|error| panic!("filtered rows failed: {error}"));
     assert_eq!(rows.len(), 1);
+    let all_rows = library
+        .active_base_rows()
+        .unwrap_or_else(|error| panic!("unfiltered preview: {error}"));
+    assert!(all_rows.len() > rows.len());
+    assert_eq!(
+        library
+            .bases()
+            .unwrap_or_else(|error| panic!("sidebar counts: {error}"))
+            .iter()
+            .find(|item| item.id == base.id)
+            .unwrap_or_else(|| panic!("missing base"))
+            .row_count,
+        rows.len()
+    );
     assert!(matches!(
         library.update_base(
             base.id,

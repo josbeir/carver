@@ -82,6 +82,8 @@ pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestRe
 )]
 pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> TestResult {
     let (_temp, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let _note = client.create_note(category.id)?;
     let mut base = glib::MainContext::default().block_on(client.create_base_async(
         "Projects".to_owned(),
         vec![
@@ -140,6 +142,8 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     }]);
     model.route = Route::Base;
     view.render(&model);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
     let window = adw::Window::new();
     window.set_default_size(900, 700);
     window.set_content(Some(&routes));
@@ -148,6 +152,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ok_or("configure button")?;
     assert!(run_main_context_until(|| button.is_mapped()));
     button.emit_clicked();
+    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
     let dialog = window
         .visible_dialog()
         .and_downcast::<adw::Dialog>()
@@ -266,7 +271,57 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     let footer = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-configuration-footer")
         .ok_or("configuration footer")?;
     assert!(footer.margin_top() >= 12);
-    dialog.close();
+    let save =
+        widget_as::<gtk::Button>(dialog.upcast_ref(), "base-configuration-save").ok_or("save")?;
+    save.emit_clicked();
+    assert!(!dialog.can_close());
+    assert!(run_main_context_until(|| !runtime
+        .model()
+        .bases
+        .saving_configuration));
+    let saved = glib::MainContext::default()
+        .block_on(client.bases_async())?
+        .into_iter()
+        .find(|base| base.id == base_id)
+        .ok_or("saved base")?;
+    assert!(saved.filters.is_empty());
+    assert_eq!(saved.columns.len(), 5);
+    assert_eq!(saved.sorts.len(), 1);
+    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+    assert!(run_main_context_until(|| matches!(
+        runtime.model().bases.rows.state,
+        LoadState::Ready(_)
+    )));
+    button.emit_clicked();
+    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
+    let failed_dialog = window.visible_dialog().ok_or("second configuration")?;
+    // A second client changes the revision while this draft is open.
+    glib::MainContext::default().block_on(client.update_base_async(
+        saved.id,
+        saved.revision,
+        "External rename".into(),
+        saved.columns.clone(),
+        saved.filter_mode,
+        saved.filters.clone(),
+        saved.sorts.clone(),
+    ))?;
+    let save = widget_as::<gtk::Button>(failed_dialog.upcast_ref(), "base-configuration-save")
+        .ok_or("second save")?;
+    save.emit_clicked();
+    assert!(run_main_context_until(|| !runtime
+        .model()
+        .bases
+        .saving_configuration));
+    assert!(runtime.model().notice.is_some());
+    assert!(failed_dialog.can_close());
+    assert!(
+        failed_dialog
+            .child()
+            .ok_or("preserved draft")?
+            .is_sensitive()
+    );
+    assert!(window.visible_dialog().is_some());
+    failed_dialog.close();
     window.close();
     Ok(())
 }

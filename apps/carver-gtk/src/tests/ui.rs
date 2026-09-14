@@ -361,6 +361,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let base_pages = widget_as::<gtk::Stack>(&root, "base-pages").ok_or("base pages")?;
     crate::ui::bases::render_base_status(
         &crate::ui::bases::BaseViewRefs {
+            configuration: std::cell::RefCell::new(None),
             configure: widget_as::<gtk::Button>(&root, "configure-base-button")
                 .ok_or("configure base button")?,
             delete: widget_as::<gtk::Button>(&root, "delete-base-button")

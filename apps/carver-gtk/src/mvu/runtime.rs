@@ -237,7 +237,24 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 sorts,
             ),
             Effect::DeleteBase { base_id } => self.delete_base(base_id),
+            Effect::PrepareBaseConfiguration {
+                request_id,
+                definition,
+            } => {
+                let client = self.inner.client.clone();
+                let runtime = self.clone();
+                glib::spawn_future_local(async move {
+                    let result = client.active_base_rows_async().await.map_err(display_error);
+                    runtime.dispatch(AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
+                        request_id,
+                        definition,
+                        result,
+                    }));
+                });
+            }
             effect @ (Effect::ApplyRichEditorCommand { .. }
+            | Effect::ShowBaseConfiguration { .. }
+            | Effect::FinishBaseConfiguration { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
             | Effect::SelectEditorSource { .. }
