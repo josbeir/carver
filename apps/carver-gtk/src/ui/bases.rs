@@ -90,8 +90,8 @@ pub(crate) fn build_base(
     scroll.set_child(Some(&grid));
     let status = adw::StatusPage::builder()
         .icon_name("view-grid-symbolic")
-        .title("No rows")
-        .description("Notes with YAML, JSON, or TOML frontmatter will appear here.")
+        .title("No matching notes")
+        .description("Notes that match this Base will appear here.")
         .build();
     status.set_widget_name("base-status");
     let load_more = gtk::Button::with_label("Load more rows");
