@@ -966,8 +966,8 @@ fn update_editor_load(
     {
         return Vec::new();
     }
-    open_editor(model, note_id, revision, false, source);
-    Vec::new()
+    let session = open_editor(model, note_id, revision, false, source);
+    vec![Effect::FocusEditor { session }]
 }
 
 fn update_source_command(
@@ -1115,7 +1115,7 @@ fn open_editor(
     revision: carver_sdk::Revision,
     is_favorite: bool,
     source: String,
-) {
+) -> super::EditorSessionId {
     let session = model.next_editor_session_id();
     let mut document = super::EditorDocument::new(
         session,
@@ -1139,6 +1139,7 @@ fn open_editor(
     model.editor_export_progress = None;
     model.editor_pdf_export_request = None;
     model.preview_timer = None;
+    session
 }
 
 fn complete_copy_request(
@@ -2135,12 +2136,12 @@ fn update_editor_loaded(
     }
     match result {
         Ok(note) => {
-            open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
             model.route = super::Route::Editor;
             if export_after_load {
                 request_editor_export_dialog(model)
             } else {
-                Vec::new()
+                vec![Effect::FocusEditor { session }]
             }
         }
         Err(error) => {
@@ -2216,9 +2217,11 @@ fn update_created_note(
 ) -> Vec<Effect> {
     match result {
         Ok(note) => {
-            open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
             model.route = super::Route::Editor;
-            reload_after_local_mutation(model)
+            let mut effects = vec![Effect::FocusEditor { session }];
+            effects.extend(reload_after_local_mutation(model));
+            effects
         }
         Err(error) => {
             model.notice = Some(error);

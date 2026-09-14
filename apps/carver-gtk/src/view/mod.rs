@@ -408,6 +408,7 @@ impl ViewRefs {
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);
             }
+            Effect::FocusEditor { session } => editor.focus(session),
             Effect::FocusDocumentTarget {
                 session,
                 selection,

@@ -11,6 +11,7 @@ export interface WebKitMessageHandler {
 
 export interface RichEditorApi {
   load(source: string, session: number): boolean;
+  focus(): boolean;
   command(name: string, argument?: unknown): boolean;
   source(): string;
   focusMedia(path: string, occurrence?: number): boolean;

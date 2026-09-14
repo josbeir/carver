@@ -179,6 +179,11 @@ pub enum Effect {
         /// Character-based selection in the canonical source.
         selection: std::ops::Range<usize>,
     },
+    /// Focus the editable surface after opening a note.
+    FocusEditor {
+        /// Editor lifetime that must still be active when focus is applied.
+        session: EditorSessionId,
+    },
     /// Resolve a managed asset through the asynchronous SDK boundary.
     LoadMediaFile {
         /// Whether image bytes are needed for a thumbnail.

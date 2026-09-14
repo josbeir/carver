@@ -39,6 +39,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::stale_web_messages_should_not_change_the_active_document()?;
     interactions::source_link_should_keep_the_captured_selection()?;
     interactions::rich_link_should_update_canonical_source()?;
+    interactions::opened_note_should_focus_rich_editor_without_opening_find()?;
     interactions::source_image_paste_should_store_a_managed_asset()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;

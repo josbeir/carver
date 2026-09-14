@@ -67,7 +67,9 @@ impl FindController {
         row.append(&close);
         bar.set_child(Some(&row));
         bar.connect_entry(&entry);
-        bar.set_key_capture_widget(Some(capture_widget));
+        // Ctrl+F is handled explicitly below. Do not register GTK's type-ahead
+        // capture here: a newly opened WebKit editor is not a native text entry,
+        // so GTK would redirect ordinary first keystrokes into this find bar.
 
         let source_view = source_editor.view().clone();
         let source_settings = sourceview5::SearchSettings::builder()

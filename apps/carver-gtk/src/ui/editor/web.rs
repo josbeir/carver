@@ -35,6 +35,7 @@ pub(crate) struct RichEditor {
     navigation_epoch: Rc<Cell<u64>>,
     canonical_source: Rc<RefCell<Rc<str>>>,
     pending_source: Rc<RefCell<Option<(u64, String)>>>,
+    pending_focus: Rc<Cell<Option<u64>>>,
     current_theme: Rc<RefCell<Option<EditorTheme>>>,
     current_appearance: Rc<RefCell<Option<DocumentAppearance>>>,
     unsupported_handler: UnsupportedHandler,
@@ -93,6 +94,7 @@ impl RichEditor {
             navigation_epoch: Rc::new(Cell::new(0)),
             canonical_source: Rc::new(RefCell::new(Rc::from(""))),
             pending_source: Rc::new(RefCell::new(None)),
+            pending_focus: Rc::new(Cell::new(None)),
             current_theme: Rc::new(RefCell::new(None)),
             current_appearance: Rc::new(RefCell::new(None)),
             unsupported_handler: Rc::new(RefCell::new(None)),
@@ -172,6 +174,41 @@ impl RichEditor {
             json(name),
             argument
         ));
+    }
+
+    /// Focuses the rich-text document at its insertion point.
+    pub(crate) fn focus(&self) {
+        self.pending_focus.set(Some(self.session.get()));
+        self.focus_pending();
+    }
+
+    fn focus_pending(&self) {
+        let session = self.session.get();
+        if self.pending_focus.get() != Some(session) {
+            return;
+        }
+        if !self.ready.get() || self.pending_source.borrow().is_some() {
+            return;
+        }
+        self.pending_focus.set(None);
+        let editor = self.clone();
+        self.view.evaluate_javascript(
+            "window.carverEditor.focus();",
+            None,
+            Some("carver-editor:///bridge"),
+            None::<&gtk::gio::Cancellable>,
+            move |result| {
+                if editor.session.get() != session || !editor.view.is_mapped() {
+                    return;
+                }
+                if result.is_ok_and(|value| value.to_boolean()) {
+                    editor.view.grab_focus();
+                    if let Some(root) = editor.view.root() {
+                        root.set_focus(Some(&editor.view));
+                    }
+                }
+            },
+        );
     }
 
     /// Focuses a document occurrence without changing its source.
@@ -287,6 +324,7 @@ impl RichEditor {
                 EditorEvent::Ready => {
                     editor.ready.set(true);
                     editor.flush_pending_source();
+                    editor.focus_pending();
                     editor.apply_theme();
                     editor.apply_appearance();
                 }

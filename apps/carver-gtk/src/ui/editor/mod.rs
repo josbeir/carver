@@ -320,6 +320,21 @@ impl EditorViewRefs {
         }
     }
 
+    /// Focuses the active editable surface for a freshly created note.
+    pub(crate) fn focus(&self, session: EditorSessionId) {
+        if self.loaded_session.borrow().as_ref() != Some(&session) {
+            return;
+        }
+        if self.source_mode.is_active() {
+            self.source_editor.view().grab_focus();
+            if let Some(root) = self.source_editor.view().root() {
+                root.set_focus(Some(self.source_editor.view()));
+            }
+        } else if self.rich_mode.is_active() {
+            self.rich.focus();
+        }
+    }
+
     /// Focuses a validated occurrence while retaining the current editor mode.
     pub(crate) fn focus_document_target(
         &self,

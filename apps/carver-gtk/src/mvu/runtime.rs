@@ -286,6 +286,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
             | Effect::SelectEditorSource { .. }
+            | Effect::FocusEditor { .. }
             | Effect::FocusDocumentTarget { .. }
             | Effect::ShowMediaPreview { .. }
             | Effect::CopyEditorDocument { .. }

@@ -164,6 +164,14 @@ export class EditorController implements RichEditorApi {
     return true;
   }
 
+  /** Focuses the current document at its insertion point. */
+  public focus(): boolean {
+    const editor = this.editor;
+    if (!editor) return false;
+    editor.commands.focus('end');
+    return true;
+  }
+
   public command(name: string, argument?: unknown): boolean {
     const editor = this.currentEditor();
     const chain = editor.chain().focus();
