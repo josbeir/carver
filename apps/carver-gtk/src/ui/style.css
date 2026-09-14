@@ -111,6 +111,19 @@
   background: transparent;
 }
 
+/* GtkListView makes its full-width row hoverable. Keep that transparent and
+ * apply the state only to the inner card, whose radius matches the surface. */
+.note-feed > row,
+.note-feed > row:hover,
+.note-feed > row:selected {
+  background: transparent;
+}
+
+.note-feed > row:hover .note-card,
+.note-feed > row:selected .note-card {
+  background: alpha(@accent_bg_color, 0.18);
+}
+
 .note-feed row.note-card {
   /* Libadwaita's card elevation extends beyond the row bounds. */
   margin: 6px 4px;

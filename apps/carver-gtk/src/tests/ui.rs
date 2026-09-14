@@ -708,33 +708,17 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_none()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
-    let browser_scroll = widget_as::<gtk::ScrolledWindow>(&root, "browser-content-scroll")
+    let browser_scroll = widget_as::<adw::ClampScrollable>(&root, "browser-content-scroll")
         .ok_or("browser content scroll")?;
-    let browser_clamp =
-        widget_as::<adw::Clamp>(&root, "browser-content-clamp").ok_or("browser content clamp")?;
-    let browser_viewport = browser_scroll
-        .child()
-        .and_downcast::<gtk::Viewport>()
-        .ok_or("browser content viewport")?;
-    assert!(
-        browser_viewport
-            .child()
-            .is_some_and(|child| child == browser_clamp)
-    );
-    let browser_content = browser_clamp
-        .child()
-        .and_downcast::<gtk::Box>()
-        .ok_or("browser content")?;
     let note_list = widget_as::<gtk::ListView>(&root, "note-list").ok_or("note list")?;
     assert!(
         note_list
             .parent()
-            .is_some_and(|parent| parent == browser_content)
+            .is_some_and(|parent| parent == browser_scroll)
     );
-    assert_eq!(
-        note_list.vadjustment().as_ref(),
-        Some(&browser_scroll.vadjustment()),
-        "the virtual feed must use the enclosing document scroll adjustment"
+    assert!(
+        note_list.vadjustment().is_some(),
+        "the virtual feed must expose its scroll adjustment for paging"
     );
     let destination_category_row = find_widget(
         sidebar.upcast_ref(),
@@ -1458,11 +1442,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         !search_bar.is_search_mode() && !search_toggle.is_active() && search.text().is_empty()
     }));
-    assert!(run_main_context_until(|| widget_as::<gtk::Box>(
-        &root,
-        "browser-search-empty-card"
-    )
-    .is_some_and(|card| !card.is_visible())));
+    assert!(run_main_context_until(|| {
+        find_widget(&root, "browser-search-empty-card").is_none()
+    }));
     let restored_groups = run_main_context_until(|| {
         find_widget(&root, &format!("note:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today").is_some()

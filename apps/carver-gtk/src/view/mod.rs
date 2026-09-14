@@ -60,10 +60,7 @@ struct BrowserContentRefs<'a> {
     list: &'a gtk::ListView,
     feed_store: &'a gtk::gio::ListStore,
     pages: &'a gtk::Stack,
-    search_empty: &'a gtk::Box,
-    category_empty: &'a gtk::Box,
     empty_new_note: &'a gtk::Button,
-    category_empty_new_note: &'a gtk::Button,
 }
 
 /// GTK references used to render the high-level MVU resources.
@@ -76,18 +73,11 @@ pub struct ViewRefs {
     browser_feed_context: Option<Rc<RefCell<BrowserFeedContext>>>,
     browser_rendered_rows: RefCell<Vec<(carver_sdk::NoteId, carver_sdk::Revision)>>,
     browser_rendered_context: RefCell<Option<BrowserFeedContext>>,
-    browser_favorites_section: Option<gtk::Box>,
-    browser_favorites: Option<gtk::ListBox>,
     browser_pages: Option<gtk::Stack>,
     browser_search_bar: Option<gtk::SearchBar>,
     browser_search_entry: Option<gtk::SearchEntry>,
     browser_search_toggle: Option<gtk::ToggleButton>,
-    browser_search_empty_card: Option<gtk::Box>,
-    browser_category_empty_card: Option<gtk::Box>,
     browser_empty_new_note_button: Option<gtk::Button>,
-    browser_category_empty_new_note_button: Option<gtk::Button>,
-    browser_category_hero: Option<gtk::Box>,
-    browser_load_more: Option<gtk::Button>,
     browser_status: adw::StatusPage,
     base: Option<crate::ui::bases::BaseViewRefs>,
     trash_list: Option<gtk::ListBox>,
@@ -125,18 +115,11 @@ impl ViewRefs {
             browser_feed_context: None,
             browser_rendered_rows: RefCell::new(Vec::new()),
             browser_rendered_context: RefCell::new(None),
-            browser_favorites_section: None,
-            browser_favorites: None,
             browser_pages: None,
             browser_search_bar: None,
             browser_search_entry: None,
             browser_search_toggle: None,
-            browser_search_empty_card: None,
-            browser_category_empty_card: None,
             browser_empty_new_note_button: None,
-            browser_category_empty_new_note_button: None,
-            browser_category_hero: None,
-            browser_load_more: None,
             browser_status,
             base: None,
             trash_list: None,
@@ -194,18 +177,11 @@ impl ViewRefs {
         self.browser_list = Some(browser.list);
         self.browser_feed_store = Some(browser.feed_store);
         self.browser_feed_context = Some(browser.feed_context);
-        self.browser_favorites_section = Some(browser.favorites_section);
-        self.browser_favorites = Some(browser.favorites);
         self.browser_pages = Some(browser.pages);
         self.browser_search_bar = Some(browser.search_bar);
         self.browser_search_entry = Some(browser.search_entry);
         self.browser_search_toggle = Some(browser.search_toggle);
-        self.browser_search_empty_card = Some(browser.search_empty_card);
-        self.browser_category_empty_card = Some(browser.category_empty_card);
         self.browser_empty_new_note_button = Some(browser.empty_new_note_button);
-        self.browser_category_empty_new_note_button = Some(browser.category_empty_new_note_button);
-        self.browser_category_hero = Some(browser.category_hero);
-        self.browser_load_more = Some(browser.load_more);
         self
     }
 
@@ -528,10 +504,6 @@ impl ViewRefs {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "CONTEXT: one snapshot renderer keeps browser visibility and pagination in one coherent projection"
-    )]
     fn render_browser(&self, model: &AppModel) {
         self.render_browser_search(model);
         // Keep the complete previous browser visible until both lists are ready.
@@ -544,91 +516,44 @@ impl ViewRefs {
         if !self.browser_projection_changed(model) {
             return;
         }
-        if let Some(load_more) = &self.browser_load_more {
-            let loading = model.browser.append_request.is_some();
-            load_more.set_visible(model.browser.has_more || model.browser.append_error.is_some());
-            load_more.set_sensitive(!loading);
-            load_more.set_label(if loading {
-                "Loading more notes…"
-            } else if model.browser.append_error.is_some() {
-                "Retry loading notes"
-            } else {
-                "Load more notes"
-            });
-        }
-        self.render_browser_favorites(model);
         let Some(BrowserContentRefs {
             list,
             feed_store,
             pages,
-            search_empty,
-            category_empty,
             empty_new_note,
-            category_empty_new_note,
         }) = self.browser_content_refs()
         else {
             return;
         };
-        if let Some(hero) = &self.browser_category_hero {
-            crate::ui::browser::render_category_hero(
-                hero,
-                &model.sidebar.state,
-                model.selected_category,
-                self.dispatcher.as_ref(),
-            );
-        }
         match &model.browser.notes.state {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
             {
-                feed_store.remove_all();
-                self.browser_rendered_rows.borrow_mut().clear();
-                search_empty.set_visible(true);
-                category_empty.set_visible(false);
+                self.render_browser_special(feed_store, model, BrowserFeedItem::SearchEmpty);
                 empty_new_note.set_visible(false);
-                category_empty_new_note.set_visible(false);
                 pages.set_visible_child_name("contents");
             }
             LoadState::Ready(notes) if notes.is_empty() && model.selected_category.is_some() => {
-                render_empty_category(
-                    feed_store,
-                    pages,
-                    search_empty,
-                    category_empty,
-                    empty_new_note,
-                    category_empty_new_note,
-                );
+                self.render_browser_special(feed_store, model, BrowserFeedItem::CategoryEmpty);
+                empty_new_note.set_visible(false);
+                pages.set_visible_child_name("contents");
             }
             LoadState::Ready(notes) if notes.is_empty() => {
                 feed_store.remove_all();
                 self.browser_rendered_rows.borrow_mut().clear();
-                search_empty.set_visible(false);
-                category_empty.set_visible(false);
                 empty_new_note.set_visible(true);
-                category_empty_new_note.set_visible(false);
                 self.browser_status.set_title("No notes yet");
                 self.browser_status
                     .set_description(Some("Create a note to get started."));
                 pages.set_visible_child_name("empty");
             }
-            LoadState::Ready(notes) => self.render_browser_notes(
-                list,
-                feed_store,
-                pages,
-                search_empty,
-                category_empty,
-                empty_new_note,
-                category_empty_new_note,
-                notes,
-                model,
-            ),
+            LoadState::Ready(notes) => {
+                self.render_browser_notes(list, feed_store, pages, empty_new_note, notes, model);
+            }
             state => {
                 feed_store.remove_all();
                 self.browser_rendered_rows.borrow_mut().clear();
-                search_empty.set_visible(false);
-                category_empty.set_visible(false);
                 empty_new_note.set_visible(false);
-                category_empty_new_note.set_visible(false);
                 self.browser_status
                     .set_title(resource_label(state, "No notes yet"));
                 if let LoadState::Failed(error) = state {
@@ -659,21 +584,8 @@ impl ViewRefs {
             list: self.browser_list.as_ref()?,
             feed_store: self.browser_feed_store.as_ref()?,
             pages: self.browser_pages.as_ref()?,
-            search_empty: self.browser_search_empty_card.as_ref()?,
-            category_empty: self.browser_category_empty_card.as_ref()?,
             empty_new_note: self.browser_empty_new_note_button.as_ref()?,
-            category_empty_new_note: self.browser_category_empty_new_note_button.as_ref()?,
         })
-    }
-
-    fn render_browser_favorites(&self, model: &AppModel) {
-        let (Some(section), Some(carousel)) = (
-            self.browser_favorites_section.as_ref(),
-            self.browser_favorites.as_ref(),
-        ) else {
-            return;
-        };
-        render_favorites(section, carousel, model, self.dispatcher.as_ref());
     }
 
     fn render_browser_search(&self, model: &AppModel) {
@@ -846,48 +758,39 @@ fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjecti
     }
 }
 
-fn render_empty_category(
-    feed_store: &gtk::gio::ListStore,
-    pages: &gtk::Stack,
-    search_empty: &gtk::Box,
-    category_empty: &gtk::Box,
-    empty_new_note: &gtk::Button,
-    category_empty_new_note: &gtk::Button,
-) {
-    feed_store.remove_all();
-    search_empty.set_visible(false);
-    category_empty.set_visible(true);
-    empty_new_note.set_visible(false);
-    category_empty_new_note.set_visible(true);
-    pages.set_visible_child_name("contents");
-}
-
 impl ViewRefs {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the browser's complete note-list projection shares one immutable model snapshot"
-    )]
+    fn render_browser_special(
+        &self,
+        feed_store: &gtk::gio::ListStore,
+        model: &AppModel,
+        item: BrowserFeedItem,
+    ) {
+        let context = browser_feed_context(model);
+        if let Some(feed_context) = &self.browser_feed_context {
+            feed_context.replace(context.clone());
+        }
+        feed_store.remove_all();
+        feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Hero));
+        feed_store.append(&glib::BoxedAnyObject::new(item));
+        self.browser_rendered_rows.borrow_mut().clear();
+        self.browser_rendered_context.replace(Some(context));
+    }
+
     fn render_browser_notes(
         &self,
         _list: &gtk::ListView,
         feed_store: &gtk::gio::ListStore,
         pages: &gtk::Stack,
-        search_empty: &gtk::Box,
-        category_empty: &gtk::Box,
         empty_new_note: &gtk::Button,
-        category_empty_new_note: &gtk::Button,
         notes: &[carver_sdk::NoteSummary],
         model: &AppModel,
     ) {
-        search_empty.set_visible(false);
-        category_empty.set_visible(false);
         empty_new_note.set_visible(true);
-        category_empty_new_note.set_visible(false);
         pages.set_visible_child_name("contents");
-        let context = BrowserFeedContext {
-            show_category: model.selected_category.is_none(),
-            sidebar: model.sidebar.state.clone(),
-        };
+        let context = browser_feed_context(model);
+        if let Some(feed_context) = &self.browser_feed_context {
+            feed_context.replace(context.clone());
+        }
         let show_date_groups = model.browser.search_query.trim().is_empty();
         let existing_context = self.browser_rendered_context.borrow().clone();
         let incoming: Vec<_> = notes.iter().map(|note| (note.id, note.revision)).collect();
@@ -897,12 +800,12 @@ impl ViewRefs {
             && incoming
                 .get(..rendered.len())
                 .is_some_and(|prefix| prefix == rendered.as_slice());
-        if !can_append {
+        if can_append {
+            remove_browser_footer(feed_store);
+        } else {
             feed_store.remove_all();
             rendered.clear();
-        }
-        if let Some(feed_context) = &self.browser_feed_context {
-            feed_context.replace(context.clone());
+            append_browser_prelude(feed_store, model);
         }
         let now = OffsetDateTime::now_utc();
         let mut previous_group = rendered.last().and_then(|(id, _)| {
@@ -923,55 +826,71 @@ impl ViewRefs {
                 note.clone(),
             )));
         }
+        append_browser_footer(feed_store, model);
         *rendered = incoming;
         self.browser_rendered_context.replace(Some(context));
     }
 }
 
-fn render_favorites(
-    section: &gtk::Box,
-    list: &gtk::ListBox,
-    model: &AppModel,
-    dispatcher: Option<&AppDispatcher>,
-) {
-    clear_list(list);
-    if !model.browser.search_query.trim().is_empty() {
-        section.set_visible(false);
-        return;
-    }
-
-    let LoadState::Ready(notes) = &model.browser.favorites.state else {
-        section.set_visible(false);
-        return;
+fn browser_feed_context(model: &AppModel) -> BrowserFeedContext {
+    let favorites = match &model.browser.favorites.state {
+        LoadState::Ready(notes) if model.browser.search_query.trim().is_empty() => {
+            notes.iter().map(|note| (note.id, note.revision)).collect()
+        }
+        _ => Vec::new(),
     };
-    let favorites = notes.iter().collect::<Vec<_>>();
-    render_favorite_rows(
-        section,
-        list,
-        &favorites,
-        model.selected_category.is_none(),
-        &model.sidebar.state,
-        dispatcher,
-    );
+    BrowserFeedContext {
+        show_category: model.selected_category.is_none(),
+        sidebar: model.sidebar.state.clone(),
+        selected_category: model.selected_category,
+        favorites,
+    }
 }
 
-fn render_favorite_rows(
-    section: &gtk::Box,
-    list: &gtk::ListBox,
-    notes: &[&carver_sdk::NoteSummary],
-    show_category: bool,
-    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
-    dispatcher: Option<&AppDispatcher>,
-) {
-    section.set_visible(!notes.is_empty());
-    if notes.is_empty() {
-        return;
+fn append_browser_prelude(feed_store: &gtk::gio::ListStore, model: &AppModel) {
+    feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Hero));
+    if model.browser.search_query.trim().is_empty()
+        && let LoadState::Ready(notes) = &model.browser.favorites.state
+        && !notes.is_empty()
+    {
+        feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Favorites(
+            notes.clone(),
+        )));
     }
-    append_favorites_heading(list);
-    for note in notes {
-        let row = browser_row(note, show_category, sidebar, dispatcher);
-        row.set_widget_name(&format!("favorite-note:{}", note.id));
-        list.append(&row);
+}
+
+fn append_browser_footer(feed_store: &gtk::gio::ListStore, model: &AppModel) {
+    let loading = model.browser.append_request.is_some();
+    if model.browser.has_more || model.browser.append_error.is_some() {
+        let label = if loading {
+            "Loading more notes…"
+        } else if model.browser.append_error.is_some() {
+            "Retry loading notes"
+        } else {
+            "Load more notes"
+        };
+        feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::LoadMore {
+            label: label.to_string(),
+            sensitive: !loading,
+        }));
+    }
+}
+
+fn remove_browser_footer(feed_store: &gtk::gio::ListStore) {
+    let Some(position) = feed_store.n_items().checked_sub(1) else {
+        return;
+    };
+    let Some(item) = feed_store
+        .item(position)
+        .and_downcast::<glib::BoxedAnyObject>()
+    else {
+        return;
+    };
+    if matches!(
+        &*item.borrow::<BrowserFeedItem>(),
+        BrowserFeedItem::LoadMore { .. }
+    ) {
+        feed_store.remove(position);
     }
 }
 
@@ -994,53 +913,11 @@ fn resource_label<T>(resource: &LoadState<T>, empty: &'static str) -> &'static s
     }
 }
 
-fn clear_list(list: &gtk::ListBox) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-}
-
-fn browser_row(
-    note: &carver_sdk::NoteSummary,
-    show_category: bool,
-    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
-    dispatcher: Option<&AppDispatcher>,
-) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_widget_name(&format!("note:{}", note.id));
-    row.add_css_class("card");
-    row.add_css_class("activatable");
-    row.add_css_class("note-card");
-    let context = BrowserFeedContext {
-        show_category,
-        sidebar: sidebar.clone(),
-    };
-    row.set_child(Some(&crate::ui::browser::note_feed_card(
-        note, &context, dispatcher,
-    )));
-    row
-}
-
 fn append_section_heading(list: &gtk::ListBox, text: &str) {
     let label = gtk::Label::new(Some(text));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
     append_section_heading_widget(list, &label);
-}
-
-fn append_favorites_heading(list: &gtk::ListBox) {
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    content.set_halign(gtk::Align::Start);
-    let label = gtk::Label::new(Some("Favorites"));
-    label.set_xalign(0.0);
-    label.add_css_class("date-heading-label");
-    content.append(&label);
-    let icon = gtk::Image::from_icon_name("starred-symbolic");
-    icon.set_widget_name("favorites-heading-icon");
-    icon.set_pixel_size(14);
-    icon.set_valign(gtk::Align::Center);
-    content.append(&icon);
-    append_section_heading_widget(list, &content);
 }
 
 fn append_section_heading_widget(list: &gtk::ListBox, child: &impl IsA<gtk::Widget>) {

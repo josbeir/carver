@@ -107,18 +107,23 @@ impl NoteDateGroup {
 pub(crate) struct BrowserFeedContext {
     pub(crate) show_category: bool,
     pub(crate) sidebar: LoadState<Vec<CategorySummary>>,
+    pub(crate) selected_category: Option<carver_sdk::CategoryId>,
+    pub(crate) favorites: Vec<(carver_sdk::NoteId, carver_sdk::Revision)>,
 }
 
 #[derive(Clone)]
 pub(crate) enum BrowserFeedItem {
+    Hero,
+    Favorites(Vec<NoteSummary>),
+    SearchEmpty,
+    CategoryEmpty,
     Heading(NoteDateGroup),
     Note(NoteSummary),
+    LoadMore { label: String, sensitive: bool },
 }
 
 /// Widget references needed to render the browser portion of a window snapshot.
 pub(crate) struct BrowserViewRefs {
-    pub(crate) favorites_section: gtk::Box,
-    pub(crate) favorites: gtk::ListBox,
     pub(crate) list: gtk::ListView,
     pub(crate) feed_store: gtk::gio::ListStore,
     pub(crate) feed_context: Rc<RefCell<BrowserFeedContext>>,
@@ -126,14 +131,8 @@ pub(crate) struct BrowserViewRefs {
     pub(crate) search_bar: gtk::SearchBar,
     pub(crate) search_entry: gtk::SearchEntry,
     pub(crate) search_toggle: gtk::ToggleButton,
-    pub(crate) search_empty_card: gtk::Box,
-    pub(crate) category_empty_card: gtk::Box,
     pub(crate) empty_new_note_button: gtk::Button,
-    pub(crate) category_empty_new_note_button: gtk::Button,
-    pub(crate) category_hero: gtk::Box,
     pub(crate) status: adw::StatusPage,
-    pub(crate) scroll: gtk::ScrolledWindow,
-    pub(crate) load_more: gtk::Button,
 }
 
 /// The complete content surface and the view references it creates.
@@ -306,10 +305,6 @@ fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
 }
 
 /// Builds the default recent-note and search view.
-#[expect(
-    clippy::too_many_lines,
-    reason = "The browser composition keeps related GTK ownership in one place"
-)]
 pub(crate) fn build_browser(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
@@ -333,37 +328,12 @@ pub(crate) fn build_browser(
     view.add_top_bar(&header);
     view.add_top_bar(&search_bar);
 
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    content.set_margin_start(18);
-    content.set_margin_end(18);
-    content.set_margin_top(18);
-    content.set_margin_bottom(18);
-    let category_hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    category_hero.set_widget_name("browser-category-hero");
-    category_hero.add_css_class("category-hero");
-    content.append(&category_hero);
-    let (favorites_section, favorites) = build_favorites_section();
-    content.append(&favorites_section);
-    let search_empty_card = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    search_empty_card.set_widget_name("browser-search-empty-card");
-    search_empty_card.add_css_class("card");
-    search_empty_card.add_css_class("search-empty-card");
-    search_empty_card.set_visible(false);
-    let search_empty_title = gtk::Label::new(Some("No matching notes"));
-    search_empty_title.set_xalign(0.0);
-    search_empty_title.add_css_class("search-empty-card-title");
-    let search_empty_description = gtk::Label::new(Some("Try a different search term."));
-    search_empty_description.set_xalign(0.0);
-    search_empty_description.add_css_class("dim-label");
-    search_empty_card.append(&search_empty_title);
-    search_empty_card.append(&search_empty_description);
-    content.append(&search_empty_card);
-    let (category_empty_card, category_empty_new_note) = build_category_empty_card();
-    content.append(&category_empty_card);
     let feed_store = gtk::gio::ListStore::new::<glib::BoxedAnyObject>();
     let feed_context = Rc::new(RefCell::new(BrowserFeedContext {
         show_category: true,
         sidebar: LoadState::Idle,
+        selected_category: None,
+        favorites: Vec::new(),
     }));
     let selection = gtk::SingleSelection::new(Some(feed_store.clone()));
     selection.set_autoselect(false);
@@ -375,28 +345,14 @@ pub(crate) fn build_browser(
     list.set_widget_name("note-list");
     list.add_css_class("note-feed");
     list.set_single_click_activate(true);
-    content.append(&list);
-    let load_more = gtk::Button::with_label("Load more notes");
-    load_more.set_widget_name("browser-load-more");
-    load_more.add_css_class("flat");
-    load_more.set_halign(gtk::Align::Center);
-    load_more.set_visible(false);
-    content.append(&load_more);
-
-    // The browser is one document: its hero, Favorites spotlight, note feed, and
-    // paging footer must all move through the same scroll surface.  ListView still
-    // needs that adjustment so it can virtualize its rows instead of measuring the
-    // complete feed as a static child of the document.
-    let scroll = gtk::ScrolledWindow::new();
+    // ClampScrollable is the list's direct scroll owner. Keeping every browser
+    // element in the typed feed avoids competing nested scroll adjustments.
+    let scroll = adw::ClampScrollable::new();
     scroll.set_widget_name("browser-content-scroll");
     scroll.set_vexpand(true);
-    let clamp = adw::Clamp::new();
-    clamp.set_widget_name("browser-content-clamp");
-    clamp.set_maximum_size(720);
-    clamp.set_tightening_threshold(520);
-    clamp.set_child(Some(&content));
-    scroll.set_child(Some(&clamp));
-    list.set_vadjustment(Some(&scroll.vadjustment()));
+    scroll.set_maximum_size(720);
+    scroll.set_tightening_threshold(520);
+    scroll.set_child(Some(&list));
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
     pages.add_named(&scroll, Some("contents"));
@@ -429,15 +385,13 @@ pub(crate) fn build_browser(
             let item = item.borrow::<BrowserFeedItem>();
             match &*item {
                 BrowserFeedItem::Note(note) => note.id,
-                BrowserFeedItem::Heading(_) => return,
+                _ => return,
             }
         };
         let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
     });
 
     let references = BrowserViewRefs {
-        favorites_section,
-        favorites,
         list,
         feed_store,
         feed_context,
@@ -445,14 +399,8 @@ pub(crate) fn build_browser(
         search_bar,
         search_entry: search,
         search_toggle,
-        search_empty_card,
-        category_empty_card,
         empty_new_note_button: empty_new_note,
-        category_empty_new_note_button: category_empty_new_note,
-        category_hero,
         status,
-        scroll: scroll.clone(),
-        load_more,
     };
     connect_browser_actions(dispatcher, &references, &new_note);
     connect_browser_paging(dispatcher, &references);
@@ -461,20 +409,16 @@ pub(crate) fn build_browser(
 }
 
 fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRefs) {
-    let dispatcher_for_button = dispatcher.clone();
-    references.load_more.connect_clicked(move |_| {
-        let _ = dispatcher_for_button.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
-    });
     let dispatcher_for_scroll = dispatcher.clone();
-    references
-        .scroll
-        .vadjustment()
-        .connect_value_changed(move |adjustment| {
-            let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
-            if remaining <= adjustment.page_size() * 2.0 {
-                let _ = dispatcher_for_scroll.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
-            }
-        });
+    let Some(adjustment) = references.list.vadjustment() else {
+        return;
+    };
+    adjustment.connect_value_changed(move |adjustment| {
+        let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
+        if remaining <= adjustment.page_size() * 2.0 {
+            let _ = dispatcher_for_scroll.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
+        }
+    });
 }
 
 fn build_favorites_section() -> (gtk::Box, gtk::ListBox) {
@@ -522,6 +466,22 @@ fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
     card.append(&description);
     card.append(&new_note);
     (card, new_note)
+}
+
+fn build_search_empty_card() -> gtk::Box {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    card.set_widget_name("browser-search-empty-card");
+    card.add_css_class("card");
+    card.add_css_class("search-empty-card");
+    let title = gtk::Label::new(Some("No matching notes"));
+    title.set_xalign(0.0);
+    title.add_css_class("search-empty-card-title");
+    let description = gtk::Label::new(Some("Try a different search term."));
+    description.set_xalign(0.0);
+    description.add_css_class("dim-label");
+    card.append(&title);
+    card.append(&description);
+    card
 }
 
 fn build_note_search_controls() -> (gtk::SearchBar, gtk::SearchEntry, gtk::ToggleButton) {
@@ -607,8 +567,6 @@ fn connect_browser_actions(
     });
     connect_new_note_action(dispatcher, new_note);
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
-    connect_new_note_action(dispatcher, &references.category_empty_new_note_button);
-    connect_note_row_activation(dispatcher, &references.favorites);
 }
 
 fn browser_feed_factory(
@@ -643,7 +601,39 @@ fn browser_feed_factory(
             return;
         };
         let feed_item = object.borrow::<BrowserFeedItem>().clone();
+        container.set_margin_start(18);
+        container.set_margin_end(18);
         match feed_item {
+            BrowserFeedItem::Hero => {
+                container.set_margin_top(18);
+                container.set_margin_bottom(2);
+                let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                hero.set_widget_name("browser-category-hero");
+                hero.add_css_class("category-hero");
+                render_category_hero(
+                    &hero,
+                    &context.borrow().sidebar,
+                    context.borrow().selected_category,
+                    Some(&dispatcher),
+                );
+                container.append(&hero);
+            }
+            BrowserFeedItem::Favorites(notes) => {
+                let context = context.borrow().clone();
+                container.set_margin_bottom(4);
+                container.append(&favorites_feed_section(&notes, &context, &dispatcher));
+            }
+            BrowserFeedItem::SearchEmpty => {
+                container.set_margin_top(12);
+                container.append(&build_search_empty_card());
+            }
+            BrowserFeedItem::CategoryEmpty => {
+                container.set_margin_top(12);
+                let (card, new_note) = build_category_empty_card();
+                card.set_visible(true);
+                connect_new_note_action(&dispatcher, &new_note);
+                container.append(&card);
+            }
             BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
             BrowserFeedItem::Note(note) => {
                 let context = context.borrow().clone();
@@ -656,9 +646,66 @@ fn browser_feed_factory(
                 container.set_margin_bottom(6);
                 populate_note_card(&container, &note, &context, Some(&dispatcher));
             }
+            BrowserFeedItem::LoadMore { label, sensitive } => {
+                container.set_margin_top(8);
+                container.set_margin_bottom(18);
+                let button = gtk::Button::with_label(&label);
+                button.set_widget_name("browser-load-more");
+                button.add_css_class("flat");
+                button.set_halign(gtk::Align::Center);
+                button.set_sensitive(sensitive);
+                let dispatcher = dispatcher.clone();
+                button.connect_clicked(move |_| {
+                    let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
+                });
+                container.append(&button);
+            }
         }
     });
     factory
+}
+
+fn favorites_feed_section(
+    notes: &[NoteSummary],
+    context: &BrowserFeedContext,
+    dispatcher: &AppDispatcher,
+) -> gtk::Widget {
+    let (section, list) = build_favorites_section();
+    section.set_visible(!notes.is_empty());
+    if notes.is_empty() {
+        return section.upcast();
+    }
+    append_favorites_heading(&list);
+    for note in notes {
+        let row = gtk::ListBoxRow::new();
+        row.set_widget_name(&format!("favorite-note:{}", note.id));
+        row.add_css_class("card");
+        row.add_css_class("activatable");
+        row.add_css_class("note-card");
+        row.set_child(Some(&note_feed_card(note, context, Some(dispatcher))));
+        list.append(&row);
+    }
+    connect_note_row_activation(dispatcher, &list);
+    section.upcast()
+}
+
+fn append_favorites_heading(list: &gtk::ListBox) {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.set_halign(gtk::Align::Start);
+    let label = gtk::Label::new(Some("Favorites"));
+    label.set_xalign(0.0);
+    label.add_css_class("date-heading-label");
+    content.append(&label);
+    let icon = gtk::Image::from_icon_name("starred-symbolic");
+    icon.set_widget_name("favorites-heading-icon");
+    icon.set_pixel_size(14);
+    icon.set_valign(gtk::Align::Center);
+    content.append(&icon);
+    let row = gtk::ListBoxRow::new();
+    row.set_selectable(false);
+    row.add_css_class("date-heading");
+    row.set_child(Some(&content));
+    list.append(&row);
 }
 
 fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {

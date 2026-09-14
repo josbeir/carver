@@ -131,28 +131,22 @@ fn browser_view_refs(
     status: libadwaita::StatusPage,
 ) -> crate::ui::browser::BrowserViewRefs {
     crate::ui::browser::BrowserViewRefs {
-        favorites_section: gtk::Box::new(gtk::Orientation::Vertical, 0),
-        favorites: gtk::ListBox::new(),
         list,
         feed_store: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
         feed_context: std::rc::Rc::new(std::cell::RefCell::new(
             crate::ui::browser::BrowserFeedContext {
                 show_category: true,
                 sidebar: crate::mvu::LoadState::Idle,
+                selected_category: None,
+                favorites: Vec::new(),
             },
         )),
         pages,
         search_bar: gtk::SearchBar::new(),
         search_entry: gtk::SearchEntry::new(),
         search_toggle: gtk::ToggleButton::new(),
-        search_empty_card: gtk::Box::new(gtk::Orientation::Vertical, 0),
-        category_empty_card: gtk::Box::new(gtk::Orientation::Vertical, 0),
         empty_new_note_button: gtk::Button::new(),
-        category_empty_new_note_button: gtk::Button::new(),
-        category_hero: gtk::Box::new(gtk::Orientation::Vertical, 0),
         status,
-        scroll: gtk::ScrolledWindow::new(),
-        load_more: gtk::Button::new(),
     }
 }
 
