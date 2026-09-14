@@ -74,6 +74,7 @@ pub(crate) fn build_base(
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_widget_name("base-scroll");
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    scroll.set_vexpand(true);
     scroll.set_child(Some(&grid));
     let status = adw::StatusPage::builder()
         .icon_name("view-grid-symbolic")
@@ -87,6 +88,7 @@ pub(crate) fn build_base(
     load_more.set_halign(gtk::Align::Center);
     load_more.set_visible(false);
     let grid_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    grid_content.set_vexpand(true);
     grid_content.append(&scroll);
     grid_content.append(&load_more);
     let pages = gtk::Stack::new();

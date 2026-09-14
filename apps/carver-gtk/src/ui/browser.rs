@@ -345,14 +345,17 @@ pub(crate) fn build_browser(
     list.set_widget_name("note-list");
     list.add_css_class("note-feed");
     list.set_single_click_activate(true);
-    // ClampScrollable is the list's direct scroll owner. Keeping every browser
-    // element in the typed feed avoids competing nested scroll adjustments.
-    let scroll = adw::ClampScrollable::new();
+    // GtkScrolledWindow owns the viewport and adjustment. ClampScrollable only
+    // constrains the direct virtual child and forwards that adjustment to it.
+    let clamp = adw::ClampScrollable::new();
+    clamp.set_widget_name("browser-content-clamp");
+    clamp.set_maximum_size(720);
+    clamp.set_tightening_threshold(520);
+    clamp.set_child(Some(&list));
+    let scroll = gtk::ScrolledWindow::new();
     scroll.set_widget_name("browser-content-scroll");
     scroll.set_vexpand(true);
-    scroll.set_maximum_size(720);
-    scroll.set_tightening_threshold(520);
-    scroll.set_child(Some(&list));
+    scroll.set_child(Some(&clamp));
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
     pages.add_named(&scroll, Some("contents"));
