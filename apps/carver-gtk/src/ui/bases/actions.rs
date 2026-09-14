@@ -721,9 +721,9 @@ fn show_base_configuration_dialog(
             "Choose the columns shown in this Base. Name is always included.",
         ));
         visible_content.append(&columns_box);
+        visible_content.append(&add_picker.button);
         let visible_section = collapsible_section(
             "Visible fields",
-            &add_picker.button,
             &visible_content,
             true,
             "base-visible-fields-section",
@@ -809,9 +809,9 @@ fn show_base_configuration_dialog(
     filter_content.append(&filter_mode);
     filter_content.append(&preview);
     filter_content.append(&filter_box);
+    filter_content.append(&add_filter);
     let filters_section = collapsible_section(
         "Filters",
-        &add_filter,
         &filter_content,
         !definition.filters.is_empty(),
         "base-filters-section",
@@ -857,9 +857,9 @@ fn show_base_configuration_dialog(
         "Sort rules are applied from top to bottom.",
     ));
     sort_content.append(&sort_box);
+    sort_content.append(&add_sort);
     let sort_section = collapsible_section(
         "Sort",
-        &add_sort,
         &sort_content,
         !definition.sorts.is_empty(),
         "base-sort-section",
@@ -1017,16 +1017,6 @@ fn section_label(text: &str) -> gtk::Label {
     label
 }
 
-fn section_header(text: &str, action: &gtk::Button) -> gtk::Box {
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    header.set_hexpand(true);
-    let label = section_label(text);
-    label.set_hexpand(true);
-    header.append(&label);
-    header.append(action);
-    header
-}
-
 fn section_content() -> gtk::Box {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
     content.set_hexpand(true);
@@ -1039,7 +1029,6 @@ fn section_content() -> gtk::Box {
 
 fn collapsible_section(
     title: &str,
-    action: &gtk::Button,
     child: &gtk::Box,
     initial_expanded: bool,
     widget_name: &str,
@@ -1048,7 +1037,7 @@ fn collapsible_section(
     expander.set_widget_name(widget_name);
     expander.set_hexpand(true);
     expander.set_resize_toplevel(true);
-    expander.set_label_widget(Some(&section_header(title, action)));
+    expander.set_label_widget(Some(&section_label(title)));
     expander.set_child(Some(child));
     expander.set_expanded(initial_expanded);
     expander.update_property(&[gtk::accessible::Property::Label(title)]);
@@ -1090,7 +1079,7 @@ fn section_action(label: &str) -> gtk::Button {
 
 fn style_section_action(button: &gtk::Button, accessible_label: &str) {
     button.set_size_request(-1, 32);
-    button.set_halign(gtk::Align::End);
+    button.set_halign(gtk::Align::Start);
     button.set_valign(gtk::Align::Center);
     button.set_tooltip_text(Some(accessible_label));
     button.update_property(&[gtk::accessible::Property::Label(accessible_label)]);
