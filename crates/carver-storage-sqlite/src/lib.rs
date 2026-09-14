@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+mod base_query;
+
 use std::{
     fs,
     io::Write,
@@ -15,11 +17,11 @@ use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note, NoteId,
     NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
-    project_base_rows, project_frontmatter, property_descriptors,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content, fold_base_text,
+    project_frontmatter, property_descriptors,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision};
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -324,6 +326,7 @@ impl SqliteLibrary {
         fs::create_dir_all(assets_dir)?;
         let mut connection = Connection::open(database_path)?;
         connection.busy_timeout(Duration::from_secs(5))?;
+        install_base_functions(&connection)?;
         connection.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
@@ -375,7 +378,7 @@ impl SqliteLibrary {
         )?;
         let mut definition =
             BaseDefinition::defaults(id, name.to_owned(), columns.to_vec(), revision);
-        definition.row_count = self.base_rows(id)?.len();
+        definition.row_count = self.base_row_count(definition.filter_mode, &definition.filters)?;
         Ok(definition)
     }
 
@@ -407,22 +410,9 @@ impl SqliteLibrary {
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
-        let rows = if definitions.is_empty() {
-            Vec::new()
-        } else {
-            self.active_base_rows()?
-        };
         for definition in &mut definitions {
-            definition.row_count = rows
-                .iter()
-                .filter(|row| {
-                    carver_domain::base_row_matches(
-                        row,
-                        definition.filter_mode,
-                        &definition.filters,
-                    )
-                })
-                .count();
+            definition.row_count =
+                self.base_row_count(definition.filter_mode, &definition.filters)?;
         }
         Ok(definitions)
     }
@@ -493,7 +483,7 @@ impl SqliteLibrary {
             revision: next_revision,
             row_count: 0,
         };
-        definition.row_count = self.base_rows(base_id)?.len();
+        definition.row_count = self.base_row_count(definition.filter_mode, &definition.filters)?;
         Ok(definition)
     }
 
@@ -513,12 +503,52 @@ impl SqliteLibrary {
             .optional()?
             .ok_or(StorageError::MutationUnavailable)?;
         let payload = decode_base_payload(&raw_definition)?;
-        Ok(project_base_rows(
-            self.active_base_rows()?,
-            payload.filter_mode,
-            &payload.filters,
-            &payload.sorts,
-        ))
+        self.query_base_rows(payload.filter_mode, &payload.filters, &payload.sorts)
+    }
+
+    fn query_base_rows(
+        &self,
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<Vec<BaseRow>, StorageError> {
+        let plan = base_query::compile_base_query(filter_mode, filters, sorts);
+        let filter = plan
+            .filter_sql
+            .as_deref()
+            .map_or_else(String::new, |filter| format!(" AND {filter}"));
+        let sql = format!(
+            "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
+             FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{filter}
+             ORDER BY {}",
+            plan.order_sql
+        );
+        let mut statement = self.connection.prepare(&sql)?;
+        statement
+            .query_map(params_from_iter(plan.parameters.iter()), base_row_from_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::Database)
+    }
+
+    fn base_row_count(
+        &self,
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+    ) -> Result<usize, StorageError> {
+        let (filter_sql, parameters) = base_query::compile_base_filter(filter_mode, filters);
+        let filter = filter_sql
+            .as_deref()
+            .map_or_else(String::new, |filter| format!(" AND {filter}"));
+        let sql = format!(
+            "SELECT COUNT(*) FROM notes n JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{filter}"
+        );
+        let count: i64 =
+            self.connection
+                .query_row(&sql, params_from_iter(parameters.iter()), |row| row.get(0))?;
+        usize::try_from(count)
+            .map_err(|error| StorageError::Corrupt(format!("invalid base row count: {error}")))
     }
 
     /// Returns unfiltered projections of all active notes for configuration previews.
@@ -532,30 +562,7 @@ impl SqliteLibrary {
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL ORDER BY n.updated_at DESC",
         )?;
         let rows = statement
-            .query_map([], |row| {
-                let raw: Option<String> = row.get(5)?;
-                let properties = raw
-                    .as_deref()
-                    .map(serde_json::from_str)
-                    .transpose()
-                    .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))?
-                    .unwrap_or(serde_json::Value::Null);
-                let updated = parse_timestamp(row.get(4)?)
-                    .and_then(|timestamp| {
-                        timestamp
-                            .format(&Rfc3339)
-                            .map_err(|error| StorageError::Corrupt(error.to_string()))
-                    })
-                    .map_err(to_sql_error)?;
-                Ok(BaseRow {
-                    note_id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
-                    revision: Revision(row.get(1)?),
-                    name: row.get(2)?,
-                    category: row.get(3)?,
-                    updated,
-                    properties,
-                })
-            })?
+            .query_map([], base_row_from_row)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
         Ok(rows)
@@ -1842,6 +1849,46 @@ fn parse_timestamp(value: i64) -> Result<OffsetDateTime, StorageError> {
     OffsetDateTime::from_unix_timestamp(value)
         .map_err(|error| StorageError::Corrupt(error.to_string()))
 }
+
+fn base_row_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BaseRow> {
+    let raw: Option<String> = row.get(5)?;
+    let properties = raw
+        .as_deref()
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))?
+        .unwrap_or(serde_json::Value::Null);
+    let updated = parse_timestamp(row.get(4)?)
+        .and_then(|timestamp| {
+            timestamp
+                .format(&Rfc3339)
+                .map_err(|error| StorageError::Corrupt(error.to_string()))
+        })
+        .map_err(to_sql_error)?;
+    Ok(BaseRow {
+        note_id: note_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
+        revision: Revision(row.get(1)?),
+        name: row.get(2)?,
+        category: row.get(3)?,
+        updated,
+        properties,
+    })
+}
+
+fn install_base_functions(connection: &Connection) -> rusqlite::Result<()> {
+    use rusqlite::functions::FunctionFlags;
+
+    connection.create_scalar_function(
+        "carver_casefold",
+        1,
+        FunctionFlags::SQLITE_DETERMINISTIC | FunctionFlags::SQLITE_UTF8,
+        |context| {
+            let text = context.get::<Option<String>>(0)?;
+            Ok(text.map(|text| fold_base_text(&text)))
+        },
+    )
+}
+
 fn to_sql_error(error: StorageError) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error))
 }

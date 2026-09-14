@@ -259,7 +259,9 @@ fn field_value(row: &BaseRow, field: &BaseColumn) -> Option<Value> {
     }
 }
 
-fn folded(text: &str) -> String {
+/// Returns the normalized, Unicode case-folded form used for Base text comparisons.
+#[must_use]
+pub fn fold_base_text(text: &str) -> String {
     use caseless::Caseless;
     use unicode_normalization::UnicodeNormalization;
     text.nfd().default_case_fold().nfd().collect()
@@ -267,7 +269,9 @@ fn folded(text: &str) -> String {
 
 fn scalar_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::String(left), Value::String(right)) => folded(left) == folded(right),
+        (Value::String(left), Value::String(right)) => {
+            fold_base_text(left) == fold_base_text(right)
+        }
         (Value::Number(left), Value::Number(right)) => left == right,
         (Value::Bool(left), Value::Bool(right)) => left == right,
         _ => false,
@@ -304,8 +308,8 @@ fn filter_matches(row: &BaseRow, filter: &BaseFilter) -> bool {
             let Some(Value::String(expected)) = filter.value.as_ref() else {
                 return false;
             };
-            let actual = folded(actual);
-            let expected = folded(expected);
+            let actual = fold_base_text(actual);
+            let expected = fold_base_text(expected);
             if matches!(filter.operator, BaseFilterOperator::Contains) {
                 actual.contains(&expected)
             } else {
@@ -418,7 +422,9 @@ fn compare_values(left: &Value, right: &Value) -> Ordering {
     rank(left)
         .cmp(&rank(right))
         .then_with(|| match (left, right) {
-            (Value::String(left), Value::String(right)) => folded(left).cmp(&folded(right)),
+            (Value::String(left), Value::String(right)) => {
+                fold_base_text(left).cmp(&fold_base_text(right))
+            }
             (Value::Number(left), Value::Number(right)) => left
                 .as_f64()
                 .partial_cmp(&right.as_f64())

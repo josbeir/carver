@@ -17,8 +17,8 @@ pub mod source_analysis;
 pub use bases::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, FrontmatterProjection, PropertyDescriptor, PropertyKind,
-    PropertyPath, base_row_matches, project_base_rows, project_frontmatter, property_descriptors,
-    property_paths,
+    PropertyPath, base_row_matches, fold_base_text, project_base_rows, project_frontmatter,
+    property_descriptors, property_paths,
 };
 
 /// A document representation accepted by Carver's import pipeline.

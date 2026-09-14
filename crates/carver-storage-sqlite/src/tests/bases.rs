@@ -1,5 +1,189 @@
 use super::*;
-use carver_domain::BaseFilterOperator;
+use carver_domain::{BaseFilterOperator, BaseSort, BaseSortDirection, project_base_rows};
+
+fn query_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
+    let (directory, library) = library();
+    let category = library
+        .create_category("Projects", OffsetDateTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    for (source, updated) in [
+        (
+            "---yaml\nstatus: État\nscore: 2\nenabled: true\ntags: [Rust, notes]\nproject/status: ready\n---\n# First",
+            OffsetDateTime::UNIX_EPOCH,
+        ),
+        (
+            "---yaml\nstatus: done\nscore: 10\nenabled: false\ntags: [other]\nproject/status: waiting\n---\n# Second",
+            OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(1),
+        ),
+        (
+            "---yaml\nstatus: pending\ntags: []\n---\n# Third",
+            OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(2),
+        ),
+    ] {
+        library
+            .create_note_with_source(category.id, source, updated)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+    }
+    let base = library
+        .create_base("Query", &[])
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    (directory, library, base)
+}
+
+fn assert_sql_projection_matches_domain(
+    library: &SqliteLibrary,
+    base: &BaseDefinition,
+    filter_mode: BaseFilterMode,
+    filters: &[BaseFilter],
+    sorts: &[BaseSort],
+) {
+    let expected = project_base_rows(
+        library
+            .active_base_rows()
+            .unwrap_or_else(|error| panic!("active rows failed: {error}")),
+        filter_mode,
+        filters,
+        sorts,
+    );
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            filter_mode,
+            filters,
+            sorts,
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+    let rows = library
+        .base_rows(updated.id)
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"));
+    assert_eq!(rows, expected);
+    assert_eq!(updated.row_count, expected.len());
+}
+
+#[test]
+fn json1_query_should_match_unicode_text_filters() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/status".to_owned())),
+            operator: BaseFilterOperator::Equals,
+            value: Some(serde_json::json!("e\u{301}TAT")),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_match_list_membership_filters() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/tags".to_owned())),
+            operator: BaseFilterOperator::ListContains,
+            value: Some(serde_json::json!("rust")),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_match_numeric_filters_and_property_sorts() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/score".to_owned())),
+            operator: BaseFilterOperator::GreaterOrEqual,
+            value: Some(serde_json::json!(2)),
+        }],
+        &[BaseSort {
+            field: BaseColumn::Property(PropertyPath("/score".to_owned())),
+            direction: BaseSortDirection::Descending,
+        }],
+    );
+}
+
+#[test]
+fn json1_query_should_match_boolean_filters() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/enabled".to_owned())),
+            operator: BaseFilterOperator::Equals,
+            value: Some(serde_json::json!(true)),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_match_not_equals_null_as_a_presence_check() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/enabled".to_owned())),
+            operator: BaseFilterOperator::NotEquals,
+            value: Some(serde_json::Value::Null),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_match_escaped_property_paths() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::All,
+        &[BaseFilter {
+            field: BaseColumn::Property(PropertyPath("/project~1status".to_owned())),
+            operator: BaseFilterOperator::Equals,
+            value: Some(serde_json::json!("ready")),
+        }],
+        &[],
+    );
+}
+
+#[test]
+fn json1_query_should_match_any_filter_mode() {
+    let (_directory, library, base) = query_fixture();
+    assert_sql_projection_matches_domain(
+        &library,
+        &base,
+        BaseFilterMode::Any,
+        &[
+            BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/status".to_owned())),
+                operator: BaseFilterOperator::StartsWith,
+                value: Some(serde_json::json!("é")),
+            },
+            BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/score".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(serde_json::json!(5)),
+            },
+        ],
+        &[],
+    );
+}
 
 #[test]
 fn base_rows_should_project_yaml_json_and_toml_frontmatter() {
