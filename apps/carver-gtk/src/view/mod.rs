@@ -292,6 +292,7 @@ impl ViewRefs {
                 dispatcher,
             );
             crate::ui::bases::render_base(refs, definition, rows, dispatcher);
+            refs.grid.set_sensitive(!model.bases.saving_configuration);
             let loading = model.bases.rows_append_request.is_some();
             refs.load_more
                 .set_visible(model.bases.rows_has_more || model.bases.rows_append_error.is_some());

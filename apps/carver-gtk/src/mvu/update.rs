@@ -145,6 +145,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 .into_iter()
                 .collect()
         }
+        BasesMsg::SetSorts { sorts } => save_base_sorts(model, sorts),
         BasesMsg::Open(base_id) => {
             if model.route == super::Route::Editor {
                 model.pending_navigation = Some(PendingNavigation::Base(base_id));
@@ -424,6 +425,37 @@ fn reset_base_search(model: &mut AppModel) {
     model.bases.search_open = false;
     model.bases.search_query.clear();
     model.bases.search_timer = None;
+}
+
+fn save_base_sorts(model: &mut AppModel, sorts: Vec<carver_sdk::BaseSort>) -> Vec<Effect> {
+    if model.route != super::Route::Base || model.bases.saving_configuration {
+        return Vec::new();
+    }
+    let super::LoadState::Ready(definitions) = &model.bases.definitions.state else {
+        return Vec::new();
+    };
+    let Some(definition) = definitions
+        .iter()
+        .find(|definition| Some(definition.id) == model.bases.selected)
+        .cloned()
+    else {
+        return Vec::new();
+    };
+    if definition.sorts == sorts {
+        return Vec::new();
+    }
+    update_bases(
+        model,
+        BasesMsg::Update {
+            base_id: definition.id,
+            revision: definition.revision,
+            name: definition.name,
+            columns: definition.columns,
+            filter_mode: definition.filter_mode,
+            filters: definition.filters,
+            sorts,
+        },
+    )
 }
 
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {

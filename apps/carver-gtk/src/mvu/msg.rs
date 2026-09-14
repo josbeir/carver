@@ -83,6 +83,11 @@ pub enum BasesMsg {
     SearchChanged(String),
     /// A delayed Base search timer fired.
     SearchTimerFired(TimerId),
+    /// Replace the saved ordering selected through the native Base table headers.
+    SetSorts {
+        /// Ordered rules selected by the header sorter.
+        sorts: Vec<BaseSort>,
+    },
     /// Open the configuration dialog for the selected Base.
     Configure,
     /// Prepare the shared configuration dialog for a new Base.

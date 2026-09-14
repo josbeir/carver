@@ -1,4 +1,5 @@
 use super::*;
+use carver_sdk::{BaseSort, BaseSortDirection};
 
 #[test]
 fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
@@ -784,6 +785,49 @@ fn base_update_should_forward_configuration_and_reload_rows() {
     assert!(
         matches!(effects.as_slice(), [Effect::UpdateBase { base_id: id, revision: Revision(3), .. }] if *id == base_id)
     );
+}
+
+#[test]
+fn base_header_sorts_should_forward_the_native_sort_order() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    let definition = BaseDefinition {
+        id: base_id,
+        name: "Projects".to_owned(),
+        columns: vec![BaseColumn::Name, BaseColumn::Category],
+        filter_mode: BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: Revision(3),
+        row_count: 0,
+    };
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::SetSorts {
+            sorts: vec![
+                BaseSort {
+                    field: BaseColumn::Name,
+                    direction: BaseSortDirection::Descending,
+                },
+                BaseSort {
+                    field: BaseColumn::Category,
+                    direction: BaseSortDirection::Ascending,
+                },
+            ],
+        }),
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::UpdateBase { sorts, .. }]
+            if sorts == &vec![
+                BaseSort { field: BaseColumn::Name, direction: BaseSortDirection::Descending },
+                BaseSort { field: BaseColumn::Category, direction: BaseSortDirection::Ascending },
+            ]
+    ));
 }
 
 #[test]

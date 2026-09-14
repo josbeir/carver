@@ -152,6 +152,82 @@ pub(super) fn base_search_should_open_and_clear_from_native_controls() -> TestRe
     Ok(())
 }
 
+pub(super) fn base_header_sort_should_persist_from_native_controls() -> TestResult {
+    let (_temp, client) = test_state()?;
+    let base = glib::MainContext::default().block_on(client.create_base_async(
+        "Projects".to_owned(),
+        vec![
+            carver_sdk::BaseColumn::Name,
+            carver_sdk::BaseColumn::Category,
+        ],
+    ))?;
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &std::rc::Rc::new(std::cell::Cell::new(false)),
+    );
+    let grid = refs.grid.clone();
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&carver_config::Config::default());
+    model.bases.definitions.state = LoadState::Ready(vec![base.clone()]);
+    model.bases.selected = Some(base.id);
+    model.bases.rows.state = LoadState::Ready(vec![carver_sdk::BaseRow {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        name: "Roadmap".to_owned(),
+        category: "Notes".to_owned(),
+        updated: "2026-09-14T12:00:00Z".to_owned(),
+        properties: serde_json::Value::Null,
+    }]);
+    model.route = Route::Base;
+    view.render(&model);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+
+    let category = grid
+        .columns()
+        .iter::<gtk::ColumnViewColumn>()
+        .filter_map(Result::ok)
+        .find(|column| column.id().as_deref() == Some("category"))
+        .ok_or("Category column")?;
+    grid.sort_by_column(Some(&category), gtk::SortType::Ascending);
+    assert!(run_main_context_until(|| {
+        glib::MainContext::default()
+            .block_on(client.bases_async())
+            .is_ok_and(|bases| {
+                bases.iter().any(|definition| {
+                    definition.id == base.id
+                        && definition.sorts
+                            == vec![carver_sdk::BaseSort {
+                                field: carver_sdk::BaseColumn::Category,
+                                direction: carver_sdk::BaseSortDirection::Ascending,
+                            }]
+                })
+            })
+    }));
+    assert!(
+        grid.sorter()
+            .and_downcast::<gtk::ColumnViewSorter>()
+            .and_then(|sorter| sorter.primary_sort_column())
+            .is_some_and(|column| column.id().as_deref() == Some("category"))
+    );
+    window.close();
+    Ok(())
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "The display-backed scenario exercises the complete configuration flow"

@@ -2,7 +2,9 @@
 pub(crate) mod actions;
 pub(crate) mod field_picker;
 
-use carver_sdk::{BaseColumn, BaseDefinition, BaseRow, NoteId, Revision};
+use carver_sdk::{
+    BaseColumn, BaseDefinition, BaseRow, BaseSort, BaseSortDirection, NoteId, Revision,
+};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -26,6 +28,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) status: adw::StatusPage,
     pub(crate) load_more: gtk::Button,
     pub(crate) rows: gtk::gio::ListStore,
+    pub(crate) syncing_header_sort: std::rc::Rc<std::cell::Cell<bool>>,
     pub(crate) rendered_definition: std::cell::RefCell<Option<BaseDefinition>>,
     pub(crate) rendered_rows: std::cell::RefCell<Vec<(NoteId, Revision)>>,
 }
@@ -82,6 +85,8 @@ pub(crate) fn build_base(
     grid.set_show_column_separators(true);
     grid.set_hexpand(true);
     grid.set_vexpand(true);
+    let syncing_header_sort = std::rc::Rc::new(std::cell::Cell::new(false));
+    connect_header_sorting(dispatcher, &grid, std::rc::Rc::clone(&syncing_header_sort));
 
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_widget_name("base-scroll");
@@ -152,6 +157,7 @@ pub(crate) fn build_base(
             status,
             load_more,
             rows,
+            syncing_header_sort,
             rendered_definition: std::cell::RefCell::new(None),
             rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
@@ -212,6 +218,7 @@ pub(crate) fn render_base(
 }
 
 fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher: &AppDispatcher) {
+    refs.syncing_header_sort.set(true);
     while let Some(column) = refs
         .grid
         .columns()
@@ -220,24 +227,33 @@ fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher:
     {
         refs.grid.remove_column(&column);
     }
-    append_column(&refs.grid, "Name", None, Some(dispatcher));
+    append_column(
+        &refs.grid,
+        &BaseColumn::Name,
+        "Name",
+        None,
+        Some(dispatcher),
+    );
     for column in &definition.columns {
         match column {
             BaseColumn::Name => {}
             BaseColumn::Category => {
-                append_column(&refs.grid, "Category", Some("category"), None);
+                append_column(&refs.grid, column, "Category", Some("category"), None);
             }
             BaseColumn::Updated => {
-                append_column(&refs.grid, "Updated", Some("updated"), None);
+                append_column(&refs.grid, column, "Updated", Some("updated"), None);
             }
             BaseColumn::Property(path) => append_column(
                 &refs.grid,
+                column,
                 path.0.trim_start_matches('/'),
                 Some(&path.0),
                 None,
             ),
         }
     }
+    apply_header_sort(&refs.grid, &definition.sorts);
+    refs.syncing_header_sort.set(false);
 }
 
 fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
@@ -259,6 +275,7 @@ fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
 
 fn append_column(
     grid: &gtk::ColumnView,
+    column_field: &BaseColumn,
     title: &str,
     field: Option<&str>,
     dispatcher: Option<&AppDispatcher>,
@@ -332,9 +349,91 @@ fn append_column(
         label.set_text(&value);
     });
     let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
+    column.set_id(Some(&header_column_id(column_field)));
+    column.set_sorter(Some(&gtk::CustomSorter::new(|_, _| gtk::Ordering::Equal)));
     column.set_resizable(true);
     column.set_expand(field.is_none());
     grid.append_column(&column);
+}
+
+fn connect_header_sorting(
+    dispatcher: &AppDispatcher,
+    grid: &gtk::ColumnView,
+    syncing: std::rc::Rc<std::cell::Cell<bool>>,
+) {
+    let Some(sorter) = grid.sorter().and_downcast::<gtk::ColumnViewSorter>() else {
+        return;
+    };
+    let dispatcher = dispatcher.clone();
+    sorter.connect_changed(move |sorter, _| {
+        if syncing.get() {
+            return;
+        }
+        let sorts = header_sorts(sorter);
+        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::SetSorts { sorts }));
+    });
+}
+
+fn apply_header_sort(grid: &gtk::ColumnView, sorts: &[BaseSort]) {
+    grid.sort_by_column(None, gtk::SortType::Ascending);
+    // `sort_by_column` promotes the given field to primary, so restore ties first.
+    for sort in sorts.iter().rev() {
+        let column = grid
+            .columns()
+            .iter::<gtk::ColumnViewColumn>()
+            .filter_map(Result::ok)
+            .find(|column| {
+                column
+                    .id()
+                    .as_deref()
+                    .and_then(header_column_from_id)
+                    .as_ref()
+                    == Some(&sort.field)
+            });
+        let Some(column) = column else {
+            continue;
+        };
+        let direction = match sort.direction {
+            BaseSortDirection::Ascending => gtk::SortType::Ascending,
+            BaseSortDirection::Descending => gtk::SortType::Descending,
+        };
+        grid.sort_by_column(Some(&column), direction);
+    }
+}
+
+fn header_sorts(sorter: &gtk::ColumnViewSorter) -> Vec<BaseSort> {
+    (0..sorter.n_sort_columns())
+        .filter_map(|index| {
+            let (column, direction) = sorter.nth_sort_column(index);
+            let field = column?.id().as_deref().and_then(header_column_from_id)?;
+            let direction = match direction {
+                gtk::SortType::Ascending => BaseSortDirection::Ascending,
+                gtk::SortType::Descending => BaseSortDirection::Descending,
+                _ => return None,
+            };
+            Some(BaseSort { field, direction })
+        })
+        .collect()
+}
+
+fn header_column_id(column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Name => "name".to_owned(),
+        BaseColumn::Category => "category".to_owned(),
+        BaseColumn::Updated => "updated".to_owned(),
+        BaseColumn::Property(path) => format!("property:{}", path.0),
+    }
+}
+
+fn header_column_from_id(id: &str) -> Option<BaseColumn> {
+    match id {
+        "name" => Some(BaseColumn::Name),
+        "category" => Some(BaseColumn::Category),
+        "updated" => Some(BaseColumn::Updated),
+        _ => id
+            .strip_prefix("property:")
+            .map(|path| BaseColumn::Property(carver_sdk::PropertyPath(path.to_owned()))),
+    }
 }
 
 fn row_value(row: &BaseRow, field: Option<&str>) -> String {
@@ -397,5 +496,20 @@ mod tests {
         assert_eq!(row_value(&row, Some("/done")), "true");
         assert_eq!(row_value(&row, Some("/empty")), "");
         assert_eq!(row_value(&row, Some("/missing")), "");
+    }
+
+    #[test]
+    fn header_column_ids_should_round_trip_every_column_kind() {
+        let columns = [
+            BaseColumn::Name,
+            BaseColumn::Category,
+            BaseColumn::Updated,
+            BaseColumn::Property(carver_sdk::PropertyPath("/project/status".to_owned())),
+        ];
+
+        for column in columns {
+            let id = header_column_id(&column);
+            assert_eq!(header_column_from_id(&id), Some(column));
+        }
     }
 }
