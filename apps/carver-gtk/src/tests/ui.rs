@@ -1185,6 +1185,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::ToggleButton>(&root, "format-bold-button")
             .is_some_and(|button| button.is_active())
     }));
+    source.buffer().set_text("=highlight= and {,subscript,}");
+    source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+    assert!(
+        source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(2), "carve-emphasis")
+    );
+    assert!(
+        source_buffer.iter_has_context_class(&source.buffer().iter_at_offset(19), "carve-emphasis")
+    );
     source.buffer().set_text("*bold* plain");
     select_all(&source.buffer());
     assert!(run_main_context_until(|| {

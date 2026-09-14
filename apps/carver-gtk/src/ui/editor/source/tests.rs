@@ -198,6 +198,34 @@ fn syntax_grammar_should_define_each_heading_level() -> Result<(), Box<dyn std::
 }
 
 #[test]
+fn syntax_grammar_should_keep_bundled_style_scheme_ids() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let syntax_dir = install_syntax_assets(directory.path())?;
+    let grammar = fs::read_to_string(syntax_dir.join("carve.lang"))?;
+
+    for style_id in [
+        "list-marker",
+        "link-text",
+        "emphasis",
+        "frontmatter-fence",
+        "frontmatter-key",
+        "frontmatter-value",
+    ] {
+        assert!(grammar.contains(&format!("style id=\"{style_id}\"")));
+        for style_name in [
+            "carve-light.xml",
+            "carve-dark.xml",
+            "carve-writing-focus-light.xml",
+            "carve-writing-focus-dark.xml",
+        ] {
+            let style_scheme = fs::read_to_string(syntax_dir.join(style_name))?;
+            assert!(style_scheme.contains(&format!("name=\"carve:{style_id}\"")));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn syntax_style_schemes_should_scale_each_heading_level() -> Result<(), Box<dyn std::error::Error>>
 {
     let directory = tempfile::tempdir()?;

@@ -11,18 +11,19 @@
     <style id="heading-4" name="Heading 4" map-to="def:heading4"/>
     <style id="heading-5" name="Heading 5" map-to="def:heading5"/>
     <style id="heading-6" name="Heading 6" map-to="def:heading6"/>
-    <style id="list" name="List marker" map-to="def:list-marker"/>
+    <style id="list-marker" name="List marker" map-to="def:list-marker"/>
     <style id="quote-marker" name="Quote marker" map-to="def:shebang"/>
     <style id="table-divider" name="Table divider" map-to="def:preprocessor"/>
     <style id="table-header" name="Table header marker" map-to="def:heading"/>
     <style id="table-alignment" name="Table alignment marker" map-to="def:operator"/>
     <style id="code" name="Code" map-to="def:inline-code"/>
     <style id="code-block" name="Code block" map-to="def:preformatted-section"/>
+    <style id="link-text" name="Link text" map-to="def:link-text"/>
     <style id="comment" name="Comment" map-to="def:comment"/>
-    <style id="frontmatter" name="Front matter" map-to="def:preprocessor"/>
-    <style id="key" name="Key" map-to="def:identifier"/>
-    <style id="value" name="Value" map-to="def:string"/>
-    <style id="markup" name="Markup" map-to="def:emphasis"/>
+    <style id="frontmatter-fence" name="Front matter fence" map-to="def:preprocessor"/>
+    <style id="frontmatter-key" name="Front matter key" map-to="def:identifier"/>
+    <style id="frontmatter-value" name="Front matter value" map-to="def:string"/>
+    <style id="emphasis" name="Emphasis" map-to="def:emphasis"/>
     <style id="symbol" name="Symbol" map-to="def:special-char"/>
     <style id="definition-term" name="Definition term" map-to="def:heading"/>
     <style id="definition-marker" name="Definition description marker" map-to="def:list-marker"/>
@@ -34,9 +35,9 @@
     <context id="h4" style-ref="heading-4" class="carve-heading carve-heading-4"><match>^####[ ]+.+$</match></context>
     <context id="h5" style-ref="heading-5" class="carve-heading carve-heading-5"><match>^#####[ ]+.+$</match></context>
     <context id="h6" style-ref="heading-6" class="carve-heading carve-heading-6"><match>^######[ ]+.+$</match></context>
-    <context id="frontmatter-key" style-ref="key" class="carve-frontmatter-key"><match>^[ \t]*(?:[A-Za-z_][A-Za-z0-9_.-]*|&quot;(?:\\.|[^&quot;\\\n])*&quot;)(?=[ \t]*[:=])</match></context>
-    <context id="frontmatter-value" style-ref="value" class="carve-frontmatter-value"><match>&quot;(?:\\.|[^&quot;\\\n])*&quot;|'(?:''|[^'\n])*'|\b(?:true|false|null)\b|\b[+-]?\d[\d_]*(?:\.\d[\d_]*)?\b|#[^\n]*$</match></context>
-    <context id="frontmatter" style-ref="frontmatter" class="carve-frontmatter" first-line-only="true">
+    <context id="frontmatter-key" style-ref="frontmatter-key" class="carve-frontmatter-key"><match>^[ \t]*(?:[A-Za-z_][A-Za-z0-9_.-]*|&quot;(?:\\.|[^&quot;\\\n])*&quot;)(?=[ \t]*[:=])</match></context>
+    <context id="frontmatter-value" style-ref="frontmatter-value" class="carve-frontmatter-value"><match>&quot;(?:\\.|[^&quot;\\\n])*&quot;|'(?:''|[^'\n])*'|\b(?:true|false|null)\b|\b[+-]?\d[\d_]*(?:\.\d[\d_]*)?\b|#[^\n]*$</match></context>
+    <context id="frontmatter" style-ref="frontmatter-fence" class="carve-frontmatter" first-line-only="true">
       <start>^---(?:[ \t]*(?:yaml|yml|json|toml|[A-Za-z0-9_-]+))?[ \t]*$</start><end>^---[ \t]*$</end>
       <include><context ref="frontmatter-key"/><context ref="frontmatter-value"/></include>
     </context>
@@ -55,10 +56,10 @@
     <context id="definition-marker" style-ref="definition-marker" class="carve-definition-marker"><match>^[ \t]*: +(?=.)</match></context>
     <context id="fence" style-ref="code-block" class="carve-code-block"><start>^[ \t]*(?:\x60{3,}|~{3,}).*$</start><end>^[ \t]*(?:\x60{3,}|~{3,})[ \t]*$</end></context>
     <context id="inline-code" style-ref="code" class="carve-inline-code"><match>`[^`\n]+`</match></context>
-    <context id="list" style-ref="list" class="carve-list"><match>^[ \t]*(?:[-+*]|[0-9]+\.)[ ]+(?:\[[ xX]\][ ]+)?</match></context>
-    <context id="container" style-ref="frontmatter" class="carve-container"><match>^[ \t]*:{3,}.*$</match></context>
-    <context id="markup" style-ref="markup" class="carve-markup carve-emphasis"><match>/\*[^*\n]+\*/|\*[^*\n]+\*|/[^/\n]+/|_[^_\n]+_|~[^~\n]+~|==[^=\n]+==|\{=[^=\n]+=\}|\^[^^\n]+\^|,,[^,\n]+,,|\{\+[^+\n]+\+\}|\{-[^-\n]+-\}</match></context>
-    <context id="link" style-ref="symbol" class="carve-link"><match>!?\[[^\]\n]*\]\([^)]+\)|!?\[[^\]\n]*\]\[[^\]\n]*\]|&lt;(?:https?://|mailto:)[^&gt;\n]+&gt;</match></context>
+    <context id="list" style-ref="list-marker" class="carve-list"><match>^[ \t]*(?:[-+*]|[0-9]+\.)[ ]+(?:\[[ xX]\][ ]+)?</match></context>
+    <context id="container" style-ref="frontmatter-fence" class="carve-container"><match>^[ \t]*:{3,}.*$</match></context>
+    <context id="markup" style-ref="emphasis" class="carve-markup carve-emphasis"><match>/\*[^*\n]+\*/|\*[^*\n]+\*|/[^/\n]+/|_[^_\n]+_|~[^~\n]+~|==[^=\n]+==|=(?![>&lt;~^v?]*[ \{])[^=\n]+=|\{=[^=\n]+=\}|\{\^[^^\n]+\^\}|\^[^^\n]+\^|\{,[^,\n]+,\}|,,[^,\n]+,,|\{\+[^+\n]+\+\}|\{-[^-\n]+-\}</match></context>
+    <context id="link" style-ref="link-text" class="carve-link"><match>!?\[[^\]\n]*\]\([^)]+\)|!?\[[^\]\n]*\]\[[^\]\n]*\]|&lt;(?:https?://|mailto:)[^&gt;\n]+&gt;</match></context>
     <context id="symbol" style-ref="symbol" class="carve-symbol"><match>\[\^[^\]\n]+\]|\^\[[^\]\n]*\]|\[\+?[^\]@\n]*@[A-Za-z0-9_][A-Za-z0-9_.:#$%&amp;+?&lt;&gt;~/\-]*[^\]\n]*\]|:[A-Za-z][A-Za-z0-9_-]*\[[^\]\n]*\]|:[A-Za-z0-9+-][A-Za-z0-9_+-]*:|(?&lt;![A-Za-z0-9_])@[A-Za-z0-9_][A-Za-z0-9_.-]*</match></context>
     <context id="comment" style-ref="comment" class="carve-comment"><match>^[ \t]*%%(?!%).*$|[ \t]%%.*$|\{%[^%\n]+%\}</match></context>
     <context id="carve">

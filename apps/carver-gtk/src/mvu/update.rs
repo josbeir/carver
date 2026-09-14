@@ -1666,20 +1666,31 @@ fn update_bases_loaded(
     result: Result<Vec<carver_sdk::BaseDefinition>, UiError>,
 ) -> Vec<Effect> {
     let reload = model.bases.definitions.finish(request_id, result);
-    let missing_selection = if reload {
-        None
+    let (missing_selection, missing_pending_navigation) = if reload {
+        (None, None)
     } else {
         match &model.bases.definitions.state {
-            super::LoadState::Ready(definitions) => model.bases.selected.filter(|selected| {
-                !definitions
-                    .iter()
-                    .any(|definition| definition.id == *selected)
-            }),
-            _ => None,
+            super::LoadState::Ready(definitions) => {
+                let is_missing = |base_id| {
+                    !definitions
+                        .iter()
+                        .any(|definition| definition.id == base_id)
+                };
+                let missing_selection = model.bases.selected.filter(|base_id| is_missing(*base_id));
+                let missing_pending_navigation = match model.pending_navigation {
+                    Some(PendingNavigation::Base(base_id)) if is_missing(base_id) => Some(base_id),
+                    _ => None,
+                };
+                (missing_selection, missing_pending_navigation)
+            }
+            _ => (None, None),
         }
     };
     if let Some(base_id) = missing_selection {
         clear_missing_base_selection(model, base_id);
+    }
+    if let Some(base_id) = missing_pending_navigation {
+        clear_missing_base_pending_navigation(model, base_id);
     }
     reload
         .then(|| reload_bases(model))
@@ -1699,7 +1710,11 @@ fn clear_missing_base_selection(model: &mut AppModel, base_id: carver_sdk::BaseI
     if model.editor_return_route == super::Route::Base {
         model.editor_return_route = super::Route::Browser;
     }
-    if model.pending_navigation == Some(super::model::PendingNavigation::Base(base_id)) {
+    clear_missing_base_pending_navigation(model, base_id);
+}
+
+fn clear_missing_base_pending_navigation(model: &mut AppModel, base_id: carver_sdk::BaseId) {
+    if model.pending_navigation == Some(PendingNavigation::Base(base_id)) {
         model.pending_navigation = Some(super::model::PendingNavigation::Browser(
             model.selected_category,
         ));

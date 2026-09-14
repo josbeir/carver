@@ -739,6 +739,64 @@ fn external_base_deletion_should_return_the_window_to_the_browser() {
 }
 
 #[test]
+fn external_base_deletion_should_redirect_a_missing_pending_base_navigation() {
+    let mut model = AppModel::new(&Config::default());
+    let selected_base = BaseDefinition {
+        id: BaseId::new(),
+        name: "Still here".into(),
+        columns: vec![BaseColumn::Name],
+        filter_mode: BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: Revision(1),
+        row_count: 0,
+    };
+    let selected_base_id = selected_base.id;
+    let removed_base = BaseId::new();
+    model.route = Route::Editor;
+    model.editor_return_route = Route::Base;
+    model.bases.selected = Some(selected_base_id);
+    model.pending_navigation = Some(PendingNavigation::Base(removed_base));
+    model.library_revision = Some(LibraryRevision(1));
+
+    let effects = update(&mut model, AppMsg::LibraryChangedExternally);
+    let request_id = match effects.as_slice() {
+        [Effect::LoadLibraryRevision { request_id }] => *request_id,
+        _ => panic!("external wakeup should check the revision"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
+            request_id,
+            result: Ok(LibraryRevision(2)),
+        }),
+    );
+    let definitions_request = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::LoadBases { request_id } => Some(*request_id),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("external refresh should reload Bases"));
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BasesLoaded {
+                request_id: definitions_request,
+                result: Ok(vec![selected_base]),
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(model.bases.selected, Some(selected_base_id));
+    assert_eq!(
+        model.pending_navigation,
+        Some(PendingNavigation::Browser(model.selected_category))
+    );
+}
+
+#[test]
 fn coalesced_base_reload_should_wait_for_the_latest_definitions_before_clearing_selection() {
     let mut model = AppModel::new(&Config::default());
     let base_id = BaseId::new();

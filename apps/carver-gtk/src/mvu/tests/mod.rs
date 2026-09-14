@@ -8,6 +8,7 @@ use carver_storage_sqlite::SqliteLibrary;
 use gtk::gio::prelude::FileExt;
 use time::OffsetDateTime;
 
+use super::model::PendingNavigation;
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BasesMsg, BrowserMsg,
     EditorCopyScope, EditorExportFormat, EditorMsg, EditorSaveRequest, EditorSaveState,
