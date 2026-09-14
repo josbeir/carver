@@ -341,9 +341,10 @@ pub(crate) fn build_browser(
         selected_category: None,
         favorites: Vec::new(),
     }));
-    let selection = gtk::SingleSelection::new(Some(feed_store.clone()));
-    selection.set_autoselect(false);
-    selection.set_can_unselect(true);
+    // Note cards are activatable but do not have a persistent selection state.
+    // A `SingleSelection` makes GTK retain the row selected after pointer motion,
+    // which makes the hover treatment appear stuck once the pointer leaves.
+    let selection = gtk::NoSelection::new(Some(feed_store.clone()));
     let list = gtk::ListView::new(
         Some(selection),
         Some(browser_feed_factory(dispatcher, Rc::clone(&feed_context))),

@@ -734,6 +734,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let note_list = widget_as::<gtk::ListView>(&root, "note-list").ok_or("note list")?;
     assert!(
         note_list
+            .model()
+            .and_downcast::<gtk::NoSelection>()
+            .is_some(),
+        "note cards should not retain a selected style after pointer hover"
+    );
+    assert!(
+        note_list
             .parent()
             .is_some_and(|parent| parent == browser_clamp)
     );
