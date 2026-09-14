@@ -866,6 +866,7 @@ pub(crate) fn show_configuration_dialog(
     footer.append(&save);
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.set_hexpand(true);
+    root.set_width_request(720);
     root.append(&scroll);
     root.append(&footer);
     toolbar.set_content(Some(&root));

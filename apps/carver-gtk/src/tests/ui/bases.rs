@@ -158,6 +158,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
     assert!(dialog.follows_content_size());
+    assert!(dialog.content_width() >= 720);
     let visible_section =
         widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-visible-fields-section")
             .ok_or("visible fields section")?;
