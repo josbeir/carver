@@ -710,14 +710,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     }));
     let browser_scroll = widget_as::<gtk::ScrolledWindow>(&root, "browser-content-scroll")
         .ok_or("browser content scroll")?;
-    let browser_viewport = browser_scroll
-        .child()
-        .and_downcast::<gtk::Viewport>()
-        .ok_or("browser content viewport")?;
-    let browser_clamp = browser_viewport
-        .child()
-        .and_downcast::<adw::Clamp>()
-        .ok_or("browser content clamp")?;
+    let browser_clamp =
+        widget_as::<adw::Clamp>(&root, "browser-content-clamp").ok_or("browser content clamp")?;
     let browser_content = browser_clamp
         .child()
         .and_downcast::<gtk::Box>()
@@ -726,8 +720,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(
         note_list
             .parent()
-            .is_some_and(|parent| parent == browser_content)
+            .is_some_and(|parent| parent == browser_scroll)
     );
+    assert!(browser_scroll.is_ancestor(&browser_content));
     let destination_category_row = find_widget(
         sidebar.upcast_ref(),
         &format!("category:{}", destination.id),
@@ -782,8 +777,11 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             && find_widget(&root, "note-group:today").is_some()
     }));
     let note_card = find_widget(&root, &format!("note:{}", note.id)).ok_or("note card")?;
-    assert!(note_card.has_css_class("card"));
-    assert!(note_card.has_css_class("activatable"));
+    let card_surface = note_card
+        .ancestor(gtk::ListBoxRow::static_type())
+        .unwrap_or_else(|| note_card.clone());
+    assert!(card_surface.has_css_class("card"));
+    assert!(card_surface.has_css_class("activatable"));
     assert!(activate_browser_note(&note_list, note.id));
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {

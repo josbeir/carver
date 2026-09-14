@@ -375,25 +375,26 @@ pub(crate) fn build_browser(
     list.set_widget_name("note-list");
     list.add_css_class("note-feed");
     list.set_single_click_activate(true);
-    let clamp = adw::Clamp::new();
-    clamp.set_widget_name("browser-content-clamp");
-    clamp.set_maximum_size(720);
-    clamp.set_tightening_threshold(520);
-    clamp.set_child(Some(&content));
-    content.append(&list);
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("browser-content-scroll");
+    scroll.set_vexpand(true);
+    scroll.set_child(Some(&list));
+    content.append(&scroll);
     let load_more = gtk::Button::with_label("Load more notes");
     load_more.set_widget_name("browser-load-more");
     load_more.add_css_class("flat");
     load_more.set_halign(gtk::Align::Center);
     load_more.set_visible(false);
     content.append(&load_more);
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_widget_name("browser-content-scroll");
-    scroll.set_vexpand(true);
-    scroll.set_child(Some(&clamp));
+    let clamp = adw::Clamp::new();
+    clamp.set_widget_name("browser-content-clamp");
+    clamp.set_maximum_size(720);
+    clamp.set_tightening_threshold(520);
+    clamp.set_vexpand(true);
+    clamp.set_child(Some(&content));
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
-    pages.add_named(&scroll, Some("contents"));
+    pages.add_named(&clamp, Some("contents"));
     let status = adw::StatusPage::builder()
         .title("No notes yet")
         .description("Create a note to get started.")
