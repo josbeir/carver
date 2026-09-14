@@ -1,5 +1,5 @@
 //! Saved Base header-action interaction coverage.
-use crate::mvu::{AppDispatcher, AppModel, AppRuntime, LoadState, Route};
+use crate::mvu::{AppDispatcher, AppModel, AppRuntime, LoadState, RequestId, Route};
 use crate::ui::tests::support::{
     TestResult, find_widget, run_main_context_until, test_state, widget_as,
 };
@@ -250,8 +250,8 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         value: Some(serde_json::Value::String("ready".to_owned())),
     });
     base.sorts.push(carver_sdk::BaseSort {
-        field: carver_sdk::BaseColumn::Updated,
-        direction: carver_sdk::BaseSortDirection::Descending,
+        field: carver_sdk::BaseColumn::Category,
+        direction: carver_sdk::BaseSortDirection::Ascending,
     });
     let dispatcher = AppDispatcher::default();
     let (base_widget, refs) = crate::ui::bases::build_base(
@@ -365,6 +365,20 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     let add_sort =
         widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-sort").ok_or("add sort button")?;
     assert!(super::find_label(add_sort.upcast_ref(), "Add sort rule").is_some());
+    add_filter.emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-up-1")
+        .ok_or("move added filter up")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-down-1")
+        .ok_or("move added filter down")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-remove-1")
+        .ok_or("remove added filter")?
+        .emit_clicked();
+    add_sort.emit_clicked();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-sort-rule-up-1")
+        .ok_or("move added sort rule up")?
+        .emit_clicked();
     add_field.emit_clicked();
     assert!(super::find_label(dialog.upcast_ref(), "Category").is_some());
     assert!(super::find_label(dialog.upcast_ref(), "priority").is_none());
@@ -442,7 +456,19 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ok_or("saved base")?;
     assert!(saved.filters.is_empty());
     assert_eq!(saved.columns.len(), 5);
-    assert_eq!(saved.sorts.len(), 1);
+    assert_eq!(
+        saved.sorts,
+        vec![
+            carver_sdk::BaseSort {
+                field: carver_sdk::BaseColumn::Updated,
+                direction: carver_sdk::BaseSortDirection::Descending,
+            },
+            carver_sdk::BaseSort {
+                field: carver_sdk::BaseColumn::Category,
+                direction: carver_sdk::BaseSortDirection::Ascending,
+            },
+        ]
+    );
     assert!(run_main_context_until(|| window.visible_dialog().is_none()));
     assert!(run_main_context_until(|| matches!(
         runtime.model().bases.rows.state,
@@ -484,5 +510,58 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .configuration_dialog
         .is_none()));
     window.close();
+    Ok(())
+}
+
+pub(super) fn base_field_picker_should_add_a_valid_custom_path() -> TestResult {
+    let parent = adw::Window::new();
+    parent.set_default_size(900, 700);
+    parent.present();
+    let gtk_parent = parent.clone().upcast::<gtk::Window>();
+    let definition = carver_sdk::BaseDefinition::defaults(
+        carver_sdk::BaseId::new(),
+        "Projects".to_owned(),
+        vec![carver_sdk::BaseColumn::Category],
+        carver_sdk::Revision(1),
+    );
+    let dialog = crate::ui::bases::actions::show_configuration_dialog(
+        &gtk_parent,
+        &AppDispatcher::default(),
+        RequestId(1),
+        &definition,
+        &[],
+    );
+    assert!(run_main_context_until(|| dialog.is_mapped()));
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")
+        .ok_or("add field button")?
+        .emit_clicked();
+    let custom = super::find_label(dialog.upcast_ref(), "Add custom field…")
+        .ok_or("custom field action")?
+        .ancestor(gtk::Button::static_type())
+        .and_downcast::<gtk::Button>()
+        .ok_or("custom field button")?;
+    custom.emit_clicked();
+    let custom_dialog = parent
+        .visible_dialog()
+        .and_downcast::<adw::AlertDialog>()
+        .ok_or("custom field dialog")?;
+    let entry = widget_as::<gtk::Entry>(custom_dialog.upcast_ref(), "base-custom-field-entry")
+        .ok_or("custom field entry")?;
+    entry.set_text("project/status");
+    let validation = super::find_label(
+        custom_dialog.upcast_ref(),
+        "Enter a valid path such as /project/status.",
+    )
+    .ok_or("custom path validation")?;
+    assert!(validation.is_visible());
+    entry.set_text("/project/status");
+    assert!(!validation.is_visible());
+    custom_dialog.emit_by_name::<()>("response", &[&"add"]);
+    custom_dialog.close();
+    assert!(run_main_context_until(|| {
+        super::find_label(dialog.upcast_ref(), "project → status").is_some()
+    }));
+    dialog.close();
+    parent.close();
     Ok(())
 }

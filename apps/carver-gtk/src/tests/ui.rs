@@ -60,6 +60,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
     bases::base_search_should_open_and_clear_from_native_controls()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
+    bases::base_field_picker_should_add_a_valid_custom_path()?;
     let display = gtk::gdk::Display::default().ok_or("display")?;
     assert!(
         gtk::IconTheme::for_display(&display).has_icon("carver-agent-codex-symbolic"),
