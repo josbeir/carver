@@ -51,7 +51,11 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     assert!(run_main_context_until(
         || dialog.width() > 0 && dialog.height() > 250
     ));
-    assert!(dialog.width() <= 360, "dialog width: {}", dialog.width());
+    assert!(
+        dialog.width() >= 360,
+        "chooser should keep enough room for its explanatory cards: {}",
+        dialog.width()
+    );
     capture_dialog(&dialog, "chooser")?;
     let pages = widget_as::<gtk::Stack>(root, "add-pages").ok_or("pages")?;
     assert_eq!(pages.visible_child_name().as_deref(), Some("choose"));
