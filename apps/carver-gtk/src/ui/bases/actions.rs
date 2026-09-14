@@ -605,17 +605,13 @@ pub(crate) fn show_configuration_dialog(
 ) -> adw::Dialog {
     let dialog = adw::Dialog::builder()
         .title("Configure Base")
-        .content_width(860)
-        .content_height(780)
         .follows_content_size(true)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
     let toolbar = adw::ToolbarView::new();
-    toolbar.set_vexpand(true);
     toolbar.set_hexpand(true);
     toolbar.add_top_bar(&adw::HeaderBar::new());
     let content = gtk::Box::new(gtk::Orientation::Vertical, 16);
-    content.set_vexpand(true);
     content.set_valign(gtk::Align::Start);
     content.set_margin_start(24);
     content.set_margin_end(24);
@@ -635,7 +631,7 @@ pub(crate) fn show_configuration_dialog(
     columns_box.set_widget_name("base-visible-fields-list");
     rebuild_visible_columns(&columns_box, &selected_columns, &catalog);
     let visible_content = section_content();
-    {
+    let visible_section = {
         let selected_columns = Rc::clone(&selected_columns);
         let columns_box_for_callback = columns_box.clone();
         let catalog = catalog.clone();
@@ -672,14 +668,16 @@ pub(crate) fn show_configuration_dialog(
             "Choose the columns shown in this Base. Name is always included.",
         ));
         visible_content.append(&columns_box);
-        content.append(&collapsible_section(
+        let visible_section = collapsible_section(
             "Visible fields",
             &add_picker.button,
             &visible_content,
             true,
             "base-visible-fields-section",
-        ));
-    }
+        );
+        content.append(&visible_section);
+        visible_section
+    };
 
     let filter_mode = gtk::ComboBoxText::new();
     filter_mode.append(Some("all"), "Match all filters");
@@ -852,13 +850,12 @@ pub(crate) fn show_configuration_dialog(
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
     scroll.set_hexpand(true);
-    scroll.set_vexpand(true);
-    // Let the dialog grow with the form when there is room, while retaining a
-    // bounded viewport for bases with many fields and rules.
+    // Keep the controls comfortably wide, but let the dialog follow the
+    // form's natural height. Libadwaita bounds it to the parent window, at
+    // which point this viewport scrolls instead of imposing a fixed height.
     scroll.set_propagate_natural_height(true);
     scroll.set_propagate_natural_width(true);
-    scroll.set_min_content_height(640);
-    scroll.set_max_content_height(760);
+    scroll.set_min_content_width(720);
     scroll.set_child(Some(&content));
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     footer.set_widget_name("base-configuration-footer");
@@ -869,11 +866,15 @@ pub(crate) fn show_configuration_dialog(
     footer.append(&save);
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.set_hexpand(true);
-    root.set_vexpand(true);
     root.append(&scroll);
     root.append(&footer);
     toolbar.set_content(Some(&root));
     dialog.set_child(Some(&toolbar));
+    synchronize_dialog_size(
+        &dialog,
+        &toolbar,
+        &[&visible_section, &filters_section, &sort_section],
+    );
 
     let dispatcher = dispatcher.clone();
     let definition = definition.clone();
@@ -958,6 +959,29 @@ fn collapsible_section(
     expander.set_expanded(initial_expanded);
     expander.update_property(&[gtk::accessible::Property::Label(title)]);
     expander
+}
+
+fn synchronize_dialog_size(
+    dialog: &adw::Dialog,
+    toolbar: &adw::ToolbarView,
+    sections: &[&gtk::Expander],
+) {
+    for section in sections {
+        let dialog = dialog.clone();
+        let toolbar = toolbar.clone();
+        section.connect_expanded_notify(move |_| {
+            let (minimum_width, _, _, _) = toolbar.measure(gtk::Orientation::Horizontal, -1);
+            let (_, natural_height, _, _) = toolbar.measure(
+                gtk::Orientation::Vertical,
+                dialog.content_width().max(minimum_width),
+            );
+            // GtkExpander's built-in toplevel resize only handles GtkWindow.
+            // Set the measured height here so the AdwDialog floating sheet also
+            // contracts when a section is collapsed.
+            dialog.set_follows_content_size(false);
+            dialog.set_content_height(natural_height);
+        });
+    }
 }
 
 fn section_action(label: &str) -> gtk::Button {

@@ -158,8 +158,6 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
     assert!(dialog.follows_content_size());
-    assert_eq!(dialog.content_width(), 860);
-    assert_eq!(dialog.content_height(), 780);
     let visible_section =
         widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-visible-fields-section")
             .ok_or("visible fields section")?;
@@ -173,7 +171,18 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(sort_section.is_expanded());
     sort_section.emit_activate();
     assert!(!sort_section.is_expanded());
+    visible_section.emit_activate();
+    filters_section.emit_activate();
+    assert!(
+        run_main_context_until(|| dialog.content_height() < 500),
+        "collapsed dialog height was {}",
+        dialog.content_height()
+    );
+    visible_section.emit_activate();
+    filters_section.emit_activate();
     sort_section.emit_activate();
+    assert!(visible_section.is_expanded());
+    assert!(filters_section.is_expanded());
     assert!(sort_section.is_expanded());
     let preview =
         find_widget(dialog.upcast_ref(), "base-configuration-preview").ok_or("preview label")?;
@@ -252,11 +261,12 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ancestor(gtk::ScrolledWindow::static_type())
         .and_downcast::<gtk::ScrolledWindow>()
         .ok_or("configuration scroll view")?;
-    assert!(scroll.vexpands());
+    assert!(!scroll.vexpands());
     assert!(scroll.propagates_natural_height());
     assert!(scroll.propagates_natural_width());
-    assert!(scroll.min_content_height() >= 640);
-    assert!(scroll.max_content_height() >= 760);
+    assert!(scroll.min_content_width() >= 720);
+    assert!(scroll.min_content_height() < 0);
+    assert!(scroll.max_content_height() < 0);
     let footer = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-configuration-footer")
         .ok_or("configuration footer")?;
     assert!(footer.margin_top() >= 12);
