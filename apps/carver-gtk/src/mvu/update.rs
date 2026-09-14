@@ -1555,20 +1555,7 @@ fn update_base_deleted(
         model.notice = Some(error);
         return Vec::new();
     }
-    if model.bases.selected == Some(base_id) {
-        model.bases.selected = None;
-        if model.route == super::Route::Base {
-            model.route = super::Route::Browser;
-        }
-        if model.editor_return_route == super::Route::Base {
-            model.editor_return_route = super::Route::Browser;
-        }
-    }
-    if model.pending_navigation == Some(super::model::PendingNavigation::Base(base_id)) {
-        model.pending_navigation = Some(super::model::PendingNavigation::Browser(
-            model.selected_category,
-        ));
-    }
+    clear_missing_base_selection(model, base_id);
     model.notice = None;
     reload_bases(model).into_iter().collect()
 }
@@ -1579,11 +1566,44 @@ fn update_bases_loaded(
     result: Result<Vec<carver_sdk::BaseDefinition>, UiError>,
 ) -> Vec<Effect> {
     let reload = model.bases.definitions.finish(request_id, result);
+    let missing_selection = if reload {
+        None
+    } else {
+        match &model.bases.definitions.state {
+            super::LoadState::Ready(definitions) => model.bases.selected.filter(|selected| {
+                !definitions
+                    .iter()
+                    .any(|definition| definition.id == *selected)
+            }),
+            _ => None,
+        }
+    };
+    if let Some(base_id) = missing_selection {
+        clear_missing_base_selection(model, base_id);
+    }
     reload
         .then(|| reload_bases(model))
         .flatten()
         .into_iter()
         .collect()
+}
+
+fn clear_missing_base_selection(model: &mut AppModel, base_id: carver_sdk::BaseId) {
+    if model.bases.selected != Some(base_id) {
+        return;
+    }
+    model.bases.selected = None;
+    if model.route == super::Route::Base {
+        model.route = super::Route::Browser;
+    }
+    if model.editor_return_route == super::Route::Base {
+        model.editor_return_route = super::Route::Browser;
+    }
+    if model.pending_navigation == Some(super::model::PendingNavigation::Base(base_id)) {
+        model.pending_navigation = Some(super::model::PendingNavigation::Browser(
+            model.selected_category,
+        ));
+    }
 }
 
 fn update_property_descriptors_loaded(
