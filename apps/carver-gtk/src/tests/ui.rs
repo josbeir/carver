@@ -51,6 +51,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_base_note_keyboard_activation()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     document_sidebar::webkit_views_should_disable_smooth_scrolling()?;
+    document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
@@ -1377,15 +1378,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| {
         !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
     }));
-    assert_document_sidebar_should_focus_and_show_file_details(
-        &root,
-        &source,
-        &source_mode,
-        &rich_mode,
-        &rich,
-        &client,
-        note.id,
-    )?;
     assert_native_file_drop_should_insert_an_ordered_batch(&source, &source_mode)?;
     source_mode.set_active(true);
     source
@@ -2126,6 +2118,7 @@ fn assert_document_sidebar_should_focus_and_show_file_details(
     assert!(list.selected_row().is_some());
     rich_mode.set_active(true);
     assert!(run_main_context_until(|| rich.is_visible()));
+    assert_web_script_should_be_true(rich, "Boolean(document.querySelector('#editor img'))");
     let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
     button.emit_clicked();
     let selected = Rc::new(Cell::new(false));

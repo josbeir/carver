@@ -81,6 +81,34 @@ pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
     Ok(())
 }
 
+pub(super) fn media_sidebar_should_show_file_details_in_an_isolated_editor() -> TestResult {
+    let fixture = fixture()?;
+    let category = fixture.client.create_category("Media")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: String::new(),
+    }));
+    let source = widget_as::<gtk::TextView>(&fixture.surface, "source-editor").ok_or("source")?;
+    let source_mode = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-source")
+        .ok_or("source mode")?;
+    let rich_mode =
+        widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich").ok_or("rich mode")?;
+    let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
+    super::assert_document_sidebar_should_focus_and_show_file_details(
+        &fixture.surface,
+        &source,
+        &source_mode,
+        &rich_mode,
+        &rich,
+        &fixture.client,
+        note.id,
+    )?;
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResult {
     let fixture = fixture()?;
     let root = &fixture.surface;
