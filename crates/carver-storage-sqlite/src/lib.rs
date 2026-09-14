@@ -365,19 +365,43 @@ impl SqliteLibrary {
         name: &str,
         columns: &[BaseColumn],
     ) -> Result<BaseDefinition, StorageError> {
+        self.create_base_with_configuration(name, columns, BaseFilterMode::All, &[], &[])
+    }
+
+    /// Creates a saved Base using its complete initial configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an empty name or when persistence fails.
+    pub fn create_base_with_configuration(
+        &self,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, StorageError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(StorageError::InvalidBaseName);
         }
         let id = BaseId::new();
         let revision = Revision(1);
-        let definition_json = encode_base_payload(columns, BaseFilterMode::All, &[], &[])?;
+        let definition_json = encode_base_payload(columns, filter_mode, filters, sorts)?;
         self.connection.execute(
             "INSERT INTO bases (id, name, definition_json, revision) VALUES (?1, ?2, ?3, ?4)",
             params![id.to_string(), name, definition_json, revision.0],
         )?;
-        let mut definition =
-            BaseDefinition::defaults(id, name.to_owned(), columns.to_vec(), revision);
+        let mut definition = BaseDefinition {
+            id,
+            name: name.to_owned(),
+            columns: columns.to_vec(),
+            filter_mode,
+            filters: filters.to_vec(),
+            sorts: sorts.to_vec(),
+            revision,
+            row_count: 0,
+        };
         definition.row_count = self.base_row_count(definition.filter_mode, &definition.filters)?;
         Ok(definition)
     }
@@ -1532,6 +1556,17 @@ impl LibraryBackend for SqliteLibrary {
         columns: &[BaseColumn],
     ) -> Result<BaseDefinition, Self::Error> {
         Self::create_base(self, name, columns)
+    }
+
+    fn create_base_with_configuration(
+        &self,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::create_base_with_configuration(self, name, columns, filter_mode, filters, sorts)
     }
 
     fn update_base(

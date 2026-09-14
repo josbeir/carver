@@ -306,6 +306,20 @@ impl ViewRefs {
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
+        if let Effect::ShowNewBaseConfiguration { rows, descriptors } = &effect {
+            if let Some(dispatcher) = &self.dispatcher {
+                use adw::prelude::*;
+                if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
+                    crate::ui::bases::actions::show_new_configuration_dialog(
+                        &parent,
+                        dispatcher,
+                        rows,
+                        descriptors,
+                    );
+                }
+            }
+            return;
+        }
         if let Effect::ShowBaseConfiguration {
             definition,
             rows,

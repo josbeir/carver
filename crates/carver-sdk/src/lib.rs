@@ -229,6 +229,21 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Creates a saved Base with its complete initial configuration without blocking the caller.
+    pub async fn create_base_with_configuration_async(
+        &self,
+        name: String,
+        columns: Vec<BaseColumn>,
+        filter_mode: BaseFilterMode,
+        filters: Vec<BaseFilter>,
+        sorts: Vec<BaseSort>,
+    ) -> Result<BaseDefinition, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.create_base_with_configuration(&name, &columns, filter_mode, &filters, &sorts)
+        })
+        .await
+    }
+
     /// Updates a saved base configuration without blocking the caller.
     // CONTEXT: Preserve one-to-one async forwarding for every user-editable Base setting.
     #[expect(

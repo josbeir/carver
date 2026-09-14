@@ -2,7 +2,7 @@
 
 use super::dialogs::category_form;
 use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BasesMsg};
-use carver_sdk::{BaseColumn, CategoryAppearance};
+use carver_sdk::CategoryAppearance;
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 use std::{cell::Cell, rc::Rc};
@@ -54,68 +54,67 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
     chooser.append(&heading);
     stack.add_named(&chooser, Some("choose"));
     let category = category_form("", CategoryAppearance::default());
-    let base_entry = gtk::Entry::builder().placeholder_text("Base name").build();
-    base_entry.set_widget_name("base-name-entry");
-    base_entry.set_max_width_chars(36);
-    let base_content = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    base_content.append(&base_entry);
     let submitted = Rc::new(Cell::new(false));
-    for (name, title, icon, description, example, form, entry) in [
-        (
-            "category",
-            "Category",
-            "folder-symbolic",
-            "Keep related notes together in one place.",
-            "Examples: Work, Personal, Research",
-            &category.content,
-            &category.entry,
-        ),
-        (
-            "base",
-            "Base",
-            "carver-database-symbolic",
-            "Build a custom view of your notes with chosen fields, a query, and a sort order.",
-            "Examples: Project tracker, Reading list",
-            &base_content,
-            &base_entry,
-        ),
-    ] {
-        let choice = choice_card(name, title, icon, description, example);
-        chooser.append(&choice);
-        let (page, back, create) = form_page(name, title, form);
-        stack.add_named(&page, Some(name));
-        connect_form_navigation(&stack, name, &choice, &back, entry, &create);
-        let entry = entry.clone();
+    let category_choice = choice_card(
+        "category",
+        "Category",
+        "folder-symbolic",
+        "Keep related notes together in one place.",
+        "Examples: Work, Personal, Research",
+    );
+    chooser.append(&category_choice);
+    let (category_page, category_back, category_create) =
+        form_page("category", "Category", &category.content);
+    stack.add_named(&category_page, Some("category"));
+    connect_form_navigation(
+        &stack,
+        "category",
+        &category_choice,
+        &category_back,
+        &category.entry,
+        &category_create,
+    );
+    {
+        let entry = category.entry.clone();
         let icon = Rc::clone(&category.icon);
         let color = Rc::clone(&category.color);
         let submitted = Rc::clone(&submitted);
         let dispatcher = dispatcher.clone();
         let weak_dialog = dialog.downgrade();
-        create.connect_clicked(move |_| {
-            let value = entry.text().trim().to_owned();
-            if value.is_empty() || submitted.replace(true) {
+        category_create.connect_clicked(move |_| {
+            let name = entry.text().trim().to_owned();
+            if name.is_empty() || submitted.replace(true) {
                 return;
             }
             if let Some(dialog) = weak_dialog.upgrade() {
                 dialog.close();
             }
-            let message = if name == "category" {
-                AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
-                    name: value,
-                    appearance: CategoryAppearance {
-                        icon: icon.get(),
-                        color: color.get(),
-                    },
-                })
-            } else {
-                AppMsg::Bases(BasesMsg::Create {
-                    name: value,
-                    columns: vec![BaseColumn::Category, BaseColumn::Updated],
-                })
-            };
-            let _ = dispatcher.dispatch(message);
+            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
+                name,
+                appearance: CategoryAppearance {
+                    icon: icon.get(),
+                    color: color.get(),
+                },
+            }));
         });
     }
+
+    let base_choice = choice_card(
+        "base",
+        "Base",
+        "carver-database-symbolic",
+        "Build a custom view of your notes with chosen fields, a query, and a sort order.",
+        "Examples: Project tracker, Reading list",
+    );
+    chooser.append(&base_choice);
+    let dispatcher = dispatcher.clone();
+    let weak_dialog = dialog.downgrade();
+    base_choice.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigureNew));
+        if let Some(dialog) = weak_dialog.upgrade() {
+            dialog.close();
+        }
+    });
     let scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::Automatic)

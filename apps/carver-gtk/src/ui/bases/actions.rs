@@ -14,6 +14,15 @@ use libadwaita::{self as adw, prelude::*};
 
 use super::field_picker::{FieldCatalog, FieldPicker, FieldPickerOptions, field_label};
 
+#[derive(Clone, Copy)]
+enum BaseConfigurationMode {
+    Create,
+    Update {
+        base_id: carver_sdk::BaseId,
+        revision: carver_sdk::Revision,
+    },
+}
+
 pub(crate) fn render_delete(
     button: &gtk::Button,
     base: Option<&BaseDefinition>,
@@ -587,7 +596,50 @@ pub(crate) fn render_configure(
     button.insert_action_group("base", Some(&group));
 }
 
-// CONTEXT: The modal builds a cohesive form and keeps widget ownership local to its presentation boundary.
+pub(crate) fn show_configuration_dialog(
+    parent: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    definition: &BaseDefinition,
+    rows: &[carver_sdk::BaseRow],
+    property_descriptors: &[carver_sdk::PropertyDescriptor],
+) -> adw::Dialog {
+    show_base_configuration_dialog(
+        parent,
+        dispatcher,
+        definition,
+        rows,
+        property_descriptors,
+        BaseConfigurationMode::Update {
+            base_id: definition.id,
+            revision: definition.revision,
+        },
+    )
+}
+
+/// Presents the shared Base settings pane before a new Base has been persisted.
+pub(crate) fn show_new_configuration_dialog(
+    parent: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    rows: &[carver_sdk::BaseRow],
+    property_descriptors: &[carver_sdk::PropertyDescriptor],
+) -> adw::Dialog {
+    let definition = BaseDefinition::defaults(
+        carver_sdk::BaseId::new(),
+        String::new(),
+        vec![BaseColumn::Category, BaseColumn::Updated],
+        carver_sdk::Revision(0),
+    );
+    show_base_configuration_dialog(
+        parent,
+        dispatcher,
+        &definition,
+        rows,
+        property_descriptors,
+        BaseConfigurationMode::Create,
+    )
+}
+
+// CONTEXT: Create and update share one settings presentation; only persistence differs.
 #[expect(
     clippy::too_many_lines,
     reason = "Base configuration form is kept together for modal state"
@@ -596,15 +648,20 @@ pub(crate) fn render_configure(
     deprecated,
     reason = "ComboBoxText remains supported by the minimum GTK runtime"
 )]
-pub(crate) fn show_configuration_dialog(
+fn show_base_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     definition: &BaseDefinition,
     rows: &[carver_sdk::BaseRow],
     property_descriptors: &[carver_sdk::PropertyDescriptor],
+    mode: BaseConfigurationMode,
 ) -> adw::Dialog {
     let dialog = adw::Dialog::builder()
-        .title("Configure Base")
+        .title(if matches!(mode, BaseConfigurationMode::Create) {
+            "New Base"
+        } else {
+            "Configure Base"
+        })
         .follows_content_size(true)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
@@ -622,6 +679,7 @@ pub(crate) fn show_configuration_dialog(
         .text(&definition.name)
         .placeholder_text("Base name")
         .build();
+    name.set_widget_name("base-configuration-name");
     content.append(&section_label("Name"));
     content.append(&name);
 
@@ -839,7 +897,11 @@ pub(crate) fn show_configuration_dialog(
     }
     refresh_preview();
 
-    let save = gtk::Button::with_label("Save");
+    let save = gtk::Button::with_label(if matches!(mode, BaseConfigurationMode::Create) {
+        "Create"
+    } else {
+        "Save"
+    });
     save.set_widget_name("base-configuration-save");
     save.add_css_class("suggested-action");
     save.set_sensitive(!definition.name.trim().is_empty());
@@ -878,29 +940,43 @@ pub(crate) fn show_configuration_dialog(
     );
 
     let dispatcher = dispatcher.clone();
-    let definition = definition.clone();
     let name_for_save = name.clone();
     let dialog_for_save = dialog.clone();
     save.connect_clicked(move |_| {
         if !dialog_for_save.can_close() {
             return;
         }
-        dialog_for_save.set_can_close(false);
-        if let Some(child) = dialog_for_save.child() {
-            child.set_sensitive(false);
-        }
         let columns = selected_columns.borrow().clone();
         let filters = selected_filters(&filter_widgets.borrow());
         let sorts = selected_sorts(&sort_widgets.borrow());
-        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Update {
-            base_id: definition.id,
-            revision: definition.revision,
-            name: name_for_save.text().to_string(),
-            columns,
-            filter_mode: selected_filter_mode(&filter_mode),
-            filters,
-            sorts,
-        }));
+        let message = match mode {
+            BaseConfigurationMode::Create => BasesMsg::CreateConfigured {
+                name: name_for_save.text().to_string(),
+                columns,
+                filter_mode: selected_filter_mode(&filter_mode),
+                filters,
+                sorts,
+            },
+            BaseConfigurationMode::Update { base_id, revision } => {
+                dialog_for_save.set_can_close(false);
+                if let Some(child) = dialog_for_save.child() {
+                    child.set_sensitive(false);
+                }
+                BasesMsg::Update {
+                    base_id,
+                    revision,
+                    name: name_for_save.text().to_string(),
+                    columns,
+                    filter_mode: selected_filter_mode(&filter_mode),
+                    filters,
+                    sorts,
+                }
+            }
+        };
+        let _ = dispatcher.dispatch(AppMsg::Bases(message));
+        if matches!(mode, BaseConfigurationMode::Create) {
+            dialog_for_save.close();
+        }
     });
     name.grab_focus();
     dialog.present(Some(parent));

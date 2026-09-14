@@ -109,6 +109,11 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     effects
 }
 
+// CONTEXT: Keeping related Base transitions in one reducer branch makes the MVU workflow auditable.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Base transitions share navigation state"
+)]
 fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
     match message {
         BasesMsg::Open(base_id) => {
@@ -123,14 +128,34 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
             open_base(model, base_id)
         }
-        BasesMsg::Create { name, columns } => {
+        BasesMsg::CreateConfigured {
+            name,
+            columns,
+            filter_mode,
+            filters,
+            sorts,
+        } => {
             let name = name.trim().to_owned();
             if name.is_empty() {
                 model.notice = Some(UiError::new("Base names cannot be empty."));
                 Vec::new()
             } else {
-                vec![Effect::CreateBase { name, columns }]
+                vec![Effect::CreateConfiguredBase {
+                    name,
+                    columns,
+                    filter_mode,
+                    filters,
+                    sorts,
+                }]
             }
+        }
+        BasesMsg::ConfigureNew => {
+            if model.bases.configuration_request.is_some() || model.bases.saving_configuration {
+                return Vec::new();
+            }
+            let request_id = model.next_request_id();
+            model.bases.configuration_request = Some(request_id);
+            vec![Effect::PrepareNewBaseConfiguration { request_id }]
         }
         BasesMsg::Configure => {
             if model.bases.saving_configuration || model.route != super::Route::Base {
@@ -1322,6 +1347,25 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         rows,
                         descriptors,
                     }]
+                }
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
+        LibraryReply::NewBaseConfigurationLoaded { request_id, result } => {
+            if model.bases.configuration_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.bases.configuration_request = None;
+            match result {
+                Ok(rows) => {
+                    let descriptors = match &model.bases.property_descriptors.state {
+                        super::LoadState::Ready(items) => items.clone(),
+                        _ => Vec::new(),
+                    };
+                    vec![Effect::ShowNewBaseConfiguration { rows, descriptors }]
                 }
                 Err(error) => {
                     model.notice = Some(error);

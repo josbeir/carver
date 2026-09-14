@@ -229,6 +229,17 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn create_base_with_configuration(
+        &self,
+        _name: &str,
+        _columns: &[BaseColumn],
+        _filter_mode: BaseFilterMode,
+        _filters: &[BaseFilter],
+        _sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, Self::Error> {
+        Self::unsupported()
+    }
+
     fn update_base(
         &self,
         _base_id: BaseId,

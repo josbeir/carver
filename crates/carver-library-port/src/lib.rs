@@ -133,6 +133,15 @@ pub trait LibraryBackend: Send + 'static {
         name: &str,
         columns: &[BaseColumn],
     ) -> Result<BaseDefinition, Self::Error>;
+    /// Creates a saved database-style view with its complete initial configuration.
+    fn create_base_with_configuration(
+        &self,
+        name: &str,
+        columns: &[BaseColumn],
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+        sorts: &[BaseSort],
+    ) -> Result<BaseDefinition, Self::Error>;
     /// Updates a saved view guarded by its current revision.
     // CONTEXT: Keep the persistence boundary explicit; each configuration component maps to one
     // independently serialized Base setting and grouping it would leak storage concerns inward.

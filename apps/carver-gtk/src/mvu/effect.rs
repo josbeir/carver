@@ -23,11 +23,23 @@ pub enum Effect {
         /// Saved configuration to edit.
         definition: carver_sdk::BaseDefinition,
     },
+    /// Prepare the shared Base configuration dialog before creating a Base.
+    PrepareNewBaseConfiguration {
+        /// Request identity used to reject stale completions.
+        request_id: RequestId,
+    },
     /// Present the prepared Base configuration through the GTK adapter.
     ShowBaseConfiguration {
         /// Saved configuration to edit.
         definition: carver_sdk::BaseDefinition,
         /// All active rows, independent of saved filters.
+        rows: Vec<carver_sdk::BaseRow>,
+        /// Library-wide field catalog.
+        descriptors: Vec<carver_sdk::PropertyDescriptor>,
+    },
+    /// Present the shared Base configuration dialog in create mode.
+    ShowNewBaseConfiguration {
+        /// All active rows, independent of any draft filters.
         rows: Vec<carver_sdk::BaseRow>,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
@@ -59,12 +71,18 @@ pub enum Effect {
         /// Saved view to query.
         base_id: BaseId,
     },
-    /// Create a saved base.
-    CreateBase {
+    /// Create a saved Base with its complete initial configuration.
+    CreateConfiguredBase {
         /// User-visible view name.
         name: String,
-        /// Ordered initial columns.
+        /// Ordered visible columns.
         columns: Vec<BaseColumn>,
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Visual filters.
+        filters: Vec<BaseFilter>,
+        /// Ordered sort rules.
+        sorts: Vec<BaseSort>,
     },
     /// Save a complete Base configuration.
     UpdateBase {

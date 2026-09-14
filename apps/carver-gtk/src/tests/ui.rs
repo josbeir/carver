@@ -54,7 +54,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     html::document_font_should_remain_css_text_inside_the_preview_head()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
-    add::add_dialog_should_create_and_preserve_drafts()?;
+    add::add_dialog_should_create_category_and_configure_new_base()?;
     add::add_dialog_should_resize_for_the_active_form()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;

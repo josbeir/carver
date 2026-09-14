@@ -218,7 +218,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 base_id,
             } => self.load_base_rows(request_id, base_id),
-            Effect::CreateBase { name, columns } => self.create_base(name, columns),
+            Effect::CreateConfiguredBase {
+                name,
+                columns,
+                filter_mode,
+                filters,
+                sorts,
+            } => self.create_base_with_configuration(name, columns, filter_mode, filters, sorts),
             Effect::UpdateBase {
                 base_id,
                 revision,
@@ -252,8 +258,20 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     }));
                 });
             }
+            Effect::PrepareNewBaseConfiguration { request_id } => {
+                let client = self.inner.client.clone();
+                let runtime = self.clone();
+                glib::spawn_future_local(async move {
+                    let result = client.active_base_rows_async().await.map_err(display_error);
+                    runtime.dispatch(AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
+                        request_id,
+                        result,
+                    }));
+                });
+            }
             effect @ (Effect::ApplyRichEditorCommand { .. }
             | Effect::ShowBaseConfiguration { .. }
+            | Effect::ShowNewBaseConfiguration { .. }
             | Effect::FinishBaseConfiguration { .. }
             | Effect::ReloadRichEditor { .. }
             | Effect::ShowExternalEdit { .. }
@@ -613,12 +631,19 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn create_base(&self, name: String, columns: Vec<carver_sdk::BaseColumn>) {
+    fn create_base_with_configuration(
+        &self,
+        name: String,
+        columns: Vec<carver_sdk::BaseColumn>,
+        filter_mode: carver_sdk::BaseFilterMode,
+        filters: Vec<carver_sdk::BaseFilter>,
+        sorts: Vec<carver_sdk::BaseSort>,
+    ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
             let result = client
-                .create_base_async(name, columns)
+                .create_base_with_configuration_async(name, columns, filter_mode, filters, sorts)
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));

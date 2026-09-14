@@ -64,6 +64,45 @@ fn assert_sql_projection_matches_domain(
 }
 
 #[test]
+fn configured_base_creation_should_persist_columns_filters_and_sorts() {
+    let (_directory, library, _) = query_fixture();
+    let filter = BaseFilter {
+        field: BaseColumn::Property(PropertyPath("/status".to_owned())),
+        operator: BaseFilterOperator::Equals,
+        value: Some(serde_json::json!("done")),
+    };
+    let sort = BaseSort {
+        field: BaseColumn::Property(PropertyPath("/score".to_owned())),
+        direction: BaseSortDirection::Descending,
+    };
+
+    let created = library
+        .create_base_with_configuration(
+            "  Release tracker  ",
+            &[
+                BaseColumn::Category,
+                BaseColumn::Property(PropertyPath("/status".to_owned())),
+            ],
+            BaseFilterMode::All,
+            std::slice::from_ref(&filter),
+            std::slice::from_ref(&sort),
+        )
+        .unwrap_or_else(|error| panic!("Base creation failed: {error}"));
+
+    assert_eq!(created.name, "Release tracker");
+    assert_eq!(created.filters, vec![filter]);
+    assert_eq!(created.sorts, vec![sort]);
+    assert_eq!(created.row_count, 1);
+    let persisted = library
+        .bases()
+        .unwrap_or_else(|error| panic!("Base listing failed: {error}"))
+        .into_iter()
+        .find(|base| base.id == created.id)
+        .unwrap_or_else(|| panic!("created Base was not listed"));
+    assert_eq!(persisted, created);
+}
+
+#[test]
 fn json1_query_should_match_unicode_text_filters() {
     let (_directory, library, base) = query_fixture();
     assert_sql_projection_matches_domain(

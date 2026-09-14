@@ -55,6 +55,71 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
 }
 
 #[test]
+fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew));
+    let [Effect::PrepareNewBaseConfiguration { request_id }] = effects.as_slice() else {
+        panic!("new Base configuration should prepare its rows");
+    };
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
+                request_id: RequestId(request_id.0 + 1),
+                result: Ok(Vec::new()),
+            }),
+        )
+        .is_empty()
+    );
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
+                request_id: *request_id,
+                result: Ok(Vec::new()),
+            }),
+        )
+        .as_slice(),
+        [Effect::ShowNewBaseConfiguration { .. }]
+    ));
+}
+
+#[test]
+fn configured_base_creation_should_trim_its_name_and_preserve_its_query() {
+    let mut model = AppModel::new(&Config::default());
+    let filter = BaseFilter {
+        field: BaseColumn::Category,
+        operator: carver_sdk::BaseFilterOperator::Equals,
+        value: Some(serde_json::json!("Work")),
+    };
+    let sort = carver_sdk::BaseSort {
+        field: BaseColumn::Updated,
+        direction: carver_sdk::BaseSortDirection::Descending,
+    };
+
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Bases(BasesMsg::CreateConfigured {
+                name: "  Project tracker  ".to_owned(),
+                columns: vec![BaseColumn::Category],
+                filter_mode: BaseFilterMode::Any,
+                filters: vec![filter.clone()],
+                sorts: vec![sort.clone()],
+            }),
+        ),
+        vec![Effect::CreateConfiguredBase {
+            name: "Project tracker".to_owned(),
+            columns: vec![BaseColumn::Category],
+            filter_mode: BaseFilterMode::Any,
+            filters: vec![filter],
+            sorts: vec![sort],
+        }]
+    );
+}
+
+#[test]
 fn failed_configuration_save_should_reenable_the_existing_draft() {
     let mut model = AppModel::new(&Config::default());
     model.bases.saving_configuration = true;

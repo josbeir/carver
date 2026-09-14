@@ -75,18 +75,26 @@ pub enum AppMsg {
 pub enum BasesMsg {
     /// Open the configuration dialog for the selected Base.
     Configure,
+    /// Prepare the shared configuration dialog for a new Base.
+    ConfigureNew,
     /// Delete a saved Base after user confirmation; notes are retained.
     Delete(BaseId),
     /// Show loading feedback only if this request is still pending.
     LoadingIndicatorElapsed(RequestId),
     /// Open and load a saved base.
     Open(BaseId),
-    /// Create a base with ordered columns.
-    Create {
+    /// Create a Base with its complete configuration chosen before persistence.
+    CreateConfigured {
         /// User-visible view name.
         name: String,
-        /// Ordered initial columns.
+        /// Ordered visible columns.
         columns: Vec<BaseColumn>,
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Visual filters.
+        filters: Vec<BaseFilter>,
+        /// Ordered sort rules.
+        sorts: Vec<BaseSort>,
     },
     /// Save a complete Base configuration guarded by its revision.
     Update {
@@ -615,6 +623,13 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Configuration captured when the user requested the dialog.
         definition: BaseDefinition,
+        /// All active note projections.
+        result: Result<Vec<BaseRow>, UiError>,
+    },
+    /// Unfiltered configuration data for a new Base finished loading.
+    NewBaseConfigurationLoaded {
+        /// Request identity.
+        request_id: RequestId,
         /// All active note projections.
         result: Result<Vec<BaseRow>, UiError>,
     },
