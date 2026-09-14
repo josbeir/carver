@@ -26,6 +26,83 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+/* Frontmatter is document metadata, not prose. Keep its raw source out of the
+ * writing flow until the author explicitly opens the disclosure. CarveKit owns
+ * the accessible controls and lossless updates; these rules make that compact
+ * editor feel native to Carver's document surface. */
+.ProseMirror .carve-frontmatter-card {
+  margin-block-end: 1rem;
+}
+.ProseMirror .carve-frontmatter-summary {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875em;
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: start;
+}
+.ProseMirror .carve-frontmatter-summary::before {
+  display: inline-block;
+  margin-inline-end: 0.5rem;
+  color: var(--accent-color);
+  content: "▸";
+}
+.ProseMirror .carve-frontmatter-summary[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+.ProseMirror .carve-frontmatter-summary:hover {
+  background: var(--selection-background);
+}
+.ProseMirror .carve-frontmatter-summary:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+.ProseMirror .carve-frontmatter-body {
+  margin-block-start: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--code-background);
+}
+.ProseMirror .carve-frontmatter-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 12px;
+}
+.ProseMirror .carve-frontmatter-card label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.875em;
+  font-weight: 600;
+}
+.ProseMirror .carve-frontmatter-card input,
+.ProseMirror .carve-frontmatter-card textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--document-background);
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+}
+.ProseMirror .carve-frontmatter-card textarea {
+  resize: vertical;
+}
+.ProseMirror .carve-frontmatter-raw {
+  margin-block-start: 12px;
+}
+.ProseMirror .carve-frontmatter-raw textarea {
+  min-height: 7rem;
+  font-family: monospace;
+  font-weight: 400;
+}
 .ProseMirror-selectednode {
   outline: 2px solid var(--accent-color);
 }
