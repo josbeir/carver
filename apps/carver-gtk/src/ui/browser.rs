@@ -627,6 +627,12 @@ fn browser_feed_factory(
         while let Some(child) = container.first_child() {
             container.remove(&child);
         }
+        container.set_css_classes(&[]);
+        container.set_widget_name("");
+        container.set_margin_start(0);
+        container.set_margin_end(0);
+        container.set_margin_top(0);
+        container.set_margin_bottom(0);
         let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
             return;
         };
@@ -635,7 +641,14 @@ fn browser_feed_factory(
             BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
             BrowserFeedItem::Note(note) => {
                 let context = context.borrow().clone();
-                container.append(&note_feed_card(&note, &context, Some(&dispatcher)));
+                container.set_widget_name(&format!("note:{}", note.id));
+                container.set_css_classes(&["card", "activatable", "note-card"]);
+                // Match the former ListBox row's card spacing without nesting a second card.
+                container.set_margin_start(4);
+                container.set_margin_end(4);
+                container.set_margin_top(6);
+                container.set_margin_bottom(6);
+                populate_note_card(&container, &note, &context, Some(&dispatcher));
             }
         }
     });
@@ -649,6 +662,8 @@ fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {
     label.add_css_class("date-heading-label");
     let heading = gtk::Box::new(gtk::Orientation::Vertical, 0);
     heading.add_css_class("date-heading");
+    heading.set_margin_top(22);
+    heading.set_margin_bottom(6);
     heading.append(&label);
     heading.upcast()
 }
@@ -660,26 +675,34 @@ pub(crate) fn note_feed_card(
 ) -> gtk::Widget {
     let card = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     card.set_widget_name(&format!("note:{}", note.id));
-    card.add_css_class("card");
-    card.add_css_class("activatable");
-    card.add_css_class("note-card");
-    card.set_margin_start(12);
-    card.set_margin_end(8);
-    card.set_margin_top(10);
-    card.set_margin_bottom(10);
-    let category_color = context
+    populate_note_card(&card, note, context, dispatcher);
+    card.upcast()
+}
+
+fn populate_note_card(
+    card: &gtk::Box,
+    note: &NoteSummary,
+    feed_context: &BrowserFeedContext,
+    dispatcher: Option<&AppDispatcher>,
+) {
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    content.set_margin_start(12);
+    content.set_margin_end(8);
+    content.set_margin_top(10);
+    content.set_margin_bottom(10);
+    let category_color = feed_context
         .show_category
-        .then(|| note_category_color(note, &context.sidebar))
+        .then(|| note_category_color(note, &feed_context.sidebar))
         .flatten();
-    card.append(&note_card_details(
+    content.append(&note_card_details(
         note,
-        context.show_category,
+        feed_context.show_category,
         category_color,
     ));
-    if let (LoadState::Ready(categories), Some(dispatcher)) = (&context.sidebar, dispatcher) {
-        card.append(&note_actions(note, categories, dispatcher));
+    if let (LoadState::Ready(categories), Some(dispatcher)) = (&feed_context.sidebar, dispatcher) {
+        content.append(&note_actions(note, categories, dispatcher));
     }
-    card.upcast()
+    card.append(&content);
 }
 
 pub(crate) fn note_category_color(
