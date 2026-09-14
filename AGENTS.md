@@ -126,10 +126,10 @@ git diff --check
 ```
 
 CI's authoritative coverage tool is `cargo-llvm-cov`, not Tarpaulin. The coverage gate is
-80% line coverage and must include ignored GTK interaction tests:
+85% line coverage and must include ignored GTK interaction tests:
 
 ```sh
-./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 -- \
+./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 85 -- \
   --include-ignored --test-threads=1
 ```
 

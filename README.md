@@ -170,11 +170,11 @@ the `weston` package) and use the included harness:
 ./scripts/with-weston.sh cargo test --workspace --locked -- --include-ignored --test-threads=1
 ```
 
-Coverage is measured with `cargo-llvm-cov`; CI enforces at least 80% line coverage and uploads
+Coverage is measured with `cargo-llvm-cov`; CI enforces at least 85% line coverage and uploads
 the LCOV report to Codecov:
 
 ```sh
-./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 80 -- \
+./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 85 -- \
   --include-ignored --test-threads=1
 ```
 
