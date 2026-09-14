@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, fmt};
 
 use carve::{Options, parse_with_options, render_carve, to_plain_text};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use thiserror::Error;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -382,11 +383,14 @@ pub enum DocumentError {
 }
 
 /// Derives a title and searchable plaintext from Carve source.
+///
+/// A non-empty string `title` field in supported frontmatter takes precedence over a heading.
 #[must_use]
 pub fn derive_content(source: &str) -> DerivedContent {
     let document = parse_with_options(source, &Options::default().with_positions(true));
     let plain_text = to_plain_text(source);
-    let title = first_heading(&document)
+    let title = frontmatter_title(&document)
+        .or_else(|| first_heading(&document))
         .or_else(|| {
             plain_text
                 .lines()
@@ -397,6 +401,17 @@ pub fn derive_content(source: &str) -> DerivedContent {
         .unwrap_or_else(|| "Untitled Note".to_owned());
 
     DerivedContent { title, plain_text }
+}
+
+fn frontmatter_title(document: &carve::Document) -> Option<String> {
+    let (_, value) = bases::parse_frontmatter_value(document)?;
+    value
+        .ok()?
+        .get("title")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 /// Canonicalizes source generated through a rich-editing session.

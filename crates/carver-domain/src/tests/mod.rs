@@ -25,6 +25,30 @@ fn derives_title_from_first_heading() {
 }
 
 #[test]
+fn derives_title_from_yaml_frontmatter_before_a_heading() {
+    assert_eq!(
+        derive_content("---\ntitle: From metadata\n---\n\n# From heading").title,
+        "From metadata"
+    );
+}
+
+#[test]
+fn derives_title_from_json_frontmatter_before_a_heading() {
+    assert_eq!(
+        derive_content("---json\n{\"title\":\"From metadata\"}\n---\n\n# From heading").title,
+        "From metadata"
+    );
+}
+
+#[test]
+fn derives_title_from_toml_frontmatter_before_a_heading() {
+    assert_eq!(
+        derive_content("---toml\ntitle = \"From metadata\"\n---\n\n# From heading").title,
+        "From metadata"
+    );
+}
+
+#[test]
 fn derives_title_from_first_text_when_heading_is_missing() {
     assert_eq!(
         derive_content("\n\nHello world\n\nMore").title,
