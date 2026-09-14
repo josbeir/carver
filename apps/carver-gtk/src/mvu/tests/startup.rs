@@ -143,13 +143,34 @@ fn created_note_should_request_editor_focus() {
 #[test]
 fn opened_note_should_request_editor_focus() {
     let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let category_id = CategoryId::new();
+    let request_id = match update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+    )
+    .as_slice()
+    {
+        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        _ => panic!("opening a note should load it"),
+    };
 
     let effects = update(
         &mut model,
-        AppMsg::Editor(EditorMsg::Load {
-            note_id: NoteId::new(),
-            revision: Revision(1),
-            source: String::from("Existing note content"),
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id,
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("Existing note content"),
+                title: String::from("Existing note content"),
+                plain_text: String::from("Existing note content"),
+                revision: Revision(1),
+                is_favorite: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
         }),
     );
 

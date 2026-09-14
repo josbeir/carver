@@ -46,8 +46,17 @@ pub(crate) fn widget_as<T: glib::prelude::IsA<gtk::Widget> + glib::object::Objec
 }
 
 pub(crate) fn run_main_context_until(predicate: impl Fn() -> bool) -> bool {
+    run_main_context_until_for(std::time::Duration::from_secs(5), predicate)
+}
+
+/// Runs the GTK event loop until a predicate succeeds or its allotted time expires.
+pub(crate) fn run_main_context_until_for(
+    timeout: std::time::Duration,
+    predicate: impl Fn() -> bool,
+) -> bool {
     let context = glib::MainContext::default();
-    for _ in 0..500 {
+    let deadline = std::time::Instant::now() + timeout;
+    while std::time::Instant::now() < deadline {
         while context.pending() {
             context.iteration(false);
         }

@@ -966,8 +966,8 @@ fn update_editor_load(
     {
         return Vec::new();
     }
-    let session = open_editor(model, note_id, revision, false, source);
-    vec![Effect::FocusEditor { session }]
+    open_editor(model, note_id, revision, false, source);
+    Vec::new()
 }
 
 fn update_source_command(

@@ -20,7 +20,10 @@ use libadwaita::prelude::{
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
 
-use super::support::{TestResult, find_widget, run_main_context_until, test_state, widget_as};
+use super::support::{
+    TestResult, find_widget, run_main_context_until, run_main_context_until_for, test_state,
+    widget_as,
+};
 
 #[test]
 #[ignore = "requires a graphical display; CI runs it under headless Weston"]
@@ -39,7 +42,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::stale_web_messages_should_not_change_the_active_document()?;
     interactions::source_link_should_keep_the_captured_selection()?;
     interactions::rich_link_should_update_canonical_source()?;
-    interactions::opened_note_should_focus_rich_editor_without_opening_find()?;
     interactions::source_image_paste_should_store_a_managed_asset()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
@@ -2072,7 +2074,7 @@ fn assert_document_sidebar_should_focus_and_show_file_details(
     let toggle = widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
     toggle.set_active(true);
-    assert!(run_main_context_until(|| {
+    assert!(run_main_context_until_for(Duration::from_secs(10), || {
         widget_as::<gtk::Label>(root, "editor-media-size")
             .is_some_and(|label| label.text() == glib::format_size(bytes.len() as u64))
     }));

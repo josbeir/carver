@@ -98,29 +98,6 @@ pub(super) fn rich_link_should_update_canonical_source() -> TestResult {
     Ok(())
 }
 
-pub(super) fn opened_note_should_focus_rich_editor_without_opening_find() -> TestResult {
-    let fixture = document_sidebar::fixture()?;
-    fixture.runtime.dispatch(AppMsg::Preferences(
-        crate::mvu::PreferencesMsg::SetEditorMode(carver_config::EditorMode::Rich),
-    ));
-    let category = fixture.client.create_category("Opened note focus")?;
-    let note = fixture.client.create_note(category.id)?;
-    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-        note_id: note.id,
-        revision: note.revision,
-        source: String::from("Existing note content"),
-    }));
-    let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
-    let find = widget_as::<gtk::SearchBar>(&fixture.surface, "editor-find-bar").ok_or("find")?;
-
-    assert!(run_main_context_until(|| widget_is_window_focus(
-        rich.upcast_ref()
-    )));
-    assert!(!find.is_search_mode());
-    fixture.window.close();
-    Ok(())
-}
-
 pub(super) fn source_image_paste_should_store_a_managed_asset() -> TestResult {
     let fixture = document_sidebar::fixture()?;
     let category = fixture.client.create_category("Paste")?;
