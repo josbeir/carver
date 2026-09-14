@@ -5,7 +5,8 @@ use carver_sdk::{
 };
 use time::{Duration, OffsetDateTime};
 
-use super::{LoadState, browser_projection_snapshot, note_category_color};
+use super::{LoadState, browser_projection_snapshot};
+use crate::ui::browser::note_category_color;
 
 #[test]
 fn sidebar_snapshot_should_preserve_the_last_ready_projection_during_a_reload() {

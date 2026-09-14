@@ -261,11 +261,19 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
-    fn active_base_rows(&self) -> Result<Vec<BaseRow>, Self::Error> {
-        Ok(Vec::new())
+    fn base_rows(
+        &self,
+        _base_id: BaseId,
+        _page: carver_library_port::PageRequest,
+    ) -> Result<carver_library_port::Page<BaseRow>, Self::Error> {
+        Self::unsupported()
     }
 
-    fn base_rows(&self, _base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {
+    fn base_row_count(
+        &self,
+        _filter_mode: BaseFilterMode,
+        _filters: &[BaseFilter],
+    ) -> Result<usize, Self::Error> {
         Self::unsupported()
     }
 
@@ -284,9 +292,8 @@ impl LibraryBackend for TestBackend {
     fn recent_notes(
         &self,
         _category_id: Option<CategoryId>,
-        _limit: usize,
-        _offset: usize,
-    ) -> Result<Vec<NoteSummary>, Self::Error> {
+        _page: carver_library_port::PageRequest,
+    ) -> Result<carver_library_port::Page<NoteSummary>, Self::Error> {
         Self::unsupported()
     }
 
@@ -303,8 +310,8 @@ impl LibraryBackend for TestBackend {
         &self,
         _query: &str,
         _category_id: Option<CategoryId>,
-        _limit: usize,
-    ) -> Result<Vec<SearchHit>, Self::Error> {
+        _page: carver_library_port::PageRequest,
+    ) -> Result<carver_library_port::Page<SearchHit>, Self::Error> {
         Self::unsupported()
     }
 

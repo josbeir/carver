@@ -101,12 +101,21 @@ fn async_facade_propagates_backend_failures_without_blocking() -> Result<(), Lib
     assert_backend_error(&block_on(client.restore_note_async(note_id)));
     assert_backend_error(&block_on(client.trash_contents_async()));
     assert_backend_error(&block_on(client.empty_trash_async()));
-    assert_backend_error(&block_on(client.recent_notes_async(None, 10, 0)));
+    assert_backend_error(&block_on(client.recent_notes_async(
+        None,
+        PageRequest {
+            limit: 10,
+            offset: 0,
+        },
+    )));
     assert_backend_error(&block_on(client.favorite_notes_async(None, 10, 0)));
     assert_backend_error(&block_on(client.search_async(
         "needle".to_owned(),
         None,
-        10,
+        PageRequest {
+            limit: 10,
+            offset: 0,
+        },
     )));
     assert_backend_error(&block_on(client.store_asset_async(
         note_id,

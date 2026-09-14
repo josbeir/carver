@@ -115,6 +115,17 @@ pub enum BasesMsg {
     },
     /// Reload saved definitions.
     Reload,
+    /// Recount notes matching the filters currently drafted in the configuration dialog.
+    PreviewCount {
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Draft filters.
+        filters: Vec<BaseFilter>,
+    },
+    /// The debounce timer for a configuration preview elapsed.
+    PreviewCountTimerFired(TimerId),
+    /// Request the next page for the visible Base.
+    LoadMoreRows,
 }
 
 /// Messages that change the high-level visible surface.
@@ -150,6 +161,8 @@ pub enum NavigationMsg {
 pub enum BrowserMsg {
     /// Reload the current browser query and category.
     Reload,
+    /// Request the next page for the current query and category.
+    LoadMore,
     /// Open note search when a browser or sidebar shortcut is received on the browser route.
     SearchShortcutRequested,
     /// Reveal the notes search controls and focus their entry.
@@ -605,7 +618,16 @@ pub enum LibraryReply {
         /// Queried saved view.
         base_id: BaseId,
         /// Projected rows or a displayable failure.
-        result: Result<Vec<BaseRow>, UiError>,
+        result: Result<carver_sdk::Page<BaseRow>, UiError>,
+    },
+    /// One additional page for the selected Base completed loading.
+    BaseRowsAppended {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Queried saved view.
+        base_id: BaseId,
+        /// Projected page or a displayable failure.
+        result: Result<carver_sdk::Page<BaseRow>, UiError>,
     },
     /// A base creation completed.
     BaseCreated {
@@ -617,21 +639,28 @@ pub enum LibraryReply {
         /// Updated definition or a displayable failure.
         result: Result<BaseDefinition, UiError>,
     },
-    /// Unfiltered configuration data finished loading.
+    /// Configuration prerequisites finished loading.
     BaseConfigurationLoaded {
         /// Request identity.
         request_id: RequestId,
         /// Configuration captured when the user requested the dialog.
         definition: BaseDefinition,
-        /// All active note projections.
-        result: Result<Vec<BaseRow>, UiError>,
+        /// Completion or displayable failure.
+        result: Result<(), UiError>,
     },
-    /// Unfiltered configuration data for a new Base finished loading.
+    /// Configuration prerequisites for a new Base finished loading.
     NewBaseConfigurationLoaded {
         /// Request identity.
         request_id: RequestId,
-        /// All active note projections.
-        result: Result<Vec<BaseRow>, UiError>,
+        /// Completion or displayable failure.
+        result: Result<(), UiError>,
+    },
+    /// A configuration preview count completed.
+    BasePreviewCount {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Count or a displayable failure.
+        result: Result<usize, UiError>,
     },
     /// A semantic library revision completed loading.
     LibraryRevisionLoaded {
@@ -674,9 +703,16 @@ pub enum LibraryReply {
         /// Identity of the initiating request.
         request_id: RequestId,
         /// Successful result or a displayable failure.
-        result: Result<Vec<NoteSummary>, UiError>,
+        result: Result<carver_sdk::Page<NoteSummary>, UiError>,
         /// Favorites loaded with the same category; empty for searches.
         favorites: Result<Vec<NoteSummary>, UiError>,
+    },
+    /// One additional browser page completed loading.
+    BrowserAppended {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Summaries or a displayable failure.
+        result: Result<carver_sdk::Page<NoteSummary>, UiError>,
     },
     /// A favorite-state mutation completed with its updated note revision.
     FavoriteChanged {

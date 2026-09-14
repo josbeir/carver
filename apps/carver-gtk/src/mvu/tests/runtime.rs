@@ -3,6 +3,10 @@ use libadwaita::prelude::*;
 
 use super::*;
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "The integration scenario intentionally follows one complete runtime lifecycle"
+)]
 pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
 -> Result<(), Box<dyn std::error::Error>> {
     let temporary_directory = tempfile::tempdir()?;
@@ -20,7 +24,8 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
     for name in ["browser", "editor", "trash"] {
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(name));
     }
-    let browser_list = gtk::ListBox::new();
+    let browser_list =
+        gtk::ListView::new(None::<gtk::NoSelection>, None::<gtk::SignalListItemFactory>);
     let browser_pages = gtk::Stack::new();
     let browser_status = libadwaita::StatusPage::new();
     browser_pages.add_named(
@@ -56,7 +61,19 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
             document.source.contains("# Imported") && document.source.contains("- [x] Converted")
         })
     }));
-    assert_eq!(client.recent_notes(None, 10, 0)?.len(), 1);
+    assert_eq!(
+        client
+            .recent_notes(
+                None,
+                PageRequest {
+                    limit: 10,
+                    offset: 0
+                }
+            )?
+            .items
+            .len(),
+        1
+    );
 
     runtime.dispatch(AppMsg::Browser(BrowserMsg::SearchChanged(
         "needle".to_owned(),
@@ -109,7 +126,7 @@ pub(crate) fn runtime_should_render_and_complete_each_initial_resource()
 }
 
 fn browser_view_refs(
-    list: gtk::ListBox,
+    list: gtk::ListView,
     pages: gtk::Stack,
     status: libadwaita::StatusPage,
 ) -> crate::ui::browser::BrowserViewRefs {
@@ -117,6 +134,13 @@ fn browser_view_refs(
         favorites_section: gtk::Box::new(gtk::Orientation::Vertical, 0),
         favorites: gtk::ListBox::new(),
         list,
+        feed_store: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
+        feed_context: std::rc::Rc::new(std::cell::RefCell::new(
+            crate::ui::browser::BrowserFeedContext {
+                show_category: true,
+                sidebar: crate::mvu::LoadState::Idle,
+            },
+        )),
         pages,
         search_bar: gtk::SearchBar::new(),
         search_entry: gtk::SearchEntry::new(),
@@ -127,6 +151,8 @@ fn browser_view_refs(
         category_empty_new_note_button: gtk::Button::new(),
         category_hero: gtk::Box::new(gtk::Orientation::Vertical, 0),
         status,
+        scroll: gtk::ScrolledWindow::new(),
+        load_more: gtk::Button::new(),
     }
 }
 

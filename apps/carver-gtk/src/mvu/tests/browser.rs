@@ -1,5 +1,40 @@
 use super::*;
 
+fn note_page(items: Vec<carver_sdk::NoteSummary>) -> Page<carver_sdk::NoteSummary> {
+    Page {
+        items,
+        has_more: false,
+    }
+}
+
+#[test]
+fn browser_load_more_should_coalesce_pending_requests() {
+    let mut model = AppModel::new(&Config::default());
+    let initial = update(&mut model, AppMsg::Browser(BrowserMsg::Reload));
+    let request_id = match initial.as_slice() {
+        [Effect::LoadBrowser { request_id, .. }] => *request_id,
+        _ => panic!("initial browser page should load"),
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BrowserLoaded {
+            request_id,
+            result: Ok(Page {
+                items: Vec::new(),
+                has_more: true,
+            }),
+            favorites: Ok(Vec::new()),
+        }),
+    );
+
+    let first = update(&mut model, AppMsg::Browser(BrowserMsg::LoadMore));
+    assert!(matches!(
+        first.as_slice(),
+        [Effect::LoadMoreBrowser { offset: 0, .. }]
+    ));
+    assert!(update(&mut model, AppMsg::Browser(BrowserMsg::LoadMore)).is_empty());
+}
+
 #[test]
 fn stale_browser_reply_should_not_replace_a_newer_request() {
     let mut model = AppModel::new(&Config::default());
@@ -30,7 +65,7 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
         AppMsg::Library(LibraryReply::BrowserLoaded {
             favorites: Ok(Vec::new()),
             request_id: first_request,
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
         }),
     );
     let second_request = match follow_up.as_slice() {
@@ -69,7 +104,7 @@ fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading()
         AppMsg::Library(LibraryReply::BrowserLoaded {
             favorites: Ok(Vec::new()),
             request_id: initial_request,
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
         }),
     );
 
@@ -93,7 +128,7 @@ fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading()
         AppMsg::Library(LibraryReply::BrowserLoaded {
             favorites: Ok(Vec::new()),
             request_id,
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
         }),
     );
     assert_eq!(model.browser.loading_indicator_request, None);
@@ -235,7 +270,7 @@ fn loaded_category_should_publish_notes_and_favorites_together() {
         AppMsg::Library(LibraryReply::BrowserLoaded {
             favorites: Ok(vec![favorite.clone()]),
             request_id,
-            result: Ok(vec![favorite.clone()]),
+            result: Ok(note_page(vec![favorite.clone()])),
         }),
     );
 
@@ -389,7 +424,7 @@ fn stale_browser_reply_should_not_replace_favorites() {
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
             request_id: RequestId(999),
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
             favorites: Err(UiError::new("stale favorites")),
         }),
     );
@@ -413,7 +448,7 @@ fn queued_category_switch_should_keep_previous_favorites_until_latest_reply() {
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
             request_id: *request_id,
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
             favorites: Err(UiError::new("previous category favorites")),
         }),
     );
@@ -433,7 +468,7 @@ fn failed_favorites_should_not_discard_successful_browser_notes() {
         &mut model,
         AppMsg::Library(LibraryReply::BrowserLoaded {
             request_id: *request_id,
-            result: Ok(Vec::new()),
+            result: Ok(note_page(Vec::new())),
             favorites: Err(UiError::new("favorites unavailable")),
         }),
     );

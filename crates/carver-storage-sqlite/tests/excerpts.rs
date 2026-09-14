@@ -1,6 +1,7 @@
 //! Excerpts preserve grapheme boundaries without changing stored note content.
 
 use carver_domain::Note;
+use carver_library_port::PageRequest;
 use carver_storage_sqlite::SqliteLibrary;
 use time::OffsetDateTime;
 
@@ -26,7 +27,17 @@ fn recent_excerpt_should_keep_the_combining_accent_at_the_limit() -> TestResult 
     let source = format!("{expected}remaining");
     let (_directory, library, note) = library_with_note(&source)?;
 
-    let summary = library.recent_notes(None, 1, 0)?.pop().ok_or("summary")?;
+    let summary = library
+        .recent_notes(
+            None,
+            PageRequest {
+                limit: 1,
+                offset: 0,
+            },
+        )?
+        .items
+        .pop()
+        .ok_or("summary")?;
 
     assert_eq!(summary.excerpt, expected);
     let persisted = library.note(note.id)?.ok_or("persisted note")?;

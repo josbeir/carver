@@ -35,7 +35,7 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
             AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
                 request_id: *old_id,
                 definition: definition.clone(),
-                result: Ok(Vec::new())
+                result: Ok(())
             })
         )
         .is_empty()
@@ -46,7 +46,7 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
             AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
                 request_id: *request_id,
                 definition,
-                result: Ok(Vec::new())
+                result: Ok(())
             })
         )
         .as_slice(),
@@ -67,7 +67,7 @@ fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows
             &mut model,
             AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
                 request_id: RequestId(request_id.0 + 1),
-                result: Ok(Vec::new()),
+                result: Ok(()),
             }),
         )
         .is_empty()
@@ -77,11 +77,75 @@ fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows
             &mut model,
             AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
                 request_id: *request_id,
-                result: Ok(Vec::new()),
+                result: Ok(()),
             }),
         )
         .as_slice(),
         [Effect::ShowNewBaseConfiguration { .. }]
+    ));
+}
+
+#[test]
+fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
+    let mut model = AppModel::new(&Config::default());
+    let first_filter = BaseFilter {
+        field: BaseColumn::Category,
+        operator: carver_sdk::BaseFilterOperator::Equals,
+        value: Some(serde_json::json!("Work")),
+    };
+    let second_filter = BaseFilter {
+        field: BaseColumn::Category,
+        operator: carver_sdk::BaseFilterOperator::Equals,
+        value: Some(serde_json::json!("Personal")),
+    };
+    let first = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::PreviewCount {
+            filter_mode: BaseFilterMode::All,
+            filters: vec![first_filter],
+        }),
+    );
+    let [
+        Effect::ScheduleBasePreview {
+            timer_id: first_timer,
+        },
+    ] = first.as_slice()
+    else {
+        panic!("first preview should schedule a debounce");
+    };
+    let second = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::PreviewCount {
+            filter_mode: BaseFilterMode::Any,
+            filters: vec![second_filter.clone()],
+        }),
+    );
+    let [
+        Effect::ScheduleBasePreview {
+            timer_id: second_timer,
+        },
+    ] = second.as_slice()
+    else {
+        panic!("second preview should replace the debounce");
+    };
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Bases(BasesMsg::PreviewCountTimerFired(*first_timer)),
+        )
+        .is_empty()
+    );
+    assert!(matches!(
+        update(
+            &mut model,
+            AppMsg::Bases(BasesMsg::PreviewCountTimerFired(*second_timer)),
+        )
+        .as_slice(),
+        [Effect::PreviewBaseRowCount {
+            filter_mode: BaseFilterMode::Any,
+            filters,
+            ..
+        }] if filters == &vec![second_filter]
     ));
 }
 
@@ -461,7 +525,10 @@ fn rapidly_switching_bases_should_load_the_latest_selection_after_in_flight_rows
         AppMsg::Library(LibraryReply::BaseRowsLoaded {
             request_id,
             base_id: first,
-            result: Ok(Vec::new()),
+            result: Ok(Page {
+                items: Vec::new(),
+                has_more: false,
+            }),
         }),
     );
     assert!(matches!(

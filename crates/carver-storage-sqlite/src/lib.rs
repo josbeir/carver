@@ -20,8 +20,10 @@ use carver_domain::{
     TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content, fold_base_text,
     project_frontmatter, property_descriptors,
 };
-use carver_library_port::{LibraryBackend, LibraryRevision};
-use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
+use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
+use rusqlite::{
+    Connection, OptionalExtension, Transaction, params, params_from_iter, types::Value as SqlValue,
+};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -511,12 +513,16 @@ impl SqliteLibrary {
         Ok(definition)
     }
 
-    /// Returns every active note projected as a base row.
+    /// Returns one ordered page of active notes projected as Base rows.
     ///
     /// # Errors
     ///
     /// Returns an error when the base is missing or rows cannot be read.
-    pub fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, StorageError> {
+    pub fn base_rows(
+        &self,
+        base_id: BaseId,
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, StorageError> {
         let raw_definition: String = self
             .connection
             .query_row(
@@ -527,7 +533,7 @@ impl SqliteLibrary {
             .optional()?
             .ok_or(StorageError::MutationUnavailable)?;
         let payload = decode_base_payload(&raw_definition)?;
-        self.query_base_rows(payload.filter_mode, &payload.filters, &payload.sorts)
+        self.query_base_rows(payload.filter_mode, &payload.filters, &payload.sorts, page)
     }
 
     fn query_base_rows(
@@ -535,7 +541,8 @@ impl SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
-    ) -> Result<Vec<BaseRow>, StorageError> {
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, StorageError> {
         let plan = base_query::compile_base_query(filter_mode, filters, sorts);
         let filter = plan
             .filter_sql
@@ -545,17 +552,26 @@ impl SqliteLibrary {
             "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{filter}
-             ORDER BY {}",
+             ORDER BY {} LIMIT ? OFFSET ?",
             plan.order_sql
         );
+        let mut parameters = plan.parameters;
+        parameters.push(SqlValue::Integer(page_limit(page)));
+        parameters.push(SqlValue::Integer(page_offset(page)));
         let mut statement = self.connection.prepare(&sql)?;
-        statement
-            .query_map(params_from_iter(plan.parameters.iter()), base_row_from_row)?
+        let rows = statement
+            .query_map(params_from_iter(parameters.iter()), base_row_from_row)?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(StorageError::Database)
+            .map_err(StorageError::Database)?;
+        Ok(page_from_extra(rows, page.limit))
     }
 
-    fn base_row_count(
+    /// Counts active notes matching the supplied Base filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the JSON1 filter cannot be queried.
+    pub fn base_row_count(
         &self,
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
@@ -573,23 +589,6 @@ impl SqliteLibrary {
                 .query_row(&sql, params_from_iter(parameters.iter()), |row| row.get(0))?;
         usize::try_from(count)
             .map_err(|error| StorageError::Corrupt(format!("invalid base row count: {error}")))
-    }
-
-    /// Returns unfiltered projections of all active notes for configuration previews.
-    ///
-    /// # Errors
-    /// Returns an error if stored rows cannot be decoded or read.
-    pub fn active_base_rows(&self) -> Result<Vec<BaseRow>, StorageError> {
-        let mut statement = self.connection.prepare(
-            "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
-             FROM notes n JOIN categories c ON c.id = n.category_id
-             WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL ORDER BY n.updated_at DESC",
-        )?;
-        let rows = statement
-            .query_map([], base_row_from_row)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(StorageError::Database)?;
-        Ok(rows)
     }
 
     /// Discovers flattened leaf paths across active notes.
@@ -1080,9 +1079,8 @@ impl SqliteLibrary {
     pub fn recent_notes(
         &self,
         category_id: Option<CategoryId>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<NoteSummary>, StorageError> {
+        page: PageRequest,
+    ) -> Result<Page<NoteSummary>, StorageError> {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
@@ -1090,14 +1088,16 @@ impl SqliteLibrary {
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL
                AND (?1 IS NULL OR n.category_id = ?1)
-             ORDER BY n.updated_at DESC LIMIT ?2 OFFSET ?3",
+             ORDER BY n.updated_at DESC, n.id ASC LIMIT ?2 OFFSET ?3",
         )?;
-        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-        let offset = i64::try_from(offset).unwrap_or(i64::MAX);
-        statement
-            .query_map(params![category, limit, offset], summary_from_row)?
+        let rows = statement
+            .query_map(
+                params![category, page_limit(page), page_offset(page)],
+                summary_from_row,
+            )?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
+            .map_err(StorageError::Database)?;
+        Ok(page_from_extra(rows, page.limit))
     }
 
     /// Lists active favorite notes, optionally restricted to a category, newest favorite first.
@@ -1137,10 +1137,13 @@ impl SqliteLibrary {
         &self,
         query: &str,
         category_id: Option<CategoryId>,
-        limit: usize,
-    ) -> Result<Vec<SearchHit>, StorageError> {
+        page: PageRequest,
+    ) -> Result<Page<SearchHit>, StorageError> {
         if query.trim().is_empty() {
-            return Ok(Vec::new());
+            return Ok(Page {
+                items: Vec::new(),
+                has_more: false,
+            });
         }
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
@@ -1151,18 +1154,26 @@ impl SqliteLibrary {
              JOIN categories c ON c.id = n.category_id
              WHERE note_fts MATCH ?1 AND n.trashed_at IS NULL AND c.trashed_at IS NULL
                AND (?2 IS NULL OR n.category_id = ?2)
-             ORDER BY bm25(note_fts), n.updated_at DESC LIMIT ?3",
+             ORDER BY bm25(note_fts), n.updated_at DESC, n.id ASC LIMIT ?3 OFFSET ?4",
         )?;
-        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-        statement
-            .query_map(params![fts_query(query), category, limit], |row| {
-                Ok(SearchHit {
-                    note: summary_from_row(row)?,
-                    snippet: row.get(9)?,
-                })
-            })?
+        let rows = statement
+            .query_map(
+                params![
+                    fts_query(query),
+                    category,
+                    page_limit(page),
+                    page_offset(page)
+                ],
+                |row| {
+                    Ok(SearchHit {
+                        note: summary_from_row(row)?,
+                        snippet: row.get(9)?,
+                    })
+                },
+            )?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
+            .map_err(StorageError::Database)?;
+        Ok(page_from_extra(rows, page.limit))
     }
 
     /// Moves a note into the in-app trash.
@@ -1599,12 +1610,16 @@ impl LibraryBackend for SqliteLibrary {
         Self::delete_base(self, base_id)
     }
 
-    fn active_base_rows(&self) -> Result<Vec<BaseRow>, Self::Error> {
-        Self::active_base_rows(self)
+    fn base_rows(&self, base_id: BaseId, page: PageRequest) -> Result<Page<BaseRow>, Self::Error> {
+        Self::base_rows(self, base_id, page)
     }
 
-    fn base_rows(&self, base_id: BaseId) -> Result<Vec<BaseRow>, Self::Error> {
-        Self::base_rows(self, base_id)
+    fn base_row_count(
+        &self,
+        filter_mode: BaseFilterMode,
+        filters: &[BaseFilter],
+    ) -> Result<usize, Self::Error> {
+        Self::base_row_count(self, filter_mode, filters)
     }
 
     fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, Self::Error> {
@@ -1622,10 +1637,9 @@ impl LibraryBackend for SqliteLibrary {
     fn recent_notes(
         &self,
         category_id: Option<CategoryId>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<NoteSummary>, Self::Error> {
-        Self::recent_notes(self, category_id, limit, offset)
+        page: PageRequest,
+    ) -> Result<Page<NoteSummary>, Self::Error> {
+        Self::recent_notes(self, category_id, page)
     }
 
     fn favorite_notes(
@@ -1641,9 +1655,9 @@ impl LibraryBackend for SqliteLibrary {
         &self,
         query: &str,
         category_id: Option<CategoryId>,
-        limit: usize,
-    ) -> Result<Vec<SearchHit>, Self::Error> {
-        self.search_notes(query, category_id, limit)
+        page: PageRequest,
+    ) -> Result<Page<SearchHit>, Self::Error> {
+        self.search_notes(query, category_id, page)
     }
 
     fn store_asset(
@@ -1883,6 +1897,22 @@ fn timestamp(value: OffsetDateTime) -> i64 {
 fn parse_timestamp(value: i64) -> Result<OffsetDateTime, StorageError> {
     OffsetDateTime::from_unix_timestamp(value)
         .map_err(|error| StorageError::Corrupt(error.to_string()))
+}
+
+fn page_limit(page: PageRequest) -> i64 {
+    i64::try_from(page.limit.saturating_add(1)).unwrap_or(i64::MAX)
+}
+
+fn page_offset(page: PageRequest) -> i64 {
+    i64::try_from(page.offset).unwrap_or(i64::MAX)
+}
+
+fn page_from_extra<T>(mut items: Vec<T>, limit: usize) -> Page<T> {
+    let has_more = items.len() > limit;
+    if has_more {
+        let _ = items.pop();
+    }
+    Page { items, has_more }
 }
 
 fn base_row_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BaseRow> {

@@ -1,5 +1,13 @@
 use super::*;
 use carver_domain::{BaseFilterOperator, BaseSort, BaseSortDirection, project_base_rows};
+use carver_library_port::PageRequest;
+
+fn all_page() -> PageRequest {
+    PageRequest {
+        limit: usize::MAX,
+        offset: 0,
+    }
+}
 
 fn query_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
     let (directory, library) = library();
@@ -30,6 +38,36 @@ fn query_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
     (directory, library, base)
 }
 
+#[test]
+fn base_rows_should_page_without_duplicates_and_report_more_results() {
+    let (_directory, library, base) = query_fixture();
+    let first = library
+        .base_rows(
+            base.id,
+            PageRequest {
+                limit: 2,
+                offset: 0,
+            },
+        )
+        .unwrap_or_else(|error| panic!("first page failed: {error}"));
+    let second = library
+        .base_rows(
+            base.id,
+            PageRequest {
+                limit: 2,
+                offset: first.items.len(),
+            },
+        )
+        .unwrap_or_else(|error| panic!("second page failed: {error}"));
+
+    assert_eq!(first.items.len(), 2);
+    assert!(first.has_more);
+    assert_eq!(second.items.len(), 1);
+    assert!(!second.has_more);
+    assert_ne!(first.items[0].note_id, second.items[0].note_id);
+    assert_ne!(first.items[1].note_id, second.items[0].note_id);
+}
+
 fn assert_sql_projection_matches_domain(
     library: &SqliteLibrary,
     base: &BaseDefinition,
@@ -39,8 +77,9 @@ fn assert_sql_projection_matches_domain(
 ) {
     let expected = project_base_rows(
         library
-            .active_base_rows()
-            .unwrap_or_else(|error| panic!("active rows failed: {error}")),
+            .base_rows(base.id, all_page())
+            .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+            .items,
         filter_mode,
         filters,
         sorts,
@@ -57,8 +96,9 @@ fn assert_sql_projection_matches_domain(
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
     let rows = library
-        .base_rows(updated.id)
-        .unwrap_or_else(|error| panic!("base rows failed: {error}"));
+        .base_rows(updated.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+        .items;
     assert_eq!(rows, expected);
     assert_eq!(updated.row_count, expected.len());
 }
@@ -271,8 +311,9 @@ fn base_rows_should_project_yaml_json_and_toml_frontmatter() {
     );
 
     let rows = library
-        .base_rows(base.id)
-        .unwrap_or_else(|error| panic!("rows failed: {error}"));
+        .base_rows(base.id, all_page())
+        .unwrap_or_else(|error| panic!("rows failed: {error}"))
+        .items;
     let json_row = rows
         .iter()
         .find(|row| row.note_id == json.id)
@@ -356,7 +397,14 @@ fn property_descriptors_should_ignore_the_active_base_filter() {
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
 
-    assert_eq!(library.base_rows(base.id).unwrap_or_default().len(), 1);
+    assert_eq!(
+        library
+            .base_rows(base.id, all_page())
+            .unwrap_or_else(|error| panic!("rows failed: {error}"))
+            .items
+            .len(),
+        1
+    );
     let descriptors = library
         .property_descriptors()
         .unwrap_or_else(|error| panic!("descriptors failed: {error}"));
@@ -393,8 +441,9 @@ fn malformed_frontmatter_should_not_block_note_save_or_enter_the_projection() {
         .create_base("All", &[])
         .unwrap_or_else(|error| panic!("base failed: {error}"));
     let rows = library
-        .base_rows(base.id)
-        .unwrap_or_else(|error| panic!("rows failed: {error}"));
+        .base_rows(base.id, all_page())
+        .unwrap_or_else(|error| panic!("rows failed: {error}"))
+        .items;
 
     assert_eq!(rows[0].note_id, note.id);
     assert!(rows[0].properties.is_null());
@@ -433,13 +482,16 @@ fn base_configuration_should_filter_rows_and_guard_revision() {
         .unwrap_or_else(|error| panic!("update failed: {error}"));
     assert_eq!(updated.row_count, 1);
     let rows = library
-        .base_rows(base.id)
-        .unwrap_or_else(|error| panic!("filtered rows failed: {error}"));
+        .base_rows(base.id, all_page())
+        .unwrap_or_else(|error| panic!("filtered rows failed: {error}"))
+        .items;
     assert_eq!(rows.len(), 1);
-    let all_rows = library
-        .active_base_rows()
-        .unwrap_or_else(|error| panic!("unfiltered preview: {error}"));
-    assert!(all_rows.len() > rows.len());
+    assert_eq!(
+        library
+            .base_row_count(BaseFilterMode::All, &[])
+            .unwrap_or_else(|error| panic!("unfiltered preview count: {error}")),
+        2
+    );
     assert_eq!(
         library
             .bases()

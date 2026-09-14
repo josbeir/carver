@@ -1,4 +1,5 @@
 use super::*;
+use carver_library_port::PageRequest;
 
 #[test]
 fn trash_and_restore_should_reject_stale_or_repeated_requests() {
@@ -55,8 +56,15 @@ fn trashed_category_hides_its_notes() {
         .trash_category(category.id, now)
         .unwrap_or_else(|error| panic!("trash failed: {error}"));
     let notes = library
-        .recent_notes(None, 20, 0)
-        .unwrap_or_else(|error| panic!("list failed: {error}"));
+        .recent_notes(
+            None,
+            PageRequest {
+                limit: 20,
+                offset: 0,
+            },
+        )
+        .unwrap_or_else(|error| panic!("list failed: {error}"))
+        .items;
     assert!(notes.is_empty());
 }
 
@@ -129,8 +137,16 @@ fn empty_trash_removes_search_entries_and_orphaned_assets() {
     );
     assert!(
         library
-            .search_notes("Remove", None, 10)
+            .search_notes(
+                "Remove",
+                None,
+                PageRequest {
+                    limit: 10,
+                    offset: 0
+                }
+            )
             .unwrap_or_else(|error| panic!("search failed: {error}"))
+            .items
             .is_empty()
     );
     assert!(

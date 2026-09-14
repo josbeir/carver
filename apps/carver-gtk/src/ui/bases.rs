@@ -2,11 +2,11 @@
 pub(crate) mod actions;
 pub(crate) mod field_picker;
 
-use carver_sdk::{BaseColumn, BaseDefinition, BaseRow};
+use carver_sdk::{BaseColumn, BaseDefinition, BaseRow, NoteId, Revision};
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use crate::mvu::{AppDispatcher, AppMsg, NavigationMsg};
+use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
 
 /// Widgets needed to render the current saved base.
@@ -19,6 +19,10 @@ pub(crate) struct BaseViewRefs {
     pub(crate) pages: gtk::Stack,
     pub(crate) scroll: gtk::ScrolledWindow,
     pub(crate) status: adw::StatusPage,
+    pub(crate) load_more: gtk::Button,
+    pub(crate) rows: gtk::gio::ListStore,
+    pub(crate) rendered_definition: std::cell::RefCell<Option<BaseDefinition>>,
+    pub(crate) rendered_rows: std::cell::RefCell<Vec<(NoteId, Revision)>>,
 }
 
 pub(crate) fn build_base(
@@ -56,8 +60,8 @@ pub(crate) fn build_base(
     header.pack_end(&configure);
     toolbar.add_top_bar(&header);
 
-    let model = gtk::StringList::new(&[]);
-    let selection = gtk::NoSelection::new(Some(model));
+    let rows = gtk::gio::ListStore::new::<glib::BoxedAnyObject>();
+    let selection = gtk::NoSelection::new(Some(rows.clone()));
     let grid = gtk::ColumnView::new(Some(selection));
     grid.set_widget_name("bases-grid");
     grid.add_css_class("data-table");
@@ -68,6 +72,7 @@ pub(crate) fn build_base(
     grid.set_vexpand(true);
 
     let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("base-scroll");
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
     scroll.set_child(Some(&grid));
     let status = adw::StatusPage::builder()
@@ -76,12 +81,33 @@ pub(crate) fn build_base(
         .description("Notes with YAML, JSON, or TOML frontmatter will appear here.")
         .build();
     status.set_widget_name("base-status");
+    let load_more = gtk::Button::with_label("Load more rows");
+    load_more.set_widget_name("base-load-more");
+    load_more.add_css_class("flat");
+    load_more.set_halign(gtk::Align::Center);
+    load_more.set_visible(false);
+    let grid_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    grid_content.append(&scroll);
+    grid_content.append(&load_more);
     let pages = gtk::Stack::new();
     pages.set_widget_name("base-pages");
-    pages.add_named(&scroll, Some("grid"));
+    pages.add_named(&grid_content, Some("grid"));
     pages.add_named(&status, Some("status"));
     pages.set_visible_child_name("grid");
     toolbar.set_content(Some(&pages));
+    let dispatcher_for_button = dispatcher.clone();
+    load_more.connect_clicked(move |_| {
+        let _ = dispatcher_for_button.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
+    });
+    let dispatcher_for_scroll = dispatcher.clone();
+    scroll
+        .vadjustment()
+        .connect_value_changed(move |adjustment| {
+            let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
+            if remaining <= adjustment.page_size() * 2.0 {
+                let _ = dispatcher_for_scroll.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
+            }
+        });
     (
         toolbar.upcast(),
         BaseViewRefs {
@@ -93,6 +119,10 @@ pub(crate) fn build_base(
             pages,
             scroll,
             status,
+            load_more,
+            rows,
+            rendered_definition: std::cell::RefCell::new(None),
+            rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
     )
 }
@@ -109,10 +139,20 @@ pub(crate) fn render_base(
     rows: &[BaseRow],
     dispatcher: &AppDispatcher,
 ) {
-    let horizontal = refs.scroll.hadjustment().value();
-    let vertical = refs.scroll.vadjustment().value();
     refs.title.set_text(&definition.name);
     refs.grid.set_sensitive(true);
+    if refs.rendered_definition.borrow().as_ref() != Some(definition) {
+        rebuild_columns(refs, definition, dispatcher);
+        refs.rows.remove_all();
+        refs.rendered_rows.borrow_mut().clear();
+        refs.rendered_definition.replace(Some(definition.clone()));
+    }
+    append_rows(refs, rows);
+    refs.pages
+        .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
+}
+
+fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher: &AppDispatcher) {
     while let Some(column) = refs
         .grid
         .columns()
@@ -139,22 +179,23 @@ pub(crate) fn render_base(
             ),
         }
     }
-    let serialized: Vec<String> = rows
-        .iter()
-        .filter_map(|row| serde_json::to_string(row).ok())
-        .collect();
-    let borrowed: Vec<&str> = serialized.iter().map(String::as_str).collect();
-    let model = gtk::StringList::new(&borrowed);
-    refs.grid
-        .set_model(Some(&gtk::NoSelection::new(Some(model))));
-    refs.pages
-        .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
-    let horizontal_adjustment = refs.scroll.hadjustment();
-    let vertical_adjustment = refs.scroll.vadjustment();
-    glib::idle_add_local_once(move || {
-        horizontal_adjustment.set_value(horizontal);
-        vertical_adjustment.set_value(vertical);
-    });
+}
+
+fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
+    let incoming: Vec<_> = rows.iter().map(|row| (row.note_id, row.revision)).collect();
+    let mut rendered = refs.rendered_rows.borrow_mut();
+    let appends_existing_rows = rows.len() >= rendered.len()
+        && incoming
+            .get(..rendered.len())
+            .is_some_and(|prefix| prefix == rendered.as_slice());
+    if !appends_existing_rows {
+        refs.rows.remove_all();
+        rendered.clear();
+    }
+    for row in &rows[rendered.len()..] {
+        refs.rows.append(&glib::BoxedAnyObject::new(row.clone()));
+    }
+    *rendered = incoming;
 }
 
 fn append_column(
@@ -187,14 +228,14 @@ fn append_column(
                 let Some(item) = weak_item.upgrade() else {
                     return;
                 };
-                let Some(string) = item.item().and_downcast::<gtk::StringObject>() else {
+                let Some(row) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
                     return;
                 };
-                let Ok(row) = serde_json::from_str::<BaseRow>(&string.string()) else {
-                    return;
+                let note_id = {
+                    let row = row.borrow::<BaseRow>();
+                    row.note_id
                 };
-                let _ =
-                    dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(row.note_id)));
+                let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
             });
             item.set_child(Some(&button));
         } else {
@@ -206,7 +247,7 @@ fn append_column(
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
         };
-        let Some(string) = item.item().and_downcast::<gtk::StringObject>() else {
+        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
             return;
         };
         let Some(child) = item.child() else {
@@ -224,9 +265,7 @@ fn append_column(
         let Some(label) = label else {
             return;
         };
-        let Ok(row) = serde_json::from_str::<BaseRow>(&string.string()) else {
-            return;
-        };
+        let row = object.borrow::<BaseRow>();
         if child.is::<gtk::Button>() {
             child.set_widget_name(&format!("base-note:{}", row.note_id));
         }

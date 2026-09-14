@@ -369,11 +369,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
             grid: bases_grid.clone(),
             pages: base_pages.clone(),
-            scroll: bases_grid
-                .parent()
-                .and_downcast::<gtk::ScrolledWindow>()
-                .ok_or("base scroll")?,
+            scroll: widget_as::<gtk::ScrolledWindow>(&root, "base-scroll").ok_or("base scroll")?,
             status: base_status.clone(),
+            load_more: widget_as::<gtk::Button>(&root, "base-load-more").ok_or("base load more")?,
+            rows: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
+            rendered_definition: std::cell::RefCell::new(None),
+            rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
         "Couldn’t load rows",
         "Test failure",
@@ -489,10 +490,23 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     assert!(new_note_handled);
     assert!(run_main_context_until(|| client
-        .recent_notes(None, 10, 0)
-        .is_ok_and(|notes| notes.len() == 1)));
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0
+            }
+        )
+        .is_ok_and(|notes| notes.items.len() == 1)));
     let note = client
-        .recent_notes(None, 10, 0)?
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0,
+            },
+        )?
+        .items
         .pop()
         .ok_or("created note")?;
     assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
@@ -708,7 +722,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         .child()
         .and_downcast::<gtk::Box>()
         .ok_or("browser content")?;
-    let note_list = widget_as::<gtk::ListBox>(&root, "note-list").ok_or("note list")?;
+    let note_list = widget_as::<gtk::ListView>(&root, "note-list").ok_or("note list")?;
     assert!(
         note_list
             .parent()
@@ -721,7 +735,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     .and_downcast::<gtk::ListBoxRow>()
     .ok_or("destination category row")?;
     let notes_without_favorites = Rc::new(Cell::new(false));
-    let observed_rows = note_list.observe_children();
+    let observed_rows = note_list.model().ok_or("note list model")?;
     let observer = observed_rows.connect_items_changed({
         let root = root.clone();
         let notes_without_favorites = Rc::clone(&notes_without_favorites);
@@ -767,12 +781,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             && find_widget(&root, &format!("note-category:{}", note.id)).is_some()
             && find_widget(&root, "note-group:today").is_some()
     }));
-    let note_row = find_widget(&root, &format!("note:{}", note.id))
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("note row")?;
-    assert!(note_row.has_css_class("card"));
-    assert!(note_row.has_css_class("activatable"));
-    note_row.activate();
+    let note_card = find_widget(&root, &format!("note:{}", note.id)).ok_or("note card")?;
+    assert!(note_card.has_css_class("card"));
+    assert!(note_card.has_css_class("activatable"));
+    assert!(activate_browser_note(&note_list, note.id));
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
@@ -1418,9 +1430,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     }));
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("note:{}", note.id)).is_some()
-            && find_widget(&root, "note-group:today")
-                .and_downcast::<gtk::ListBoxRow>()
-                .is_some_and(|row| !row.is_selectable())
+            && find_widget(&root, "note-group:today").is_some()
     }));
     search.set_text("Searchable");
     assert!(run_main_context_until(|| {
@@ -1456,10 +1466,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         )
         .into());
     }
-    let moved_note_row = find_widget(&root, &format!("note:{}", note.id))
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("moved note row")?;
-    moved_note_row.activate();
+    assert!(activate_browser_note(&note_list, note.id));
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
@@ -1497,10 +1504,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         route_stack.visible_child_name().as_deref() == Some("browser")
             && find_widget(&root, &format!("note:{}", note.id)).is_some()
     }));
-    let restored_note_row = find_widget(&root, &format!("note:{}", note.id))
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("restored note row")?;
-    restored_note_row.activate();
+    assert!(activate_browser_note(&note_list, note.id));
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
     }));
@@ -2463,6 +2467,27 @@ fn assert_native_file_drop_should_insert_an_ordered_batch(
             && text.ends_with(") After")
     }));
     Ok(())
+}
+
+fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::NoteId) -> bool {
+    let Some(model) = list.model() else {
+        return false;
+    };
+    let Some(position) = (0..model.n_items()).find(|position| {
+        model
+            .item(*position)
+            .and_downcast::<glib::BoxedAnyObject>()
+            .is_some_and(|item| {
+                matches!(
+                    &*item.borrow::<crate::ui::browser::BrowserFeedItem>(),
+                    crate::ui::browser::BrowserFeedItem::Note(current) if current.id == note_id
+                )
+            })
+    }) else {
+        return false;
+    };
+    list.emit_by_name::<()>("activate", &[&position]);
+    true
 }
 
 fn assert_thumbnail_should_follow_markup_kind(

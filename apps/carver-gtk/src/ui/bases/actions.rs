@@ -600,14 +600,12 @@ pub(crate) fn show_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     definition: &BaseDefinition,
-    rows: &[carver_sdk::BaseRow],
     property_descriptors: &[carver_sdk::PropertyDescriptor],
 ) -> adw::Dialog {
     show_base_configuration_dialog(
         parent,
         dispatcher,
         definition,
-        rows,
         property_descriptors,
         BaseConfigurationMode::Update {
             base_id: definition.id,
@@ -620,7 +618,6 @@ pub(crate) fn show_configuration_dialog(
 pub(crate) fn show_new_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
-    rows: &[carver_sdk::BaseRow],
     property_descriptors: &[carver_sdk::PropertyDescriptor],
 ) -> adw::Dialog {
     let definition = BaseDefinition::defaults(
@@ -633,7 +630,6 @@ pub(crate) fn show_new_configuration_dialog(
         parent,
         dispatcher,
         &definition,
-        rows,
         property_descriptors,
         BaseConfigurationMode::Create,
     )
@@ -652,7 +648,6 @@ fn show_base_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     definition: &BaseDefinition,
-    rows: &[carver_sdk::BaseRow],
     property_descriptors: &[carver_sdk::PropertyDescriptor],
     mode: BaseConfigurationMode,
 ) -> adw::Dialog {
@@ -770,25 +765,15 @@ fn show_base_configuration_dialog(
     let next_filter_id = Rc::new(Cell::new(definition.filters.len() as u64));
     let next_sort_id = Rc::new(Cell::new(definition.sorts.len() as u64));
     let refresh_preview: Rc<dyn Fn()> = {
-        let preview = preview.clone();
-        let rows = rows.to_vec();
+        let dispatcher = dispatcher.clone();
         let filter_mode = filter_mode.clone();
         let filter_widgets = Rc::clone(&filter_widgets);
-        let sort_widgets = Rc::clone(&sort_widgets);
         Rc::new(move || {
             let filters = selected_filters(&filter_widgets.borrow());
-            let sorts = selected_sorts(&sort_widgets.borrow());
-            let count = carver_domain::project_base_rows(
-                rows.clone(),
-                selected_filter_mode(&filter_mode),
-                &filters,
-                &sorts,
-            )
-            .len();
-            preview.set_text(&format!(
-                "Currently matches {count} {}",
-                if count == 1 { "note" } else { "notes" }
-            ));
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::PreviewCount {
+                filter_mode: selected_filter_mode(&filter_mode),
+                filters,
+            }));
         })
     };
     {
@@ -981,6 +966,35 @@ fn show_base_configuration_dialog(
     name.grab_focus();
     dialog.present(Some(parent));
     dialog
+}
+
+/// Updates the matching-note count shown by an open configuration dialog.
+pub(crate) fn render_preview(dialog: &adw::Dialog, count: usize) {
+    let Some(root) = dialog.child() else {
+        return;
+    };
+    let Some(label) = find_widget(&root, "base-configuration-preview").and_downcast::<gtk::Label>()
+    else {
+        return;
+    };
+    label.set_text(&format!(
+        "Currently matches {count} {}",
+        if count == 1 { "note" } else { "notes" }
+    ));
+}
+
+fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
+    if root.widget_name() == name {
+        return Some(root.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_widget(&current, name) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
 }
 
 pub(crate) fn finish_configuration(dialog: &adw::Dialog, success: bool) {

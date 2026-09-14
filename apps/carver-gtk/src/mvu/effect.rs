@@ -32,17 +32,27 @@ pub enum Effect {
     ShowBaseConfiguration {
         /// Saved configuration to edit.
         definition: carver_sdk::BaseDefinition,
-        /// All active rows, independent of saved filters.
-        rows: Vec<carver_sdk::BaseRow>,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
     },
     /// Present the shared Base configuration dialog in create mode.
     ShowNewBaseConfiguration {
-        /// All active rows, independent of any draft filters.
-        rows: Vec<carver_sdk::BaseRow>,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
+    },
+    /// Count rows matching draft Base filters without loading their projections.
+    PreviewBaseRowCount {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Filter combination mode.
+        filter_mode: BaseFilterMode,
+        /// Draft filters.
+        filters: Vec<BaseFilter>,
+    },
+    /// Update the open configuration dialog's preview label.
+    UpdateBaseConfigurationPreview {
+        /// Current matching-note count.
+        count: usize,
     },
     /// Complete a configuration save without discarding a failed draft.
     FinishBaseConfiguration {
@@ -70,6 +80,15 @@ pub enum Effect {
         request_id: RequestId,
         /// Saved view to query.
         base_id: BaseId,
+    },
+    /// Load one additional page for a visible Base.
+    LoadMoreBaseRows {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Saved view to query.
+        base_id: BaseId,
+        /// Starting position of the requested page.
+        offset: usize,
     },
     /// Create a saved Base with its complete initial configuration.
     CreateConfiguredBase {
@@ -216,6 +235,11 @@ pub enum Effect {
         /// Identity used to ignore a superseded debounce timer.
         timer_id: TimerId,
     },
+    /// Wait before counting notes for the latest Base configuration draft.
+    ScheduleBasePreview {
+        /// Identity used to ignore a superseded preview debounce timer.
+        timer_id: TimerId,
+    },
     /// Wait before attempting to persist the latest editor source.
     ScheduleEditorSave {
         /// Editor lifetime that scheduled the autosave.
@@ -303,6 +327,17 @@ pub enum Effect {
         category_id: Option<CategoryId>,
         /// Search input to apply.
         query: String,
+    },
+    /// Load one additional page for the current browser query.
+    LoadMoreBrowser {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Category to restrict the listing to, if any.
+        category_id: Option<CategoryId>,
+        /// Search input to apply.
+        query: String,
+        /// Starting position of the requested page.
+        offset: usize,
     },
     /// Load a complete note before showing it in the editor.
     LoadEditorNote {

@@ -10,8 +10,8 @@ mod cli;
 
 use carve::{CheckedRenderOptions, to_markdown_with_report};
 use carver_sdk::{
-    CategoryAppearance, CategoryId, DocumentImportFormat, InstalledLibraryClient, NoteId, Revision,
-    open_installed_library,
+    CategoryAppearance, CategoryId, DocumentImportFormat, InstalledLibraryClient, NoteId,
+    PageRequest, Revision, open_installed_library,
 };
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt,
@@ -94,6 +94,7 @@ struct SearchRequest {
     query: String,
     category_id: Option<CategoryId>,
     limit: Option<usize>,
+    offset: Option<usize>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -177,12 +178,14 @@ impl CarverServer {
         self.client
             .recent_notes_async(
                 request.category_id,
-                limit(request.limit)?,
-                request.offset.unwrap_or(0),
+                PageRequest {
+                    limit: limit(request.limit)?,
+                    offset: request.offset.unwrap_or(0),
+                },
             )
             .await
             .map_err(storage_error)
-            .and_then(json)
+            .and_then(|page| json(page.items))
     }
 
     /// Lists active favorite notes, newest favorite first.
@@ -209,10 +212,17 @@ impl CarverServer {
         Parameters(request): Parameters<SearchRequest>,
     ) -> Result<String, ErrorData> {
         self.client
-            .search_async(request.query, request.category_id, limit(request.limit)?)
+            .search_async(
+                request.query,
+                request.category_id,
+                PageRequest {
+                    limit: limit(request.limit)?,
+                    offset: request.offset.unwrap_or(0),
+                },
+            )
             .await
             .map_err(storage_error)
-            .and_then(json)
+            .and_then(|page| json(page.items))
     }
 
     /// Loads one active note with canonical Carve source or, with `markdown: true`, Markdown source.

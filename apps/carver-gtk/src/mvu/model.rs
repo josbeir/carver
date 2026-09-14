@@ -138,6 +138,13 @@ pub enum Route {
 pub struct BasesModel {
     /// Latest configuration snapshot request.
     pub configuration_request: Option<RequestId>,
+    /// Latest configuration preview-count request.
+    pub configuration_preview_request: Option<RequestId>,
+    /// Debounce timer for the latest configuration preview draft.
+    pub configuration_preview_timer: Option<TimerId>,
+    /// Draft retained until its preview debounce timer elapses.
+    pub configuration_preview_draft:
+        Option<(carver_sdk::BaseFilterMode, Vec<carver_sdk::BaseFilter>)>,
     /// Whether a configuration update is pending.
     pub saving_configuration: bool,
     /// Base deletions currently in flight.
@@ -152,6 +159,14 @@ pub struct BasesModel {
     pub selected: Option<carver_sdk::BaseId>,
     /// Rows of the selected definition.
     pub rows: Resource<Vec<carver_sdk::BaseRow>>,
+    /// Offset for the next Base row page.
+    pub rows_next_offset: usize,
+    /// Whether another Base row page is available.
+    pub rows_has_more: bool,
+    /// Incremental Base row request currently in flight.
+    pub rows_append_request: Option<RequestId>,
+    /// Recoverable failure while loading another Base row page.
+    pub rows_append_error: Option<UiError>,
     /// Typed frontmatter properties currently present in active notes.
     pub property_descriptors: Resource<Vec<carver_sdk::PropertyDescriptor>>,
 }
@@ -204,6 +219,14 @@ pub struct BrowserModel {
     pub search_query: String,
     /// Loaded note summaries for the active category and query.
     pub notes: Resource<Vec<NoteSummary>>,
+    /// Offset for the next browser result page.
+    pub next_offset: usize,
+    /// Whether another browser result page is available.
+    pub has_more: bool,
+    /// Incremental browser request currently in flight.
+    pub append_request: Option<RequestId>,
+    /// Recoverable failure while loading another browser page.
+    pub append_error: Option<UiError>,
     /// Favorite notes rendered above the All Notes feed.
     pub favorites: Resource<Vec<NoteSummary>>,
     /// Most recent successful note list, retained while a replacement request loads.

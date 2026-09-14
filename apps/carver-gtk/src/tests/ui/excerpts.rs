@@ -9,7 +9,17 @@ pub(super) fn note_card_should_display_the_complete_final_grapheme() -> TestResu
     let category = client.create_category("Unicode")?;
     let created = client.create_note(category.id)?;
     let saved = client.save_note(created.id, created.revision, &source)?;
-    let summary = client.recent_notes(None, 1, 0)?.pop().ok_or("summary")?;
+    let summary = client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 1,
+                offset: 0,
+            },
+        )?
+        .items
+        .pop()
+        .ok_or("summary")?;
     let details = crate::ui::browser::note_card_details(&summary, false, None);
     let window = gtk::Window::builder().child(&details).build();
     window.present();

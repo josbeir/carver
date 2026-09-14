@@ -208,6 +208,32 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
         }
         BasesMsg::Reload => reload_bases(model).into_iter().collect(),
+        BasesMsg::PreviewCount {
+            filter_mode,
+            filters,
+        } => {
+            let timer_id = model.next_timer_id();
+            model.bases.configuration_preview_timer = Some(timer_id);
+            model.bases.configuration_preview_draft = Some((filter_mode, filters));
+            vec![Effect::ScheduleBasePreview { timer_id }]
+        }
+        BasesMsg::PreviewCountTimerFired(timer_id)
+            if model.bases.configuration_preview_timer == Some(timer_id) =>
+        {
+            model.bases.configuration_preview_timer = None;
+            let Some((filter_mode, filters)) = model.bases.configuration_preview_draft.take()
+            else {
+                return Vec::new();
+            };
+            let request_id = model.next_request_id();
+            model.bases.configuration_preview_request = Some(request_id);
+            vec![Effect::PreviewBaseRowCount {
+                request_id,
+                filter_mode,
+                filters,
+            }]
+        }
+        BasesMsg::LoadMoreRows => load_more_base_rows(model).into_iter().collect(),
         BasesMsg::Delete(base_id) => {
             if model.bases.deleting.insert(base_id) {
                 vec![Effect::DeleteBase { base_id }]
@@ -224,6 +250,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
+        BasesMsg::PreviewCountTimerFired(_) => Vec::new(),
     }
 }
 
@@ -302,6 +329,7 @@ fn open_base(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Vec<Effect> {
 fn update_browser(model: &mut AppModel, message: BrowserMsg) -> Vec<Effect> {
     match message {
         BrowserMsg::Reload => reload_browser(model).into_iter().collect(),
+        BrowserMsg::LoadMore => load_more_browser(model).into_iter().collect(),
         BrowserMsg::SearchTimerFired(timer_id) if model.browser.search_timer == Some(timer_id) => {
             model.browser.search_timer = None;
             reload_browser(model).into_iter().collect()
@@ -1322,6 +1350,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             base_id,
             result,
         } => update_base_rows_loaded(model, request_id, base_id, result),
+        LibraryReply::BaseRowsAppended {
+            request_id,
+            base_id,
+            result,
+        } => update_base_rows_appended(model, request_id, base_id, result),
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
         LibraryReply::BaseUpdated { result } => update_base_updated(model, result),
         LibraryReply::BaseConfigurationLoaded {
@@ -1337,14 +1370,13 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 return Vec::new();
             }
             match result {
-                Ok(rows) => {
+                Ok(()) => {
                     let descriptors = match &model.bases.property_descriptors.state {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
                     vec![Effect::ShowBaseConfiguration {
                         definition,
-                        rows,
                         descriptors,
                     }]
                 }
@@ -1360,13 +1392,26 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             }
             model.bases.configuration_request = None;
             match result {
-                Ok(rows) => {
+                Ok(()) => {
                     let descriptors = match &model.bases.property_descriptors.state {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
-                    vec![Effect::ShowNewBaseConfiguration { rows, descriptors }]
+                    vec![Effect::ShowNewBaseConfiguration { descriptors }]
                 }
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
+        LibraryReply::BasePreviewCount { request_id, result } => {
+            if model.bases.configuration_preview_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.bases.configuration_preview_request = None;
+            match result {
+                Ok(count) => vec![Effect::UpdateBaseConfigurationPreview { count }],
                 Err(error) => {
                     model.notice = Some(error);
                     Vec::new()
@@ -1416,6 +1461,9 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             result,
             favorites,
         } => update_browser_loaded(model, request_id, result, favorites),
+        LibraryReply::BrowserAppended { request_id, result } => {
+            update_browser_appended(model, request_id, result)
+        }
         LibraryReply::FavoriteChanged { action, result } => {
             update_favorite_changed(model, action, result)
         }
@@ -1523,8 +1571,21 @@ fn update_base_rows_loaded(
     model: &mut AppModel,
     request_id: super::RequestId,
     _base_id: carver_sdk::BaseId,
-    result: Result<Vec<carver_sdk::BaseRow>, UiError>,
+    result: Result<carver_sdk::Page<carver_sdk::BaseRow>, UiError>,
 ) -> Vec<Effect> {
+    let current = matches!(
+        model.bases.rows.state,
+        super::LoadState::Loading(current) if current == request_id
+    );
+    let result = result.map(|page| {
+        if current {
+            model.bases.rows_next_offset = page.items.len();
+            model.bases.rows_has_more = page.has_more;
+            model.bases.rows_append_request = None;
+            model.bases.rows_append_error = None;
+        }
+        page.items
+    });
     let reload = model.bases.rows.finish(request_id, result);
     if reload {
         return model
@@ -1533,6 +1594,35 @@ fn update_base_rows_loaded(
             .and_then(|selected| reload_base_rows(model, selected))
             .into_iter()
             .collect();
+    }
+    Vec::new()
+}
+
+fn update_base_rows_appended(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    base_id: carver_sdk::BaseId,
+    result: Result<carver_sdk::Page<carver_sdk::BaseRow>, UiError>,
+) -> Vec<Effect> {
+    if model.bases.selected != Some(base_id) || model.bases.rows_append_request != Some(request_id)
+    {
+        return Vec::new();
+    }
+    model.bases.rows_append_request = None;
+    match result {
+        Ok(page) => {
+            let Some(rows) = (match &mut model.bases.rows.state {
+                super::LoadState::Ready(rows) => Some(rows),
+                _ => None,
+            }) else {
+                return Vec::new();
+            };
+            model.bases.rows_next_offset += page.items.len();
+            model.bases.rows_has_more = page.has_more;
+            model.bases.rows_append_error = None;
+            rows.extend(page.items);
+        }
+        Err(error) => model.bases.rows_append_error = Some(error),
     }
     Vec::new()
 }
@@ -1708,13 +1798,22 @@ fn update_editor_asset_stored(
 fn update_browser_loaded(
     model: &mut AppModel,
     request_id: super::RequestId,
-    result: Result<Vec<carver_sdk::NoteSummary>, UiError>,
+    result: Result<carver_sdk::Page<carver_sdk::NoteSummary>, UiError>,
     favorites: Result<Vec<carver_sdk::NoteSummary>, UiError>,
 ) -> Vec<Effect> {
     let is_current = matches!(
         model.browser.notes.state,
         super::LoadState::Loading(current) if current == request_id
     );
+    let result = result.map(|page| {
+        if is_current {
+            model.browser.next_offset = page.items.len();
+            model.browser.has_more = page.has_more;
+            model.browser.append_request = None;
+            model.browser.append_error = None;
+        }
+        page.items
+    });
     let reload = model.browser.notes.finish(request_id, result);
     if is_current {
         if !reload {
@@ -1730,6 +1829,33 @@ fn update_browser_loaded(
         model.browser.loading_indicator_visible = false;
     }
     reload_browser_after(reload, model)
+}
+
+fn update_browser_appended(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<carver_sdk::Page<carver_sdk::NoteSummary>, UiError>,
+) -> Vec<Effect> {
+    if model.browser.append_request != Some(request_id) {
+        return Vec::new();
+    }
+    model.browser.append_request = None;
+    match result {
+        Ok(page) => {
+            let Some(notes) = (match &mut model.browser.notes.state {
+                super::LoadState::Ready(notes) => Some(notes),
+                _ => None,
+            }) else {
+                return Vec::new();
+            };
+            model.browser.next_offset += page.items.len();
+            model.browser.has_more = page.has_more;
+            model.browser.append_error = None;
+            notes.extend(page.items);
+        }
+        Err(error) => model.browser.append_error = Some(error),
+    }
+    Vec::new()
 }
 
 fn update_editor_loaded(
@@ -2364,14 +2490,39 @@ fn reload_property_descriptors(model: &mut AppModel) -> Option<Effect> {
 
 fn reload_base_rows(model: &mut AppModel, base_id: carver_sdk::BaseId) -> Option<Effect> {
     let request_id = model.next_request_id();
-    model
+    let started = model
         .bases
         .rows
         .begin_reload(request_id)
         .then_some(Effect::LoadBaseRows {
             request_id,
             base_id,
-        })
+        });
+    if started.is_some() {
+        model.bases.rows_next_offset = 0;
+        model.bases.rows_has_more = false;
+        model.bases.rows_append_request = None;
+        model.bases.rows_append_error = None;
+    }
+    started
+}
+
+fn load_more_base_rows(model: &mut AppModel) -> Option<Effect> {
+    let base_id = model.bases.selected?;
+    if !model.bases.rows_has_more
+        || model.bases.rows_append_request.is_some()
+        || !matches!(model.bases.rows.state, super::LoadState::Ready(_))
+    {
+        return None;
+    }
+    let request_id = model.next_request_id();
+    model.bases.rows_append_request = Some(request_id);
+    model.bases.rows_append_error = None;
+    Some(Effect::LoadMoreBaseRows {
+        request_id,
+        base_id,
+        offset: model.bases.rows_next_offset,
+    })
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {
@@ -2380,11 +2531,33 @@ fn reload_browser(model: &mut AppModel) -> Option<Effect> {
     if started {
         model.browser.loading_indicator_request = Some(request_id);
         model.browser.loading_indicator_visible = false;
+        model.browser.next_offset = 0;
+        model.browser.has_more = false;
+        model.browser.append_request = None;
+        model.browser.append_error = None;
     }
     started.then_some(Effect::LoadBrowser {
         request_id,
         category_id: model.selected_category,
         query: model.browser.search_query.clone(),
+    })
+}
+
+fn load_more_browser(model: &mut AppModel) -> Option<Effect> {
+    if !model.browser.has_more
+        || model.browser.append_request.is_some()
+        || !matches!(model.browser.notes.state, super::LoadState::Ready(_))
+    {
+        return None;
+    }
+    let request_id = model.next_request_id();
+    model.browser.append_request = Some(request_id);
+    model.browser.append_error = None;
+    Some(Effect::LoadMoreBrowser {
+        request_id,
+        category_id: model.selected_category,
+        query: model.browser.search_query.clone(),
+        offset: model.browser.next_offset,
     })
 }
 

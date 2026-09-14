@@ -191,7 +191,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .clone()
         .downcast::<gtk::Label>()
         .map_err(|_| "preview label type")?;
-    assert_eq!(preview_label.text(), "Currently matches 0 notes");
+    assert!(run_main_context_until(|| {
+        preview_label.text() == "Currently matches 0 notes"
+    }));
     let visible_fields = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-visible-fields-list")
         .ok_or("visible fields list")?;
     assert!(super::find_label(visible_fields.upcast_ref(), "Name").is_some());
@@ -257,7 +259,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     let remove_filter = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-remove-0")
         .ok_or("remove filter button")?;
     remove_filter.emit_clicked();
-    assert_eq!(preview_label.text(), "Currently matches 1 note");
+    assert!(run_main_context_until(|| {
+        preview_label.text() == "Currently matches 1 note"
+    }));
     let scroll = preview
         .ancestor(gtk::ScrolledWindow::static_type())
         .and_downcast::<gtk::ScrolledWindow>()

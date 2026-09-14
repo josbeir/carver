@@ -13,7 +13,7 @@ pub use carver_domain::{
     PropertyDescriptor, PropertyKind, PropertyPath, Revision, SearchHit, TrashContents,
     TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
 };
-pub use carver_library_port::{LibraryBackend, LibraryRevision};
+pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -289,17 +289,23 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub async fn base_rows_async(
         &self,
         base_id: BaseId,
-    ) -> Result<Vec<BaseRow>, LibraryError<B::Error>> {
-        self.request(move |backend| backend.base_rows(base_id))
+        page: PageRequest,
+    ) -> Result<Page<BaseRow>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.base_rows(base_id, page))
             .await
     }
 
-    /// Loads all active note projections for a Base configuration preview.
+    /// Counts rows matching a prospective Base filter without loading them.
     ///
     /// # Errors
-    /// Returns an error when the worker or backend cannot load the rows.
-    pub async fn active_base_rows_async(&self) -> Result<Vec<BaseRow>, LibraryError<B::Error>> {
-        self.request(LibraryBackend::active_base_rows).await
+    /// Returns an error when the worker or backend cannot evaluate the filter.
+    pub async fn base_row_count_async(
+        &self,
+        filter_mode: BaseFilterMode,
+        filters: Vec<BaseFilter>,
+    ) -> Result<usize, LibraryError<B::Error>> {
+        self.request(move |backend| backend.base_row_count(filter_mode, &filters))
+            .await
     }
 
     /// Discovers current frontmatter properties without blocking the caller.
@@ -459,10 +465,9 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub async fn recent_notes_async(
         &self,
         category_id: Option<CategoryId>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
-        self.request(move |backend| backend.recent_notes(category_id, limit, offset))
+        page: PageRequest,
+    ) -> Result<Page<NoteSummary>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.recent_notes(category_id, page))
             .await
     }
 
@@ -482,9 +487,9 @@ impl<B: LibraryBackend> LibraryClient<B> {
         &self,
         query: String,
         category_id: Option<CategoryId>,
-        limit: usize,
-    ) -> Result<Vec<SearchHit>, LibraryError<B::Error>> {
-        self.request(move |backend| backend.search(&query, category_id, limit))
+        page: PageRequest,
+    ) -> Result<Page<SearchHit>, LibraryError<B::Error>> {
+        self.request(move |backend| backend.search(&query, category_id, page))
             .await
     }
 
@@ -703,10 +708,9 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub fn recent_notes(
         &self,
         category_id: Option<CategoryId>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<NoteSummary>, LibraryError<B::Error>> {
-        self.blocking(move |backend| backend.recent_notes(category_id, limit, offset))
+        page: PageRequest,
+    ) -> Result<Page<NoteSummary>, LibraryError<B::Error>> {
+        self.blocking(move |backend| backend.recent_notes(category_id, page))
     }
 
     /// Lists favorite active notes, optionally restricted to a category, synchronously for bootstrap code and tests.
@@ -724,10 +728,10 @@ impl<B: LibraryBackend> LibraryClient<B> {
         &self,
         query: &str,
         category_id: Option<CategoryId>,
-        limit: usize,
-    ) -> Result<Vec<SearchHit>, LibraryError<B::Error>> {
+        page: PageRequest,
+    ) -> Result<Page<SearchHit>, LibraryError<B::Error>> {
         let query = query.to_owned();
-        self.blocking(move |backend| backend.search(&query, category_id, limit))
+        self.blocking(move |backend| backend.search(&query, category_id, page))
     }
 
     /// Stores an image asset synchronously for bootstrap code and tests.

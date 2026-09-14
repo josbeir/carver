@@ -1,4 +1,46 @@
 use super::*;
+use carver_library_port::PageRequest;
+
+fn page(limit: usize) -> PageRequest {
+    PageRequest { limit, offset: 0 }
+}
+
+#[test]
+fn recent_notes_should_page_in_stable_order() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    for title in ["First", "Second", "Third"] {
+        library
+            .create_note_with_source(category.id, &format!("# {title}"), now)
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+    }
+    let first = library
+        .recent_notes(
+            None,
+            PageRequest {
+                limit: 2,
+                offset: 0,
+            },
+        )
+        .unwrap_or_else(|error| panic!("first page failed: {error}"));
+    let second = library
+        .recent_notes(
+            None,
+            PageRequest {
+                limit: 2,
+                offset: 2,
+            },
+        )
+        .unwrap_or_else(|error| panic!("second page failed: {error}"));
+
+    assert_eq!(first.items.len(), 2);
+    assert!(first.has_more);
+    assert_eq!(second.items.len(), 1);
+    assert!(!second.has_more);
+}
 
 #[test]
 fn fts_search_finds_saved_notes() {
@@ -19,8 +61,9 @@ fn fts_search_finds_saved_notes() {
         )
         .unwrap_or_else(|error| panic!("save failed: {error}"));
     let results = library
-        .search_notes("Carve", None, 20)
-        .unwrap_or_else(|error| panic!("search failed: {error}"));
+        .search_notes("Carve", None, page(20))
+        .unwrap_or_else(|error| panic!("search failed: {error}"))
+        .items;
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].note.title, "Roadmap");
     assert_eq!(results[0].note.category_name, "Work");
@@ -42,8 +85,9 @@ fn creating_a_note_with_source_indexes_its_derived_content() {
     assert_eq!(note.title, "Imported roadmap");
     assert_eq!(
         library
-            .search_notes("Ship", None, 20)
+            .search_notes("Ship", None, page(20))
             .unwrap_or_else(|error| panic!("search failed: {error}"))
+            .items
             .len(),
         1
     );
@@ -60,7 +104,8 @@ fn recent_note_summaries_include_their_category_name() {
         .create_note(category.id, now)
         .unwrap_or_else(|error| panic!("note failed: {error}"));
     let summaries = library
-        .recent_notes(None, 20, 0)
-        .unwrap_or_else(|error| panic!("list failed: {error}"));
+        .recent_notes(None, page(20))
+        .unwrap_or_else(|error| panic!("list failed: {error}"))
+        .items;
     assert_eq!(summaries[0].category_name, "Personal");
 }

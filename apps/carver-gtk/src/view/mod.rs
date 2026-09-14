@@ -4,18 +4,17 @@
 mod tests;
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Date, OffsetDateTime};
 
-use crate::{
-    mvu::{
-        ActionMsg, AppDispatcher, AppModel, AppMsg, BrowserModel, EditorSaveState, Effect,
-        LoadState, MoveUndo, Route,
-    },
-    ui::dialogs::show_move_note_dialog,
+use crate::mvu::{
+    AppDispatcher, AppModel, AppMsg, BrowserModel, EditorSaveState, Effect, LoadState, MoveUndo,
+    Route,
 };
+use crate::ui::browser::{BrowserFeedContext, BrowserFeedItem};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,7 +57,8 @@ impl BrowserProjectionSnapshot {
 }
 
 struct BrowserContentRefs<'a> {
-    list: &'a gtk::ListBox,
+    list: &'a gtk::ListView,
+    feed_store: &'a gtk::gio::ListStore,
     pages: &'a gtk::Stack,
     search_empty: &'a gtk::Box,
     category_empty: &'a gtk::Box,
@@ -71,7 +71,11 @@ struct BrowserContentRefs<'a> {
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
     route_stack: gtk::Stack,
-    browser_list: Option<gtk::ListBox>,
+    browser_list: Option<gtk::ListView>,
+    browser_feed_store: Option<gtk::gio::ListStore>,
+    browser_feed_context: Option<Rc<RefCell<BrowserFeedContext>>>,
+    browser_rendered_rows: RefCell<Vec<(carver_sdk::NoteId, carver_sdk::Revision)>>,
+    browser_rendered_context: RefCell<Option<BrowserFeedContext>>,
     browser_favorites_section: Option<gtk::Box>,
     browser_favorites: Option<gtk::ListBox>,
     browser_pages: Option<gtk::Stack>,
@@ -83,6 +87,7 @@ pub struct ViewRefs {
     browser_empty_new_note_button: Option<gtk::Button>,
     browser_category_empty_new_note_button: Option<gtk::Button>,
     browser_category_hero: Option<gtk::Box>,
+    browser_load_more: Option<gtk::Button>,
     browser_status: adw::StatusPage,
     base: Option<crate::ui::bases::BaseViewRefs>,
     trash_list: Option<gtk::ListBox>,
@@ -116,6 +121,10 @@ impl ViewRefs {
         Self {
             route_stack,
             browser_list: None,
+            browser_feed_store: None,
+            browser_feed_context: None,
+            browser_rendered_rows: RefCell::new(Vec::new()),
+            browser_rendered_context: RefCell::new(None),
             browser_favorites_section: None,
             browser_favorites: None,
             browser_pages: None,
@@ -127,6 +136,7 @@ impl ViewRefs {
             browser_empty_new_note_button: None,
             browser_category_empty_new_note_button: None,
             browser_category_hero: None,
+            browser_load_more: None,
             browser_status,
             base: None,
             trash_list: None,
@@ -182,6 +192,8 @@ impl ViewRefs {
     #[must_use]
     pub(crate) fn with_browser(mut self, browser: crate::ui::browser::BrowserViewRefs) -> Self {
         self.browser_list = Some(browser.list);
+        self.browser_feed_store = Some(browser.feed_store);
+        self.browser_feed_context = Some(browser.feed_context);
         self.browser_favorites_section = Some(browser.favorites_section);
         self.browser_favorites = Some(browser.favorites);
         self.browser_pages = Some(browser.pages);
@@ -193,6 +205,7 @@ impl ViewRefs {
         self.browser_empty_new_note_button = Some(browser.empty_new_note_button);
         self.browser_category_empty_new_note_button = Some(browser.category_empty_new_note_button);
         self.browser_category_hero = Some(browser.category_hero);
+        self.browser_load_more = Some(browser.load_more);
         self
     }
 
@@ -298,6 +311,17 @@ impl ViewRefs {
                 dispatcher,
             );
             crate::ui::bases::render_base(refs, definition, rows, dispatcher);
+            let loading = model.bases.rows_append_request.is_some();
+            refs.load_more
+                .set_visible(model.bases.rows_has_more || model.bases.rows_append_error.is_some());
+            refs.load_more.set_sensitive(!loading);
+            refs.load_more.set_label(if loading {
+                "Loading more rows…"
+            } else if model.bases.rows_append_error.is_some() {
+                "Retry loading rows"
+            } else {
+                "Load more rows"
+            });
         }
     }
 
@@ -306,23 +330,24 @@ impl ViewRefs {
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
-        if let Effect::ShowNewBaseConfiguration { rows, descriptors } = &effect {
+        if let Effect::ShowNewBaseConfiguration { descriptors } = &effect {
             if let Some(dispatcher) = &self.dispatcher {
                 use adw::prelude::*;
                 if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
-                    crate::ui::bases::actions::show_new_configuration_dialog(
+                    let dialog = crate::ui::bases::actions::show_new_configuration_dialog(
                         &parent,
                         dispatcher,
-                        rows,
                         descriptors,
                     );
+                    if let Some(refs) = &self.base {
+                        refs.configuration.replace(Some(dialog));
+                    }
                 }
             }
             return;
         }
         if let Effect::ShowBaseConfiguration {
             definition,
-            rows,
             descriptors,
         } = &effect
         {
@@ -338,7 +363,6 @@ impl ViewRefs {
                         &parent,
                         dispatcher,
                         definition,
-                        rows,
                         descriptors,
                     );
                     refs.configuration.replace(Some(dialog));
@@ -356,6 +380,16 @@ impl ViewRefs {
                 if let Some(dialog) = dialog {
                     crate::ui::bases::actions::finish_configuration(&dialog, success);
                 }
+            }
+            return;
+        }
+        if let Effect::UpdateBaseConfigurationPreview { count } = effect {
+            if let Some(dialog) = self
+                .base
+                .as_ref()
+                .and_then(|refs| refs.configuration.borrow().clone())
+            {
+                crate::ui::bases::actions::render_preview(&dialog, count);
             }
             return;
         }
@@ -494,6 +528,10 @@ impl ViewRefs {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "CONTEXT: one snapshot renderer keeps browser visibility and pagination in one coherent projection"
+    )]
     fn render_browser(&self, model: &AppModel) {
         self.render_browser_search(model);
         // Keep the complete previous browser visible until both lists are ready.
@@ -506,9 +544,22 @@ impl ViewRefs {
         if !self.browser_projection_changed(model) {
             return;
         }
+        if let Some(load_more) = &self.browser_load_more {
+            let loading = model.browser.append_request.is_some();
+            load_more.set_visible(model.browser.has_more || model.browser.append_error.is_some());
+            load_more.set_sensitive(!loading);
+            load_more.set_label(if loading {
+                "Loading more notes…"
+            } else if model.browser.append_error.is_some() {
+                "Retry loading notes"
+            } else {
+                "Load more notes"
+            });
+        }
         self.render_browser_favorites(model);
         let Some(BrowserContentRefs {
             list,
+            feed_store,
             pages,
             search_empty,
             category_empty,
@@ -530,7 +581,8 @@ impl ViewRefs {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
             {
-                clear_list(list);
+                feed_store.remove_all();
+                self.browser_rendered_rows.borrow_mut().clear();
                 search_empty.set_visible(true);
                 category_empty.set_visible(false);
                 empty_new_note.set_visible(false);
@@ -539,7 +591,7 @@ impl ViewRefs {
             }
             LoadState::Ready(notes) if notes.is_empty() && model.selected_category.is_some() => {
                 render_empty_category(
-                    list,
+                    feed_store,
                     pages,
                     search_empty,
                     category_empty,
@@ -548,7 +600,8 @@ impl ViewRefs {
                 );
             }
             LoadState::Ready(notes) if notes.is_empty() => {
-                clear_list(list);
+                feed_store.remove_all();
+                self.browser_rendered_rows.borrow_mut().clear();
                 search_empty.set_visible(false);
                 category_empty.set_visible(false);
                 empty_new_note.set_visible(true);
@@ -558,8 +611,9 @@ impl ViewRefs {
                     .set_description(Some("Create a note to get started."));
                 pages.set_visible_child_name("empty");
             }
-            LoadState::Ready(notes) => render_browser_notes(
+            LoadState::Ready(notes) => self.render_browser_notes(
                 list,
+                feed_store,
                 pages,
                 search_empty,
                 category_empty,
@@ -567,10 +621,10 @@ impl ViewRefs {
                 category_empty_new_note,
                 notes,
                 model,
-                self.dispatcher.as_ref(),
             ),
             state => {
-                clear_list(list);
+                feed_store.remove_all();
+                self.browser_rendered_rows.borrow_mut().clear();
                 search_empty.set_visible(false);
                 category_empty.set_visible(false);
                 empty_new_note.set_visible(false);
@@ -603,6 +657,7 @@ impl ViewRefs {
     fn browser_content_refs(&self) -> Option<BrowserContentRefs<'_>> {
         Some(BrowserContentRefs {
             list: self.browser_list.as_ref()?,
+            feed_store: self.browser_feed_store.as_ref()?,
             pages: self.browser_pages.as_ref()?,
             search_empty: self.browser_search_empty_card.as_ref()?,
             category_empty: self.browser_category_empty_card.as_ref()?,
@@ -792,14 +847,14 @@ fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjecti
 }
 
 fn render_empty_category(
-    list: &gtk::ListBox,
+    feed_store: &gtk::gio::ListStore,
     pages: &gtk::Stack,
     search_empty: &gtk::Box,
     category_empty: &gtk::Box,
     empty_new_note: &gtk::Button,
     category_empty_new_note: &gtk::Button,
 ) {
-    clear_list(list);
+    feed_store.remove_all();
     search_empty.set_visible(false);
     category_empty.set_visible(true);
     empty_new_note.set_visible(false);
@@ -807,45 +862,69 @@ fn render_empty_category(
     pages.set_visible_child_name("contents");
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the browser's complete note-list projection shares one immutable model snapshot"
-)]
-fn render_browser_notes(
-    list: &gtk::ListBox,
-    pages: &gtk::Stack,
-    search_empty: &gtk::Box,
-    category_empty: &gtk::Box,
-    empty_new_note: &gtk::Button,
-    category_empty_new_note: &gtk::Button,
-    notes: &[carver_sdk::NoteSummary],
-    model: &AppModel,
-    dispatcher: Option<&AppDispatcher>,
-) {
-    clear_list(list);
-    search_empty.set_visible(false);
-    category_empty.set_visible(false);
-    empty_new_note.set_visible(true);
-    category_empty_new_note.set_visible(false);
-    pages.set_visible_child_name("contents");
-    let show_category = model.selected_category.is_none();
-    let show_date_groups = model.browser.search_query.trim().is_empty();
-    let now = OffsetDateTime::now_utc();
-    let mut previous_group = None;
-    for note in notes {
-        if show_date_groups {
-            let group = crate::ui::browser::note_date_group(note.updated_at, now);
-            if previous_group != Some(group) {
-                append_note_date_group_heading(list, group);
-                previous_group = Some(group);
-            }
+impl ViewRefs {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the browser's complete note-list projection shares one immutable model snapshot"
+    )]
+    fn render_browser_notes(
+        &self,
+        _list: &gtk::ListView,
+        feed_store: &gtk::gio::ListStore,
+        pages: &gtk::Stack,
+        search_empty: &gtk::Box,
+        category_empty: &gtk::Box,
+        empty_new_note: &gtk::Button,
+        category_empty_new_note: &gtk::Button,
+        notes: &[carver_sdk::NoteSummary],
+        model: &AppModel,
+    ) {
+        search_empty.set_visible(false);
+        category_empty.set_visible(false);
+        empty_new_note.set_visible(true);
+        category_empty_new_note.set_visible(false);
+        pages.set_visible_child_name("contents");
+        let context = BrowserFeedContext {
+            show_category: model.selected_category.is_none(),
+            sidebar: model.sidebar.state.clone(),
+        };
+        let show_date_groups = model.browser.search_query.trim().is_empty();
+        let existing_context = self.browser_rendered_context.borrow().clone();
+        let incoming: Vec<_> = notes.iter().map(|note| (note.id, note.revision)).collect();
+        let mut rendered = self.browser_rendered_rows.borrow_mut();
+        let can_append = existing_context.as_ref() == Some(&context)
+            && notes.len() >= rendered.len()
+            && incoming
+                .get(..rendered.len())
+                .is_some_and(|prefix| prefix == rendered.as_slice());
+        if !can_append {
+            feed_store.remove_all();
+            rendered.clear();
         }
-        list.append(&browser_row(
-            note,
-            show_category,
-            &model.sidebar.state,
-            dispatcher,
-        ));
+        if let Some(feed_context) = &self.browser_feed_context {
+            feed_context.replace(context.clone());
+        }
+        let now = OffsetDateTime::now_utc();
+        let mut previous_group = rendered.last().and_then(|(id, _)| {
+            notes
+                .iter()
+                .find(|note| note.id == *id)
+                .map(|note| crate::ui::browser::note_date_group(note.updated_at, now))
+        });
+        for note in &notes[rendered.len()..] {
+            if show_date_groups {
+                let group = crate::ui::browser::note_date_group(note.updated_at, now);
+                if previous_group != Some(group) {
+                    feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Heading(group)));
+                    previous_group = Some(group);
+                }
+            }
+            feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Note(
+                note.clone(),
+            )));
+        }
+        *rendered = incoming;
+        self.browser_rendered_context.replace(Some(context));
     }
 }
 
@@ -932,127 +1011,14 @@ fn browser_row(
     row.add_css_class("card");
     row.add_css_class("activatable");
     row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    content.set_margin_start(12);
-    content.set_margin_end(8);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    let category_color = show_category
-        .then(|| note_category_color(note, sidebar))
-        .flatten();
-    content.append(&crate::ui::browser::note_card_details(
-        note,
+    let context = BrowserFeedContext {
         show_category,
-        category_color,
-    ));
-    if let (LoadState::Ready(categories), Some(dispatcher)) = (sidebar, dispatcher) {
-        content.append(&note_actions(note, categories, dispatcher));
-    }
-    row.set_child(Some(&content));
-    row
-}
-
-fn note_category_color(
-    note: &carver_sdk::NoteSummary,
-    sidebar: &LoadState<Vec<carver_sdk::CategorySummary>>,
-) -> Option<carver_sdk::CategoryColor> {
-    let LoadState::Ready(categories) = sidebar else {
-        return None;
+        sidebar: sidebar.clone(),
     };
-    categories
-        .iter()
-        .find(|summary| summary.category.id == note.category_id)
-        .map(|summary| {
-            summary
-                .category
-                .appearance
-                .color
-                .resolved_for(note.category_id)
-        })
-}
-
-fn note_actions(
-    note: &carver_sdk::NoteSummary,
-    categories: &[carver_sdk::CategorySummary],
-    dispatcher: &AppDispatcher,
-) -> gtk::MenuButton {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name(&format!("note-menu:{}", note.id));
-    menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some("Note actions"));
-    menu.add_css_class("flat");
-    let popover = gtk::Popover::new();
-    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let favorite_button = gtk::Button::with_label(if note.is_favorite {
-        "Remove from Favorites"
-    } else {
-        "Mark as Favorite"
-    });
-    favorite_button.set_widget_name(&format!("favorite-note-menu-button:{}", note.id));
-    favorite_button.add_css_class("flat");
-    let dispatcher_for_favorite = dispatcher.clone();
-    let popover_for_favorite = popover.clone();
-    let note_id = note.id;
-    let revision = note.revision;
-    let is_favorite = note.is_favorite;
-    favorite_button.connect_clicked(move |_| {
-        popover_for_favorite.popdown();
-        let _ = dispatcher_for_favorite.dispatch(AppMsg::Action(ActionMsg::SetNoteFavorite {
-            note_id,
-            revision,
-            is_favorite: !is_favorite,
-        }));
-    });
-    actions.append(&favorite_button);
-    let move_button = gtk::Button::with_label("Move…");
-    move_button.set_widget_name(&format!("move-note-button:{}", note.id));
-    move_button.add_css_class("flat");
-    let dispatcher_for_move = dispatcher.clone();
-    let note_id = note.id;
-    let source_category_id = note.category_id;
-    let note_title = note.title.clone();
-    let categories = categories.to_vec();
-    let popover_for_move = popover.clone();
-    move_button.connect_clicked(move |button| {
-        popover_for_move.popdown();
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        show_move_note_dialog(
-            parent.as_ref(),
-            &dispatcher_for_move,
-            note_id,
-            source_category_id,
-            &note_title,
-            &categories,
-        );
-    });
-    actions.append(&move_button);
-    let export_button = gtk::Button::with_label("Export note…");
-    export_button.set_widget_name(&format!("export-note-button:{}", note.id));
-    export_button.add_css_class("flat");
-    let dispatcher_for_export = dispatcher.clone();
-    let note_id = note.id;
-    let popover_for_export = popover.clone();
-    export_button.connect_clicked(move |_| {
-        popover_for_export.popdown();
-        let _ = dispatcher_for_export.dispatch(AppMsg::Navigation(
-            crate::mvu::NavigationMsg::ExportNote(note_id),
-        ));
-    });
-    actions.append(&export_button);
-    let trash_button = gtk::Button::with_label("Move to Trash");
-    trash_button.add_css_class("flat");
-    trash_button.add_css_class("destructive-action");
-    let dispatcher = dispatcher.clone();
-    let note_id = note.id;
-    trash_button.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::TrashNote(note_id)));
-    });
-    actions.append(&trash_button);
-    popover.set_child(Some(&actions));
-    menu.set_popover(Some(&popover));
-    menu
+    row.set_child(Some(&crate::ui::browser::note_feed_card(
+        note, &context, dispatcher,
+    )));
+    row
 }
 
 fn append_section_heading(list: &gtk::ListBox, text: &str) {
@@ -1082,18 +1048,6 @@ fn append_section_heading_widget(list: &gtk::ListBox, child: &impl IsA<gtk::Widg
     row.set_selectable(false);
     row.add_css_class("date-heading");
     row.set_child(Some(child));
-    list.append(&row);
-}
-
-fn append_note_date_group_heading(list: &gtk::ListBox, group: crate::ui::browser::NoteDateGroup) {
-    let row = gtk::ListBoxRow::new();
-    row.set_widget_name(&format!("note-group:{}", group.identifier()));
-    row.set_selectable(false);
-    row.add_css_class("date-heading");
-    let label = gtk::Label::new(Some(&group.label()));
-    label.set_xalign(0.0);
-    label.add_css_class("date-heading-label");
-    row.set_child(Some(&label));
     list.append(&row);
 }
 
