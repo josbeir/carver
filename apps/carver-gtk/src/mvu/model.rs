@@ -155,13 +155,18 @@ pub struct BasesModel {
     pub configuration_request: Option<RequestId>,
     /// Dialog intent retained until the field catalog becomes ready.
     pub(crate) pending_configuration: Option<PendingBaseConfiguration>,
+    /// Identity of the configuration dialog currently presented by the GTK adapter.
+    pub configuration_dialog: Option<RequestId>,
     /// Latest configuration preview-count request.
-    pub configuration_preview_request: Option<RequestId>,
+    pub configuration_preview_request: Option<(RequestId, RequestId)>,
     /// Debounce timer for the latest configuration preview draft.
     pub configuration_preview_timer: Option<TimerId>,
     /// Draft retained until its preview debounce timer elapses.
-    pub configuration_preview_draft:
-        Option<(carver_sdk::BaseFilterMode, Vec<carver_sdk::BaseFilter>)>,
+    pub configuration_preview_draft: Option<(
+        RequestId,
+        carver_sdk::BaseFilterMode,
+        Vec<carver_sdk::BaseFilter>,
+    )>,
     /// Whether a configuration update is pending.
     pub saving_configuration: bool,
     /// Base deletions currently in flight.

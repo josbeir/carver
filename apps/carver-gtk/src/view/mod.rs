@@ -311,24 +311,36 @@ impl ViewRefs {
     ///
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
+    // CONTEXT: Native dialog effects stay in one visible dispatch table so GTK callbacks never
+    // bypass the MVU runtime or apply work to a stale dialog session.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the native effect boundary keeps dialog session routing explicit"
+    )]
     pub(crate) fn run_editor_effect(&self, effect: Effect) {
-        if let Effect::ShowNewBaseConfiguration { descriptors } = &effect {
+        if let Effect::ShowNewBaseConfiguration {
+            dialog_id,
+            descriptors,
+        } = &effect
+        {
             if let Some(dispatcher) = &self.dispatcher {
                 use adw::prelude::*;
                 if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
                     let dialog = crate::ui::bases::actions::show_new_configuration_dialog(
                         &parent,
                         dispatcher,
+                        *dialog_id,
                         descriptors,
                     );
                     if let Some(refs) = &self.base {
-                        refs.configuration.replace(Some(dialog));
+                        refs.configuration.replace(Some((*dialog_id, dialog)));
                     }
                 }
             }
             return;
         }
         if let Effect::ShowBaseConfiguration {
+            dialog_id,
             definition,
             descriptors,
         } = &effect
@@ -337,17 +349,18 @@ impl ViewRefs {
                 use adw::prelude::*;
                 if let Some(parent) = refs.configure.root().and_downcast::<gtk::Window>() {
                     let existing = refs.configuration.borrow().clone();
-                    if let Some(dialog) = existing.filter(WidgetExt::is_mapped) {
+                    if let Some((_, dialog)) = existing.filter(|(_, dialog)| dialog.is_mapped()) {
                         dialog.grab_focus();
                         return;
                     }
                     let dialog = crate::ui::bases::actions::show_configuration_dialog(
                         &parent,
                         dispatcher,
+                        *dialog_id,
                         definition,
                         descriptors,
                     );
-                    refs.configuration.replace(Some(dialog));
+                    refs.configuration.replace(Some((*dialog_id, dialog)));
                 }
             }
             return;
@@ -355,9 +368,12 @@ impl ViewRefs {
         if let Effect::FinishBaseConfiguration { success } = effect {
             if let Some(refs) = &self.base {
                 let dialog = if success {
-                    refs.configuration.take()
+                    refs.configuration.take().map(|(_, dialog)| dialog)
                 } else {
-                    refs.configuration.borrow().clone()
+                    refs.configuration
+                        .borrow()
+                        .clone()
+                        .map(|(_, dialog)| dialog)
                 };
                 if let Some(dialog) = dialog {
                     crate::ui::bases::actions::finish_configuration(&dialog, success);
@@ -365,11 +381,13 @@ impl ViewRefs {
             }
             return;
         }
-        if let Effect::UpdateBaseConfigurationPreview { count } = effect {
+        if let Effect::UpdateBaseConfigurationPreview { dialog_id, count } = effect {
             if let Some(dialog) = self
                 .base
                 .as_ref()
                 .and_then(|refs| refs.configuration.borrow().clone())
+                .filter(|(current_dialog_id, _)| current_dialog_id == &dialog_id)
+                .map(|(_, dialog)| dialog)
             {
                 crate::ui::bases::actions::render_preview(&dialog, count);
             }

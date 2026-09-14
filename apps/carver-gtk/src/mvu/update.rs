@@ -184,13 +184,19 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
         }
         BasesMsg::ConfigureNew => {
-            if model.bases.configuration_request.is_some() || model.bases.saving_configuration {
+            if model.bases.configuration_request.is_some()
+                || model.bases.configuration_dialog.is_some()
+                || model.bases.saving_configuration
+            {
                 return Vec::new();
             }
             request_base_configuration(model, PendingBaseConfiguration::New)
         }
         BasesMsg::Configure => {
-            if model.bases.saving_configuration || model.route != super::Route::Base {
+            if model.bases.saving_configuration
+                || model.bases.configuration_dialog.is_some()
+                || model.route != super::Route::Base
+            {
                 return Vec::new();
             }
             let super::LoadState::Ready(definitions) = &model.bases.definitions.state else {
@@ -236,29 +242,48 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
         }
         BasesMsg::Reload => reload_bases(model).into_iter().collect(),
         BasesMsg::PreviewCount {
+            dialog_id,
             filter_mode,
             filters,
         } => {
+            if model.bases.configuration_dialog != Some(dialog_id) {
+                return Vec::new();
+            }
             let timer_id = model.next_timer_id();
+            model.bases.configuration_preview_request = None;
             model.bases.configuration_preview_timer = Some(timer_id);
-            model.bases.configuration_preview_draft = Some((filter_mode, filters));
+            model.bases.configuration_preview_draft = Some((dialog_id, filter_mode, filters));
             vec![Effect::ScheduleBasePreview { timer_id }]
         }
         BasesMsg::PreviewCountTimerFired(timer_id)
             if model.bases.configuration_preview_timer == Some(timer_id) =>
         {
             model.bases.configuration_preview_timer = None;
-            let Some((filter_mode, filters)) = model.bases.configuration_preview_draft.take()
+            let Some((dialog_id, filter_mode, filters)) =
+                model.bases.configuration_preview_draft.take()
             else {
                 return Vec::new();
             };
+            if model.bases.configuration_dialog != Some(dialog_id) {
+                return Vec::new();
+            }
             let request_id = model.next_request_id();
-            model.bases.configuration_preview_request = Some(request_id);
+            model.bases.configuration_preview_request = Some((dialog_id, request_id));
             vec![Effect::PreviewBaseRowCount {
+                dialog_id,
                 request_id,
                 filter_mode,
                 filters,
             }]
+        }
+        BasesMsg::ConfigurationDismissed(dialog_id) => {
+            if model.bases.configuration_dialog == Some(dialog_id) {
+                model.bases.configuration_dialog = None;
+                model.bases.configuration_preview_request = None;
+                model.bases.configuration_preview_timer = None;
+                model.bases.configuration_preview_draft = None;
+            }
+            Vec::new()
         }
         BasesMsg::LoadMoreRows => load_more_base_rows(model).into_iter().collect(),
         BasesMsg::Delete(base_id) => {
@@ -300,6 +325,13 @@ fn request_base_configuration(
             reload_property_descriptors(model).into_iter().collect()
         }
     }
+}
+
+fn present_base_configuration_dialog(model: &mut AppModel, dialog_id: super::RequestId) {
+    model.bases.configuration_dialog = Some(dialog_id);
+    model.bases.configuration_preview_request = None;
+    model.bases.configuration_preview_timer = None;
+    model.bases.configuration_preview_draft = None;
 }
 
 fn prepare_base_configuration(
@@ -1507,7 +1539,9 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
+                    present_base_configuration_dialog(model, request_id);
                     vec![Effect::ShowBaseConfiguration {
+                        dialog_id: request_id,
                         definition,
                         descriptors,
                     }]
@@ -1529,7 +1563,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
-                    vec![Effect::ShowNewBaseConfiguration { descriptors }]
+                    present_base_configuration_dialog(model, request_id);
+                    vec![Effect::ShowNewBaseConfiguration {
+                        dialog_id: request_id,
+                        descriptors,
+                    }]
                 }
                 Err(error) => {
                     model.notice = Some(error);
@@ -1537,13 +1575,19 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 }
             }
         }
-        LibraryReply::BasePreviewCount { request_id, result } => {
-            if model.bases.configuration_preview_request != Some(request_id) {
+        LibraryReply::BasePreviewCount {
+            dialog_id,
+            request_id,
+            result,
+        } => {
+            if model.bases.configuration_dialog != Some(dialog_id)
+                || model.bases.configuration_preview_request != Some((dialog_id, request_id))
+            {
                 return Vec::new();
             }
             model.bases.configuration_preview_request = None;
             match result {
-                Ok(count) => vec![Effect::UpdateBaseConfigurationPreview { count }],
+                Ok(count) => vec![Effect::UpdateBaseConfigurationPreview { count, dialog_id }],
                 Err(error) => {
                     model.notice = Some(error);
                     Vec::new()
@@ -1743,16 +1787,24 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
     };
     match &model.bases.property_descriptors.state {
         super::LoadState::Ready(descriptors) => match target {
-            PendingBaseConfiguration::New => vec![Effect::ShowNewBaseConfiguration {
-                descriptors: descriptors.clone(),
-            }],
+            PendingBaseConfiguration::New => {
+                let descriptors = descriptors.clone();
+                present_base_configuration_dialog(model, request_id);
+                vec![Effect::ShowNewBaseConfiguration {
+                    dialog_id: request_id,
+                    descriptors,
+                }]
+            }
             PendingBaseConfiguration::Existing(definition)
                 if model.route == super::Route::Base
                     && model.bases.selected == Some(definition.id) =>
             {
+                let descriptors = descriptors.clone();
+                present_base_configuration_dialog(model, request_id);
                 vec![Effect::ShowBaseConfiguration {
+                    dialog_id: request_id,
                     definition,
-                    descriptors: descriptors.clone(),
+                    descriptors,
                 }]
             }
             PendingBaseConfiguration::Existing(_) => Vec::new(),

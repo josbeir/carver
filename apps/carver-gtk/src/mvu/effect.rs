@@ -30,6 +30,8 @@ pub enum Effect {
     },
     /// Present the prepared Base configuration through the GTK adapter.
     ShowBaseConfiguration {
+        /// Identity of the presented dialog session.
+        dialog_id: RequestId,
         /// Saved configuration to edit.
         definition: carver_sdk::BaseDefinition,
         /// Library-wide field catalog.
@@ -37,11 +39,15 @@ pub enum Effect {
     },
     /// Present the shared Base configuration dialog in create mode.
     ShowNewBaseConfiguration {
+        /// Identity of the presented dialog session.
+        dialog_id: RequestId,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
     },
     /// Count rows matching draft Base filters without loading their projections.
     PreviewBaseRowCount {
+        /// Identity of the configuration dialog that requested this count.
+        dialog_id: RequestId,
         /// Identity for stale-completion protection.
         request_id: RequestId,
         /// Filter combination mode.
@@ -51,6 +57,8 @@ pub enum Effect {
     },
     /// Update the open configuration dialog's preview label.
     UpdateBaseConfigurationPreview {
+        /// Identity of the configuration dialog receiving this count.
+        dialog_id: RequestId,
         /// Current matching-note count.
         count: usize,
     },

@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::mvu::{AppDispatcher, AppMsg, BasesMsg};
+use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId};
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
     BaseSortDirection,
@@ -599,12 +599,14 @@ pub(crate) fn render_configure(
 pub(crate) fn show_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
+    dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
 ) -> adw::Dialog {
     show_base_configuration_dialog(
         parent,
         dispatcher,
+        dialog_id,
         definition,
         property_descriptors,
         BaseConfigurationMode::Update {
@@ -618,6 +620,7 @@ pub(crate) fn show_configuration_dialog(
 pub(crate) fn show_new_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
+    dialog_id: RequestId,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
 ) -> adw::Dialog {
     let definition = BaseDefinition::defaults(
@@ -629,6 +632,7 @@ pub(crate) fn show_new_configuration_dialog(
     show_base_configuration_dialog(
         parent,
         dispatcher,
+        dialog_id,
         &definition,
         property_descriptors,
         BaseConfigurationMode::Create,
@@ -647,6 +651,7 @@ pub(crate) fn show_new_configuration_dialog(
 fn show_base_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
+    dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
     mode: BaseConfigurationMode,
@@ -660,6 +665,11 @@ fn show_base_configuration_dialog(
         .follows_content_size(true)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
+    let dismiss_dispatcher = dispatcher.clone();
+    dialog.connect_closed(move |_| {
+        let _ =
+            dismiss_dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
+    });
     let toolbar = adw::ToolbarView::new();
     toolbar.set_hexpand(true);
     toolbar.add_top_bar(&adw::HeaderBar::new());
@@ -771,6 +781,7 @@ fn show_base_configuration_dialog(
         Rc::new(move || {
             let filters = selected_filters(&filter_widgets.borrow());
             let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::PreviewCount {
+                dialog_id,
                 filter_mode: selected_filter_mode(&filter_mode),
                 filters,
             }));

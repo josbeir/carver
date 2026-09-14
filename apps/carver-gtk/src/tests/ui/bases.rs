@@ -478,6 +478,11 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     );
     assert!(window.visible_dialog().is_some());
     failed_dialog.close();
+    assert!(run_main_context_until(|| runtime
+        .model()
+        .bases
+        .configuration_dialog
+        .is_none()));
     window.close();
     Ok(())
 }

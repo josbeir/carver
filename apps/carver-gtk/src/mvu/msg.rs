@@ -132,6 +132,8 @@ pub enum BasesMsg {
     Reload,
     /// Recount notes matching the filters currently drafted in the configuration dialog.
     PreviewCount {
+        /// Identity of the dialog that owns the draft.
+        dialog_id: RequestId,
         /// Filter combination mode.
         filter_mode: BaseFilterMode,
         /// Draft filters.
@@ -139,6 +141,8 @@ pub enum BasesMsg {
     },
     /// The debounce timer for a configuration preview elapsed.
     PreviewCountTimerFired(TimerId),
+    /// A native configuration dialog was dismissed.
+    ConfigurationDismissed(RequestId),
     /// Request the next page for the visible Base.
     LoadMoreRows,
 }
@@ -674,6 +678,8 @@ pub enum LibraryReply {
     },
     /// A configuration preview count completed.
     BasePreviewCount {
+        /// Identity of the configuration dialog that requested this count.
+        dialog_id: RequestId,
         /// Identity of the initiating request.
         request_id: RequestId,
         /// Count or a displayable failure.

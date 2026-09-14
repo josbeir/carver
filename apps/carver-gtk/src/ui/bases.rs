@@ -14,7 +14,7 @@ use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
-    pub(crate) configuration: std::cell::RefCell<Option<adw::Dialog>>,
+    pub(crate) configuration: std::cell::RefCell<Option<(crate::mvu::RequestId, adw::Dialog)>>,
     pub(crate) configure: gtk::Button,
     pub(crate) delete: gtk::Button,
     pub(crate) title: gtk::Label,

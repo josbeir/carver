@@ -227,10 +227,11 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 offset,
             } => self.load_more_base_rows(request_id, base_id, query, offset),
             Effect::PreviewBaseRowCount {
+                dialog_id,
                 request_id,
                 filter_mode,
                 filters,
-            } => self.preview_base_row_count(request_id, filter_mode, filters),
+            } => self.preview_base_row_count(dialog_id, request_id, filter_mode, filters),
             Effect::CreateConfiguredBase {
                 name,
                 columns,
@@ -771,6 +772,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
 
     fn preview_base_row_count(
         &self,
+        dialog_id: super::RequestId,
         request_id: super::RequestId,
         filter_mode: carver_sdk::BaseFilterMode,
         filters: Vec<carver_sdk::BaseFilter>,
@@ -783,6 +785,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BasePreviewCount {
+                dialog_id,
                 request_id,
                 result,
             }));

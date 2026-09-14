@@ -165,7 +165,7 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
             }),
         )
         .as_slice(),
-        [Effect::ShowNewBaseConfiguration { descriptors }] if descriptors == &vec![descriptor]
+        [Effect::ShowNewBaseConfiguration { descriptors, .. }] if descriptors == &vec![descriptor]
     ));
     assert!(model.bases.configuration_request.is_none());
 }
@@ -173,6 +173,8 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
 #[test]
 fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
     let mut model = AppModel::new(&Config::default());
+    let dialog_id = RequestId(99);
+    model.bases.configuration_dialog = Some(dialog_id);
     let first_filter = BaseFilter {
         field: BaseColumn::Category,
         operator: carver_sdk::BaseFilterOperator::Equals,
@@ -186,6 +188,7 @@ fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
     let first = update(
         &mut model,
         AppMsg::Bases(BasesMsg::PreviewCount {
+            dialog_id,
             filter_mode: BaseFilterMode::All,
             filters: vec![first_filter],
         }),
@@ -201,6 +204,7 @@ fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
     let second = update(
         &mut model,
         AppMsg::Bases(BasesMsg::PreviewCount {
+            dialog_id,
             filter_mode: BaseFilterMode::Any,
             filters: vec![second_filter.clone()],
         }),
@@ -232,6 +236,45 @@ fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
             ..
         }] if filters == &vec![second_filter]
     ));
+}
+
+#[test]
+fn base_preview_reply_should_not_update_a_new_configuration_dialog() {
+    let mut model = AppModel::new(&Config::default());
+    let first_dialog = RequestId(40);
+    let second_dialog = RequestId(41);
+    model.bases.configuration_dialog = Some(first_dialog);
+    let scheduled = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::PreviewCount {
+            dialog_id: first_dialog,
+            filter_mode: BaseFilterMode::All,
+            filters: Vec::new(),
+        }),
+    );
+    let [Effect::ScheduleBasePreview { timer_id }] = scheduled.as_slice() else {
+        panic!("preview should schedule a debounce");
+    };
+    let requested = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::PreviewCountTimerFired(*timer_id)),
+    );
+    let [Effect::PreviewBaseRowCount { request_id, .. }] = requested.as_slice() else {
+        panic!("preview should start after its debounce");
+    };
+
+    model.bases.configuration_dialog = Some(second_dialog);
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::BasePreviewCount {
+                dialog_id: first_dialog,
+                request_id: *request_id,
+                result: Ok(3),
+            }),
+        )
+        .is_empty()
+    );
 }
 
 #[test]
