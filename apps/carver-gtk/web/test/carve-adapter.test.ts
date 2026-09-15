@@ -65,6 +65,26 @@ describe('Carve adapter', () => {
     expect(serializeToCarve(result.doc)).toBe(source);
   });
 
+  it('exposes inline payloads as directly editable text content', () => {
+    const source =
+      'Keep {% review this %}, !`literal`, and `<b>`{=html} editable.';
+    const result = carveToProseMirrorWithReport(source, {
+      unsupported: 'preserve',
+    });
+    const inline = result.doc.content?.[0]?.content ?? [];
+
+    for (const type of [
+      'carveCommentInline',
+      'carveLiteral',
+      'carveRawInline',
+    ]) {
+      const node = inline.find((candidate) => candidate.type === type);
+      expect(node?.content?.[0]?.type).toBe('text');
+      expect(node?.attrs?.content).toBeUndefined();
+    }
+    expect(serializeToCarve(result.doc)).toBe(source);
+  });
+
   it('keeps adjacent images editable through a lossless source envelope', () => {
     const source =
       '![First](assets/first.png){width="50%"}![Second](assets/second.png)';

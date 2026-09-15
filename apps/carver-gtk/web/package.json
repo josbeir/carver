@@ -15,7 +15,7 @@
     "protocol:check": "node scripts/generate-protocol.mjs --check"
   },
   "dependencies": {
-    "@markup-carve/carve-grammars": "0.1.6",
+    "@markup-carve/carve-grammars": "0.1.8",
     "@tiptap/core": "3.31.0",
     "@tiptap/extension-bullet-list": "3.31.0",
     "@tiptap/extension-code-block": "3.31.0",

@@ -1,4 +1,43 @@
+/* CarveKit node views rely on this interaction chrome for tab visibility,
+ * inline attribute editors, definition cards, comments, and embed controls. */
+@import "@markup-carve/carve-grammars/tiptap/editor.css";
 @import "./document.css";
+
+/* Bridge CarveKit's --carve-* chrome tokens to Carver's own theme tokens so the
+ * imported editor surfaces, text, and borders follow the active light/dark
+ * variant. Without this the tokens fall back to CarveKit's light palette (e.g.
+ * .ProseMirror th at #f4f5f7 under white text). document.css redefines the
+ * document and color tokens per data-theme, so this single mapping covers both
+ * variants; the color-mix derivations degrade to CarveKit's own fallbacks where
+ * color-mix is unavailable. */
+:root {
+  --carve-surface: var(--document-background);
+  --carve-raised: var(--code-language-background);
+  --carve-sunk: var(--code-background);
+  --carve-ink: var(--document-foreground);
+  --carve-ink-soft: color-mix(
+    in srgb,
+    var(--document-foreground) 65%,
+    var(--document-background)
+  );
+  --carve-border: var(--border-color);
+  --carve-rule: var(--border-color);
+  --carve-accent: var(--accent-color);
+  --carve-focus: var(--accent-color);
+  --carve-accent-soft: color-mix(
+    in srgb,
+    var(--accent-color) 18%,
+    var(--document-background)
+  );
+  --carve-accent-ink: var(--document-foreground);
+  --carve-warn-wash: color-mix(
+    in srgb,
+    #e5a50a 16%,
+    var(--document-background)
+  );
+  --carve-warn: color-mix(in srgb, #e5a50a 70%, var(--document-foreground));
+  --carve-danger: color-mix(in srgb, #e01b24 72%, var(--document-foreground));
+}
 
 #editor {
   min-height: 100%;

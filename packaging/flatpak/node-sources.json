@@ -356,17 +356,17 @@
     },
     {
         "type": "file",
-        "url": "https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.6.tgz",
-        "sha512": "3984060cd97c99ea13b1f08c306b528d6b01076908835265c719c3974d51b489b613cb2326f0597a1b9f47ba582c1e78690103e3a7e2e8aa21b32d6d88266268",
-        "dest-filename": "060cd97c99ea13b1f08c306b528d6b01076908835265c719c3974d51b489b613cb2326f0597a1b9f47ba582c1e78690103e3a7e2e8aa21b32d6d88266268",
-        "dest": "flatpak-node/npm-cache/_cacache/content-v2/sha512/39/84"
+        "url": "https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.8.tgz",
+        "sha512": "6717d3ffa4f7a7033541672501a7165566f52440d52b3c4f70f68ff365769b855cac17cfb3e0bee35a41ce1e656e37fd47a210324b7b8c70f12b5f73b5d1e29a",
+        "dest-filename": "d3ffa4f7a7033541672501a7165566f52440d52b3c4f70f68ff365769b855cac17cfb3e0bee35a41ce1e656e37fd47a210324b7b8c70f12b5f73b5d1e29a",
+        "dest": "flatpak-node/npm-cache/_cacache/content-v2/sha512/67/17"
     },
     {
         "type": "file",
-        "url": "https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.5.tgz",
-        "sha512": "6b77d8a688ef38aa789005e0e9140911389ad2b1714bfb62bb0803bc0d897b0071677b0b8284737be8e645bd8e4310f9dc055d26398c9e405233417d3e78f5da",
-        "dest-filename": "d8a688ef38aa789005e0e9140911389ad2b1714bfb62bb0803bc0d897b0071677b0b8284737be8e645bd8e4310f9dc055d26398c9e405233417d3e78f5da",
-        "dest": "flatpak-node/npm-cache/_cacache/content-v2/sha512/6b/77"
+        "url": "https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.6.tgz",
+        "sha512": "e72e5348cdcf3a7a126f078791eade37d60fadbedc9964d56b4f83c8e0231020133537a228a2920f7bc4901e83403afea60d40f693684759f58ec203f08feef2",
+        "dest-filename": "5348cdcf3a7a126f078791eade37d60fadbedc9964d56b4f83c8e0231020133537a228a2920f7bc4901e83403afea60d40f693684759f58ec203f08feef2",
+        "dest": "flatpak-node/npm-cache/_cacache/content-v2/sha512/e7/2e"
     },
     {
         "type": "file",
@@ -1690,7 +1690,7 @@
     },
     {
         "type": "inline",
-        "contents": "4354f29ba7a321ba83f2f0e7e7bf3f1214dea119\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.6.tgz\", \"integrity\": \"sha512-OYQGDNl8meoTsfCMMGtSjWsBB2kIg1JlxxnDl01RtIm2E8sjJvBZehufR7pYLB54aQED46fi6Kohsy1tiCZiaA==\", \"time\": 0, \"size\": 183760, \"metadata\": {\"url\": \"https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.6.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
+        "contents": "1109d4f6e1dc86c67791758e8e55ecc9bc62259a\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.8.tgz\", \"integrity\": \"sha512-ZxfT/6T3pwM1QWclAacWVWb1JEDVKzxPcPaP82V2m4VcrBfPs+C+41pBzh5lbjf9R6IQMkt7jHDxK19ztdHimg==\", \"time\": 0, \"size\": 205902, \"metadata\": {\"url\": \"https://registry.npmjs.org/@markup-carve/carve-grammars/-/carve-grammars-0.1.8.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
         "dest-filename": "b3d7cd540d6f6c31af7fc074167e4c77e0bebb6483b0da1f20520cf5f898",
         "dest": "flatpak-node/npm-cache/_cacache/index-v5/60/1b"
     },
@@ -2488,7 +2488,7 @@
     },
     {
         "type": "inline",
-        "contents": "f63f9491f24d65ef08d0c1e8f96cf0cf9c7fadf0\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.5.tgz\", \"integrity\": \"sha512-a3fYpojvOKp4kAXg6RQJETia0rFxS/tiuwgDvA2JewBxZ3sLgoRze+jmRb2OQxD53AVdJjmMnkBSM0F9Pnj12g==\", \"time\": 0, \"size\": 2393688, \"metadata\": {\"url\": \"https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.5.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
+        "contents": "f7ce8059ef0ef516f0ac4e44e72a3e7fb960bec8\t{\"key\": \"make-fetch-happen:request-cache:https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.6.tgz\", \"integrity\": \"sha512-5y5TSM3POnoSbweHkereN9YPrb7cmWTVa0+DyOAjECATNTeiKKKSD3vEkB6DQDr+pg1A9pNoR1n1jsID8I/u8g==\", \"time\": 0, \"size\": 2170417, \"metadata\": {\"url\": \"https://registry.npmjs.org/@markup-carve/carve/-/carve-0.1.6.tgz\", \"reqHeaders\": {}, \"resHeaders\": {}}}",
         "dest-filename": "ec4a9df148c553e57d66cfe8d5a6fc37f049e8c92e11a5e1e1f14ab57c88",
         "dest": "flatpak-node/npm-cache/_cacache/index-v5/b0/f4"
     },
