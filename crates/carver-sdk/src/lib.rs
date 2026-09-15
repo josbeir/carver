@@ -9,9 +9,10 @@ use carver_config::{AppPaths, ConfigError};
 pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
-    CategoryId, CategorySummary, DocumentImportFormat, Note, NoteId, NoteSummary,
-    PropertyDescriptor, PropertyKind, PropertyPath, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary,
+    CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
+    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteSummary, PropertyDescriptor,
+    PropertyKind, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    TrashedCategorySummary, TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};

@@ -125,8 +125,7 @@ dependencies = [
 [[package]]
 name = "carve-lang"
 version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40ee6ecf958e492921f117836c0b2e81faa4a6cfd75f7b09fb9457f26987ab38"
+source = "git+https://github.com/markup-carve/carve-rs?rev=ec5ac508f2fea8918c7e68cab46b8fa3c00be7c8#ec5ac508f2fea8918c7e68cab46b8fa3c00be7c8"
 dependencies = [
  "html5ever",
  "markup5ever_rcdom",

@@ -38,3 +38,6 @@ wildcards = "deny"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+required-git-spec = "rev"
+# `migrate_markdown` fidelity reports are not available in the published 0.1.5 crate.
+allow-git = ["https://github.com/markup-carve/carve-rs"]

@@ -45,6 +45,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(CategoryId, Note
         }))
         .await
         .map_err(|error| error.to_string())?;
+    assert!(created.contains("fidelity-unverified"));
     let note_id = id(&created)?;
     let listed = server
         .list_notes(Parameters(ListNotesRequest {

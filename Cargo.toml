@@ -32,7 +32,7 @@ html-escape = "0.2"
 sanitize-filename = "0.6"
 async-channel = "2.5"
 base64 = "0.22"
-carve-lang = "0.1.5"
+carve-lang = { git = "https://github.com/markup-carve/carve-rs", rev = "ec5ac508f2fea8918c7e68cab46b8fa3c00be7c8", version = "0.1.5" }
 directories = "6.0"
 glib = "0.22"
 gdk-pixbuf = "0.22"

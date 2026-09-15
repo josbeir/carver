@@ -211,7 +211,10 @@ enabled, agents can create, rename, and update category appearance; create, save
 restore, and adjust the creation and modification timestamps of notes; and trash or restore
 categories. Every note write uses Carver's revision check, so an agent must reload a note after a
 conflicting edit. `create_note` and `save_note` accept `markdown: true` to convert CommonMark
-input into Carver's canonical source. `get_note` returns that canonical source, while
+input into Carver's canonical source. Their existing note fields remain at the top level and a
+`report` field carries the version 2 importer-fidelity assessment; unverified Markdown is marked
+`dropped` / `fallback` so an agent cannot mistake missing evidence for a clean import.
+`get_note` returns that canonical source, while
 `get_note` with `markdown: true` returns a Markdown rendering for agents that prefer it.
 
 `carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library

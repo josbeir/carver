@@ -18,6 +18,17 @@ fn importing_markdown_uses_the_native_carve_migration() {
 }
 
 #[test]
+fn assessing_markdown_exposes_unverified_fidelity() {
+    let result = assess_import("**strong**", DocumentImportFormat::Markdown);
+    assert_eq!(result.report.schema_version, 2);
+    assert_eq!(result.report.source_format, "markdown");
+    assert_eq!(result.report.diagnostics.len(), 1);
+    assert_eq!(result.report.diagnostics[0].code, "fidelity-unverified");
+    assert_eq!(result.report.diagnostics[0].fidelity, "dropped");
+    assert_eq!(result.report.diagnostics[0].confidence, "fallback");
+}
+
+#[test]
 fn derives_title_from_first_heading() {
     let content = derive_content("# A /useful/ note\n\nBody text");
     assert_eq!(content.title, "A useful note");

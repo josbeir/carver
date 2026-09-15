@@ -30,16 +30,94 @@ pub enum DocumentImportFormat {
     Markdown,
 }
 
+/// Migration-report contract understood by this Carver release.
+pub const IMPORT_REPORT_SCHEMA_VERSION: u32 = 2;
+
+/// The canonical source and the fidelity evidence produced while importing it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentImportResult {
+    /// Canonical Carve source.
+    pub value: String,
+    /// Versioned importer-fidelity report.
+    pub report: DocumentImportReport,
+}
+
+/// A binding-neutral form of Carve's importer-fidelity report.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentImportReport {
+    /// Report contract version.
+    pub schema_version: u32,
+    /// Format presented at the import boundary.
+    pub source_format: String,
+    /// Ordered fidelity findings produced by the importer.
+    pub diagnostics: Vec<DocumentImportDiagnostic>,
+}
+
+/// One user-actionable importer-fidelity finding.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct DocumentImportDiagnostic {
+    /// Stable machine-readable finding code.
+    pub code: String,
+    /// Human-readable explanation.
+    pub message: String,
+    /// `info`, `warning`, or `error`.
+    pub severity: String,
+    /// `preserved`, `normalized`, `degraded`, or `dropped`.
+    pub fidelity: String,
+    /// `exact`, `inferred`, or `fallback`.
+    pub confidence: String,
+    /// Optional source/structure locator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+/// Converts an imported document and retains its release-gating fidelity evidence.
+#[must_use]
+pub fn assess_import(source: &str, format: DocumentImportFormat) -> DocumentImportResult {
+    match format {
+        DocumentImportFormat::Carve => DocumentImportResult {
+            value: source.to_owned(),
+            report: DocumentImportReport {
+                schema_version: IMPORT_REPORT_SCHEMA_VERSION,
+                source_format: "carve".to_owned(),
+                diagnostics: Vec::new(),
+            },
+        },
+        DocumentImportFormat::Markdown => {
+            let result = carve::migrate_markdown(source);
+            DocumentImportResult {
+                value: result.value,
+                report: DocumentImportReport {
+                    schema_version: result.report.schema_version,
+                    source_format: result.report.source_format.as_str().to_owned(),
+                    diagnostics: result
+                        .report
+                        .diagnostics
+                        .into_iter()
+                        .map(|item| DocumentImportDiagnostic {
+                            code: item.code,
+                            message: item.message,
+                            severity: item.severity.as_str().to_owned(),
+                            fidelity: item.fidelity.as_str().to_owned(),
+                            confidence: item.confidence.as_str().to_owned(),
+                            path: item.path,
+                        })
+                        .collect(),
+                },
+            }
+        }
+    }
+}
+
 /// Converts an imported document into canonical Carve source.
 ///
 /// Carve input is preserved verbatim. Markdown input is converted with Carve's native
 /// migration API so its supported extensions follow the parser's own compatibility rules.
 #[must_use]
 pub fn import_document(source: &str, format: DocumentImportFormat) -> String {
-    match format {
-        DocumentImportFormat::Carve => source.to_owned(),
-        DocumentImportFormat::Markdown => carve::migrate_markdown(source).value,
-    }
+    assess_import(source, format).value
 }
 
 /// A stable category identifier.

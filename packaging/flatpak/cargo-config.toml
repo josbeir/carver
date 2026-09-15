@@ -4,5 +4,10 @@ replace-with = "vendored-sources"
 [source.vendored-sources]
 directory = "cargo/vendor"
 
+[source."https://github.com/markup-carve/carve-rs"]
+git = "https://github.com/markup-carve/carve-rs"
+replace-with = "vendored-sources"
+rev = "ec5ac508f2fea8918c7e68cab46b8fa3c00be7c8"
+
 [net]
 offline = true
