@@ -7,6 +7,7 @@ mod excerpts;
 mod html;
 pub(crate) mod interactions;
 mod rendering;
+mod trash;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -58,6 +59,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     html::document_font_should_remain_css_text_inside_the_preview_head()?;
     crate::ui::formatting::tests::captured_source_selection_should_delete_marks_after_reading_offsets();
     crate::app::load_styles();
+    trash::trash_rows_should_keep_their_card_surface()?;
+    trash::trash_contents_should_use_one_page_scroller()?;
     bases::base_header_sort_should_persist_from_native_controls()?;
     add::add_dialog_should_create_category_and_configure_new_base()?;
     add::add_dialog_should_resize_for_the_active_form()?;

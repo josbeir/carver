@@ -46,15 +46,18 @@ pub(crate) fn build_trash(dispatcher: &AppDispatcher) -> (gtk::Widget, TrashView
     let list = gtk::ListBox::new();
     list.set_widget_name("trash-list");
     list.set_selection_mode(gtk::SelectionMode::None);
-    list.add_css_class("note-feed");
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_vexpand(true);
-    scroll.set_child(Some(&list));
+    list.add_css_class("trash-feed");
+    // GtkListBox is not itself scrollable, so the page viewport belongs outside the clamp.
     let clamp = adw::Clamp::new();
+    clamp.set_widget_name("trash-content-clamp");
     clamp.set_maximum_size(720);
     clamp.set_tightening_threshold(520);
-    clamp.set_child(Some(&scroll));
-    pages.add_named(&clamp, Some("contents"));
+    clamp.set_child(Some(&list));
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_widget_name("trash-content-scroll");
+    scroll.set_vexpand(true);
+    scroll.set_child(Some(&clamp));
+    pages.add_named(&scroll, Some("contents"));
     view.set_content(Some(&pages));
 
     connect_empty_action(dispatcher, &empty);
