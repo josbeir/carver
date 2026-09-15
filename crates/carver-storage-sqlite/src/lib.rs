@@ -220,7 +220,39 @@ fn migrations() -> Migrations<'static> {
         M::up_with_hook(INITIAL_SCHEMA, migrate_category_appearance_columns),
         M::up_with_hook("", migrate_note_favorite_columns),
         M::up_with_hook("", migrate_bases),
+        M::up_with_hook("", migrate_derived_titles),
     ])
+}
+
+fn migrate_derived_titles(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("SELECT id, source, title FROM notes")?;
+    let notes = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+
+    for (id, source, title) in notes {
+        let derived = derive_content(&source);
+        if derived.title == title {
+            continue;
+        }
+        transaction.execute(
+            "UPDATE notes SET title = ?2 WHERE id = ?1",
+            params![id, derived.title],
+        )?;
+        transaction.execute("DELETE FROM note_fts WHERE note_id = ?1", [&id])?;
+        transaction.execute(
+            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
+            params![id, derived.title, derived.plain_text],
+        )?;
+    }
+    Ok(())
 }
 
 fn migrate_bases(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {

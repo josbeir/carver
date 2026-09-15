@@ -8,3 +8,10 @@ fn derive_content_should_expose_a_heading_as_the_public_title() {
 
     assert_eq!(content.title, "Project plan");
 }
+
+#[test]
+fn derive_content_should_prefer_a_frontmatter_title() {
+    let content = derive_content("---\ntitle: Release plan\n---\n\n# Project plan");
+
+    assert_eq!(content.title, "Release plan");
+}

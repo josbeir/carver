@@ -450,35 +450,12 @@ pub struct FrontmatterProjection {
 #[must_use]
 pub fn project_frontmatter(source: &str) -> FrontmatterProjection {
     let document = parse_with_options(source, &Options::default().with_positions(true));
-    let Some(raw) = document.frontmatter_raw else {
+    let Some((format, value)) = parse_frontmatter_value(&document) else {
         return FrontmatterProjection {
             format: None,
             json: None,
             error: None,
         };
-    };
-    let (format, value) = match raw.format.as_str() {
-        "json" => (
-            "json",
-            serde_json::from_str::<Value>(&raw.content).map_err(|error| error.to_string()),
-        ),
-        "toml" => (
-            "toml",
-            toml::from_str::<toml::Value>(&raw.content)
-                .map_err(|error| error.to_string())
-                .and_then(|value| serde_json::to_value(value).map_err(|error| error.to_string())),
-        ),
-        "yaml" => (
-            "yaml",
-            yaml_serde::from_str::<Value>(&raw.content).map_err(|error| error.to_string()),
-        ),
-        _ => {
-            return FrontmatterProjection {
-                format: None,
-                json: None,
-                error: None,
-            };
-        }
     };
     match value {
         Ok(Value::Object(map)) => FrontmatterProjection {
@@ -497,6 +474,32 @@ pub fn project_frontmatter(source: &str) -> FrontmatterProjection {
             error: Some(error),
         },
     }
+}
+
+pub(crate) fn parse_frontmatter_value(
+    document: &carve::Document,
+) -> Option<(&'static str, Result<Value, String>)> {
+    let raw = document.frontmatter_raw.as_ref()?;
+    let (format, value) = match raw.format.as_str() {
+        "json" => (
+            "json",
+            serde_json::from_str::<Value>(&raw.content).map_err(|error| error.to_string()),
+        ),
+        "toml" => (
+            "toml",
+            toml::from_str::<toml::Value>(&raw.content)
+                .map_err(|error| error.to_string())
+                .and_then(|value| serde_json::to_value(value).map_err(|error| error.to_string())),
+        ),
+        "yaml" => (
+            "yaml",
+            yaml_serde::from_str::<Value>(&raw.content).map_err(|error| error.to_string()),
+        ),
+        _ => {
+            return None;
+        }
+    };
+    Some((format, value))
 }
 
 /// Flattens nested object leaves into discoverable JSON Pointer paths.

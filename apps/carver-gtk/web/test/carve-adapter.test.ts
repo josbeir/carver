@@ -53,6 +53,23 @@ describe('Carve adapter', () => {
     expect(serializeToCarve(result.doc)).toBe(source);
   });
 
+  it('keeps canonical frontmatter as lossless document metadata', () => {
+    const source =
+      '---\npriority: 4\ntags: [rust, notes]\n---\n\n# Metadata-aware note';
+    const result = carveToProseMirrorWithReport(source, {
+      unsupported: 'preserve',
+    });
+
+    expect(result.doc.content?.[0]).toMatchObject({
+      type: 'carveFrontmatter',
+      attrs: {
+        format: 'yaml',
+        content: 'priority: 4\ntags: [rust, notes]',
+      },
+    });
+    expect(serializeToCarve(result.doc)).toBe(source);
+  });
+
   it('keeps task lists editable and preserves their checked state', () => {
     const source = '- [x] Complete\n- [ ] Open';
     const result = carveToProseMirrorWithReport(source, {
