@@ -65,43 +65,76 @@
 }
 .ProseMirror .carve-frontmatter-body {
   margin-block-start: 4px;
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--code-background);
 }
 .ProseMirror .carve-frontmatter-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 12px;
 }
 .ProseMirror .carve-frontmatter-card label {
   display: grid;
-  gap: 4px;
-  font-size: 0.875em;
+  gap: 5px;
+  color: color-mix(in srgb, var(--document-foreground) 82%, transparent);
+  font-size: 0.8em;
   font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.ProseMirror .carve-frontmatter-fields label:has(textarea) {
+  grid-column: 1 / -1;
 }
 .ProseMirror .carve-frontmatter-card input,
 .ProseMirror .carve-frontmatter-card textarea {
   box-sizing: border-box;
+  min-height: 2.5rem;
   width: 100%;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--document-background);
   color: inherit;
   font: inherit;
-  padding: 6px 8px;
+  font-size: 1rem;
+  font-weight: 400;
+  padding: 7px 9px;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+.ProseMirror .carve-frontmatter-card input:focus,
+.ProseMirror .carve-frontmatter-card textarea:focus {
+  border-color: var(--accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--selection-background);
 }
 .ProseMirror .carve-frontmatter-card textarea {
   resize: vertical;
 }
+.ProseMirror .carve-frontmatter-fields label:has(textarea) textarea {
+  min-height: 5rem;
+}
 .ProseMirror .carve-frontmatter-raw {
-  margin-block-start: 12px;
+  margin-block-start: 16px;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--border-color);
 }
 .ProseMirror .carve-frontmatter-raw textarea {
-  min-height: 7rem;
+  min-height: 8rem;
+  background: var(--code-language-background);
   font-family: monospace;
   font-weight: 400;
+}
+@media (max-width: 42rem) {
+  .ProseMirror .carve-frontmatter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 28rem) {
+  .ProseMirror .carve-frontmatter-fields {
+    grid-template-columns: 1fr;
+  }
 }
 .ProseMirror-selectednode {
   outline: 2px solid var(--accent-color);
