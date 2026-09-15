@@ -13,7 +13,6 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/main.ts',
         'src/editor/editor-controller.ts',
-        'src/editor/frontmatter.ts',
         'src/editor/protocol.ts',
       ],
       thresholds: {
