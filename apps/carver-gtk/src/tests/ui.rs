@@ -405,9 +405,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert_eq!(base_status.description().as_deref(), Some("Test failure"));
     let settings_menu = widget_as::<gtk::MenuButton>(&root, "sidebar-settings-menu-button")
         .ok_or("sidebar settings menu")?;
-    assert_eq!(
-        settings_menu.menu_model().map(|model| model.n_items()),
-        Some(4)
+    let settings_model = settings_menu
+        .menu_model()
+        .ok_or("sidebar settings menu model")?;
+    assert_eq!(settings_model.n_items(), 2);
+    assert!(
+        settings_model
+            .item_link(1, gtk::gio::MENU_LINK_SECTION)
+            .is_some()
     );
     assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());
     assert!(window.lookup_action("keyboard-shortcuts").is_some());

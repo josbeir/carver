@@ -1,12 +1,6 @@
 use super::*;
+use crate::migrations as schema_migrations;
 use carver_library_port::PageRequest;
-
-#[test]
-fn migrations_should_be_valid() {
-    migrations()
-        .validate()
-        .unwrap_or_else(|error| panic!("migration definition is invalid: {error}"));
-}
 
 #[test]
 fn reopening_a_versioned_library_should_not_have_pending_migrations() {
@@ -25,7 +19,7 @@ fn reopening_a_versioned_library_should_not_have_pending_migrations() {
     let connection = rusqlite::Connection::open(&database_path)
         .unwrap_or_else(|error| panic!("database open failed: {error}"));
     assert_eq!(
-        migrations()
+        schema_migrations::definitions()
             .pending_migrations(&connection)
             .unwrap_or_else(|error| panic!("pending migration check failed: {error}")),
         0

@@ -118,12 +118,14 @@ fn install_sidebar_search_shortcut(container: &gtk::Box, dispatcher: &AppDispatc
 fn settings_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
     menu.append(Some("Connect an agent"), Some("win.connect-agent"));
-    menu.append(Some("Preferences"), Some("win.preferences"));
-    menu.append(
+    let settings_section = gtk::gio::Menu::new();
+    settings_section.append(Some("Preferences"), Some("win.preferences"));
+    settings_section.append(
         Some("Keyboard Shortcuts"),
         Some(super::dialogs::KEYBOARD_SHORTCUTS_ACTION),
     );
-    menu.append(Some("About Carver"), Some("win.about"));
+    settings_section.append(Some("About Carver"), Some("win.about"));
+    menu.append_section(None, &settings_section);
     let settings = gtk::MenuButton::new();
     settings.set_widget_name("sidebar-settings-menu-button");
     settings.set_icon_name("open-menu-symbolic");
