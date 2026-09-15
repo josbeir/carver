@@ -29,6 +29,8 @@ Carver—turning them into a useful, organized project context instead of an iso
   with GNOME's native viewers.
 - **Organized, recoverable notes**<br>
   Categories, recent-note browsing, Trash restoration, and Undo.
+- **Saved note Bases**<br>
+  Create database-style views with frontmatter columns, filters, sorting, and search.
 - **Search, import, and export**<br>
   Full-text and in-note search; Carve/Markdown import; Carve, Markdown, and PDF export.
 - **Preferences that respect your workflow**<br>
@@ -38,31 +40,6 @@ Carver—turning them into a useful, organized project context instead of an iso
   with explicitly opt-in, reversible changes.
 - **Native GNOME by design**<br>
   Responsive GTK4/Libadwaita design with light/dark themes and accessible controls.
-
-## Tables of contents and collapsible details
-
-**Enable enhanced Carve rendering** in Preferences is on by default. It renders
-author-placed tables of contents, collapsible details, and bare HTTP(S) links in
-Preview, source split preview, HTML export, and PDF/print. Author these constructs
-in Source mode; Rich mode preserves their markup without dedicated insertion controls.
-
-```carve
-{depth="3"}
-::: toc
-:::
-
-# My note
-
-::: details "Supporting information"
-Extra context and https://example.com
-:::
-```
-
-Place attributes **before** the opening fence. Omit `depth` to include all six
-heading levels, or use `{from="2" to="4"}` for a range. PDF/print expands details
-so their contents are included. HTML exports retain the interactive disclosure.
-Turning the preference off restores core rendering without editing the note.
-Carve/Markdown exports and clipboard copies retain their existing behavior.
 
 ## Install
 
