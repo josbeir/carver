@@ -19,6 +19,8 @@ struct Snapshot {
 pub(super) struct PreviewNavigation {
     view: webkit6::WebView,
     snapshot: Rc<RefCell<Snapshot>>,
+    // The view also carries the preview highlighter, so only this script is swapped per load.
+    script: Rc<RefCell<Option<webkit6::UserScript>>>,
 }
 
 impl PreviewNavigation {
@@ -71,6 +73,7 @@ impl PreviewNavigation {
         Self {
             view: view.clone(),
             snapshot,
+            script: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -88,17 +91,21 @@ impl PreviewNavigation {
         let Some(manager) = self.view.user_content_manager() else {
             return;
         };
-        manager.remove_all_scripts();
-        let script = include_str!("document_navigation.js")
+        if let Some(previous) = self.script.borrow_mut().take() {
+            manager.remove_script(&previous);
+        }
+        let navigation_script = include_str!("document_navigation.js")
             .replace("__SESSION__", &session.0.to_string())
             .replace("__LOAD__", &load.to_string());
-        manager.add_script(&webkit6::UserScript::new(
-            &script,
+        let script = webkit6::UserScript::new(
+            &navigation_script,
             webkit6::UserContentInjectedFrames::TopFrame,
             webkit6::UserScriptInjectionTime::End,
             &[],
             &[],
-        ));
+        );
+        manager.add_script(&script);
+        self.script.replace(Some(script));
     }
 
     pub fn focus(&self, target: &DocumentTarget, source: &str, focus: bool) {

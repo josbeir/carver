@@ -719,8 +719,9 @@ fn rich_source_change_messages(source: String) -> [AppMsg; 2] {
 #[cfg(test)]
 mod tests {
     use super::{
-        LinkContext, appearance_javascript, document_appearance, editor_document, editor_theme,
-        parse_link_context, rich_source_change_messages, selection_theme, theme_javascript,
+        EDITOR_STYLESHEET, LinkContext, appearance_javascript, document_appearance,
+        editor_document, editor_theme, parse_link_context, rich_source_change_messages,
+        selection_theme, theme_javascript,
     };
     use crate::mvu::{AppMsg, DocumentPreferences, EditorMsg};
 
@@ -740,6 +741,15 @@ mod tests {
 
         assert!(document.contains("<style id=\"editor-runtime-styles\"></style>"));
         assert!(!document.contains("<html style="));
+    }
+
+    #[test]
+    fn editor_stylesheet_should_anchor_the_code_language_picker_to_its_block() {
+        // CarveKit renders the picker in `.carve-code-block-chrome` after the
+        // <pre>, so the stylesheet must target that wrapper rather than a
+        // direct child of the scrollable <pre>.
+        assert!(EDITOR_STYLESHEET.contains(".carve-code-block-chrome"));
+        assert!(!EDITOR_STYLESHEET.contains("pre>.carve-code-lang"));
     }
 
     #[test]

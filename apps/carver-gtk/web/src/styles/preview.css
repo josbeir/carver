@@ -1,1 +1,18 @@
 @import "./document.css";
+
+body[data-preview] pre[data-language] {
+  position: relative;
+}
+body[data-preview] pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 8px;
+  border-bottom-left-radius: 6px;
+  background: var(--code-language-background);
+  color: var(--code-comment);
+  font-size: 0.8em;
+  pointer-events: none;
+  user-select: none;
+}

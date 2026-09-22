@@ -106,7 +106,7 @@ body[data-preview] {
 :where(.ProseMirror, body[data-preview]) pre > code {
   display: block;
 }
-:where(.ProseMirror, body[data-preview]) .carver-diff-line {
+body[data-preview] .carver-diff-line {
   display: block;
   margin-inline: -12px;
   padding-inline: 12px;
@@ -144,6 +144,38 @@ body[data-preview] {
 :where(.ProseMirror, body[data-preview]) .hljs-meta,
 :where(.ProseMirror, body[data-preview]) .hljs-symbol {
   color: var(--code-meta);
+}
+:where(.ProseMirror, body[data-preview]) .hljs-section {
+  color: var(--code-keyword);
+  font-weight: 600;
+}
+:where(.ProseMirror, body[data-preview]) .hljs-title:not(.function_) {
+  color: var(--code-keyword);
+}
+:where(.ProseMirror, body[data-preview]) .hljs-link,
+:where(.ProseMirror, body[data-preview]) .hljs-code {
+  color: var(--code-string);
+}
+:where(.ProseMirror, body[data-preview]) .hljs-bullet,
+:where(.ProseMirror, body[data-preview]) .hljs-punctuation {
+  color: var(--code-meta);
+}
+:where(.ProseMirror, body[data-preview]) .hljs-strong {
+  font-weight: 700;
+}
+:where(.ProseMirror, body[data-preview]) .hljs-emphasis {
+  font-style: italic;
+}
+:where(.ProseMirror, body[data-preview]) .hljs-quote {
+  font-style: italic;
+}
+:where(.ProseMirror, body[data-preview]) .hljs-addition {
+  color: var(--diff-add-foreground);
+  background: var(--diff-add-background);
+}
+:where(.ProseMirror, body[data-preview]) .hljs-deletion {
+  color: var(--diff-remove-foreground);
+  background: var(--diff-remove-background);
 }
 :where(.ProseMirror, body[data-preview]) img {
   max-width: 100%;
@@ -506,3 +538,19 @@ body[data-preview] nav.toc a:focus-visible {
 }
 
 /* src/styles/preview.css */
+body[data-preview] pre[data-language] {
+  position: relative;
+}
+body[data-preview] pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 8px;
+  border-bottom-left-radius: 6px;
+  background: var(--code-language-background);
+  color: var(--code-comment);
+  font-size: 0.8em;
+  pointer-events: none;
+  user-select: none;
+}

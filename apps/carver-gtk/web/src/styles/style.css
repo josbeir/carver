@@ -3,16 +3,38 @@
 #editor {
   min-height: 100%;
 }
-.ProseMirror pre {
+/* CarveKit renders the language picker as a `.carve-code-block-chrome` row
+ * after <pre>, so anchor it to the top-right of the block and reveal it on
+ * hover or keyboard focus instead of letting it take a row of its own. */
+.ProseMirror .carve-code-block {
   position: relative;
 }
-.ProseMirror pre > .carve-code-lang {
+.ProseMirror .carve-code-block-chrome {
   position: absolute;
   inset: 8px 8px auto auto;
   z-index: 1;
+  display: flex;
+  align-items: center;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out;
+}
+.ProseMirror .carve-code-block:hover .carve-code-block-chrome,
+.ProseMirror .carve-code-block:focus-within .carve-code-block-chrome {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* The visible "Language" caption is redundant on a compact code block; keep it
+ * available to assistive technology only. */
+.ProseMirror .carve-code-block-chrome > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ProseMirror .carve-code-block-chrome .carve-code-lang {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: var(--code-language-background);
@@ -20,11 +42,7 @@
   font:
     0.85rem Cantarell,
     sans-serif;
-}
-.ProseMirror pre:hover > .carve-code-lang,
-.ProseMirror pre:focus-within > .carve-code-lang {
-  opacity: 1;
-  pointer-events: auto;
+  padding: 2px 6px;
 }
 
 /* Frontmatter is document metadata, not prose. Keep its raw source out of the

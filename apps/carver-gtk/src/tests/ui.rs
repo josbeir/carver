@@ -37,6 +37,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     glib::set_application_name("Carver test");
     gtk::init()?;
     rendering::rendering_preference_should_refresh_previews_without_saving()?;
+    rendering::code_fences_should_be_highlighted_in_previews_and_source()?;
+    rendering::code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline()?;
     excerpts::note_card_should_display_the_complete_final_grapheme()?;
     crate::mvu::export_runtime_should_cover_completion_cancellation_and_failures()?;
     interactions::cancelled_source_link_should_leave_the_document_unchanged()?;
