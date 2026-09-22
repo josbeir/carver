@@ -583,6 +583,7 @@ impl ViewRefs {
             LoadState::Ready(notes) if notes.is_empty() => {
                 feed_store.remove_all();
                 self.browser_rendered_rows.borrow_mut().clear();
+                self.browser_rendered_context.replace(None);
                 empty_new_note.set_visible(true);
                 self.browser_status.set_title("No notes yet");
                 self.browser_status
@@ -595,6 +596,7 @@ impl ViewRefs {
             state => {
                 feed_store.remove_all();
                 self.browser_rendered_rows.borrow_mut().clear();
+                self.browser_rendered_context.replace(None);
                 empty_new_note.set_visible(false);
                 self.browser_status
                     .set_title(resource_label(state, "No notes yet"));
@@ -815,7 +817,10 @@ impl ViewRefs {
         feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Hero));
         feed_store.append(&glib::BoxedAnyObject::new(item));
         self.browser_rendered_rows.borrow_mut().clear();
-        self.browser_rendered_context.replace(Some(context));
+        // The special card replaces the note rows, so no rendered row prefix
+        // remains. Clearing the context forces the next note render to rebuild
+        // the feed instead of appending after the stale empty-state card.
+        self.browser_rendered_context.replace(None);
     }
 
     fn render_browser_notes(
