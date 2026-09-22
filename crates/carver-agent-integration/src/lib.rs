@@ -23,6 +23,9 @@ pub enum AgentClient {
     /// GitHub Copilot in Visual Studio Code.
     #[cfg_attr(feature = "cli", value(name = "vscode"))]
     VsCodeCopilot,
+    /// `OpenCode`.
+    #[cfg_attr(feature = "cli", value(name = "opencode"))]
+    OpenCode,
     /// Any MCP client that accepts a stdio command and argument list.
     #[cfg_attr(feature = "cli", value(alias = "other"))]
     Generic,
@@ -153,6 +156,7 @@ pub fn setup_instruction(
             "claude mcp get carver",
         ),
         AgentClient::CopilotCli => ("copilot mcp add carver --", "copilot mcp get carver"),
+        AgentClient::OpenCode => ("opencode mcp add carver --global --", "opencode mcp list"),
         AgentClient::VsCodeCopilot => {
             return Ok(SetupInstruction {
                 command: None,

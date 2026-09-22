@@ -93,7 +93,14 @@ fn configure_help_should_list_the_shared_client_names() -> Result<(), Box<dyn st
         .ok_or("help should stop parsing")?;
     assert_eq!(error.kind(), ErrorKind::DisplayHelp);
     let help = error.to_string();
-    for name in ["codex", "claude-code", "copilot", "vscode", "generic"] {
+    for name in [
+        "codex",
+        "claude-code",
+        "copilot",
+        "vscode",
+        "opencode",
+        "generic",
+    ] {
         assert!(
             help.contains(&format!("- {name}:")),
             "missing client {name}"

@@ -58,6 +58,32 @@ fn flatpak_instruction_should_start_the_package_command() -> Result<(), Box<dyn 
 }
 
 #[test]
+fn opencode_setup_should_register_a_global_stdio_server() -> Result<(), Box<dyn std::error::Error>>
+{
+    let instruction = setup_instruction(AgentClient::OpenCode, &InstallChannel::Native, true)?;
+    let words =
+        shlex::split(&instruction.command.ok_or("shell command")?).ok_or("valid shell command")?;
+    assert_eq!(
+        words,
+        [
+            "opencode",
+            "mcp",
+            "add",
+            "carver",
+            "--global",
+            "--",
+            "carver-mcp",
+            "--allow-write"
+        ]
+    );
+    assert_eq!(
+        instruction.verification.as_deref(),
+        Some("opencode mcp list")
+    );
+    Ok(())
+}
+
+#[test]
 fn vscode_instruction_should_use_stdio_configuration() {
     let instruction = setup_instruction(AgentClient::VsCodeCopilot, &InstallChannel::Native, false)
         .unwrap_or_else(|error| panic!("instruction should serialize: {error}"));
@@ -138,6 +164,13 @@ fn cli_names_should_preserve_existing_client_spellings() {
         .collect();
     assert_eq!(
         names,
-        ["codex", "claude-code", "copilot", "vscode", "generic"]
+        [
+            "codex",
+            "claude-code",
+            "copilot",
+            "vscode",
+            "opencode",
+            "generic"
+        ]
     );
 }

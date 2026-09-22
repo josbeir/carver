@@ -176,9 +176,9 @@ notes for new work, and organize notes and categories—so the useful result sta
 rather than disappearing into a chat transcript.
 
 Open the **Connect an agent** entry in Carver's menu to choose Codex, Claude Code, GitHub Copilot
-CLI, VS Code Copilot, or a generic stdio-MCP client and copy a user-level setup command. The setup
-screen detects native, Flatpak, and Snap installs so the agent process opens the same private
-library as Carver.
+CLI, VS Code Copilot, OpenCode, or a generic stdio-MCP client and copy a user-level setup command.
+The setup screen detects native, Flatpak, and Snap installs so the agent process opens the same
+private library as Carver.
 
 The server is read-only by default. Opt into reversible note changes explicitly with
 `--allow-write`; permanent trash deletion, settings changes, raw database access, and managed
@@ -208,6 +208,7 @@ carver-mcp configure codex
 carver-mcp configure claude-code --allow-write
 carver-mcp configure copilot
 carver-mcp configure vscode
+carver-mcp configure opencode
 carver-mcp configure generic
 ```
 

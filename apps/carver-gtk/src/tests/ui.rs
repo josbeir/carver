@@ -78,6 +78,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "registered agent icons should be discoverable by GTK's icon theme"
     );
     assert!(
+        gtk::IconTheme::for_display(&display).has_icon("carver-agent-opencode-symbolic"),
+        "the bundled OpenCode agent icon should be discoverable by GTK's icon theme"
+    );
+    assert!(
         gtk::IconTheme::for_display(&display).has_icon("carver-database-symbolic"),
         "the bundled Lucide database icon should be available for saved Bases"
     );
@@ -187,6 +191,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         agent_command
             .subtitle()
             .is_some_and(|command| command.contains("--allow-write"))
+    );
+    let opencode_card = widget_as::<adw::ActionRow>(agent_setup.upcast_ref(), "agent-card-4")
+        .ok_or("OpenCode agent card")?;
+    opencode_card.emit_by_name::<()>("activated", &[]);
+    assert_eq!(agent.selected(), 4);
+    assert!(
+        agent_command
+            .subtitle()
+            .is_some_and(|command| command.contains("opencode mcp add carver --global --"))
     );
     agent_setup.close();
     assert_eq!(
