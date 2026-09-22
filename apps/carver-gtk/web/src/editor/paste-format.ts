@@ -8,6 +8,11 @@ import { Fragment, type Schema, Slice } from '@tiptap/pm/model';
 const BLOCK_START = /^\s*(?:#{1,6}\s|>\s?|[-+*]\s|\d+[.)]\s|::\s|\|)/m;
 const INLINE_DELIMITER = /[*_~=`^]/;
 const LINK_OR_ATTRIBUTE = /\[[^\]]*\]\(|\[[^\]]*\]\{|\{[^}]*\}/;
+// `/emphasis/` and `[text][ref]` are valid Carve but contain no character from
+// the broad sets above. Match them with boundaries so ordinary prose that uses
+// slashes (`and/or`, `9/11`, URLs, paths) keeps the native paste path.
+const SLASH_EMPHASIS = /(?:^|[\s([{])\/[^\s/][^/]*\/(?:$|[\s)\]}.,!?;:])/m;
+const REFERENCE_LINK = /\[[^\]]*\]\[[^\]]*\]/;
 const MULTI_BLOCK = /\n\s*\n/;
 
 /** Returns whether plain text may carry Carve or Markdown markup. */
@@ -16,6 +21,8 @@ export function mightBeMarkupText(text: string): boolean {
     BLOCK_START.test(text) ||
     INLINE_DELIMITER.test(text) ||
     LINK_OR_ATTRIBUTE.test(text) ||
+    SLASH_EMPHASIS.test(text) ||
+    REFERENCE_LINK.test(text) ||
     MULTI_BLOCK.test(text)
   );
 }

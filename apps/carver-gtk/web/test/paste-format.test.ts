@@ -10,6 +10,30 @@ describe('mightBeMarkupText', () => {
     expect(mightBeMarkupText('https://example.com/path')).toBe(false);
   });
 
+  it('leaves ordinary slash usage to the native paste path', () => {
+    for (const text of [
+      'and/or',
+      '9/11',
+      'read/write',
+      'TCP/IP',
+      '/usr/local/bin',
+      'see /etc/hosts and /tmp',
+    ]) {
+      expect(mightBeMarkupText(text), text).toBe(false);
+    }
+  });
+
+  it('recognizes slash emphasis and reference links', () => {
+    for (const text of [
+      '/italic/',
+      'hello /world/ test',
+      '(/note/)',
+      '[text][ref]',
+    ]) {
+      expect(mightBeMarkupText(text), text).toBe(true);
+    }
+  });
+
   it('recognizes common block and inline markup', () => {
     for (const text of [
       '**bold**',
