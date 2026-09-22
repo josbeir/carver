@@ -1484,6 +1484,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "browser-search-empty-card"
     )
     .is_some_and(|card| card.is_visible())));
+    // Refining the query to a matching term must clear the empty-state card.
+    search.set_text("Searchable");
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "browser-search-empty-card").is_none()
+    }));
     search.emit_stop_search();
     assert!(run_main_context_until(|| {
         !search_bar.is_search_mode() && !search_toggle.is_active() && search.text().is_empty()
