@@ -729,6 +729,7 @@ fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesD
         "Claude Code",
         "GitHub Copilot CLI",
         "VS Code Copilot",
+        "OpenCode",
         "Generic / Other",
     ])));
     group.add(&agent);
@@ -766,6 +767,7 @@ fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesD
                 1 => AgentClient::ClaudeCode,
                 2 => AgentClient::CopilotCli,
                 3 => AgentClient::VsCodeCopilot,
+                4 => AgentClient::OpenCode,
                 _ => AgentClient::Generic,
             };
             let text =
@@ -817,8 +819,9 @@ fn agent_cards_group(agent: &adw::ComboRow) -> adw::PreferencesGroup {
             "Configure VS Code's MCP server list",
             "copilot",
         ),
+        (4, "OpenCode", "OpenCode's terminal agent", "opencode"),
         (
-            4,
+            5,
             "Generic / Other",
             "Any client that supports stdio MCP",
             "applications-system-symbolic",
@@ -842,6 +845,7 @@ fn agent_icon(icon: &str) -> gtk::Image {
         "codex-openai" => "carver-agent-codex-symbolic",
         "anthropic" => "carver-agent-claude-symbolic",
         "copilot" => "carver-agent-copilot-symbolic",
+        "opencode" => "carver-agent-opencode-symbolic",
         _ => icon,
     };
     let image = gtk::Image::from_icon_name(icon_name);
