@@ -179,6 +179,23 @@ impl RichEditor {
         ));
     }
 
+    /// Inserts host-imported pasted text into the rich projection.
+    pub(crate) fn insert_pasted_source(
+        &self,
+        source: &str,
+        structured: bool,
+        fallback: &str,
+        host_initiated: bool,
+    ) {
+        self.evaluate(&format!(
+            "window.carverEditor.insertPastedSource({}, {}, {}, {});",
+            json(source),
+            structured,
+            json(fallback),
+            host_initiated
+        ));
+    }
+
     /// Focuses the rich-text document at its insertion point.
     pub(crate) fn focus(&self) {
         self.view.grab_focus();
@@ -360,6 +377,13 @@ impl RichEditor {
                         bytes,
                     }));
                 }
+                EditorEvent::PasteText { session, text } if session == editor.session.get() => {
+                    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PasteRichText {
+                        text,
+                        intent: carver_domain::PasteIntent::Auto,
+                        host_initiated: false,
+                    }));
+                }
                 EditorEvent::CopySelection { session, source }
                     if session == editor.session.get() =>
                 {
@@ -395,7 +419,8 @@ impl RichEditor {
                 | EditorEvent::Changed { .. }
                 | EditorEvent::Unsupported { .. }
                 | EditorEvent::CopySelection { .. }
-                | EditorEvent::PasteImage { .. } => {}
+                | EditorEvent::PasteImage { .. }
+                | EditorEvent::PasteText { .. } => {}
             }
         });
     }

@@ -118,7 +118,7 @@ pub(super) fn source_image_paste_should_store_a_managed_asset() -> TestResult {
         .iter::<glib::Object>()
         .flatten()
         .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
-        .find(|controller| controller.name().as_deref() == Some("source-image-paste"))
+        .find(|controller| controller.name().as_deref() == Some("source-smart-paste"))
         .ok_or("image paste controller")?;
     paste.emit_by_name::<bool>(
         "key-pressed",
@@ -142,6 +142,46 @@ pub(super) fn source_image_paste_should_store_a_managed_asset() -> TestResult {
             .note_asset_bytes(note.id, &paths[0])?
             .is_some()
     );
+    clipboard.set_content(None::<&gtk::gdk::ContentProvider>)?;
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn source_markdown_paste_should_migrate_before_inserting() -> TestResult {
+    let fixture = document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Paste")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: String::new(),
+    }));
+    let source =
+        widget_as::<sourceview5::View>(&fixture.surface, "source-editor").ok_or("source")?;
+    let clipboard = source.clipboard();
+    clipboard.set_text("**bold**");
+    let controllers = source.observe_controllers();
+    let paste = controllers
+        .iter::<glib::Object>()
+        .flatten()
+        .filter_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .find(|controller| controller.name().as_deref() == Some("source-smart-paste"))
+        .ok_or("smart paste controller")?;
+    paste.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::v,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(run_main_context_until(|| fixture
+        .runtime
+        .model()
+        .editor
+        .is_some_and(
+            |doc| doc.source.contains("*bold*") && !doc.source.contains("**")
+        )));
     clipboard.set_content(None::<&gtk::gdk::ContentProvider>)?;
     fixture.window.close();
     Ok(())

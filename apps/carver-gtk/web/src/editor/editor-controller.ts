@@ -13,6 +13,7 @@ import { focusEmptyEditorSurface } from './empty-surface';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
 import { ClipboardPasteSanitizer } from './paste-sanitizer';
+import { mightBeMarkupText, plainTextSlice } from './paste-format';
 import { selectedCarveSource } from './selection-copy';
 import type {
   DocumentTarget,
@@ -76,6 +77,12 @@ export class EditorController implements RichEditorApi {
   private appearanceStyles = '';
   private readonly pendingBlobSources = new Set<string>();
   private readonly pasteSanitizer = new ClipboardPasteSanitizer();
+  private pendingPaste: {
+    session: number;
+    revision: number;
+    from: number;
+    to: number;
+  } | null = null;
 
   public constructor(
     private readonly root: HTMLElement,
@@ -98,15 +105,7 @@ export class EditorController implements RichEditorApi {
         handleDrop: (_view, event) => this.dropImages(event),
         handleDOMEvents: {
           copy: (_view, event) => this.copySelection(event),
-          paste: (_view, event) => {
-            const clipboard = event.clipboardData;
-            const source =
-              clipboard && [...clipboard.types].includes(CARVER_CLIPBOARD_TYPE)
-                ? clipboard.getData(CARVER_CLIPBOARD_TYPE)
-                : null;
-            this.pasteSanitizer.capturePastedSource(source);
-            return false;
-          },
+          paste: (view, event) => this.pasteText(view, event),
         },
         transformPasted: (slice, view, plain) =>
           this.pasteSanitizer.resolvePastedSlice(slice, plain, (source) => {
@@ -308,6 +307,65 @@ export class EditorController implements RichEditorApi {
       .run();
   }
 
+  /** Inserts host-imported pasted text into the selection that captured it. */
+  public insertPastedSource(
+    source: string,
+    structured: boolean,
+    fallbackText: string,
+    hostInitiated = false,
+  ): void {
+    const editor = this.editor;
+    if (!editor) return;
+    const pending = this.pendingPaste;
+    this.pendingPaste = null;
+    if (
+      !hostInitiated &&
+      (!pending ||
+        pending.session !== this.session ||
+        pending.revision !== this.revision)
+    ) {
+      return;
+    }
+    const from = hostInitiated
+      ? editor.state.selection.from
+      : (pending as { from: number }).from;
+    const to = hostInitiated
+      ? editor.state.selection.to
+      : (pending as { to: number }).to;
+    const slice = structured ? this.carveSlice(source, editor) : null;
+    this.insertPasteSlice(
+      editor,
+      { from, to },
+      slice ?? plainTextSlice(editor.state.schema, fallbackText),
+    );
+  }
+
+  private carveSlice(source: string, editor: RuntimeEditor): Slice | null {
+    const result = carveToProseMirrorWithReport(source, {
+      unsupported: 'preserve',
+    });
+    if (unsupportedForPasting(result).length) return null;
+    const document = editor.state.schema.nodeFromJSON(result.doc);
+    return Slice.maxOpen(document.content, true);
+  }
+
+  private insertPasteSlice(
+    editor: RuntimeEditor,
+    pending: { from: number; to: number },
+    slice: Slice,
+  ): void {
+    const { state } = editor;
+    if (pending.to > state.doc.content.size) return;
+    editor.view.dispatch(
+      state.tr
+        .replaceRange(pending.from, pending.to, slice)
+        .scrollIntoView()
+        .setMeta('paste', true)
+        .setMeta('uiEvent', 'paste'),
+    );
+    editor.view.focus();
+  }
+
   public setTheme(
     dark: boolean,
     accent: string,
@@ -448,6 +506,34 @@ export class EditorController implements RichEditorApi {
     if (source == null) return false;
     event.preventDefault();
     this.send({ type: 'copy-selection', session: this.session, source });
+    return true;
+  }
+
+  private pasteText(view: RuntimeEditor, event: ClipboardEvent): boolean {
+    const clipboard = event.clipboardData;
+    if (!clipboard) return false;
+    const types = [...clipboard.types];
+    if (types.includes(CARVER_CLIPBOARD_TYPE)) {
+      this.pasteSanitizer.capturePastedSource(
+        clipboard.getData(CARVER_CLIPBOARD_TYPE),
+      );
+      return false;
+    }
+    this.pasteSanitizer.capturePastedSource(null);
+    if (types.some((type) => type.startsWith('image/'))) return false;
+    // Rich clipboard content keeps the browser's native paste behavior; smart
+    // paste only applies to plain text, where no formatting can be preserved.
+    if (types.includes('text/html')) return false;
+    const text = clipboard.getData('text/plain');
+    if (!text || !mightBeMarkupText(text)) return false;
+    event.preventDefault();
+    this.pendingPaste = {
+      session: this.session,
+      revision: this.revision,
+      from: view.state.selection.from,
+      to: view.state.selection.to,
+    };
+    this.send({ type: 'paste-text', session: this.session, text });
     return true;
   }
 

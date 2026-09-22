@@ -298,6 +298,21 @@ impl EditorViewRefs {
         }
     }
 
+    /// Inserts an imported paste into the rich projection that captured it.
+    pub(crate) fn insert_rich_source(
+        &self,
+        session: EditorSessionId,
+        source: &str,
+        structured: bool,
+        fallback: &str,
+        host_initiated: bool,
+    ) {
+        if self.loaded_session.borrow().as_ref() == Some(&session) {
+            self.rich
+                .insert_pasted_source(source, structured, fallback, host_initiated);
+        }
+    }
+
     /// Restores the selection calculated by a pure source edit after its snapshot renders.
     pub(crate) fn select_source_range(
         &self,
@@ -698,7 +713,15 @@ pub(crate) fn build_editor(
     let sidebar =
         document_sidebar::DocumentSidebar::new(&editor_stack, document_sidebar_toggle, dispatcher);
     view.set_content(Some(&sidebar.container));
-    install_compact_editor_actions(&view, dispatcher, &split_toggle);
+    install_compact_editor_actions(
+        &view,
+        dispatcher,
+        &split_toggle,
+        &rich,
+        &source_buffer,
+        &rich_mode,
+        &source_mode,
+    );
 
     connect_mode_buttons(
         dispatcher,
@@ -743,7 +766,7 @@ pub(crate) fn build_editor(
         &rich,
     );
     connect_source_preview(dispatcher, &source_buffer, &rendering);
-    let _source_image_paste = render::install_image_paste(source.upcast_ref(), dispatcher, &rich);
+    let _source_paste = render::install_source_paste(source.upcast_ref(), dispatcher, &rich);
     let _source_image_drop = render::install_image_drop(&source, dispatcher, &rich);
     let _rich_image_drop = render::install_image_drop(rich.view(), dispatcher, &rich);
     let responsive_container = adw::BreakpointBin::new();
@@ -1310,6 +1333,7 @@ fn editor_options_menu() -> (gtk::MenuButton, gtk::gio::Menu) {
     actions.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
     actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
     actions.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
+    actions.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
     menu.set_menu_model(Some(&actions));
     (menu, actions)
 }
@@ -1318,6 +1342,10 @@ fn install_compact_editor_actions(
     view: &adw::ToolbarView,
     dispatcher: &AppDispatcher,
     split_toggle: &gtk::ToggleButton,
+    rich: &RichEditor,
+    source_buffer: &gtk::TextBuffer,
+    rich_mode: &gtk::ToggleButton,
+    source_mode: &gtk::ToggleButton,
 ) {
     let actions = gtk::gio::SimpleActionGroup::new();
     let back = gtk::gio::SimpleAction::new("back", None);
@@ -1349,6 +1377,46 @@ fn install_compact_editor_actions(
         split_toggle.set_active(!split_toggle.is_active());
     });
     actions.add_action(&split_preview);
+    let paste_markdown = gtk::gio::SimpleAction::new("paste-markdown", None);
+    let paste_dispatcher = dispatcher.clone();
+    let paste_rich = rich.clone();
+    let paste_buffer = source_buffer.clone();
+    let paste_rich_mode = rich_mode.clone();
+    let paste_source_mode = source_mode.clone();
+    paste_markdown.connect_activate(move |_, _| {
+        if !paste_rich_mode.is_active() && !paste_source_mode.is_active() {
+            return;
+        }
+        let Some(session) = paste_rich.document_session() else {
+            return;
+        };
+        let source_mode = paste_source_mode.is_active();
+        let clipboard = paste_rich.view().display().clipboard();
+        let buffer = paste_buffer.clone();
+        let dispatcher = paste_dispatcher.clone();
+        clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+            let Ok(Some(text)) = result else {
+                return;
+            };
+            let text = text.to_string();
+            let message = if source_mode {
+                EditorMsg::PasteSourceText {
+                    session,
+                    selection: source_commands::selection_from_buffer(&buffer),
+                    text,
+                    intent: carver_domain::PasteIntent::Markdown,
+                }
+            } else {
+                EditorMsg::PasteRichText {
+                    text,
+                    intent: carver_domain::PasteIntent::Markdown,
+                    host_initiated: true,
+                }
+            };
+            let _ = dispatcher.dispatch(AppMsg::Editor(message));
+        });
+    });
+    actions.add_action(&paste_markdown);
     view.insert_action_group("editor", Some(&actions));
 }
 

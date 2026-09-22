@@ -1,4 +1,4 @@
-//! Source-editor image paste support.
+//! Source-editor smart paste and image paste support.
 
 use super::source_commands;
 use gtk::prelude::*;
@@ -6,18 +6,20 @@ use gtk::prelude::*;
 use super::super::formatting;
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
 
-/// Installs Ctrl+V image paste support for the Carve source editor.
+/// Installs format-aware Ctrl+V support for the Carve source editor.
 ///
-/// The browser-backed rich editor owns its image paste integration. Keeping
-/// this handler source-only prevents a GTK `TextBuffer` from acting as a
-/// second, lossy rich-text document model.
-pub(crate) fn install_image_paste(
+/// The browser-backed rich editor owns its paste integration. This handler owns
+/// the native source view so pasted Markdown can be migrated before it becomes
+/// canonical source. `Ctrl+Shift+V` stays on GTK's plain-text paste path as an
+/// explicit escape hatch.
+pub(crate) fn install_source_paste(
     view: &gtk::TextView,
     dispatcher: &AppDispatcher,
     rich: &super::RichEditor,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
-    controller.set_name(Some("source-image-paste"));
+    controller.set_name(Some("source-smart-paste"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
     let dispatcher = dispatcher.clone();
     let clipboard = view.display().clipboard();
     let source_buffer = view.buffer();
@@ -26,25 +28,46 @@ pub(crate) fn install_image_paste(
         if key != gtk::gdk::Key::v || !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             return glib::Propagation::Proceed;
         }
+        // GTK's paste-without-formatting stays available as an explicit opt-out.
+        if modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            return glib::Propagation::Proceed;
+        }
         let Some(session) = rich.document_session() else {
             return glib::Propagation::Proceed;
         };
+        let clipboard = clipboard.clone();
+        let source_buffer = source_buffer.clone();
         let dispatcher = dispatcher.clone();
-        let source_target = source_commands::image_target_from_buffer(&source_buffer);
+        let clipboard_for_text = clipboard.clone();
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
-            let Ok(Some(texture)) = result else {
+            if let Ok(Some(texture)) = result {
+                let bytes = texture.save_to_png_bytes().as_ref().to_vec();
+                let source_target = source_commands::image_target_from_buffer(&source_buffer);
+                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImageRead {
+                    bytes,
+                    target: crate::mvu::ImportTarget {
+                        session,
+                        source: Some(source_target),
+                    },
+                }));
                 return;
-            };
-            let bytes = texture.save_to_png_bytes().as_ref().to_vec();
-            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImageRead {
-                bytes,
-                target: crate::mvu::ImportTarget {
+            }
+            let source_buffer = source_buffer.clone();
+            let dispatcher = dispatcher.clone();
+            clipboard_for_text.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+                let Ok(Some(text)) = result else {
+                    return;
+                };
+                let selection = source_commands::selection_from_buffer(&source_buffer);
+                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PasteSourceText {
                     session,
-                    source: Some(source_target),
-                },
-            }));
+                    selection,
+                    text: text.to_string(),
+                    intent: carver_domain::PasteIntent::Auto,
+                }));
+            });
         });
-        glib::Propagation::Proceed
+        glib::Propagation::Stop
     });
     view.add_controller(controller.clone());
     controller

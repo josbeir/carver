@@ -137,6 +137,17 @@ pub enum EditorEvent {
         /// Base64-encoded image bytes.
         data: String,
     },
+    /// Externally pasted text that the native host must import.
+    ///
+    /// The web surface only converts canonical Carve it understands already.
+    /// Markdown, whose migration lives in the native Carve codec, is forwarded
+    /// here so the host can detect the format and return canonical Carve.
+    PasteText {
+        /// Host document session.
+        session: u64,
+        /// Raw pasted text.
+        text: String,
+    },
 }
 
 #[cfg(test)]
@@ -193,6 +204,21 @@ mod tests {
             source: String::from("Selected *text*"),
         };
         let encoded = serde_json::to_string(&event).unwrap_or_default();
+        let decoded: EditorEvent = serde_json::from_str(&encoded).unwrap_or(EditorEvent::Ready);
+        assert_eq!(decoded, event);
+    }
+
+    #[test]
+    fn paste_text_messages_round_trip_without_loss() {
+        let event = EditorEvent::PasteText {
+            session: 3,
+            text: String::from("**pasted**"),
+        };
+        let encoded = serde_json::to_string(&event).unwrap_or_default();
+        assert_eq!(
+            encoded,
+            "{\"type\":\"paste-text\",\"session\":3,\"text\":\"**pasted**\"}"
+        );
         let decoded: EditorEvent = serde_json::from_str(&encoded).unwrap_or(EditorEvent::Ready);
         assert_eq!(decoded, event);
     }

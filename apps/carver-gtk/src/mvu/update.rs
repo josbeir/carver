@@ -741,6 +741,43 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             None,
             true,
         ),
+        EditorMsg::PasteRichText {
+            text,
+            intent,
+            host_initiated,
+        } => {
+            let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+                return Vec::new();
+            };
+            let pasted = carver_domain::import_pasted_text(&text, intent);
+            vec![Effect::InsertRichSource {
+                session,
+                structured: pasted.format != carver_domain::PastedFormat::Plain,
+                source: pasted.source,
+                fallback: text,
+                host_initiated,
+            }]
+        }
+        EditorMsg::PasteSourceText {
+            session,
+            selection,
+            text,
+            intent,
+        } => {
+            if !model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session)
+            {
+                return Vec::new();
+            }
+            let pasted = carver_domain::import_pasted_text(&text, intent);
+            update_source_command(
+                model,
+                super::SourceCommand::InsertText(pasted.source),
+                selection,
+            )
+        }
         EditorMsg::ImportFiles { target, files } => model
             .editor
             .as_ref()

@@ -423,3 +423,176 @@ fn theme_change_should_request_an_editor_projection_refresh() {
 
     assert_eq!(model.editor_theme_revision, 1);
 }
+
+#[test]
+fn markdown_paste_should_replace_the_source_selection_with_migrated_carve() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Hello world"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PasteSourceText {
+            session,
+            selection: 6..11,
+            text: String::from("**bold**"),
+            intent: carver_domain::PasteIntent::Auto,
+        }),
+    );
+
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Hello *bold*\n")
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [
+            Effect::SchedulePreview { .. },
+            Effect::ScheduleEditorSave { .. },
+            Effect::SelectEditorSource { .. }
+        ]
+    ));
+}
+
+#[test]
+fn plain_paste_should_insert_source_verbatim() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Hello world"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PasteSourceText {
+            session,
+            selection: 6..11,
+            text: String::from("there"),
+            intent: carver_domain::PasteIntent::Auto,
+        }),
+    );
+
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Hello there")
+    );
+}
+
+#[test]
+fn source_paste_for_another_session_should_be_ignored() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Original"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PasteSourceText {
+                session: EditorSessionId(session.0.wrapping_add(100)),
+                selection: 0..0,
+                text: String::from("**stale**"),
+                intent: carver_domain::PasteIntent::Auto,
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Original")
+    );
+}
+
+#[test]
+fn rich_markdown_paste_should_request_a_structured_insertion() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Body"),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PasteRichText {
+            text: String::from("**bold**"),
+            intent: carver_domain::PasteIntent::Auto,
+            host_initiated: false,
+        }),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::InsertRichSource { structured: true, source, host_initiated: false, .. }]
+            if source.contains("*bold*")
+    ));
+}
+
+#[test]
+fn rich_plain_paste_should_request_an_unstructured_insertion() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Body"),
+        }),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PasteRichText {
+            text: String::from("ordinary words"),
+            intent: carver_domain::PasteIntent::Auto,
+            host_initiated: false,
+        }),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::InsertRichSource {
+            structured: false,
+            ..
+        }]
+    ));
+}

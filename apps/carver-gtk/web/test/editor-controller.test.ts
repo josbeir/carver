@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
 import { Fragment, Slice } from '@tiptap/pm/model';
+import { EditorState } from '@tiptap/pm/state';
 
 import { EditorController } from '../src/editor/editor-controller';
 
@@ -364,5 +365,184 @@ describe('document navigation', () => {
       ),
     ).toBe(true);
     expect(chain.setNodeSelection).toHaveBeenCalledWith(2);
+  });
+});
+
+describe('smart paste', () => {
+  function pasteOptions(createEditor: ReturnType<typeof vi.fn>) {
+    return createEditor.mock.calls[0]?.[0] as {
+      editorProps: {
+        handleDOMEvents: {
+          paste: (view: unknown, event: ClipboardEvent) => boolean;
+        };
+      };
+    };
+  }
+
+  it('forwards markup-suspect text to the native host', () => {
+    const { controller, createEditor, messages } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 4);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/plain'],
+        getData: () => '**bold**',
+      },
+    } as unknown as ClipboardEvent;
+    const view = { state: { selection: { from: 2, to: 5 } } };
+
+    expect(
+      pasteOptions(createEditor).editorProps.handleDOMEvents.paste(view, event),
+    ).toBe(true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(messages).toContain(
+      JSON.stringify({ type: 'paste-text', session: 4, text: '**bold**' }),
+    );
+  });
+
+  it('leaves ordinary prose to the native paste path', () => {
+    const { controller, createEditor, messages } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 4);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/plain'],
+        getData: () => 'An ordinary sentence.',
+      },
+    } as unknown as ClipboardEvent;
+
+    expect(
+      pasteOptions(createEditor).editorProps.handleDOMEvents.paste(
+        { state: { selection: { from: 0, to: 0 } } },
+        event,
+      ),
+    ).toBe(false);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(messages.some((message) => message.includes('paste-text'))).toBe(
+      false,
+    );
+  });
+
+  it('leaves rich clipboard content to the native paste path', () => {
+    const { controller, createEditor } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 4);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/html', 'text/plain'],
+        getData: () => '**bold**',
+      },
+    } as unknown as ClipboardEvent;
+
+    expect(
+      pasteOptions(createEditor).editorProps.handleDOMEvents.paste(
+        { state: { selection: { from: 0, to: 0 } } },
+        event,
+      ),
+    ).toBe(false);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('inserts imported structured Carve into the captured selection', () => {
+    const { controller, createEditor, editor } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 1);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/plain'],
+        getData: () => '# Heading',
+      },
+    } as unknown as ClipboardEvent;
+    pasteOptions(createEditor).editorProps.handleDOMEvents.paste(
+      { state: { selection: { from: 0, to: 0 } } },
+      event,
+    );
+
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+    editor.state = EditorState.create({
+      doc,
+    }) as unknown as typeof editor.state;
+    const dispatch = vi.fn();
+    editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
+
+    controller.insertPastedSource('# Heading\n', true, '# Heading');
+
+    expect(dispatch).toHaveBeenCalledOnce();
+    const transaction = dispatch.mock.calls[0][0];
+    expect(transaction.doc.textContent).toContain('Heading');
+  });
+
+  it('inserts unstructured text faithfully when the host says it is plain', () => {
+    const { controller, createEditor, editor } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 1);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/plain'],
+        getData: () => 'a = b',
+      },
+    } as unknown as ClipboardEvent;
+    pasteOptions(createEditor).editorProps.handleDOMEvents.paste(
+      { state: { selection: { from: 0, to: 0 } } },
+      event,
+    );
+
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+    editor.state = EditorState.create({
+      doc,
+    }) as unknown as typeof editor.state;
+    const dispatch = vi.fn();
+    editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
+
+    controller.insertPastedSource('a = b', false, 'a = b');
+
+    expect(dispatch).toHaveBeenCalledOnce();
+    const transaction = dispatch.mock.calls[0][0];
+    expect(transaction.doc.textContent).toContain('a = b');
+  });
+
+  it('drops an import that resolves after the document changes', () => {
+    const { controller, createEditor, editor } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 1);
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        types: ['text/plain'],
+        getData: () => '# Heading',
+      },
+    } as unknown as ClipboardEvent;
+    pasteOptions(createEditor).editorProps.handleDOMEvents.paste(
+      { state: { selection: { from: 0, to: 0 } } },
+      event,
+    );
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+    editor.state = EditorState.create({
+      doc,
+    }) as unknown as typeof editor.state;
+    const dispatch = vi.fn();
+    editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
+
+    controller.load('Replacement', 2);
+    controller.insertPastedSource('# Heading\n', true, '# Heading');
+
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

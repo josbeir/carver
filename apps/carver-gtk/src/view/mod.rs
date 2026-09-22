@@ -405,6 +405,15 @@ impl ViewRefs {
             Effect::ReloadRichEditor { session, source } => {
                 editor.reload_rich_source(session, &source);
             }
+            Effect::InsertRichSource {
+                session,
+                source,
+                structured,
+                fallback,
+                host_initiated,
+            } => {
+                editor.insert_rich_source(session, &source, structured, &fallback, host_initiated);
+            }
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);
             }

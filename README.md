@@ -20,6 +20,8 @@ Carver—turning them into a useful, organized project context instead of an iso
   Headings, inline formatting, lists, tasks, links, tables, and keyboard shortcuts.
 - **[Carve](https://github.com/markup-carve) source and preview**<br>
   Rich editing, canonical `.crv` source, read-only preview, and synchronized split view.
+- **Format-aware pasting**<br>
+  Paste Carve straight into the rich editor, and pasted Markdown is migrated to canonical Carve.
 - **A source editor built for markup**<br>
   GtkSourceView highlighting, breadcrumbs, search, line controls, and configurable typography.
 - **Images that travel with the note**<br>

@@ -410,6 +410,26 @@ pub enum EditorMsg {
         /// Decoded image bytes from the `WebKit` bridge.
         bytes: Vec<u8>,
     },
+    /// Host-imported pasted text for the active rich projection.
+    PasteRichText {
+        /// Raw pasted text.
+        text: String,
+        /// Format the host should apply before returning canonical Carve.
+        intent: carver_domain::PasteIntent,
+        /// Whether the host initiated the paste rather than replying to the web surface.
+        host_initiated: bool,
+    },
+    /// Host-imported pasted text replacing the source editor selection.
+    PasteSourceText {
+        /// Editor lifetime that initiated the paste.
+        session: EditorSessionId,
+        /// Character-based selection captured at the paste boundary.
+        selection: Range<usize>,
+        /// Raw pasted text.
+        text: String,
+        /// Format the host should apply before inserting canonical source.
+        intent: carver_domain::PasteIntent,
+    },
     /// Import a batch of native files into the document that initiated the interaction.
     ImportFiles {
         /// Captured editor target.

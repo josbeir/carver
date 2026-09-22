@@ -73,6 +73,17 @@ export type EditorEvent =
        */
       session: number;
       type: 'paste-image';
+    }
+  | {
+      /**
+       * Host document session.
+       */
+      session: number;
+      /**
+       * Raw pasted text.
+       */
+      text: string;
+      type: 'paste-text';
     };
 
 /**

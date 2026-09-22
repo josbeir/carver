@@ -173,3 +173,27 @@ fn pure_insert_and_image_width_edits_should_update_selection() {
         "![Diagram](assets/diagram.png){width=\"50%\"}"
     );
 }
+
+#[test]
+fn insert_text_should_replace_the_selection_and_place_the_cursor_after_it() {
+    let edit = SourceEdit::apply(
+        String::from("Hello world"),
+        6..11,
+        SourceCommand::InsertText(String::from("*bold*\n")),
+    );
+
+    assert_eq!(edit.source(), "Hello *bold*\n");
+    assert_eq!(edit.selection(), 13..13);
+}
+
+#[test]
+fn insert_text_should_clamp_an_out_of_range_selection() {
+    let edit = SourceEdit::apply(
+        String::from("Hi"),
+        1..99,
+        SourceCommand::InsertText(String::from(" there")),
+    );
+
+    assert_eq!(edit.source(), "H there");
+    assert_eq!(edit.selection(), 7..7);
+}

@@ -172,6 +172,19 @@ pub enum Effect {
         /// Canonical source to load into the projection.
         source: String,
     },
+    /// Insert host-imported pasted text into the active rich projection.
+    InsertRichSource {
+        /// Active editor lifetime that owns the rich-text projection.
+        session: EditorSessionId,
+        /// Canonical Carve produced from the paste.
+        source: String,
+        /// Whether the source is markup rather than unstructured text.
+        structured: bool,
+        /// Original pasted text used when the source cannot be projected.
+        fallback: String,
+        /// Whether the host initiated the paste rather than replying to the web surface.
+        host_initiated: bool,
+    },
     /// Restore the source-editor selection after a reducer-owned source edit renders.
     SelectEditorSource {
         /// Active editor lifetime that owns the selection.

@@ -40,6 +40,8 @@ pub enum SourceCommand {
     },
     /// Insert one explicit hard line break.
     InsertHardBreak,
+    /// Insert literal text at the selection, used by format-aware paste.
+    InsertText(String),
 }
 
 /// The canonical source and character-based selection produced by a command.
@@ -74,6 +76,7 @@ impl SourceEdit {
                 edit.insert_link(&text, &destination);
             }
             SourceCommand::InsertHardBreak => edit.insert_hard_break(),
+            SourceCommand::InsertText(text) => edit.insert_text(&text),
         }
         edit
     }
@@ -171,6 +174,14 @@ impl SourceEdit {
         let range = self.selection.clone();
         self.replace(range.clone(), "\\\n", 0);
         let cursor = range.start.saturating_add(2);
+        self.selection = cursor..cursor;
+    }
+
+    fn insert_text(&mut self, text: &str) {
+        let range = self.selection.clone();
+        let length = text.chars().count();
+        self.replace(range.clone(), text, 0);
+        let cursor = range.start.saturating_add(length);
         self.selection = cursor..cursor;
     }
 

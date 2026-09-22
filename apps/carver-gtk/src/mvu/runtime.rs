@@ -284,6 +284,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::ShowNewBaseConfiguration { .. }
             | Effect::FinishBaseConfiguration { .. }
             | Effect::ReloadRichEditor { .. }
+            | Effect::InsertRichSource { .. }
             | Effect::ShowExternalEdit { .. }
             | Effect::SelectEditorSource { .. }
             | Effect::FocusEditor { .. }
