@@ -197,14 +197,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/carve-lang/carve-lang-0.1.5.crate",
-        "sha256": "40ee6ecf958e492921f117836c0b2e81faa4a6cfd75f7b09fb9457f26987ab38",
-        "dest": "cargo/vendor/carve-lang-0.1.5"
+        "url": "https://static.crates.io/crates/carve-lang/carve-lang-0.1.6.crate",
+        "sha256": "87fdad4ca9cefc502ad43595c578e09031d07be56280881ff0eb6c3cc59ca9fd",
+        "dest": "cargo/vendor/carve-lang-0.1.6"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"40ee6ecf958e492921f117836c0b2e81faa4a6cfd75f7b09fb9457f26987ab38\", \"files\": {}}",
-        "dest": "cargo/vendor/carve-lang-0.1.5",
+        "contents": "{\"package\": \"87fdad4ca9cefc502ad43595c578e09031d07be56280881ff0eb6c3cc59ca9fd\", \"files\": {}}",
+        "dest": "cargo/vendor/carve-lang-0.1.6",
         "dest-filename": ".cargo-checksum.json"
     },
     {
