@@ -182,13 +182,14 @@ impl RichEditor {
     /// Inserts host-imported pasted text into the rich projection.
     pub(crate) fn insert_pasted_source(
         &self,
+        request_id: u64,
         source: &str,
         structured: bool,
         fallback: &str,
         host_initiated: bool,
     ) {
         self.evaluate(&format!(
-            "window.carverEditor.insertPastedSource({}, {}, {}, {});",
+            "window.carverEditor.insertPastedSource({request_id}, {}, {}, {}, {});",
             json(source),
             structured,
             json(fallback),
@@ -337,7 +338,7 @@ impl RichEditor {
                     session,
                     source,
                     revision,
-                } if session == editor.session.get() => {
+                } if session == editor.session.get() && editor.view.is_mapped() => {
                     editor.revision.set(revision);
                     editor.canonical_source.replace(Rc::from(source.as_str()));
                     for message in rich_source_change_messages(source) {
@@ -377,8 +378,13 @@ impl RichEditor {
                         bytes,
                     }));
                 }
-                EditorEvent::PasteText { session, text } if session == editor.session.get() => {
+                EditorEvent::PasteText {
+                    session,
+                    request_id,
+                    text,
+                } if session == editor.session.get() => {
                     let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PasteRichText {
+                        request_id,
                         text,
                         intent: carver_domain::PasteIntent::Auto,
                         host_initiated: false,

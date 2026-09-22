@@ -38,30 +38,30 @@ pub(crate) fn install_source_paste(
         let clipboard = clipboard.clone();
         let source_buffer = source_buffer.clone();
         let dispatcher = dispatcher.clone();
+        // Capture the snapshot before the asynchronous clipboard read so a slow
+        // provider cannot paste into a later edit, caret, or document.
+        let target = source_commands::image_target_from_buffer(&source_buffer);
         let clipboard_for_text = clipboard.clone();
         clipboard.read_texture_async(None::<&gtk::gio::Cancellable>, move |result| {
             if let Ok(Some(texture)) = result {
                 let bytes = texture.save_to_png_bytes().as_ref().to_vec();
-                let source_target = source_commands::image_target_from_buffer(&source_buffer);
                 let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ImportImageRead {
                     bytes,
                     target: crate::mvu::ImportTarget {
                         session,
-                        source: Some(source_target),
+                        source: Some(target),
                     },
                 }));
                 return;
             }
-            let source_buffer = source_buffer.clone();
             let dispatcher = dispatcher.clone();
             clipboard_for_text.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
                 let Ok(Some(text)) = result else {
                     return;
                 };
-                let selection = source_commands::selection_from_buffer(&source_buffer);
                 let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PasteSourceText {
                     session,
-                    selection,
+                    target,
                     text: text.to_string(),
                     intent: carver_domain::PasteIntent::Auto,
                 }));

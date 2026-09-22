@@ -24,6 +24,7 @@ export interface RichEditorApi {
   linkContext(): LinkContext;
   insertImage(path: string, alt?: string): void;
   insertPastedSource(
+    requestId: number,
     source: string,
     structured: boolean,
     fallbackText: string,

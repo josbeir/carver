@@ -77,12 +77,19 @@ export class EditorController implements RichEditorApi {
   private appearanceStyles = '';
   private readonly pendingBlobSources = new Set<string>();
   private readonly pasteSanitizer = new ClipboardPasteSanitizer();
-  private pendingPaste: {
+  // Replies can arrive out of order with concurrent pastes, so each request
+  // keeps its own target and is matched by request id. The user-edit epoch lets
+  // our own inserts advance the projection without invalidating their siblings.
+  private readonly pendingPastes: Array<{
+    requestId: number;
     session: number;
-    revision: number;
+    epoch: number;
     from: number;
     to: number;
-  } | null = null;
+  }> = [];
+  private nextPasteId = 0;
+  private userEditEpoch = 0;
+  private applyingPaste = false;
 
   public constructor(
     private readonly root: HTMLElement,
@@ -145,6 +152,7 @@ export class EditorController implements RichEditorApi {
     this.session = session;
     this.revision = 0;
     this.navigationEpoch = 0;
+    this.pendingPastes.length = 0;
     const result = carveToProseMirrorWithReport(source, {
       unsupported: 'preserve',
     });
@@ -307,8 +315,9 @@ export class EditorController implements RichEditorApi {
       .run();
   }
 
-  /** Inserts host-imported pasted text into the selection that captured it. */
+  /** Inserts host-imported pasted text for the request that captured it. */
   public insertPastedSource(
+    requestId: number,
     source: string,
     structured: boolean,
     fallbackText: string,
@@ -316,26 +325,30 @@ export class EditorController implements RichEditorApi {
   ): void {
     const editor = this.editor;
     if (!editor) return;
-    const pending = this.pendingPaste;
-    this.pendingPaste = null;
-    if (
-      !hostInitiated &&
-      (!pending ||
+    let range: { from: number; to: number };
+    if (hostInitiated) {
+      range = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
+    } else {
+      const index = this.pendingPastes.findIndex(
+        (entry) => entry.requestId === requestId,
+      );
+      if (index < 0) return;
+      const [pending] = this.pendingPastes.splice(index, 1);
+      if (
         pending.session !== this.session ||
-        pending.revision !== this.revision)
-    ) {
-      return;
+        pending.epoch !== this.userEditEpoch
+      ) {
+        return;
+      }
+      range = { from: pending.from, to: pending.to };
     }
-    const from = hostInitiated
-      ? editor.state.selection.from
-      : (pending as { from: number }).from;
-    const to = hostInitiated
-      ? editor.state.selection.to
-      : (pending as { to: number }).to;
     const slice = structured ? this.carveSlice(source, editor) : null;
     this.insertPasteSlice(
       editor,
-      { from, to },
+      range,
       slice ?? plainTextSlice(editor.state.schema, fallbackText),
     );
   }
@@ -351,18 +364,33 @@ export class EditorController implements RichEditorApi {
 
   private insertPasteSlice(
     editor: RuntimeEditor,
-    pending: { from: number; to: number },
+    range: { from: number; to: number },
     slice: Slice,
   ): void {
     const { state } = editor;
-    if (pending.to > state.doc.content.size) return;
-    editor.view.dispatch(
-      state.tr
-        .replaceRange(pending.from, pending.to, slice)
-        .scrollIntoView()
-        .setMeta('paste', true)
-        .setMeta('uiEvent', 'paste'),
-    );
+    if (range.to > state.doc.content.size) return;
+    this.applyingPaste = true;
+    try {
+      editor.view.dispatch(
+        state.tr
+          .replaceRange(range.from, range.to, slice)
+          .scrollIntoView()
+          .setMeta('paste', true)
+          .setMeta('uiEvent', 'paste'),
+      );
+    } finally {
+      this.applyingPaste = false;
+    }
+    // Keep the remaining paste targets aligned with the insert we just applied.
+    const delta = slice.content.size - (range.to - range.from);
+    if (delta !== 0) {
+      for (const pending of this.pendingPastes) {
+        if (pending.from >= range.to) {
+          pending.from += delta;
+          pending.to += delta;
+        }
+      }
+    }
     editor.view.focus();
   }
 
@@ -401,6 +429,9 @@ export class EditorController implements RichEditorApi {
 
   private onUpdate(editor: RuntimeEditor): void {
     if (this.loading || this.persistUnexpectedBlobImages()) return;
+    // Our own paste insert advances the revision without invalidating the
+    // concurrent paste targets captured before it.
+    if (!this.applyingPaste) this.userEditEpoch += 1;
     this.revision += 1;
     this.send({
       type: 'changed',
@@ -527,13 +558,20 @@ export class EditorController implements RichEditorApi {
     const text = clipboard.getData('text/plain');
     if (!text || !mightBeMarkupText(text)) return false;
     event.preventDefault();
-    this.pendingPaste = {
+    this.nextPasteId += 1;
+    this.pendingPastes.push({
+      requestId: this.nextPasteId,
       session: this.session,
-      revision: this.revision,
+      epoch: this.userEditEpoch,
       from: view.state.selection.from,
       to: view.state.selection.to,
-    };
-    this.send({ type: 'paste-text', session: this.session, text });
+    });
+    this.send({
+      type: 'paste-text',
+      session: this.session,
+      request_id: this.nextPasteId,
+      text,
+    });
     return true;
   }
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
 import { Fragment, Slice } from '@tiptap/pm/model';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, type Transaction } from '@tiptap/pm/state';
 
 import { EditorController } from '../src/editor/editor-controller';
 
@@ -397,7 +397,12 @@ describe('smart paste', () => {
     ).toBe(true);
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(messages).toContain(
-      JSON.stringify({ type: 'paste-text', session: 4, text: '**bold**' }),
+      JSON.stringify({
+        type: 'paste-text',
+        session: 4,
+        request_id: 1,
+        text: '**bold**',
+      }),
     );
   });
 
@@ -473,7 +478,7 @@ describe('smart paste', () => {
     const dispatch = vi.fn();
     editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
 
-    controller.insertPastedSource('# Heading\n', true, '# Heading');
+    controller.insertPastedSource(1, '# Heading\n', true, '# Heading');
 
     expect(dispatch).toHaveBeenCalledOnce();
     const transaction = dispatch.mock.calls[0][0];
@@ -507,7 +512,7 @@ describe('smart paste', () => {
     const dispatch = vi.fn();
     editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
 
-    controller.insertPastedSource('a = b', false, 'a = b');
+    controller.insertPastedSource(1, 'a = b', false, 'a = b');
 
     expect(dispatch).toHaveBeenCalledOnce();
     const transaction = dispatch.mock.calls[0][0];
@@ -541,8 +546,46 @@ describe('smart paste', () => {
     editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
 
     controller.load('Replacement', 2);
-    controller.insertPastedSource('# Heading\n', true, '# Heading');
+    controller.insertPastedSource(1, '# Heading\n', true, '# Heading');
 
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('applies concurrent paste replies without losing either one', () => {
+    const { controller, createEditor, editor } = controllerFixture();
+    controller.initialize();
+    controller.load('Document', 1);
+    const paste = pasteOptions(createEditor).editorProps.handleDOMEvents.paste;
+    const request = (from: number, to: number) => {
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          types: ['text/plain'],
+          getData: () => '# Heading',
+        },
+      } as unknown as ClipboardEvent;
+      paste({ state: { selection: { from, to } } }, event);
+    };
+    request(0, 0);
+    request(1, 1);
+
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
+    });
+    editor.state = EditorState.create({
+      doc,
+    }) as unknown as typeof editor.state;
+    const dispatch = vi.fn((transaction: Transaction) => {
+      const state = editor.state as unknown as EditorState;
+      editor.state = state.apply(transaction) as unknown as typeof editor.state;
+    });
+    editor.view = { dispatch, focus: vi.fn() } as unknown as typeof editor.view;
+
+    controller.insertPastedSource(1, '# One\n', true, '# One');
+    controller.insertPastedSource(2, '# Two\n', true, '# Two');
+
+    expect(dispatch).toHaveBeenCalledTimes(2);
   });
 });

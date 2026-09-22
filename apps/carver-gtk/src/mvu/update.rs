@@ -742,16 +742,25 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             true,
         ),
         EditorMsg::PasteRichText {
+            request_id,
             text,
             intent,
             host_initiated,
         } => {
-            let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+            // Reject a reply or command for a projection that is no longer active:
+            // a late paste must never overwrite newer source edits.
+            let Some(document) = model
+                .editor
+                .as_ref()
+                .filter(|document| document.mode == carver_config::EditorMode::Rich)
+            else {
                 return Vec::new();
             };
+            let session = document.session;
             let pasted = carver_domain::import_pasted_text(&text, intent);
             vec![Effect::InsertRichSource {
                 session,
+                request_id,
                 structured: pasted.format != carver_domain::PastedFormat::Plain,
                 source: pasted.source,
                 fallback: text,
@@ -760,22 +769,22 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         }
         EditorMsg::PasteSourceText {
             session,
-            selection,
+            target,
             text,
             intent,
         } => {
-            if !model
-                .editor
-                .as_ref()
-                .is_some_and(|document| document.session == session)
-            {
+            // The captured snapshot must still match the open document so a slow
+            // clipboard read cannot paste into a later edit or another note.
+            if !model.editor.as_ref().is_some_and(|document| {
+                document.session == session && document.source == target.source
+            }) {
                 return Vec::new();
             }
             let pasted = carver_domain::import_pasted_text(&text, intent);
             update_source_command(
                 model,
                 super::SourceCommand::InsertText(pasted.source),
-                selection,
+                target.selection,
             )
         }
         EditorMsg::ImportFiles { target, files } => model

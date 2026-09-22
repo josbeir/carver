@@ -176,6 +176,8 @@ pub enum Effect {
     InsertRichSource {
         /// Active editor lifetime that owns the rich-text projection.
         session: EditorSessionId,
+        /// Web-surface request identity echoed back to the projection.
+        request_id: u64,
         /// Canonical Carve produced from the paste.
         source: String,
         /// Whether the source is markup rather than unstructured text.

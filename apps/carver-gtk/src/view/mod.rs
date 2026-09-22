@@ -407,12 +407,20 @@ impl ViewRefs {
             }
             Effect::InsertRichSource {
                 session,
+                request_id,
                 source,
                 structured,
                 fallback,
                 host_initiated,
             } => {
-                editor.insert_rich_source(session, &source, structured, &fallback, host_initiated);
+                editor.insert_rich_source(
+                    session,
+                    request_id,
+                    &source,
+                    structured,
+                    &fallback,
+                    host_initiated,
+                );
             }
             Effect::SelectEditorSource { session, selection } => {
                 editor.select_source_range(session, selection);

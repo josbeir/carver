@@ -76,6 +76,10 @@ export type EditorEvent =
     }
   | {
       /**
+       * Web-surface request identity echoed back with the imported source.
+       */
+      request_id: number;
+      /**
        * Host document session.
        */
       session: number;

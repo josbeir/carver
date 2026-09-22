@@ -302,14 +302,20 @@ impl EditorViewRefs {
     pub(crate) fn insert_rich_source(
         &self,
         session: EditorSessionId,
+        request_id: u64,
         source: &str,
         structured: bool,
         fallback: &str,
         host_initiated: bool,
     ) {
         if self.loaded_session.borrow().as_ref() == Some(&session) {
-            self.rich
-                .insert_pasted_source(source, structured, fallback, host_initiated);
+            self.rich.insert_pasted_source(
+                request_id,
+                source,
+                structured,
+                fallback,
+                host_initiated,
+            );
         }
     }
 
@@ -1391,27 +1397,28 @@ fn install_compact_editor_actions(
             return;
         };
         let source_mode = paste_source_mode.is_active();
+        let source_target =
+            source_mode.then(|| source_commands::image_target_from_buffer(&paste_buffer));
         let clipboard = paste_rich.view().display().clipboard();
-        let buffer = paste_buffer.clone();
         let dispatcher = paste_dispatcher.clone();
         clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
             let Ok(Some(text)) = result else {
                 return;
             };
             let text = text.to_string();
-            let message = if source_mode {
-                EditorMsg::PasteSourceText {
+            let message = match source_target {
+                Some(target) => EditorMsg::PasteSourceText {
                     session,
-                    selection: source_commands::selection_from_buffer(&buffer),
+                    target,
                     text,
                     intent: carver_domain::PasteIntent::Markdown,
-                }
-            } else {
-                EditorMsg::PasteRichText {
+                },
+                None => EditorMsg::PasteRichText {
+                    request_id: 0,
                     text,
                     intent: carver_domain::PasteIntent::Markdown,
                     host_initiated: true,
-                }
+                },
             };
             let _ = dispatcher.dispatch(AppMsg::Editor(message));
         });

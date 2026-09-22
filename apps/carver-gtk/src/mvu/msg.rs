@@ -412,6 +412,8 @@ pub enum EditorMsg {
     },
     /// Host-imported pasted text for the active rich projection.
     PasteRichText {
+        /// Web-surface request identity echoed back to the projection.
+        request_id: u64,
         /// Raw pasted text.
         text: String,
         /// Format the host should apply before returning canonical Carve.
@@ -423,8 +425,8 @@ pub enum EditorMsg {
     PasteSourceText {
         /// Editor lifetime that initiated the paste.
         session: EditorSessionId,
-        /// Character-based selection captured at the paste boundary.
-        selection: Range<usize>,
+        /// Source snapshot and selection captured at the paste boundary.
+        target: SourceImageTarget,
         /// Raw pasted text.
         text: String,
         /// Format the host should apply before inserting canonical source.

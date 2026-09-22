@@ -145,6 +145,8 @@ pub enum EditorEvent {
     PasteText {
         /// Host document session.
         session: u64,
+        /// Web-surface request identity echoed back with the imported source.
+        request_id: u64,
         /// Raw pasted text.
         text: String,
     },
@@ -212,12 +214,13 @@ mod tests {
     fn paste_text_messages_round_trip_without_loss() {
         let event = EditorEvent::PasteText {
             session: 3,
+            request_id: 7,
             text: String::from("**pasted**"),
         };
         let encoded = serde_json::to_string(&event).unwrap_or_default();
         assert_eq!(
             encoded,
-            "{\"type\":\"paste-text\",\"session\":3,\"text\":\"**pasted**\"}"
+            "{\"type\":\"paste-text\",\"session\":3,\"request_id\":7,\"text\":\"**pasted**\"}"
         );
         let decoded: EditorEvent = serde_json::from_str(&encoded).unwrap_or(EditorEvent::Ready);
         assert_eq!(decoded, event);

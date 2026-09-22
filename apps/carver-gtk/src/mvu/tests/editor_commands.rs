@@ -444,7 +444,10 @@ fn markdown_paste_should_replace_the_source_selection_with_migrated_carve() {
         &mut model,
         AppMsg::Editor(EditorMsg::PasteSourceText {
             session,
-            selection: 6..11,
+            target: SourceImageTarget {
+                source: String::from("Hello world"),
+                selection: 6..11,
+            },
             text: String::from("**bold**"),
             intent: carver_domain::PasteIntent::Auto,
         }),
@@ -487,7 +490,10 @@ fn plain_paste_should_insert_source_verbatim() {
         &mut model,
         AppMsg::Editor(EditorMsg::PasteSourceText {
             session,
-            selection: 6..11,
+            target: SourceImageTarget {
+                source: String::from("Hello world"),
+                selection: 6..11,
+            },
             text: String::from("there"),
             intent: carver_domain::PasteIntent::Auto,
         }),
@@ -523,7 +529,10 @@ fn source_paste_for_another_session_should_be_ignored() {
             &mut model,
             AppMsg::Editor(EditorMsg::PasteSourceText {
                 session: EditorSessionId(session.0.wrapping_add(100)),
-                selection: 0..0,
+                target: SourceImageTarget {
+                    source: String::from("Original"),
+                    selection: 0..0,
+                },
                 text: String::from("**stale**"),
                 intent: carver_domain::PasteIntent::Auto,
             }),
@@ -554,6 +563,7 @@ fn rich_markdown_paste_should_request_a_structured_insertion() {
     let effects = update(
         &mut model,
         AppMsg::Editor(EditorMsg::PasteRichText {
+            request_id: 1,
             text: String::from("**bold**"),
             intent: carver_domain::PasteIntent::Auto,
             host_initiated: false,
@@ -582,6 +592,7 @@ fn rich_plain_paste_should_request_an_unstructured_insertion() {
     let effects = update(
         &mut model,
         AppMsg::Editor(EditorMsg::PasteRichText {
+            request_id: 2,
             text: String::from("ordinary words"),
             intent: carver_domain::PasteIntent::Auto,
             host_initiated: false,
@@ -595,4 +606,79 @@ fn rich_plain_paste_should_request_an_unstructured_insertion() {
             ..
         }]
     ));
+}
+
+#[test]
+fn rich_paste_should_be_ignored_outside_rich_mode() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Body"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+            carver_config::EditorMode::Source,
+        )),
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PasteRichText {
+            request_id: 3,
+            text: String::from("**bold**"),
+            intent: carver_domain::PasteIntent::Auto,
+            host_initiated: false,
+        }),
+    );
+
+    assert!(effects.is_empty());
+}
+
+#[test]
+fn source_paste_should_be_ignored_when_the_source_changed() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Original"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("Edited"))),
+    );
+
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PasteSourceText {
+                session,
+                target: SourceImageTarget {
+                    source: String::from("Original"),
+                    selection: 0..0,
+                },
+                text: String::from("**stale**"),
+                intent: carver_domain::PasteIntent::Auto,
+            }),
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model
+            .editor
+            .as_ref()
+            .map(|document| document.source.as_str()),
+        Some("Edited")
+    );
 }
