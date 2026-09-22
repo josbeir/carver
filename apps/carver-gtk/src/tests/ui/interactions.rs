@@ -189,7 +189,7 @@ pub(super) fn source_markdown_paste_should_migrate_before_inserting() -> TestRes
 
 pub(super) fn rich_changes_should_be_ignored_while_another_mode_is_active() -> TestResult {
     let fixture = document_sidebar::fixture()?;
-    let _ = fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
         note_id: carver_sdk::NoteId::new(),
         revision: carver_sdk::Revision(1),
         source: "# Current".into(),
