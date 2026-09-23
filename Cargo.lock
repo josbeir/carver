@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "carver-agent-integration"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "serde",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "carver-config"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "atomic-write-file",
  "directories",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "carver-domain"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "carve-lang",
  "caseless",
@@ -179,7 +179,7 @@ dependencies = [
 
 [[package]]
 name = "carver-editor-protocol"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "schemars",
  "serde",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "carver-export"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "carve-lang",
  "carver-domain",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "carver-gtk"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "atomic-write-file",
  "base64 0.22.1",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "carver-library-port"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "carver-domain",
  "time",
@@ -241,7 +241,7 @@ dependencies = [
 
 [[package]]
 name = "carver-mcp"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "carve-lang",
  "carver-agent-integration",
@@ -258,7 +258,7 @@ dependencies = [
 
 [[package]]
 name = "carver-sdk"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-channel",
  "carver-config",
@@ -272,7 +272,7 @@ dependencies = [
 
 [[package]]
 name = "carver-storage-sqlite"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "atomic-write-file",
  "carver-domain",
