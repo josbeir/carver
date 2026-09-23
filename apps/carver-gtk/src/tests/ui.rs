@@ -958,6 +958,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(|| !split_toggle.is_sensitive()));
     let options_menu =
         widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
+    assert!(run_main_context_until(|| options_menu
+        .menu_model()
+        .is_some_and(|model| model.n_items() == 5)));
     options_menu.popup();
     let options_popover = options_menu.popover().ok_or("editor options popover")?;
     let split_preview_label = run_main_context_until(|| {
@@ -1002,16 +1005,26 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     let options_menu =
         widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
     let gtk_window = window.clone().upcast::<gtk::Window>();
-    assert_eq!(
-        options_menu.menu_model().map(|model| model.n_items()),
-        Some(8)
-    );
+    assert!(run_main_context_until(|| options_menu
+        .menu_model()
+        .is_some_and(|model| model.n_items() == 4)));
     assert!(
         options_menu
             .popover()
             .and_downcast::<gtk::PopoverMenu>()
             .is_some()
     );
+    options_menu.popup();
+    let wide_popover = options_menu.popover().ok_or("editor options popover")?;
+    assert!(
+        run_main_context_until(|| find_label(wide_popover.upcast_ref(), "Move to Trash").is_some()),
+        "wide menu should keep the always-available options"
+    );
+    assert!(
+        find_label(wide_popover.upcast_ref(), "Back to notes").is_none(),
+        "wide menu should not duplicate the header buttons"
+    );
+    options_menu.popdown();
     let export_request = crate::mvu::EditorExportDialogRequest {
         html_profile: carver_domain::rendering::HtmlProfile::Enhanced,
         request_id: 91,

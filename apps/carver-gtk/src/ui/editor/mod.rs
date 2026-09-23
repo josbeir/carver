@@ -614,7 +614,7 @@ pub(crate) fn build_editor(
     copy_note.set_widget_name("copy-note-button");
     copy_note.set_tooltip_text(Some("Copy note"));
     copy_note.add_css_class("flat");
-    let (options_menu, compact_options) = editor_options_menu();
+    let (options_menu, compact_options, wide_options) = editor_options_menu();
     header.pack_end(&options_menu);
     header.pack_end(&document_sidebar_toggle);
     header.pack_end(&copy_note);
@@ -793,7 +793,16 @@ pub(crate) fn build_editor(
     compact_breakpoint.add_setters(&[(&split_toggle, "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.desktop_widget(), "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.compact_widget(), "visible", true)]);
-    responsive_container.add_breakpoint(compact_breakpoint);
+    responsive_container.add_breakpoint(compact_breakpoint.clone());
+    let options_menu_for_apply = options_menu.clone();
+    let compact_options_for_apply = compact_options.clone();
+    compact_breakpoint.connect_apply(move |_| {
+        options_menu_for_apply.set_menu_model(Some(&compact_options_for_apply));
+    });
+    let options_menu_for_unapply = options_menu.clone();
+    compact_breakpoint.connect_unapply(move |_| {
+        options_menu_for_unapply.set_menu_model(Some(&wide_options));
+    });
     let refs = EditorViewRefs {
         favorite,
         compact_options,
@@ -1322,26 +1331,42 @@ fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
     });
 }
 
-fn editor_options_menu() -> (gtk::MenuButton, gtk::gio::Menu) {
+/// Builds the editor overflow menu with a compact and a wide model.
+///
+/// The compact model duplicates the header buttons that [`COMPACT_EDITOR_WIDTH`]
+/// hides; the wide model keeps only the actions without a header button. The
+/// compact model keeps the favorite entry at index 2 for `EditorViewRefs::render`.
+fn editor_options_menu() -> (gtk::MenuButton, gtk::gio::Menu, gtk::gio::Menu) {
     let menu = gtk::MenuButton::new();
     menu.set_icon_name("view-more-symbolic");
     menu.set_tooltip_text(Some("Note options"));
     menu.add_css_class("flat");
     menu.set_widget_name("editor-options-menu");
-    let actions = gtk::gio::Menu::new();
-    actions.append(Some("Back to notes"), Some("editor.back"));
-    actions.append(Some("Copy note"), Some("editor.copy-note"));
-    actions.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
-    actions.append(
+
+    let compact = gtk::gio::Menu::new();
+    compact.append(Some("Back to notes"), Some("editor.back"));
+    compact.append(Some("Copy note"), Some("editor.copy-note"));
+    compact.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
+    compact.append(
         Some("Show rendered preview"),
         Some("editor.toggle-split-preview"),
     );
-    actions.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
-    actions.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
-    actions.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
-    actions.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
-    menu.set_menu_model(Some(&actions));
-    (menu, actions)
+    let always_available = gtk::gio::Menu::new();
+    append_always_available_options(&always_available);
+    compact.append_section(None, &always_available);
+
+    let wide = gtk::gio::Menu::new();
+    append_always_available_options(&wide);
+
+    menu.set_menu_model(Some(&wide));
+    (menu, compact, wide)
+}
+
+fn append_always_available_options(menu: &gtk::gio::Menu) {
+    menu.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
+    menu.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
+    menu.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
+    menu.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
 }
 
 fn install_compact_editor_actions(
