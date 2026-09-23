@@ -425,7 +425,7 @@ fn theme_change_should_request_an_editor_projection_refresh() {
 }
 
 #[test]
-fn markdown_paste_should_replace_the_source_selection_with_migrated_carve() {
+fn explicit_markdown_paste_should_replace_the_source_selection_with_migrated_carve() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(
         &mut model,
@@ -449,7 +449,7 @@ fn markdown_paste_should_replace_the_source_selection_with_migrated_carve() {
                 selection: 6..11,
             },
             text: String::from("**bold**"),
-            intent: carver_domain::PasteIntent::Auto,
+            intent: carver_domain::PasteIntent::Markdown,
         }),
     );
 
@@ -549,7 +549,7 @@ fn source_paste_for_another_session_should_be_ignored() {
 }
 
 #[test]
-fn rich_markdown_paste_should_request_a_structured_insertion() {
+fn rich_carve_table_paste_should_request_a_structured_insertion() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(
         &mut model,
@@ -564,7 +564,9 @@ fn rich_markdown_paste_should_request_a_structured_insertion() {
         &mut model,
         AppMsg::Editor(EditorMsg::PasteRichText {
             request_id: 1,
-            text: String::from("**bold**"),
+            text: String::from(
+                "|=< Feature |=~ Markdown |=> Carve |\n| Emphasis | `*text*` | `/text/` |\n| Strong | `**text**` | `*text*` |\n| Strikethrough | `~~text~~` | `~text~` |\n| Highlight | N/A | `=text=` |\n\n^ Syntax comparison between Markdown and Carve",
+            ),
             intent: carver_domain::PasteIntent::Auto,
             host_initiated: false,
         }),
@@ -573,7 +575,9 @@ fn rich_markdown_paste_should_request_a_structured_insertion() {
     assert!(matches!(
         effects.as_slice(),
         [Effect::InsertRichSource { structured: true, source, host_initiated: false, .. }]
-            if source.contains("*bold*")
+            if source.contains("|=< Feature |=~ Markdown |=> Carve |")
+                && source.contains("**text**")
+                && source.contains("~~text~~")
     ));
 }
 
