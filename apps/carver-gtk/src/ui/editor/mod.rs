@@ -67,7 +67,7 @@ type DocumentAppearanceCache = Rc<RefCell<Option<web::DocumentAppearance>>>;
 /// GTK/WebKit references that project the active editor document from the MVU model.
 pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
-    compact_options: gtk::gio::Menu,
+    favorite_options: gtk::gio::Menu,
     sidebar: document_sidebar::DocumentSidebar,
     rich_mode: gtk::ToggleButton,
     source_mode: gtk::ToggleButton,
@@ -117,9 +117,9 @@ impl EditorViewRefs {
         self.rendering.set(true);
         self.source_generation.set(document.source_generation);
         self.favorite.set_active(document.is_favorite);
-        self.compact_options.remove(2);
-        self.compact_options.insert(
-            2,
+        self.favorite_options.remove(0);
+        self.favorite_options.insert(
+            0,
             Some(if document.is_favorite {
                 "Remove from Favorites"
             } else {
@@ -606,18 +606,13 @@ pub(crate) fn build_editor(
     favorite.set_tooltip_text(Some("Add to Favorites"));
     favorite.add_css_class("flat");
     let document_sidebar_toggle = gtk::ToggleButton::new();
-    document_sidebar_toggle.set_icon_name("sidebar-show-right-symbolic");
+    document_sidebar_toggle.set_icon_name("view-list-symbolic");
     document_sidebar_toggle.set_widget_name("editor-document-sidebar-toggle");
     document_sidebar_toggle.set_tooltip_text(Some("Show document sidebar"));
     document_sidebar_toggle.add_css_class("flat");
-    let copy_note = gtk::Button::from_icon_name("edit-copy-symbolic");
-    copy_note.set_widget_name("copy-note-button");
-    copy_note.set_tooltip_text(Some("Copy note"));
-    copy_note.add_css_class("flat");
-    let (options_menu, compact_options, wide_options) = editor_options_menu();
-    header.pack_end(&options_menu);
+    let options = editor_options_menu();
+    header.pack_end(&options.button);
     header.pack_end(&document_sidebar_toggle);
-    header.pack_end(&copy_note);
     header.pack_end(&favorite);
     view.add_top_bar(&header);
 
@@ -752,17 +747,18 @@ pub(crate) fn build_editor(
         &split_preview,
         &rendering,
     );
-    connect_split_availability(
+    let editor_compact = Rc::new(Cell::new(false));
+    let refresh_split_visibility = connect_split_availability(
         &rich_mode,
         &source_mode,
         &rendered_mode,
         &split_toggle,
         &split_preview_state.supported,
+        &editor_compact,
     );
     connect_source_scroll_sync(&pages.source_scroll, &split_preview, &split_toggle);
     let document_font_settings = connect_theme_changes(dispatcher);
     connect_favorite_action(dispatcher, &favorite);
-    connect_copy_action(dispatcher, &copy_note);
     connect_document_sidebar_toggle(dispatcher, &sidebar.toggle, &rendering);
     connect_add_files(
         dispatcher,
@@ -788,24 +784,30 @@ pub(crate) fn build_editor(
     compact_breakpoint.add_setters(&[(&source_mode_label, "visible", false)]);
     compact_breakpoint.add_setters(&[(&rendered_mode_label, "visible", false)]);
     compact_breakpoint.add_setters(&[(&favorite, "visible", false)]);
-    compact_breakpoint.add_setters(&[(&copy_note, "visible", false)]);
-    compact_breakpoint.add_setters(&[(&back, "visible", false)]);
-    compact_breakpoint.add_setters(&[(&split_toggle, "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.desktop_widget(), "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.compact_widget(), "visible", true)]);
     responsive_container.add_breakpoint(compact_breakpoint.clone());
-    let options_menu_for_apply = options_menu.clone();
-    let compact_options_for_apply = compact_options.clone();
+    let options_menu_for_apply = options.button.clone();
+    let compact_options_for_apply = options.compact.clone();
+    let compact_for_apply = Rc::clone(&editor_compact);
+    let refresh_split_for_apply = Rc::clone(&refresh_split_visibility);
     compact_breakpoint.connect_apply(move |_| {
+        compact_for_apply.set(true);
         options_menu_for_apply.set_menu_model(Some(&compact_options_for_apply));
+        refresh_split_for_apply();
     });
-    let options_menu_for_unapply = options_menu.clone();
+    let options_menu_for_unapply = options.button.clone();
+    let wide_options_for_unapply = options.wide.clone();
+    let compact_for_unapply = Rc::clone(&editor_compact);
+    let refresh_split_for_unapply = Rc::clone(&refresh_split_visibility);
     compact_breakpoint.connect_unapply(move |_| {
-        options_menu_for_unapply.set_menu_model(Some(&wide_options));
+        compact_for_unapply.set(false);
+        options_menu_for_unapply.set_menu_model(Some(&wide_options_for_unapply));
+        refresh_split_for_unapply();
     });
     let refs = EditorViewRefs {
         favorite,
-        compact_options,
+        favorite_options: options.favorites.clone(),
         sidebar,
         rich_mode,
         source_mode,
@@ -1133,21 +1135,36 @@ fn connect_split_availability(
     rendered_mode: &gtk::ToggleButton,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
-) {
-    let split = split_toggle.clone();
-    let split_supported = Rc::clone(split_supported);
-    source_mode.connect_toggled(move |button| {
-        split.set_sensitive(button.is_active() && split_supported.get());
+    compact: &Rc<Cell<bool>>,
+) -> Rc<dyn Fn()> {
+    // CONTEXT: The split preview only applies in Source mode, so its control is
+    // shown there and hidden in Edit/Preview instead of lingering disabled. The
+    // returned callback re-evaluates visibility when the compact breakpoint flips.
+    let apply: Rc<dyn Fn()> = Rc::new({
+        let split = split_toggle.clone();
+        let source = source_mode.clone();
+        let split_supported = Rc::clone(split_supported);
+        let compact = Rc::clone(compact);
+        move || {
+            let source_active = source.is_active();
+            split.set_visible(source_active && !compact.get());
+            split.set_sensitive(source_active && split_supported.get());
+        }
     });
+    let apply_for_source = Rc::clone(&apply);
+    source_mode.connect_toggled(move |_| apply_for_source());
     for mode in [rich_mode, rendered_mode] {
         let split = split_toggle.clone();
+        let apply = Rc::clone(&apply);
         mode.connect_toggled(move |button| {
             if button.is_active() {
                 split.set_active(false);
-                split.set_sensitive(false);
             }
+            apply();
         });
     }
+    apply();
+    apply
 }
 
 fn connect_split_toggle(
@@ -1324,49 +1341,74 @@ fn connect_favorite_action(dispatcher: &AppDispatcher, favorite: &gtk::ToggleBut
     });
 }
 
-fn connect_copy_action(dispatcher: &AppDispatcher, copy_note: &gtk::Button) {
-    let dispatcher = dispatcher.clone();
-    copy_note.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::CopyRequested));
-    });
+/// Editor overflow menu button with its compact and wide models.
+struct EditorOptionsMenu {
+    button: gtk::MenuButton,
+    compact: gtk::gio::Menu,
+    wide: gtk::gio::Menu,
+    favorites: gtk::gio::Menu,
 }
 
-/// Builds the editor overflow menu with a compact and a wide model.
+/// Builds the editor overflow menu with compact and wide models.
 ///
-/// The compact model duplicates the header buttons that [`COMPACT_EDITOR_WIDTH`]
-/// hides; the wide model keeps only the actions without a header button. The
-/// compact model keeps the favorite entry at index 2 for `EditorViewRefs::render`.
-fn editor_options_menu() -> (gtk::MenuButton, gtk::gio::Menu, gtk::gio::Menu) {
-    let menu = gtk::MenuButton::new();
-    menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some("Note options"));
-    menu.add_css_class("flat");
-    menu.set_widget_name("editor-options-menu");
+/// The compact model prefixes the actions whose header buttons
+/// [`COMPACT_EDITOR_WIDTH`] hides; the wide model keeps only actions without a
+/// header button. `favorites` is returned for the dynamic label update in
+/// `EditorViewRefs::render`.
+fn editor_options_menu() -> EditorOptionsMenu {
+    let button = gtk::MenuButton::new();
+    button.set_icon_name("view-more-symbolic");
+    button.set_tooltip_text(Some("Note options"));
+    button.add_css_class("flat");
+    button.set_widget_name("editor-options-menu");
 
-    let compact = gtk::gio::Menu::new();
-    compact.append(Some("Back to notes"), Some("editor.back"));
-    compact.append(Some("Copy note"), Some("editor.copy-note"));
-    compact.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
-    compact.append(
+    let favorites = gtk::gio::Menu::new();
+    favorites.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
+    let preview = gtk::gio::Menu::new();
+    preview.append(
         Some("Show rendered preview"),
         Some("editor.toggle-split-preview"),
     );
-    let always_available = gtk::gio::Menu::new();
-    append_always_available_options(&always_available);
-    compact.append_section(None, &always_available);
+
+    let compact = gtk::gio::Menu::new();
+    compact.append_section(None, &favorites);
+    compact.append_section(None, &preview);
+    append_clipboard_options(&compact);
+    append_file_options(&compact);
+    append_danger_options(&compact);
 
     let wide = gtk::gio::Menu::new();
-    append_always_available_options(&wide);
+    append_clipboard_options(&wide);
+    append_file_options(&wide);
+    append_danger_options(&wide);
 
-    menu.set_menu_model(Some(&wide));
-    (menu, compact, wide)
+    button.set_menu_model(Some(&wide));
+    EditorOptionsMenu {
+        button,
+        compact,
+        wide,
+        favorites,
+    }
 }
 
-fn append_always_available_options(menu: &gtk::gio::Menu) {
-    menu.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
-    menu.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
-    menu.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
-    menu.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
+fn append_clipboard_options(menu: &gtk::gio::Menu) {
+    let section = gtk::gio::Menu::new();
+    section.append(Some("Copy note"), Some("editor.copy-note"));
+    section.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
+    menu.append_section(None, &section);
+}
+
+fn append_file_options(menu: &gtk::gio::Menu) {
+    let section = gtk::gio::Menu::new();
+    section.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
+    section.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
+    menu.append_section(None, &section);
+}
+
+fn append_danger_options(menu: &gtk::gio::Menu) {
+    let section = gtk::gio::Menu::new();
+    section.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
+    menu.append_section(None, &section);
 }
 
 fn install_compact_editor_actions(
@@ -1379,12 +1421,6 @@ fn install_compact_editor_actions(
     source_mode: &gtk::ToggleButton,
 ) {
     let actions = gtk::gio::SimpleActionGroup::new();
-    let back = gtk::gio::SimpleAction::new("back", None);
-    let back_dispatcher = dispatcher.clone();
-    back.connect_activate(move |_, _| {
-        let _ = back_dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
-    });
-    actions.add_action(&back);
     let copy_note = gtk::gio::SimpleAction::new("copy-note", None);
     let copy_dispatcher = dispatcher.clone();
     copy_note.connect_activate(move |_, _| {

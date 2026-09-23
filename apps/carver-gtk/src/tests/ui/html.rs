@@ -27,9 +27,15 @@ pub(super) fn preview_and_copy_should_preserve_source_with_quoted_image_attribut
         &preview,
         "document.querySelector('img')?.getAttribute('src') === 'carver-asset:///assets/missing.png' && document.querySelector('img')?.alt === '<b> & A > B'",
     );
-    let copy = widget_as::<gtk::Button>(root, "copy-note-button").ok_or("copy note")?;
-    copy.emit_clicked();
-    let clipboard = copy.display().clipboard();
+    let editor_surface =
+        widget_as::<adw::ToolbarView>(root, "editor-surface").ok_or("editor surface")?;
+    assert!(
+        editor_surface
+            .activate_action("editor.copy-note", None::<&glib::Variant>)
+            .is_ok(),
+        "the editor should expose a copy action without a header button"
+    );
+    let clipboard = editor_surface.display().clipboard();
     assert!(run_main_context_until(|| clipboard
         .formats()
         .contain_mime_type("text/html")));
