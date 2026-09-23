@@ -940,12 +940,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
             .is_some_and(|button| !button.is_visible())
     );
     assert!(
-        widget_as::<gtk::Button>(&root, "copy-note-button")
-            .is_some_and(|button| !button.is_visible())
-    );
-    assert!(
         widget_as::<gtk::Button>(&root, "back-to-notes-button")
-            .is_some_and(|button| !button.is_visible())
+            .is_some_and(|button| button.is_visible())
     );
     window.set_default_size(390, 844);
     assert!(run_main_context_until(|| responsive_editor.width() >= 360));
@@ -960,17 +956,27 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         widget_as::<gtk::Box>(&root, "formatting-toolbar-bar").ok_or("formatting toolbar bar")?;
     assert!(toolbar_bar.is_visible());
     assert_shared_toolbar_controls(&root)?;
+    let split_toggle =
+        widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
+    assert!(
+        !split_toggle.is_visible(),
+        "the split preview control should be hidden outside Source mode"
+    );
     source_mode.set_active(true);
     assert_eq!(
         toolbar,
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?
     );
     assert_shared_toolbar_controls(&root)?;
-    let split_toggle =
-        widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
     assert!(split_toggle.is_sensitive());
+    assert!(
+        split_toggle.is_visible(),
+        "the split preview control should appear in Source mode"
+    );
     window.set_default_size(360, 640);
-    assert!(run_main_context_until(|| !split_toggle.is_sensitive()));
+    assert!(run_main_context_until(|| {
+        !split_toggle.is_sensitive() && !split_toggle.is_visible()
+    }));
     let options_menu =
         widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
     assert!(run_main_context_until(|| options_menu
@@ -990,7 +996,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     options_menu.popdown();
     assert!(!split_toggle.is_active());
     window.set_default_size(1120, 760);
-    assert!(run_main_context_until(|| split_toggle.is_sensitive()));
+    assert!(run_main_context_until(|| {
+        split_toggle.is_sensitive() && split_toggle.is_visible()
+    }));
     let source_controllers = source_view.observe_controllers();
     let source_shortcuts = (0..source_controllers.n_items())
         .filter_map(|index| source_controllers.item(index))
@@ -1016,13 +1024,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         ),
         "First line\\\n"
     );
-    let copy_note = widget_as::<gtk::Button>(&root, "copy-note-button").ok_or("copy note")?;
+    let editor_surface =
+        widget_as::<adw::ToolbarView>(&root, "editor-surface").ok_or("editor surface")?;
     let options_menu =
         widget_as::<gtk::MenuButton>(&root, "editor-options-menu").ok_or("editor options")?;
     let gtk_window = window.clone().upcast::<gtk::Window>();
     assert!(run_main_context_until(|| options_menu
         .menu_model()
-        .is_some_and(|model| model.n_items() == 4)));
+        .is_some_and(|model| model.n_items() == 3)));
     assert!(
         options_menu
             .popover()
@@ -1036,8 +1045,13 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
         "wide menu should keep the always-available options"
     );
     assert!(
-        find_label(wide_popover.upcast_ref(), "Back to notes").is_none(),
-        "wide menu should not duplicate the header buttons"
+        find_label(wide_popover.upcast_ref(), "Copy note").is_some(),
+        "wide menu should hold the copy action without a header button"
+    );
+    assert!(
+        find_label(wide_popover.upcast_ref(), "Back to notes")
+            .is_none_or(|label| !label.is_visible()),
+        "wide menu should not show a Back to notes entry"
     );
     options_menu.popdown();
     let export_request = crate::mvu::EditorExportDialogRequest {
@@ -1108,7 +1122,12 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     }));
     assert_native_print_dialog_cancels_without_invalid_window(&gtk_window)?;
     source.buffer().set_text("# Copied note");
-    copy_note.emit_clicked();
+    assert!(
+        editor_surface
+            .activate_action("editor.copy-note", None::<&glib::Variant>)
+            .is_ok(),
+        "the editor should expose a copy action without a header button"
+    );
     let clipboard = source.display().clipboard();
     assert!(run_main_context_until(|| {
         clipboard.formats().contain_mime_type("text/html")
