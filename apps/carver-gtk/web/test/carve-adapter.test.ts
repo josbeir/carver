@@ -53,6 +53,23 @@ describe('Carve adapter', () => {
     expect(serializeToCarve(result.doc)).toBe(source);
   });
 
+  it('projects the pasted syntax comparison as a table with its caption', () => {
+    const source =
+      '|=< Feature |=~ Markdown |=> Carve |\n| Emphasis | `*text*` | `/text/` |\n| Strong | `**text**` | `*text*` |\n| Strikethrough | `~~text~~` | `~text~` |\n| Highlight | N/A | `=text=` |\n\n^ Syntax comparison between Markdown and Carve';
+    const result = carveToProseMirrorWithReport(source, {
+      unsupported: 'preserve',
+    });
+    const figure = result.doc.content?.[0];
+
+    expect(figure?.type).toBe('carveFigure');
+    expect(figure?.content?.map((node) => node.type)).toEqual([
+      'table',
+      'carveCaption',
+    ]);
+    expect(serializeToCarve(result.doc)).toContain('**text**');
+    expect(serializeToCarve(result.doc)).toContain('~~text~~');
+  });
+
   it('keeps canonical frontmatter as lossless document metadata', () => {
     const source =
       '---\npriority: 4\ntags: [rust, notes]\n---\n\n# Metadata-aware note';
