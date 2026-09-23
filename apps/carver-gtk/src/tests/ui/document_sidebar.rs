@@ -128,10 +128,7 @@ pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResu
     assert!(!outline.has_css_class("boxed-list"));
     let toggle =
         widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle").ok_or("toggle")?;
-    assert_eq!(
-        toggle.icon_name().as_deref(),
-        Some("sidebar-show-right-symbolic")
-    );
+    assert_eq!(toggle.icon_name().as_deref(), Some("view-list-symbolic"));
     assert_eq!(
         toggle.tooltip_text().as_deref(),
         Some("Hide document sidebar")

@@ -86,7 +86,7 @@ const EDITOR_SHORTCUTS: &[Shortcut] = &[
         accelerator: "<Control>d",
     },
     Shortcut {
-        title: "Toggle Media pane",
+        title: "Toggle document sidebar",
         accelerator: "F9",
     },
 ];

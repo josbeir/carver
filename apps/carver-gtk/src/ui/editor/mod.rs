@@ -606,7 +606,7 @@ pub(crate) fn build_editor(
     favorite.set_tooltip_text(Some("Add to Favorites"));
     favorite.add_css_class("flat");
     let document_sidebar_toggle = gtk::ToggleButton::new();
-    document_sidebar_toggle.set_icon_name("sidebar-show-right-symbolic");
+    document_sidebar_toggle.set_icon_name("view-list-symbolic");
     document_sidebar_toggle.set_widget_name("editor-document-sidebar-toggle");
     document_sidebar_toggle.set_tooltip_text(Some("Show document sidebar"));
     document_sidebar_toggle.add_css_class("flat");
