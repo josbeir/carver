@@ -1,10 +1,8 @@
 //! Format detection and conversion for text pasted into an editor.
 //!
-//! Carve and Markdown overlap: `/italic/` and `*bold*` are Carve, while
-//! `*italic*` and `**bold**` are Markdown. A pasted fragment therefore cannot
-//! be classified with certainty, so detection is deliberately conservative:
-//! text without recognizable markup is inserted verbatim, and only unambiguous
-//! Markdown syntax is migrated. Ambiguous single delimiters stay Carve.
+//! Carve and Markdown overlap, so automatic detection gives canonical Carve
+//! source priority. Markdown conversion is available when the caller explicitly
+//! requests it.
 
 use carve::{BlockNode, Document, InlineNode, Options, parse_with_options};
 
@@ -77,55 +75,11 @@ pub fn detect_pasted_format(text: &str) -> PastedFormat {
     if text.trim().is_empty() || text.len() > MAX_CLASSIFIED_LENGTH {
         return PastedFormat::Plain;
     }
-    if contains_markdown_only_syntax(text) {
-        return PastedFormat::Markdown;
-    }
     if carve_is_structured(text) {
         PastedFormat::Carve
     } else {
         PastedFormat::Plain
     }
-}
-
-/// Returns whether the text uses syntax that Markdown and Carve do not share.
-///
-/// `**`, `__`, `~~`, a `=` setext underline, and a GFM table separator all mean
-/// something different (or nothing) in Carve, so they are safe signals. Single
-/// `*` and `_` are omitted: `*bold*` is valid Carve and must stay Carve.
-fn contains_markdown_only_syntax(text: &str) -> bool {
-    if text.contains("**") || text.contains("__") || text.contains("~~") {
-        return true;
-    }
-    let mut previous_content = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            previous_content = false;
-            continue;
-        }
-        if previous_content && is_setext_underline(trimmed) {
-            return true;
-        }
-        if is_markdown_table_separator(trimmed) {
-            return true;
-        }
-        previous_content = true;
-    }
-    false
-}
-
-/// Returns whether a line is a Markdown setext underline (`===`).
-fn is_setext_underline(line: &str) -> bool {
-    line.chars().all(|character| character == '=')
-}
-
-/// Returns whether a line is a GFM table separator row (`| --- | :--: |`).
-fn is_markdown_table_separator(line: &str) -> bool {
-    line.contains('|')
-        && line.contains('-')
-        && line
-            .chars()
-            .all(|character| matches!(character, '|' | '-' | ':' | ' '))
 }
 
 /// Returns whether Carve parsing turns the text into real markup.

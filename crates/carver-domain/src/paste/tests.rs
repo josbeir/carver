@@ -47,25 +47,27 @@ fn carve_inline_and_block_markup_should_be_detected() {
 }
 
 #[test]
-fn markdown_only_delimiters_should_be_detected_as_markdown() {
-    for source in [
-        "**bold**",
-        "__bold__",
-        "~~strike~~",
-        "Title\n=====",
-        "| Name | State |\n| --- | --- |\n| Carver | Ready |",
-    ] {
-        assert_eq!(
-            detect_pasted_format(source),
-            PastedFormat::Markdown,
-            "expected Markdown for {source:?}"
-        );
+fn markdown_only_delimiters_should_not_trigger_automatic_conversion() {
+    for source in ["**bold**", "__bold__", "~~strike~~", "Title\n====="] {
+        let pasted = import_pasted_text(source, PasteIntent::Auto);
+
+        assert_eq!(pasted.format, PastedFormat::Plain, "{source:?}");
+        assert_eq!(pasted.source, source);
     }
 }
 
 #[test]
-fn markdown_import_should_convert_through_carve_migration() {
-    let pasted = import_pasted_text("**bold** and ~~old~~", PasteIntent::Auto);
+fn carve_table_with_markdown_examples_should_remain_carve() {
+    let source = "|=< Feature |=~ Markdown |=> Carve |\n| Emphasis | `*text*` | `/text/` |\n| Strong | `**text**` | `*text*` |\n| Strikethrough | `~~text~~` | `~text~` |\n| Highlight | N/A | `=text=` |\n\n^ Syntax comparison between Markdown and Carve";
+    let pasted = import_pasted_text(source, PasteIntent::Auto);
+
+    assert_eq!(pasted.format, PastedFormat::Carve);
+    assert_eq!(pasted.source, source);
+}
+
+#[test]
+fn explicit_markdown_import_should_convert_through_carve_migration() {
+    let pasted = import_pasted_text("**bold** and ~~old~~", PasteIntent::Markdown);
 
     assert_eq!(pasted.format, PastedFormat::Markdown);
     assert!(

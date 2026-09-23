@@ -147,7 +147,7 @@ pub(super) fn source_image_paste_should_store_a_managed_asset() -> TestResult {
     Ok(())
 }
 
-pub(super) fn source_markdown_paste_should_migrate_before_inserting() -> TestResult {
+pub(super) fn source_smart_paste_should_preserve_markdown_delimiters() -> TestResult {
     let fixture = document_sidebar::fixture()?;
     let category = fixture.client.create_category("Paste")?;
     let note = fixture.client.create_note(category.id)?;
@@ -179,9 +179,7 @@ pub(super) fn source_markdown_paste_should_migrate_before_inserting() -> TestRes
         .runtime
         .model()
         .editor
-        .is_some_and(
-            |doc| doc.source.contains("*bold*") && !doc.source.contains("**")
-        )));
+        .is_some_and(|doc| doc.source.contains("**bold**"))));
     clipboard.set_content(None::<&gtk::gdk::ContentProvider>)?;
     fixture.window.close();
     Ok(())

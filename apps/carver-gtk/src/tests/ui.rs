@@ -46,7 +46,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::source_link_should_keep_the_captured_selection()?;
     interactions::rich_link_should_update_canonical_source()?;
     interactions::source_image_paste_should_store_a_managed_asset()?;
-    interactions::source_markdown_paste_should_migrate_before_inserting()?;
+    interactions::source_smart_paste_should_preserve_markdown_delimiters()?;
     interactions::rich_changes_should_be_ignored_while_another_mode_is_active()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
