@@ -381,11 +381,13 @@ pub(super) fn load_preview(
     allow_remote_images: bool,
     profile: HtmlProfile,
 ) {
+    let theme = super::editor_theme();
+    view.set_background_color(&super::web::document_background(theme.dark));
     view.load_html(
         &rendered_document_with_profile(
             source,
             allow_remote_images,
-            &super::editor_theme(),
+            &theme,
             &default_appearance(),
             profile,
             carve::Mode::Static,
@@ -403,6 +405,7 @@ pub(super) fn load_preview_with_theme(
     appearance: &super::web::DocumentAppearance,
     profile: HtmlProfile,
 ) {
+    view.set_background_color(&super::web::document_background(theme.dark));
     view.load_html(
         &rendered_document_with_profile(
             source,

@@ -2,6 +2,15 @@
 use super::*;
 use crate::mvu::{AppMsg, EditorMsg, PreferencesMsg};
 
+/// Mirrors `ui::editor::web::document_background` for the active Adwaita scheme.
+fn expected_document_background() -> gtk::gdk::RGBA {
+    if adw::StyleManager::default().is_dark() {
+        gtk::gdk::RGBA::new(29.0 / 255.0, 29.0 / 255.0, 32.0 / 255.0, 1.0)
+    } else {
+        gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+    }
+}
+
 pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> TestResult {
     let fixture = document_sidebar::fixture()?;
     let category = fixture.client.create_category("Rendering")?;
@@ -15,6 +24,11 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
     }));
     let rich =
         widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich editor")?;
+    assert_eq!(
+        rich.background_color(),
+        expected_document_background(),
+        "the rich editor should paint the document surface before its first frame"
+    );
     assert_web_script_should_be_true(
         &rich,
         "(() => { const panel = document.querySelector('.carve-div.details'); return panel && getComputedStyle(panel).borderRadius === '10px' && getComputedStyle(panel.querySelector('.admonition-title')).borderBottomWidth === '1px' && panel.querySelector('.carve-div-body').textContent.includes('https://example.com'); })()",
@@ -41,6 +55,11 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
         assert_web_script_should_be_true(
             &view,
             "Boolean(document.querySelector('nav.toc a[href=\"#Heading\"]') && document.querySelector('details a[href=\"https://example.com\"]'))",
+        );
+        assert_eq!(
+            view.background_color(),
+            expected_document_background(),
+            "the preview should paint the document surface before its first frame"
         );
         assert_web_script_should_be_true(
             &view,

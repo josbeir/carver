@@ -635,15 +635,17 @@ pub(crate) fn build_editor(
     let source_editor = SourceEditor::new(source_syntax_dir)?;
     let source_buffer = source_editor.buffer().clone();
     let source = source_editor.view().clone();
+    let theme = editor_theme();
     let rich = RichEditor::new(
         assets_dir.clone(),
         allow_remote_images,
+        theme.dark,
         dispatcher,
         &source_buffer,
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
-    refresh_rich_theme(&rich);
+    rich.set_theme(&theme);
     let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
     split_preview.set_widget_name("source-split-preview");
     let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
@@ -1887,10 +1889,6 @@ fn editor_theme() -> web::EditorTheme {
     let style_manager = adw::StyleManager::default();
     let dark = style_manager.is_dark();
     web::editor_theme(dark, &style_manager.accent_color().to_standalone_rgba(dark))
-}
-
-fn refresh_rich_theme(rich: &RichEditor) {
-    rich.set_theme(&editor_theme());
 }
 
 /// Installs source-mode equivalents of the common Rich Text keyboard shortcuts.

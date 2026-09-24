@@ -48,6 +48,7 @@ impl RichEditor {
     pub(crate) fn new(
         assets_dir: Option<std::path::PathBuf>,
         allow_remote_images: bool,
+        dark: bool,
         dispatcher: &AppDispatcher,
         source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
@@ -85,6 +86,7 @@ impl RichEditor {
             .settings(&settings)
             .build();
         view.set_widget_name("rich-editor");
+        view.set_background_color(&document_background(dark));
 
         let editor = Self {
             view,
@@ -105,7 +107,7 @@ impl RichEditor {
         editor.connect_messages(&manager, dispatcher, source_buffer, toast_overlay);
         editor.connect_load_lifecycle();
         editor.view.load_html(
-            &editor_document(allow_remote_images),
+            &editor_document(allow_remote_images, dark),
             Some("carver-asset:///"),
         );
         editor
@@ -143,8 +145,13 @@ impl RichEditor {
     /// then restores the canonical Carve source when the new editor is ready.
     pub(crate) fn reload_with_remote_images(&self, source: &str, allow_remote_images: bool) {
         self.ready.set(false);
+        let dark = self
+            .current_theme
+            .borrow()
+            .as_ref()
+            .is_none_or(|theme| theme.dark);
         self.view.load_html(
-            &editor_document(allow_remote_images),
+            &editor_document(allow_remote_images, dark),
             Some("carver-asset:///"),
         );
         self.load_source(source);
@@ -269,6 +276,8 @@ impl RichEditor {
     /// Applies GNOME's resolved editor colors without reloading the document.
     pub(super) fn set_theme(&self, theme: &EditorTheme) {
         self.current_theme.replace(Some(theme.clone()));
+        self.view
+            .set_background_color(&document_background(theme.dark));
         self.apply_theme();
     }
 
@@ -679,6 +688,19 @@ fn default_document_foreground(dark: bool) -> &'static str {
     if dark { "#ffffff" } else { "#333334" }
 }
 
+/// The bundled stylesheets' document surface as a native color.
+///
+/// `WebKit` paints its own surface before the document's first frame; matching
+/// it to `--document-background` avoids a bright flash in a dark session. Keep
+/// these values in sync with `document.css` and `preview.css`.
+pub(super) fn document_background(dark: bool) -> gtk::gdk::RGBA {
+    if dark {
+        gtk::gdk::RGBA::new(29.0 / 255.0, 29.0 / 255.0, 32.0 / 255.0, 1.0)
+    } else {
+        gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+    }
+}
+
 fn theme_javascript(theme: &EditorTheme) -> String {
     format!(
         "window.carverEditor.setTheme({}, {}, {}, {});",
@@ -697,14 +719,18 @@ fn appearance_javascript(appearance: &DocumentAppearance) -> String {
 }
 
 /// Builds the sandboxed editor shell using the configured image source policy.
-fn editor_document(allow_remote_images: bool) -> String {
+///
+/// The color scheme is set on `<html>` before the first paint so the shell does
+/// not flash the default dark palette in a light Adwaita session.
+fn editor_document(allow_remote_images: bool, dark: bool) -> String {
     let image_sources = if allow_remote_images {
         "data: https: http: carver-asset: blob:"
     } else {
         "data: carver-asset: blob:"
     };
+    let color_scheme = if dark { "dark" } else { "light" };
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
     )
 }
 
@@ -720,24 +746,44 @@ fn rich_source_change_messages(source: String) -> [AppMsg; 2] {
 mod tests {
     use super::{
         EDITOR_STYLESHEET, LinkContext, appearance_javascript, document_appearance,
-        editor_document, editor_theme, parse_link_context, rich_source_change_messages,
-        selection_theme, theme_javascript,
+        document_background, editor_document, editor_theme, parse_link_context,
+        rich_source_change_messages, selection_theme, theme_javascript,
     };
     use crate::mvu::{AppMsg, DocumentPreferences, EditorMsg};
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
-        assert!(editor_document(true).contains("img-src data: https: http: carver-asset: blob:"));
+        assert!(
+            editor_document(true, true).contains("img-src data: https: http: carver-asset: blob:")
+        );
     }
 
     #[test]
     fn editor_document_keeps_remote_images_blocked_when_disabled() {
-        assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+        assert!(editor_document(false, true).contains("img-src data: carver-asset: blob:"));
+    }
+
+    #[test]
+    fn editor_document_should_set_the_color_scheme_before_the_first_paint() {
+        assert!(editor_document(false, true).contains("<html data-theme=\"dark\">"));
+        assert!(editor_document(false, false).contains("<html data-theme=\"light\">"));
+    }
+
+    #[test]
+    fn document_background_should_match_the_bundled_stylesheets() {
+        assert_eq!(
+            document_background(true),
+            gtk::gdk::RGBA::new(29.0 / 255.0, 29.0 / 255.0, 32.0 / 255.0, 1.0)
+        );
+        assert_eq!(
+            document_background(false),
+            gtk::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+        );
     }
 
     #[test]
     fn editor_document_should_keep_runtime_styles_in_the_head() {
-        let document = editor_document(false);
+        let document = editor_document(false, true);
 
         assert!(document.contains("<style id=\"editor-runtime-styles\"></style>"));
         assert!(!document.contains("<html style="));
