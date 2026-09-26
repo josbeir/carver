@@ -516,10 +516,8 @@ pub struct EditorPropertiesRequest {
     pub document: Option<carver_domain::FrontmatterDocument>,
     /// Authored content between the fences, used by the raw fallback.
     pub raw: Option<String>,
-    /// Configured default properties offered as empty fill-in fields.
+    /// Configured default properties always offered as value-only rows.
     pub defaults: Vec<carver_config::DocumentProperty>,
-    /// Whether the configured defaults are enabled.
-    pub defaults_enabled: bool,
 }
 
 /// A frontmatter edit produced by the native document-properties dialog.

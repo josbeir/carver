@@ -7,7 +7,6 @@ fn field(key: &str, value: &str) -> FrontmatterField {
 fn request(
     document: Option<FrontmatterDocument>,
     defaults: Vec<DocumentProperty>,
-    defaults_enabled: bool,
 ) -> EditorPropertiesRequest {
     EditorPropertiesRequest {
         session: crate::mvu::EditorSessionId(1),
@@ -15,7 +14,6 @@ fn request(
         document,
         raw: None,
         defaults,
-        defaults_enabled,
     }
 }
 
@@ -30,7 +28,7 @@ fn default_property(key: &str, value: &str) -> DocumentProperty {
 }
 
 #[test]
-fn initial_drafts_should_list_only_note_properties() {
+fn initial_drafts_should_always_offer_configured_defaults() {
     let request = request(
         Some(FrontmatterDocument {
             format: FrontmatterFormat::Yaml,
@@ -38,24 +36,32 @@ fn initial_drafts_should_list_only_note_properties() {
             error: None,
         }),
         vec![default_property("type", "default")],
-        true,
     );
 
     let drafts = initial_drafts(&request);
     let keys: Vec<&str> = drafts.iter().map(|draft| draft.key.as_str()).collect();
 
-    assert_eq!(keys, ["title", "author"]);
-    // The title row is fixed and cannot be removed; the note field is a custom row.
+    // Title, then the configured default, then the note's own custom property.
+    assert_eq!(keys, ["title", "type", "author"]);
     assert!(!drafts[0].editable_key);
-    assert!(!drafts[0].editable_kind);
     assert!(!drafts[0].removable);
-    assert!(drafts[1].editable_key);
-    assert!(drafts[1].editable_kind);
-    assert!(drafts[1].removable);
+    let Some(kind) = drafts.iter().find(|draft| draft.key == "type") else {
+        panic!("expected a type row");
+    };
+    assert!(!kind.editable_key);
+    assert!(!kind.editable_kind);
+    assert!(!kind.removable);
+    assert_eq!(kind.value, FrontmatterValue::Text("default".to_owned()));
+    let Some(author) = drafts.iter().find(|draft| draft.key == "author") else {
+        panic!("expected an author row");
+    };
+    assert!(author.editable_key);
+    assert!(author.editable_kind);
+    assert!(author.removable);
 }
 
 #[test]
-fn initial_drafts_should_fix_the_type_of_configured_defaults() {
+fn initial_drafts_should_take_the_note_value_for_a_configured_default() {
     let request = request(
         Some(FrontmatterDocument {
             format: FrontmatterFormat::Yaml,
@@ -63,7 +69,6 @@ fn initial_drafts_should_fix_the_type_of_configured_defaults() {
             error: None,
         }),
         vec![default_property("author", "Default")],
-        true,
     );
 
     let drafts = initial_drafts(&request);
@@ -71,14 +76,14 @@ fn initial_drafts_should_fix_the_type_of_configured_defaults() {
         panic!("expected an author row");
     };
 
-    assert!(!author.editable_key);
+    assert_eq!(author.value, FrontmatterValue::Text("Jane".to_owned()));
     assert!(!author.editable_kind);
-    assert!(author.removable);
+    assert!(!author.removable);
 }
 
 #[test]
 fn initial_drafts_should_show_an_empty_title_without_frontmatter() {
-    let request = request(None, vec![default_property("type", "default")], true);
+    let request = request(None, Vec::new());
 
     let drafts = initial_drafts(&request);
 
@@ -106,7 +111,6 @@ fn initial_drafts_should_carry_list_options_from_configuration() {
             error: None,
         }),
         vec![list_default],
-        true,
     );
 
     let drafts = initial_drafts(&request);
@@ -117,11 +121,12 @@ fn initial_drafts_should_carry_list_options_from_configuration() {
     assert!(status.multiple);
     assert_eq!(status.options, ["active", "archived"]);
     assert!(!status.editable_kind);
+    assert!(!status.removable);
 }
 
 #[test]
 fn build_document_should_skip_an_empty_title() {
-    let request = request(None, Vec::new(), false);
+    let request = request(None, Vec::new());
     let drafts = initial_drafts(&request);
 
     let document = build_document(FrontmatterFormat::Yaml, &drafts);

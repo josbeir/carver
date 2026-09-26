@@ -1155,7 +1155,6 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
             defaults: model.config.document_properties.entries.clone(),
-            defaults_enabled: model.config.document_properties.enabled,
         },
     }]
 }

@@ -129,7 +129,7 @@ pub(super) fn default_properties_dialog_should_persist_typed_entries() -> TestRe
     Ok(())
 }
 
-pub(super) fn add_default_properties_should_offer_only_without_frontmatter() -> TestResult {
+pub(super) fn default_properties_should_always_show_without_removal() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     fixture.runtime.dispatch(AppMsg::Preferences(
         PreferencesMsg::SetDocumentPropertiesEnabled(true),
@@ -146,7 +146,6 @@ pub(super) fn add_default_properties_should_offer_only_without_frontmatter() -> 
             }],
         )));
     let category = fixture.client.create_category("Properties")?;
-
     let empty = fixture.client.create_note(category.id)?;
     fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
         note_id: empty.id,
@@ -167,44 +166,21 @@ pub(super) fn add_default_properties_should_offer_only_without_frontmatter() -> 
         .visible_dialog()
         .ok_or("document properties dialog")?;
     let root = dialog.upcast_ref();
-    let add_defaults =
-        widget_as::<gtk::Button>(root, "document-properties-add-defaults").ok_or("add defaults")?;
-    add_defaults.emit_clicked();
-    assert!(
-        run_main_context_until(
-            || widget_as::<adw::EntryRow>(root, "document-property-value-1").is_some()
-        ),
-        "the default property row should be added"
-    );
-    dialog.close();
-    assert!(run_main_context_until(|| fixture
-        .window
-        .visible_dialog()
-        .is_none()));
 
-    let with_frontmatter = fixture.client.create_note(category.id)?;
-    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-        note_id: with_frontmatter.id,
-        revision: with_frontmatter.revision,
-        source: "---\nauthor: Existing\n---\nBody\n".to_owned(),
-    }));
-    fixture
-        .runtime
-        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
-    assert!(run_main_context_until(|| fixture
-        .window
-        .visible_dialog()
-        .is_some_and(
-            |dialog| dialog.widget_name() == "document-properties-dialog"
-        )));
-    let dialog = fixture
-        .window
-        .visible_dialog()
-        .ok_or("document properties dialog")?;
     assert!(
-        widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-add-defaults").is_none(),
-        "a note with its own properties must not offer the defaults"
+        widget_as::<gtk::Button>(root, "document-properties-add-defaults").is_none(),
+        "the add-defaults action should be gone"
     );
+    // The configured default is always present, value-only, and not removable.
+    let author = widget_as::<adw::EntryRow>(root, "document-property-value-1")
+        .ok_or("default property row")?;
+    assert_eq!(author.text(), "Jane");
+    assert!(
+        widget_as::<gtk::Button>(root, "document-property-remove-1").is_none(),
+        "a configured default must not be removable"
+    );
+    assert!(widget_as::<gtk::Button>(root, "document-properties-add").is_some());
+
     dialog.close();
     fixture.window.close();
     Ok(())

@@ -367,7 +367,8 @@ impl PropertyDraft {
         }
     }
 
-    /// A note property whose key matches a configured default: the type comes from the default.
+    /// A note property whose key matches a configured default: the type comes from the default
+    /// and the row cannot be removed, so the configured attributes are always present.
     fn default_row(key: String, property: &DocumentProperty, value: FrontmatterValue) -> Self {
         Self {
             key,
@@ -375,7 +376,7 @@ impl PropertyDraft {
             value,
             editable_key: false,
             editable_kind: false,
-            removable: true,
+            removable: false,
             multiple: property.multiple,
             options: property.options(),
         }
@@ -638,7 +639,7 @@ pub(crate) fn show(
         let on_change: Rc<dyn Fn()> = Rc::new(|| {});
         rebuild(&group, &rows, &drafts, &on_change, RowMode::Note);
         page.add(&group);
-        let bar = build_action_bar(&group, &rows, &drafts, &on_change, request, RowMode::Note);
+        let bar = build_action_bar(&group, &rows, &drafts, &on_change, RowMode::Note);
         (SaveSource::Fields { rows, drafts }, Some(bar))
     };
 
@@ -692,9 +693,14 @@ pub(crate) fn show_defaults(
     dispatcher: &AppDispatcher,
     entries: &Rc<RefCell<Vec<DocumentProperty>>>,
 ) -> adw::Dialog {
-    let dialog = adw::PreferencesDialog::new();
-    dialog.set_title(&gettext("Default properties"));
+    let dialog = adw::Dialog::builder()
+        .title(gettext("Default properties"))
+        .follows_content_size(true)
+        .content_width(560)
+        .build();
     dialog.set_widget_name("document-properties-defaults-dialog");
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&adw::HeaderBar::new());
 
     let page = adw::PreferencesPage::new();
     let group = adw::PreferencesGroup::new();
@@ -707,7 +713,8 @@ pub(crate) fn show_defaults(
     actions.add(&add);
     page.add(&group);
     page.add(&actions);
-    dialog.add(&page);
+    toolbar.set_content(Some(&page));
+    dialog.set_child(Some(&toolbar));
 
     let drafts: Drafts = Rc::new(RefCell::new(
         entries
@@ -742,7 +749,7 @@ pub(crate) fn show_defaults(
     });
 
     dialog.present(parent);
-    dialog.upcast()
+    dialog
 }
 
 fn button_row(name: &str, title: &str) -> adw::ButtonRow {
@@ -755,37 +762,16 @@ fn button_row(name: &str, title: &str) -> adw::ButtonRow {
 
 fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
     let mut title: Option<FrontmatterValue> = None;
-    let mut note_drafts = Vec::new();
+    let mut note_values: Vec<(String, FrontmatterValue)> = Vec::new();
     if let Some(document) = &request.document {
         for field in &document.fields {
             if field.key == TITLE_KEY && title.is_none() {
                 title = Some(field.value.clone());
                 continue;
             }
-            let draft = request
-                .defaults
-                .iter()
-                .find(|property| property.key == field.key)
-                .map_or_else(
-                    || PropertyDraft {
-                        key: field.key.clone(),
-                        choice: PropertyKindChoice::for_value(&field.value),
-                        value: field.value.clone(),
-                        editable_key: true,
-                        editable_kind: true,
-                        removable: true,
-                        multiple: false,
-                        options: Vec::new(),
-                    },
-                    |property| {
-                        PropertyDraft::default_row(field.key.clone(), property, field.value.clone())
-                    },
-                );
-            note_drafts.push(draft);
+            note_values.push((field.key.clone(), field.value.clone()));
         }
     }
-    // Only the note's own properties are listed; configured defaults are added explicitly with
-    // the "Add default properties" action so an untouched note is never changed on save.
     let mut catalog = vec![PropertyDraft {
         key: TITLE_KEY.to_owned(),
         choice: PropertyKindChoice::Text,
@@ -796,7 +782,45 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
         multiple: false,
         options: Vec::new(),
     }];
-    catalog.extend(note_drafts);
+    // Configured defaults are always present as value-only rows. A note value wins; otherwise the
+    // configured default value is shown so every note carries the configured attributes.
+    for property in &request.defaults {
+        if is_reserved_key(&property.key) || catalog.iter().any(|draft| draft.key == property.key) {
+            continue;
+        }
+        let value = note_values
+            .iter()
+            .find(|(key, _)| key == &property.key)
+            .map_or_else(
+                || {
+                    property
+                        .default_field()
+                        .map_or(FrontmatterValue::Null, |field| field.value)
+                },
+                |(_, value)| value.clone(),
+            );
+        catalog.push(PropertyDraft::default_row(
+            property.key.clone(),
+            property,
+            value,
+        ));
+    }
+    // Remaining note properties are custom and keep the editable name/type/value editor.
+    for (key, value) in note_values {
+        if catalog.iter().any(|draft| draft.key == key) {
+            continue;
+        }
+        catalog.push(PropertyDraft {
+            key,
+            choice: PropertyKindChoice::for_value(&value),
+            value,
+            editable_key: true,
+            editable_kind: true,
+            removable: true,
+            multiple: false,
+            options: Vec::new(),
+        });
+    }
     catalog
 }
 
@@ -1073,7 +1097,6 @@ fn build_action_bar(
     rows: &Rows,
     drafts: &Drafts,
     on_change: &Rc<dyn Fn()>,
-    request: &EditorPropertiesRequest,
     mode: RowMode,
 ) -> gtk::Box {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -1088,23 +1111,6 @@ fn build_action_bar(
     let add_action = add_property_action(group, rows, drafts, on_change, mode);
     add.connect_clicked(move |_| add_action());
     bar.append(&add);
-
-    // The defaults are only offered when the note carries no properties of its own; notes that
-    // already have a frontmatter block keep exactly the properties they authored.
-    let has_fields = request
-        .document
-        .as_ref()
-        .is_some_and(|document| !document.fields.is_empty());
-    if request.defaults_enabled && !request.defaults.is_empty() && !has_fields {
-        let add_defaults = action_button(
-            "document-properties-add-defaults",
-            &gettext("Add default properties"),
-        );
-        let defaults_action =
-            add_defaults_action(group, rows, drafts, on_change, &request.defaults, mode);
-        add_defaults.connect_clicked(move |_| defaults_action());
-        bar.append(&add_defaults);
-    }
     bar
 }
 
@@ -1137,47 +1143,6 @@ fn add_property_action(
         glib::idle_add_local_once(move || {
             capture(&rows, &drafts);
             drafts.borrow_mut().push(PropertyDraft::blank());
-            rebuild(&group, &rows, &drafts, &on_change, mode);
-            on_change();
-        });
-    })
-}
-
-fn add_defaults_action(
-    group: &adw::PreferencesGroup,
-    rows: &Rows,
-    drafts: &Drafts,
-    on_change: &Rc<dyn Fn()>,
-    defaults: &[DocumentProperty],
-    mode: RowMode,
-) -> Rc<dyn Fn()> {
-    let group = group.clone();
-    let rows = Rc::clone(rows);
-    let drafts = Rc::clone(drafts);
-    let on_change = Rc::clone(on_change);
-    let defaults = defaults.to_vec();
-    Rc::new(move || {
-        let group = group.clone();
-        let rows = Rc::clone(&rows);
-        let drafts = Rc::clone(&drafts);
-        let on_change = Rc::clone(&on_change);
-        let defaults = defaults.clone();
-        glib::idle_add_local_once(move || {
-            capture(&rows, &drafts);
-            for property in &defaults {
-                let present = drafts
-                    .borrow()
-                    .iter()
-                    .any(|draft| draft.key == property.key);
-                if property.key == TITLE_KEY || present {
-                    continue;
-                }
-                drafts.borrow_mut().push(PropertyDraft::default_row(
-                    property.key.clone(),
-                    property,
-                    FrontmatterValue::from_json(&property.value),
-                ));
-            }
             rebuild(&group, &rows, &drafts, &on_change, mode);
             on_change();
         });
