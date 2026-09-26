@@ -8,6 +8,28 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Dimensions for inserting or resizing a rich-editor table.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct TableCommand {
+    /// Total number of rows, including the optional header row.
+    pub rows: u8,
+    /// Number of columns.
+    pub columns: u8,
+    /// Whether the first row is a header.
+    pub header: bool,
+}
+
+/// A labelled link to insert over the current selection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkCommand {
+    /// Visible link text.
+    pub text: String,
+    /// Link destination.
+    pub destination: String,
+}
+
 /// A command initiated by the host's formatting controls.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -17,21 +39,9 @@ pub enum EditorCommand {
     /// Set a heading level, with zero selecting ordinary paragraph text.
     Heading(u8),
     /// Insert a table with the supplied dimensions.
-    InsertTable {
-        /// Total number of rows, including the optional header row.
-        rows: u8,
-        /// Number of columns.
-        columns: u8,
-        /// Whether the first row is a header.
-        header: bool,
-    },
+    InsertTable(TableCommand),
     /// Replace the current selection with a labelled link.
-    InsertLink {
-        /// Visible link text.
-        text: String,
-        /// Link destination.
-        destination: String,
-    },
+    InsertLink(LinkCommand),
     /// Set a selected image's responsive width percentage, or restore intrinsic width.
     ImageWidth(Option<u8>),
 }
@@ -154,25 +164,25 @@ pub enum EditorEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{EditorCommand, EditorEvent, SelectionState};
+    use super::{EditorCommand, EditorEvent, LinkCommand, SelectionState, TableCommand};
 
     #[test]
     fn commands_round_trip_through_the_host_protocol() {
-        let command = EditorCommand::InsertTable {
+        let command = EditorCommand::InsertTable(TableCommand {
             rows: 2,
             columns: 3,
             header: true,
-        };
+        });
         let encoded = serde_json::to_string(&command).unwrap_or_default();
         assert_eq!(
             encoded,
             "{\"insert-table\":{\"rows\":2,\"columns\":3,\"header\":true}}"
         );
 
-        let link = EditorCommand::InsertLink {
+        let link = EditorCommand::InsertLink(LinkCommand {
             text: String::from("Carve"),
             destination: String::from("https://github.com/markup-carve"),
-        };
+        });
         let encoded = serde_json::to_string(&link).unwrap_or_default();
         assert_eq!(
             encoded,

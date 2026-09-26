@@ -1,14 +1,14 @@
 //! External-consumer contract tests for `carver-editor-protocol`.
 
-use carver_editor_protocol::{EditorCommand, EditorEvent};
+use carver_editor_protocol::{EditorCommand, EditorEvent, LinkCommand, TableCommand};
 
 #[test]
 fn protocol_types_should_round_trip_through_the_public_json_contract()
 -> Result<(), serde_json::Error> {
-    let command = EditorCommand::InsertLink {
+    let command = EditorCommand::InsertLink(LinkCommand {
         text: "Carver".to_owned(),
         destination: "https://example.test".to_owned(),
-    };
+    });
     let event = EditorEvent::Changed {
         session: 7,
         revision: 3,
@@ -45,5 +45,34 @@ fn selection_schema_should_require_nullable_image_width_in_serialized_events()
             .as_array()
             .is_some_and(|fields| fields.iter().any(|field| field == "image_width"))
     );
+    Ok(())
+}
+
+#[cfg(feature = "json-schema")]
+#[test]
+fn command_payload_schemas_should_describe_rich_editor_arguments() -> Result<(), serde_json::Error>
+{
+    let table = schemars::generate::SchemaSettings::draft07()
+        .for_serialize()
+        .into_generator()
+        .into_root_schema_for::<TableCommand>();
+    let table = serde_json::to_value(table)?;
+    assert_eq!(table["type"], "object");
+    for field in ["rows", "columns", "header"] {
+        assert!(table["properties"][field].is_object());
+    }
+    assert!(
+        table["required"]
+            .as_array()
+            .is_some_and(|fields| fields.len() == 3)
+    );
+
+    let link = schemars::generate::SchemaSettings::draft07()
+        .for_serialize()
+        .into_generator()
+        .into_root_schema_for::<LinkCommand>();
+    let link = serde_json::to_value(link)?;
+    assert_eq!(link["properties"]["text"]["type"], "string");
+    assert_eq!(link["properties"]["destination"]["type"], "string");
     Ok(())
 }

@@ -2,7 +2,9 @@ import type { DocumentTarget } from './protocol.generated';
 export type {
   DocumentTarget,
   EditorEvent,
+  LinkCommand,
   SelectionState,
+  TableCommand,
 } from './protocol.generated';
 
 export interface WebKitMessageHandler {
@@ -42,11 +44,3 @@ export interface LinkContext {
   text: string;
   destination: string;
 }
-
-export interface TableCommand {
-  rows?: number;
-  columns?: number;
-  header?: boolean;
-}
-
-export interface LinkCommand extends LinkContext {}
