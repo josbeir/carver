@@ -6,6 +6,7 @@ use std::{error::Error, path::Path, thread};
 
 use async_channel::{Receiver, Sender};
 use carver_config::{AppPaths, ConfigError};
+pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty};
 pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
@@ -53,6 +54,15 @@ pub fn open_installed_library() -> Result<InstalledLibraryClient, OpenLibraryErr
     let paths = AppPaths::discover();
     paths.ensure_exists()?;
     open_local_library(&paths.database_file(), &paths.assets_dir())
+}
+
+/// Loads the installed XDG configuration, falling back to defaults.
+///
+/// The fallback keeps stdio companions usable when no configuration exists yet; an unreadable
+/// or invalid file is treated the same as a missing one.
+#[must_use]
+pub fn load_installed_config() -> Config {
+    carver_config::load(&AppPaths::discover().config_file()).unwrap_or_default()
 }
 
 /// Opens a local SQLite library at explicit storage paths behind the SDK worker boundary.
