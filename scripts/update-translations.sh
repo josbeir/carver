@@ -60,7 +60,7 @@ rm -f "$rust_pot" "$desktop_pot" "$metainfo_pot"
 
 shopt -s nullglob
 for po in po/*.po; do
-  msgmerge --update --backup=none "$po" "$pot"
+  msgmerge --no-wrap --update --backup=none "$po" "$pot"
 done
 
 echo "Updated $pot and po/*.po"

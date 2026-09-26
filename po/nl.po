@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 10:48+0200\n"
+"POT-Creation-Date: 2026-09-26 10:56+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -166,7 +166,7 @@ msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen bli
 #: apps/carver-gtk/src/ui/editor/mod.rs:1652
 #: apps/carver-gtk/src/ui/editor/web.rs:531
 #: apps/carver-gtk/src/ui/formatting.rs:96
-#: apps/carver-gtk/src/ui/formatting.rs:348 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:494
 msgid "Cancel"
 msgstr "Annuleren"
@@ -382,7 +382,7 @@ msgid "Custom field"
 msgstr "Aangepast veld"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/formatting.rs:338
+#: apps/carver-gtk/src/ui/formatting.rs:342
 msgid "Text"
 msgstr "Tekst"
 
@@ -1238,7 +1238,9 @@ msgid ""
 "\n"
 "Export anyway?"
 msgstr ""
-"{details}\n\nToch exporteren?"
+"{details}\n"
+"\n"
+"Toch exporteren?"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs:1653
 msgid "Export anyway"
@@ -1362,7 +1364,7 @@ msgid "Could not read pasted image"
 msgstr "Kon geplakte afbeelding niet lezen"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:515
-#: apps/carver-gtk/src/ui/formatting.rs:331
+#: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Link text"
 msgstr "Linktekst"
 
@@ -1372,18 +1374,18 @@ msgid "Text"
 msgstr "Tekst"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:523
-#: apps/carver-gtk/src/ui/formatting.rs:340
+#: apps/carver-gtk/src/ui/formatting.rs:344
 msgid "Address"
 msgstr "Adres"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:526
-#: apps/carver-gtk/src/ui/formatting.rs:343
+#: apps/carver-gtk/src/ui/formatting.rs:347
 msgid "Insert Link"
 msgstr "Link invoegen"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:97
-#: apps/carver-gtk/src/ui/formatting.rs:349
+#: apps/carver-gtk/src/ui/formatting.rs:353
 msgid "Insert"
 msgstr "Invoegen"
 
@@ -1411,15 +1413,20 @@ msgstr "Niet-ondersteunde afbeeldingsindeling"
 msgid "Insert table"
 msgstr "Tabel invoegen"
 
-#: apps/carver-gtk/src/ui/formatting.rs:275
-#, rust-format
-msgid "{rows} rows × {columns} columns"
-msgstr "{rows} rijen × {columns} kolommen"
-
-#: apps/carver-gtk/src/ui/formatting.rs:291
+#: apps/carver-gtk/src/ui/formatting.rs:247
+#: apps/carver-gtk/src/ui/formatting.rs:295
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
+
+#: apps/carver-gtk/src/ui/formatting.rs:265
+msgid "Header row"
+msgstr "Koprij"
+
+#: apps/carver-gtk/src/ui/formatting.rs:279
+#, rust-format
+msgid "{rows} rows × {columns} columns"
+msgstr "{rows} rijen × {columns} kolommen"
 
 #: apps/carver-gtk/src/ui/sidebar.rs:38 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
@@ -1614,4 +1621,3 @@ msgstr[1] "{count} herstelbare notities"
 #: apps/carver-gtk/src/view/mod.rs:1097 apps/carver-gtk/src/view/mod.rs:1098
 msgid "Restore"
 msgstr "Herstellen"
-

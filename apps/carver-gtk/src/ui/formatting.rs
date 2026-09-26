@@ -243,7 +243,11 @@ pub(crate) fn append_table_picker(
     content.set_margin_end(16);
     content.set_margin_top(16);
     content.set_margin_bottom(16);
-    let dimensions = gtk::Label::new(Some("1 × 1"));
+    let dimensions = gtk::Label::new(Some(&tr_fmt!(
+        gettext("{rows} × {columns}"),
+        rows = 1,
+        columns = 1
+    )));
     dimensions.set_halign(gtk::Align::Center);
     content.append(&dimensions);
     let grid = gtk::Grid::new();
@@ -258,7 +262,7 @@ pub(crate) fn append_table_picker(
     let header_row = gtk::Switch::new();
     header_row.set_active(true);
     let header_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    header_box.append(&gtk::Label::new(Some("Header row")));
+    header_box.append(&gtk::Label::new(Some(&gettext("Header row"))));
     header_box.append(&header_row);
     content.append(&header_box);
 
