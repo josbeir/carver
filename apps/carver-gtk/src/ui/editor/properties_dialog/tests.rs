@@ -532,3 +532,23 @@ fn build_document_should_skip_a_derived_title_until_edited() {
     assert_eq!(document.fields.len(), 1);
     assert_eq!(document.fields[0].key, "title");
 }
+
+#[test]
+fn initial_drafts_should_put_an_authored_title_first() {
+    let request = request(
+        Some(FrontmatterDocument {
+            format: FrontmatterFormat::Yaml,
+            fields: vec![field("author", "Jane"), field("title", "Meeting")],
+            error: None,
+        }),
+        Vec::new(),
+    );
+
+    let drafts = initial_drafts(&request);
+    assert_eq!(drafts[0].key, "title");
+    assert_eq!(
+        drafts[0].value,
+        FrontmatterValue::Text("Meeting".to_owned())
+    );
+    assert_eq!(drafts[1].key, "author");
+}

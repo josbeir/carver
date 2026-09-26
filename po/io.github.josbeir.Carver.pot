@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 15:38+0200\n"
+"POT-Creation-Date: 2026-09-26 15:45+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -140,7 +140,7 @@ msgstr ""
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1276
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1275
 msgid "Name"
 msgstr ""
 
@@ -1376,44 +1376,44 @@ msgid ""
 "enabled, seed new notes."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1282
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1281
 msgid "Type"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1290
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1289
 msgid "New notes use today's date"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1292
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1291
 msgid "New notes use the current date and time"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1301
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1300
 msgid "Options"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1308
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1307
 msgid "Value"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1318
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1317
 msgid "Comma-separated values offered as a dropdown."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1329
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1328
 msgid "Allow multiple values"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1354
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1353
 msgid "New property"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1418
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1420
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1417
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1419
 msgid "Remove property"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1638
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1637
 msgid "Title"
 msgstr ""
 

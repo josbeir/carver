@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 15:38+0200\n"
+"POT-Creation-Date: 2026-09-26 15:45+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -134,7 +134,7 @@ msgstr "Carica altre righe"
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1276
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1275
 msgid "Name"
 msgstr "Nome"
 
@@ -1363,44 +1363,44 @@ msgstr "Aggiungi proprietà"
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "Queste proprietà sono proposte in ogni finestra delle proprietà del documento e compilano le nuove note quando è attivo."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1282
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1281
 msgid "Type"
 msgstr "Tipo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1290
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1289
 msgid "New notes use today's date"
 msgstr "Le nuove note usano la data di oggi"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1292
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1291
 msgid "New notes use the current date and time"
 msgstr "Le nuove note usano la data e l’ora correnti"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1301
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1300
 msgid "Options"
 msgstr "Opzioni"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1308
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1307
 msgid "Value"
 msgstr "Valore"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1318
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1317
 msgid "Comma-separated values offered as a dropdown."
 msgstr "Valori separati da virgole offerti come elenco a discesa."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1329
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1328
 msgid "Allow multiple values"
 msgstr "Consenti più valori"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1354
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1353
 msgid "New property"
 msgstr "Nuova proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1418
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1420
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1417
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1419
 msgid "Remove property"
 msgstr "Rimuovi proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1638
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1637
 msgid "Title"
 msgstr "Titolo"
 

@@ -585,6 +585,16 @@ pub fn replace_frontmatter_raw(source: &str, format: FrontmatterFormat, content:
     }
 }
 
+/// Pushes the authored comment and blank lines that trail a field's value line.
+fn push_entry_trivia(output: &mut Vec<String>, lines: &[&str], entry: &ScannedEntry) {
+    for line in &lines[entry.start + 1..entry.end] {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            output.push((*line).to_owned());
+        }
+    }
+}
+
 fn apply_fields(
     content: &str,
     format: FrontmatterFormat,
@@ -598,41 +608,67 @@ fn apply_fields(
     if entries.len() != current.len() {
         return None;
     }
-    // A reorder is only safe to preserve when the common keys keep their existing order.
+    // The reserved title always leads the block, so authored order is only enforced for the
+    // remaining keys.
     let existing_keys: Vec<&str> = entries.iter().map(|entry| entry.key.as_str()).collect();
     let desired_keys: Vec<&str> = desired.iter().map(|field| field.key.as_str()).collect();
     let ordered: Vec<&str> = desired_keys
         .iter()
         .copied()
-        .filter(|key| existing_keys.contains(key))
+        .filter(|key| existing_keys.contains(key) && !is_reserved_key(key))
         .collect();
     let existing_common: Vec<&str> = existing_keys
         .iter()
         .copied()
-        .filter(|key| desired_keys.contains(key))
+        .filter(|key| desired_keys.contains(key) && !is_reserved_key(key))
         .collect();
     if existing_common != ordered {
         return None;
     }
 
-    let mut output: Vec<String> = Vec::new();
-    let mut cursor = 0usize;
     let lines: Vec<&str> = content.lines().collect();
+    let mut output: Vec<String> = Vec::new();
+
+    // Emit reserved fields (the title) first, preserving their authored lines when unchanged.
+    for field in desired.iter().filter(|field| is_reserved_key(&field.key)) {
+        let entry = entries.iter().find(|entry| entry.key == field.key);
+        let unchanged = current
+            .iter()
+            .find(|current| current.key == field.key)
+            .is_some_and(|existing| existing.value == field.value);
+        match entry {
+            Some(entry) if unchanged => {
+                for line in &lines[entry.start..entry.end] {
+                    output.push((*line).to_owned());
+                }
+            }
+            Some(entry) => {
+                output.push(render_field_line(format, field)?);
+                push_entry_trivia(&mut output, &lines, entry);
+            }
+            None => output.push(render_field_line(format, field)?),
+        }
+    }
+
+    let mut cursor = 0usize;
     for entry in &entries {
         while cursor < entry.start {
             output.push(lines[cursor].to_owned());
             cursor += 1;
         }
         cursor = entry.end;
+        // Reserved fields were already emitted first; if the desired set dropped the field,
+        // keep its authored comments and blank lines like the generic removal path.
+        if is_reserved_key(&entry.key) {
+            if !desired.iter().any(|field| field.key == entry.key) {
+                push_entry_trivia(&mut output, &lines, entry);
+            }
+            continue;
+        }
         let Some(field) = desired.iter().find(|field| field.key == entry.key) else {
             // Removing a field drops its value lines but keeps authored comments and blank
             // lines that sit between it and the next key, matching the changed-field path.
-            for line in &lines[entry.start + 1..entry.end] {
-                let trimmed = line.trim_start();
-                if trimmed.is_empty() || trimmed.starts_with('#') {
-                    output.push((*line).to_owned());
-                }
-            }
+            push_entry_trivia(&mut output, &lines, entry);
             continue;
         };
         let unchanged = current
@@ -647,12 +683,7 @@ fn apply_fields(
             output.push(render_field_line(format, field)?);
             // The entry span absorbs trailing comments and blank lines. Keep that trivia so a
             // scalar replacement does not delete authored comments.
-            for line in &lines[entry.start + 1..entry.end] {
-                let trimmed = line.trim_start();
-                if trimmed.is_empty() || trimmed.starts_with('#') {
-                    output.push((*line).to_owned());
-                }
-            }
+            push_entry_trivia(&mut output, &lines, entry);
         }
     }
     while cursor < lines.len() {
@@ -660,7 +691,7 @@ fn apply_fields(
         cursor += 1;
     }
     for field in desired {
-        if existing_keys.contains(&field.key.as_str()) {
+        if is_reserved_key(&field.key) || existing_keys.contains(&field.key.as_str()) {
             continue;
         }
         output.push(render_field_line(format, field)?);

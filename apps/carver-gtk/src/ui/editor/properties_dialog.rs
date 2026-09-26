@@ -1076,15 +1076,14 @@ fn button_row(name: &str, title: &str) -> adw::ButtonRow {
 fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
     let mut drafts: Vec<PropertyDraft> = Vec::new();
     let mut seen_keys: BTreeSet<String> = BTreeSet::new();
-    let mut title_seen = false;
+    let mut authored_title: Option<FrontmatterValue> = None;
     if let Some(document) = &request.document {
         for field in &document.fields {
             if !seen_keys.insert(field.key.clone()) {
                 continue;
             }
             if field.key == TITLE_KEY {
-                title_seen = true;
-                drafts.push(authored_draft(PropertyDraft::title(field.value.clone())));
+                authored_title = Some(field.value.clone());
                 continue;
             }
             let draft = match request
@@ -1100,20 +1099,20 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
             drafts.push(authored_draft(draft));
         }
     }
-    // A note without an authored title still shows the reserved title row first. When the
-    // document has a heading, prefill it as the effective title without persisting it until the
-    // user edits it.
-    if !title_seen {
-        let draft = match request.heading_title.as_deref() {
+    // The reserved title always leads the dialog. It shows the authored value, otherwise the
+    // heading prefill (which is only persisted once the user edits it), otherwise empty.
+    let title = match authored_title {
+        Some(value) => authored_draft(PropertyDraft::title(value)),
+        None => match request.heading_title.as_deref() {
             Some(heading) => {
                 let mut draft = PropertyDraft::title(FrontmatterValue::Text(heading.to_owned()));
                 draft.derived = true;
                 draft
             }
             None => PropertyDraft::title(FrontmatterValue::Text(String::new())),
-        };
-        drafts.insert(0, draft);
-    }
+        },
+    };
+    drafts.insert(0, title);
     // Configured defaults absent from the note are appended, so the authored key order is
     // preserved and an unchanged save round-trips byte-for-byte.
     for property in &request.defaults {

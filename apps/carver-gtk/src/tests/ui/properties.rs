@@ -1152,3 +1152,43 @@ pub(super) fn edited_prefilled_title_should_persist() -> TestResult {
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn edited_title_should_lead_the_block_on_reopen() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nauthor: Jane\n---\n\n# Meeting\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "document-property-value-0")
+        .ok_or("title row")?
+        .set_text("Renamed");
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(
+        source.starts_with("---\ntitle: \"Renamed\""),
+        "source: {source}"
+    );
+
+    // Reopening keeps the title as the first field.
+    let dialog = open_properties_dialog(&fixture)?;
+    assert_eq!(
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "document-property-value-0")
+            .ok_or("title row")?
+            .text(),
+        "Renamed"
+    );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}

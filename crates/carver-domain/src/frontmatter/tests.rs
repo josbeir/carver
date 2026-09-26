@@ -610,3 +610,31 @@ fn raw_replacement_should_preserve_the_authored_fence() {
         "---yaml\na: c\n---\n\nBody"
     );
 }
+
+#[test]
+fn title_should_lead_the_block_even_when_authored_last() {
+    let source = "---\nauthor: Jane\n# keep\nstatus: draft\ntitle: Meeting\n---\nBody";
+    let mut desired = yaml_document(source);
+    if let Some(index) = desired.fields.iter().position(|field| field.key == "title") {
+        let title = desired.fields.remove(index);
+        desired.fields.insert(0, title);
+    }
+    assert_eq!(
+        replaced(source, Some(&desired)),
+        "---\ntitle: Meeting\nauthor: Jane\n# keep\nstatus: draft\n---\n\nBody"
+    );
+}
+
+#[test]
+fn a_new_title_should_lead_the_block() {
+    let source = "---\nauthor: Jane\n---\nBody";
+    let mut desired = yaml_document(source);
+    desired.fields.insert(
+        0,
+        FrontmatterField::new("title", FrontmatterValue::Text("Meeting".to_owned())),
+    );
+    assert_eq!(
+        replaced(source, Some(&desired)),
+        "---\ntitle: \"Meeting\"\nauthor: Jane\n---\n\nBody"
+    );
+}
