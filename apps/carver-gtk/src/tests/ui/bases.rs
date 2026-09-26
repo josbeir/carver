@@ -693,35 +693,33 @@ pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
     model.bases.definitions.state = crate::mvu::LoadState::Ready(vec![base.clone()]);
     model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
     sidebar.render(&model);
-    let name = format!("base:{}", base.id);
-    let button = widget_as::<gtk::Button>(&sidebar.widget, &name).ok_or("base button")?;
+    let badge = format!("base-count:{}", base.id);
+    let index = super::window::sidebar_item_index(&sidebar.sidebar, &badge).ok_or("base item")?;
+    let item = sidebar.sidebar.item(index).ok_or("base item instance")?;
     model.route = crate::mvu::Route::Base;
     model.bases.selected = Some(base.id);
     sidebar.render(&model);
-    assert!(button.has_css_class("sidebar-active"));
-    assert!(sidebar.list.selected_row().is_none());
+    assert_eq!(sidebar.sidebar.selected_item(), Some(item.clone()));
     model.route = crate::mvu::Route::Editor;
     model.editor_return_route = crate::mvu::Route::Base;
     sidebar.render(&model);
-    assert!(button.has_css_class("sidebar-active"));
+    assert_eq!(sidebar.sidebar.selected_item(), Some(item.clone()));
     model.route = crate::mvu::Route::Browser;
     sidebar.render(&model);
-    assert!(!button.has_css_class("sidebar-active"));
-    assert!(sidebar.list.selected_row().is_some());
+    assert_eq!(
+        super::window::sidebar_selected_badge(&sidebar.sidebar).as_deref(),
+        Some("all-notes-count")
+    );
     for state in [
         crate::mvu::LoadState::Loading(crate::mvu::RequestId(1)),
         crate::mvu::LoadState::Failed(crate::mvu::UiError::new("offline")),
     ] {
         model.bases.definitions.state = state;
         sidebar.render(&model);
-        assert_eq!(
-            widget_as::<gtk::Button>(&sidebar.widget, &name),
-            Some(button.clone())
-        );
-        assert!(button.is_sensitive());
+        assert_eq!(sidebar.sidebar.item(index), Some(item.clone()));
     }
     model.bases.definitions.state = crate::mvu::LoadState::Ready(Vec::new());
     sidebar.render(&model);
-    assert!(widget_as::<gtk::Button>(&sidebar.widget, &name).is_none());
+    assert!(super::window::sidebar_item_index(&sidebar.sidebar, &badge).is_none());
     Ok(())
 }

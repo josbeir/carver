@@ -1,17 +1,3 @@
-.navigation-sidebar row {
-  border-radius: 8px;
-  margin: 2px 4px;
-  padding: 0;
-}
-
-.navigation-sidebar row.category-card {
-  margin: 2px 4px;
-}
-
-.category-row-content {
-  min-height: 30px;
-}
-
 .category-card-title {
   font-weight: 600;
 }
@@ -24,28 +10,34 @@
 }
 
 .category-count-badge {
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 999px;
   background: alpha(currentColor, 0.10);
-  font-size: 0.82em;
-  padding: 0 5px;
-}
-
-.base-sidebar-button {
-  margin: 2px 4px;
+  font-size: 0.9em;
   padding: 0;
-  border-radius: 8px;
-}
-
-.navigation-sidebar row:selected,
-.base-sidebar-button.sidebar-active {
-  background: alpha(currentColor, 0.10);
 }
 
 .all-notes-icon {
-  background: alpha(@accent_bg_color, 0.24);
-  color: @accent_color;
+  background: @accent_bg_color;
+}
+
+.category-count-badge.category-color-rose,
+.category-count-badge.category-color-tangerine,
+.category-count-badge.category-color-teal,
+.category-count-badge.category-color-blue,
+.category-count-badge.category-color-purple,
+.category-count-badge.category-color-auto {
+  color: white;
+}
+
+.category-count-badge.category-color-yellow,
+.category-count-badge.category-color-olive {
+  color: black;
+}
+
+.category-count-badge.all-notes-icon {
+  color: @accent_fg_color;
 }
 
 .category-color-rose { background: #e37d97; }

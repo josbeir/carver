@@ -21,17 +21,17 @@ pub(super) fn assert_sidebar_reload_preserves_rows() -> TestResult {
     let mut model = crate::mvu::AppModel::new(&Config::default());
     model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
     view.render(&model);
-    let initial_row = sidebar.list.first_child();
+    let initial_item = sidebar.sidebar.item(0);
 
     model.sidebar.state = crate::mvu::LoadState::Loading(crate::mvu::RequestId(1));
     view.render(&model);
-    if sidebar.list.first_child() != initial_row {
-        return Err("sidebar cleared its existing rows while reloading".into());
+    if sidebar.sidebar.item(0) != initial_item {
+        return Err("sidebar cleared its existing items while reloading".into());
     }
 
     model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
     view.render(&model);
-    if render_count.get() != 1 || sidebar.list.first_child() != initial_row {
+    if render_count.get() != 1 || sidebar.sidebar.item(0) != initial_item {
         return Err("sidebar rebuilt after receiving an unchanged reload result".into());
     }
 
@@ -39,8 +39,8 @@ pub(super) fn assert_sidebar_reload_preserves_rows() -> TestResult {
     view.render(&model);
     model.sidebar.state = crate::mvu::LoadState::Failed(crate::mvu::UiError::new("offline"));
     view.render(&model);
-    if sidebar.list.first_child().is_some() {
-        return Err("sidebar retained stale rows after a reload failed".into());
+    if sidebar.sidebar.item(0).is_some() {
+        return Err("sidebar retained stale items after a reload failed".into());
     }
     Ok(())
 }
@@ -65,12 +65,9 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
     assert!(source_font_filter.match_(&monospace_face));
     assert!(widget_as::<gtk::Button>(&root, "sidebar-add-button").is_some());
     assert!(find_widget(&root, "new-base-button").is_none());
-    let bases_divider =
-        widget_as::<gtk::Separator>(&root, "bases-divider").ok_or("bases divider")?;
-    assert!(bases_divider.next_sibling().is_some());
-    let sidebar_scroll = widget_as::<gtk::ScrolledWindow>(&root, "sidebar-navigation-scroll")
-        .ok_or("sidebar navigation scroll")?;
-    assert!(bases_divider.is_ancestor(&sidebar_scroll));
+    assert!(widget_as::<adw::ToolbarView>(&root, "sidebar-surface").is_some());
+    assert!(widget_as::<adw::Sidebar>(&root, "category-sidebar").is_some());
+    assert!(widget_as::<gtk::Button>(&root, "open-trash-button").is_some());
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
     assert!(widget_as::<gtk::Button>(&root, "back-to-notes-from-base-button").is_some());
     assert!(widget_as::<gtk::ToggleButton>(&root, "base-toggle-categories-button").is_some());
@@ -150,10 +147,10 @@ pub(super) fn window_shortcuts_should_open_dialogs(fixture: &WindowFixture) -> T
     );
     keyboard_shortcuts.close();
     assert!(run_main_context_until(|| {
-        find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
+        sidebar_item_index(&sidebar, &format!("category-count:{}", category.id)).is_some()
     }));
     let sidebar_surface =
-        widget_as::<gtk::Box>(&root, "sidebar-surface").ok_or("sidebar surface")?;
+        widget_as::<adw::ToolbarView>(&root, "sidebar-surface").ok_or("sidebar surface")?;
     let sidebar_controllers = sidebar_surface.observe_controllers();
     let sidebar_search_shortcut = (0..sidebar_controllers.n_items())
         .filter_map(|index| sidebar_controllers.item(index))
@@ -175,7 +172,6 @@ pub(super) fn responsive_navigation_should_switch_sidebar_and_content(
     let base = &fixture.base;
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
-    let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
     let navigation_container =
         widget_as::<adw::BreakpointBin>(&root, "responsive-navigation-container")
             .ok_or("responsive navigation container")?;
@@ -194,16 +190,14 @@ pub(super) fn responsive_navigation_should_switch_sidebar_and_content(
         .ok_or("responsive sidebar toggle")?;
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.shows_content()));
-    let category_row = find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("responsive category row")?;
-    sidebar.select_row(Some(&category_row));
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("category-count:{}", category.id)
+    ));
     assert!(run_main_context_until(|| navigation.shows_content()));
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.shows_content()));
-    let base_button = widget_as::<gtk::Button>(&root, &format!("base:{}", base.id))
-        .ok_or("responsive base button")?;
-    base_button.emit_clicked();
+    assert!(sidebar_select(&sidebar, &format!("base-count:{}", base.id)));
     assert!(run_main_context_until(|| {
         navigation.shows_content()
             && widget_as::<gtk::Label>(&root, "base-title")
@@ -211,9 +205,41 @@ pub(super) fn responsive_navigation_should_switch_sidebar_and_content(
     }));
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.shows_content()));
-    sidebar.select_row(Some(&all_notes));
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
     assert!(run_main_context_until(|| navigation.shows_content()));
     window.set_default_size(1120, 760);
     assert!(run_main_context_until(|| !navigation.is_collapsed()));
+    Ok(())
+}
+
+/// Verifies the sidebar is an `AdwSidebar` with sectioned items and adaptive mode.
+pub(super) fn sidebar_should_use_adw_sidebar_sections(fixture: &WindowFixture) -> TestResult {
+    let window = fixture.window.clone();
+    let sidebar = fixture.sidebar()?;
+    let category_badge = format!("category-count:{}", fixture.category.id);
+    let base_badge = format!("base-count:{}", fixture.base.id);
+    assert!(sidebar_item_index(&sidebar, "all-notes-count").is_some());
+    let category_index = sidebar_item_index(&sidebar, &category_badge).ok_or("category item")?;
+    assert!(sidebar_item_index(&sidebar, &base_badge).is_some());
+    assert_eq!(
+        sidebar_selected_badge(&sidebar).as_deref(),
+        Some("all-notes-count")
+    );
+    let category_item = sidebar
+        .item(category_index)
+        .ok_or("category item instance")?;
+    assert!(category_item.icon_name().is_some());
+    let badge = category_item.suffix().ok_or("category badge")?;
+    assert!(badge.has_css_class("category-count-badge"));
+    assert!(badge.has_css_class("category-color-rose"));
+    assert_eq!(sidebar.mode(), adw::SidebarMode::Sidebar);
+    window.set_default_size(360, 640);
+    assert!(run_main_context_until(
+        || sidebar.mode() == adw::SidebarMode::Page
+    ));
+    window.set_default_size(1120, 760);
+    assert!(run_main_context_until(
+        || sidebar.mode() == adw::SidebarMode::Sidebar
+    ));
     Ok(())
 }

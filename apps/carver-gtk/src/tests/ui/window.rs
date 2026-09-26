@@ -90,8 +90,9 @@ impl WindowFixture {
         Ok(self.window.child().ok_or("window content")?)
     }
 
-    pub(crate) fn sidebar(&self) -> Result<gtk::ListBox, Box<dyn std::error::Error>> {
-        Ok(widget_as::<gtk::ListBox>(&self.root()?, "category-list").ok_or("category list")?)
+    pub(crate) fn sidebar(&self) -> Result<adw::Sidebar, Box<dyn std::error::Error>> {
+        Ok(widget_as::<adw::Sidebar>(&self.root()?, "category-sidebar")
+            .ok_or("category sidebar")?)
     }
 
     pub(crate) fn note_list(&self) -> Result<gtk::ListView, Box<dyn std::error::Error>> {
@@ -170,8 +171,8 @@ impl WindowFixture {
     pub(crate) fn sidebar_search_shortcut(
         &self,
     ) -> Result<gtk::EventControllerKey, Box<dyn std::error::Error>> {
-        let sidebar_surface =
-            widget_as::<gtk::Box>(&self.root()?, "sidebar-surface").ok_or("sidebar surface")?;
+        let sidebar_surface = widget_as::<adw::ToolbarView>(&self.root()?, "sidebar-surface")
+            .ok_or("sidebar surface")?;
         Ok(
             named_key_controller(&sidebar_surface, "sidebar-search-shortcut")
                 .ok_or("sidebar search shortcut")?,
@@ -204,8 +205,34 @@ pub(crate) fn select_all(buffer: &gtk::TextBuffer) {
     buffer.select_range(&start, &end);
 }
 
-pub(crate) fn all_notes_row(sidebar: &gtk::ListBox) -> Option<gtk::ListBoxRow> {
-    sidebar.first_child().and_downcast::<gtk::ListBoxRow>()
+/// Returns the flat index of the sidebar item whose suffix contains `widget_name`.
+pub(crate) fn sidebar_item_index(sidebar: &adw::Sidebar, widget_name: &str) -> Option<u32> {
+    let items = sidebar.items();
+    (0..items.n_items()).find(|index| {
+        sidebar
+            .item(*index)
+            .and_then(|item| item.suffix())
+            .is_some_and(|suffix| find_widget(&suffix, widget_name).is_some())
+    })
+}
+
+/// Selects the sidebar item whose suffix contains `widget_name`.
+pub(crate) fn sidebar_select(sidebar: &adw::Sidebar, widget_name: &str) -> bool {
+    match sidebar_item_index(sidebar, widget_name) {
+        Some(index) => {
+            sidebar.set_selected(index);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Returns the suffix badge name of the selected sidebar item.
+pub(crate) fn sidebar_selected_badge(sidebar: &adw::Sidebar) -> Option<String> {
+    sidebar
+        .selected_item()
+        .and_then(|item| item.suffix())
+        .map(|badge| badge.widget_name().to_string())
 }
 
 pub(crate) fn find_label(root: &gtk::Widget, text: &str) -> Option<gtk::Label> {
