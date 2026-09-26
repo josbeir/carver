@@ -98,6 +98,7 @@ pub(super) fn source_preferences_should_toggle_gutter_and_font(
     let window = fixture.window.clone();
     let config = fixture.config.clone();
     let preferences_dialog = fixture.preferences_dialog.clone();
+    preferences_dialog.set_visible_page_name("source");
     assert_eq!(
         widget_as::<adw::SwitchRow>(
             preferences_dialog.upcast_ref(),
@@ -152,6 +153,7 @@ pub(super) fn source_preferences_should_toggle_gutter_and_font(
         &custom_font_config,
         &crate::mvu::AppDispatcher::default(),
     );
+    custom_font_preferences.set_visible_page_name("source");
     let reset_font = widget_as::<adw::ActionRow>(
         custom_font_preferences.upcast_ref(),
         "source-font-reset-row",
@@ -160,6 +162,40 @@ pub(super) fn source_preferences_should_toggle_gutter_and_font(
     assert!(reset_font.is_visible());
     reset_font.emit_by_name::<()>("activated", &[]);
     assert!(!reset_font.is_visible());
+    Ok(())
+}
+
+/// Verifies the settings dialog presents category pages and exposes search.
+pub(super) fn preferences_should_expose_searchable_pages(fixture: &WindowFixture) -> TestResult {
+    let preferences_dialog = fixture.preferences_dialog.clone();
+    assert!(preferences_dialog.is_search_enabled());
+    for (name, title, icon_name) in [
+        ("editor", "Editor", "document-edit-symbolic"),
+        (
+            "appearance",
+            "Appearance",
+            "preferences-desktop-appearance-symbolic",
+        ),
+        ("source", "Source", "utilities-terminal-symbolic"),
+        ("properties", "Properties", "document-properties-symbolic"),
+    ] {
+        let page = widget_as::<adw::PreferencesPage>(preferences_dialog.upcast_ref(), name)
+            .ok_or_else(|| format!("preferences page {name}"))?;
+        assert_eq!(page.title().as_str(), title);
+        assert_eq!(page.icon_name().as_deref(), Some(icon_name));
+    }
+    preferences_dialog.set_visible_page_name("properties");
+    assert_eq!(
+        preferences_dialog.visible_page_name().as_deref(),
+        Some("properties")
+    );
+    assert_eq!(
+        preferences_dialog
+            .visible_page()
+            .map(|page| page.title().to_string()),
+        Some("Properties".to_owned())
+    );
+    preferences_dialog.set_visible_page_name("editor");
     Ok(())
 }
 

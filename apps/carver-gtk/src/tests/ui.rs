@@ -30,7 +30,8 @@ use gtk::gio::prelude::FileExt;
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::{
-    ActionRowExt, AdwDialogExt, BreakpointBinExt, ComboRowExt, PreferencesRowExt,
+    ActionRowExt, AdwDialogExt, BreakpointBinExt, ComboRowExt, PreferencesDialogExt,
+    PreferencesPageExt, PreferencesRowExt,
 };
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
@@ -122,6 +123,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     preferences::document_appearance_should_persist(&fixture)?;
     preferences::source_preferences_should_toggle_gutter_and_font(&fixture)?;
     preferences::document_properties_preferences_should_persist(&fixture)?;
+    preferences::preferences_should_expose_searchable_pages(&fixture)?;
     shell::window_shell_should_expose_sidebar_and_base_presentation(&fixture)?;
     shell::window_shortcuts_should_open_dialogs(&fixture)?;
     let note = library::browser_actions_should_import_and_create_a_note(&fixture)?;

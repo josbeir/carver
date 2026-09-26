@@ -503,9 +503,8 @@ fn show_preferences_dialog(
     config: &carver_config::Config,
 ) -> adw::PreferencesDialog {
     let dialog = adw::PreferencesDialog::new();
-    dialog.set_search_enabled(false);
-    let page = adw::PreferencesPage::new();
-    page.set_title(&gettext("Editor"));
+    dialog.set_search_enabled(true);
+
     let group = adw::PreferencesGroup::new();
     group.set_title(&gettext("Editing"));
 
@@ -544,11 +543,34 @@ fn show_preferences_dialog(
     let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
     let properties_group = document_properties_group(parent, dispatcher, config);
-    page.add(&group);
-    page.add(&document_group);
-    page.add(&source_group);
-    page.add(&properties_group);
-    dialog.add(&page);
+
+    let editor_page = preferences_page("editor", &gettext("Editor"), "document-edit-symbolic");
+    editor_page.add(&group);
+    dialog.add(&editor_page);
+
+    let appearance_page = preferences_page(
+        "appearance",
+        &gettext("Appearance"),
+        "preferences-desktop-appearance-symbolic",
+    );
+    appearance_page.add(&document_group);
+    dialog.add(&appearance_page);
+
+    let source_page = preferences_page(
+        "source",
+        &pgettext("preferences page", "Source"),
+        "utilities-terminal-symbolic",
+    );
+    source_page.add(&source_group);
+    dialog.add(&source_page);
+
+    let properties_page = preferences_page(
+        "properties",
+        &gettext("Properties"),
+        "document-properties-symbolic",
+    );
+    properties_page.add(&properties_group);
+    dialog.add(&properties_page);
 
     let dispatcher_for_images = dispatcher.clone();
     remote_images.connect_active_notify(move |remote_images| {
@@ -564,6 +586,19 @@ fn show_preferences_dialog(
     });
     dialog.present(Some(parent));
     dialog
+}
+
+/// Builds a named, icon-bearing preferences page for the settings dialog.
+///
+/// The name must be set before the page is added so the dialog can address it
+/// through `AdwPreferencesDialog:visible-page-name`.
+fn preferences_page(name: &str, title: &str, icon_name: &str) -> adw::PreferencesPage {
+    let page = adw::PreferencesPage::new();
+    page.set_widget_name(name);
+    page.set_name(Some(name));
+    page.set_title(title);
+    page.set_icon_name(Some(icon_name));
+    page
 }
 
 fn document_preferences_group(
