@@ -113,6 +113,24 @@ infrastructure or GTK.
 - Settings live at `$XDG_CONFIG_HOME/carver/config.toml`; the SQLite library and managed
   assets live at `$XDG_DATA_HOME/carver/`. Preserve these XDG boundaries.
 
+## Localization
+
+- Always account for localization when changing the GTK app. Every user-visible string must
+  go through gettext: `gettext("…")`, `ngettext` for counts, `pgettext` for ambiguous short
+  strings, and `tr_fmt!(gettext("…"), …)` for interpolated templates. Never concatenate
+  user-facing text or pass it through a bare `format!`.
+- The literal `gettext("…")` must appear at the call site so `xgettext` can extract it. Do not
+  route translated strings through variables or helpers that hide the literal.
+- When a user-facing string is added, changed, or removed, run
+  `scripts/update-translations.sh` to regenerate `po/io.github.josbeir.Carver.pot` and refresh
+  the `po/*.po` catalogs, then update the maintained translations (`nl`, `de`, `fr`, `es`,
+  `it`, `zh_CN`) and commit them in the same change.
+- Never edit `msgid`s in `po/*.po`; fix the English source and regenerate.
+- Localize dates and relative times with `glib::DateTime`/`ngettext`, not hardcoded English.
+- Keep MCP and library output English; localize only at the GTK boundary.
+- CI validates POs with `msgfmt --check` and fails on POT/PO drift, so a missing catalog update
+  breaks the build.
+
 ## Required checks
 
 Run these before handing off a change:

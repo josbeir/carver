@@ -1,6 +1,7 @@
 //! In-app trash browser and recovery actions.
 
 use adw::prelude::*;
+use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -20,17 +21,17 @@ pub(crate) fn build_trash(dispatcher: &AppDispatcher) -> (gtk::Widget, TrashView
     let header = adw::HeaderBar::new();
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name("back-from-trash-button");
-    back.set_tooltip_text(Some("Back to notes"));
+    back.set_tooltip_text(Some(&gettext("Back to notes")));
     let dispatcher_for_back = dispatcher.clone();
     back.connect_clicked(move |_| {
         let _ = dispatcher_for_back.dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser));
     });
     header.pack_start(&back);
     header.set_title_widget(Some(&adw::WindowTitle::new(
-        "Trash",
-        "Restore notes and categories",
+        &gettext("Trash"),
+        &gettext("Restore notes and categories"),
     )));
-    let empty = gtk::Button::with_label("Empty Trash");
+    let empty = gtk::Button::with_label(&gettext("Empty Trash"));
     empty.set_widget_name("empty-trash-button");
     empty.add_css_class("destructive-action");
     header.pack_end(&empty);
@@ -38,8 +39,10 @@ pub(crate) fn build_trash(dispatcher: &AppDispatcher) -> (gtk::Widget, TrashView
 
     let pages = gtk::Stack::new();
     let status = adw::StatusPage::builder()
-        .title("Trash is empty")
-        .description("Deleted notes and categories can be restored here.")
+        .title(gettext("Trash is empty"))
+        .description(gettext(
+            "Deleted notes and categories can be restored here.",
+        ))
         .icon_name("user-trash-symbolic")
         .build();
     pages.add_named(&status, Some("empty"));
@@ -76,12 +79,15 @@ fn connect_empty_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
     let dispatcher = dispatcher.clone();
     button.connect_clicked(move |button| {
         let dialog = adw::AlertDialog::new(
-            Some("Empty Trash?"),
-            Some(
+            Some(&gettext("Empty Trash?")),
+            Some(&gettext(
                 "All trashed notes, categories, and unreferenced images will be permanently deleted.",
-            ),
+            )),
         );
-        dialog.add_responses(&[("cancel", "Cancel"), ("empty", "Empty Trash")]);
+        dialog.add_responses(&[
+            ("cancel", gettext("Cancel").as_str()),
+            ("empty", gettext("Empty Trash").as_str()),
+        ]);
         dialog.set_response_appearance("empty", adw::ResponseAppearance::Destructive);
         dialog.set_default_response(Some("cancel"));
         dialog.set_close_response("cancel");

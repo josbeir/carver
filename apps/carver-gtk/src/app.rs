@@ -5,6 +5,7 @@ use std::{cell::Cell, path::Path, rc::Rc};
 use adw::prelude::*;
 use carver_config::{AppPaths, Config, load, save};
 use carver_sdk::{InstalledLibraryClient, open_installed_library};
+use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -102,7 +103,7 @@ fn show_startup_error(application: &adw::Application, error: &str) {
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
     let status = adw::StatusPage::builder()
-        .title("Carver could not open its library")
+        .title(gettext("Carver could not open its library"))
         .description(error)
         .icon_name("dialog-error-symbolic")
         .build();
@@ -140,8 +141,8 @@ fn build_window(
         &compact_navigation,
         &toast_overlay,
     )?;
-    let sidebar_page = adw::NavigationPage::new(&sidebar.widget, "Categories");
-    let content_page = adw::NavigationPage::new(&content.widget, "Notes");
+    let sidebar_page = adw::NavigationPage::new(&sidebar.widget, &gettext("Categories"));
+    let content_page = adw::NavigationPage::new(&content.widget, &gettext("Notes"));
     content_page.set_can_pop(false);
     split_view.set_sidebar(Some(&sidebar_page));
     split_view.set_content(Some(&content_page));

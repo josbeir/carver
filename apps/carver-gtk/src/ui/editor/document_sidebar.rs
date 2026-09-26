@@ -1,6 +1,7 @@
 //! Immutable document-sidebar projection, shared section layout and navigation.
 use crate::mvu::{AppDispatcher, AppMsg, EditorDocument, EditorMsg, EditorSessionId};
 use carver_editor_protocol::DocumentTarget;
+use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 use std::cell::RefCell;
@@ -42,14 +43,14 @@ impl DocumentSidebar {
         let add_files = gtk::Button::from_icon_name("list-add-symbolic");
         add_files.set_widget_name("editor-media-add-files");
         add_files.add_css_class("flat");
-        add_files.set_tooltip_text(Some("Add files…"));
-        add_files.update_property(&[gtk::accessible::Property::Label("Add files")]);
+        add_files.set_tooltip_text(Some(&gettext("Add files…")));
+        add_files.update_property(&[gtk::accessible::Property::Label(&gettext("Add files"))]);
         let outline = outline::Outline::new(dispatcher);
         let outline_section = Section::new(
-            "Outline",
+            &pgettext("document sidebar", "Outline"),
             "outline",
-            "No headings yet",
-            "Add headings to navigate your document.",
+            &gettext("No headings yet"),
+            &gettext("Add headings to navigate your document."),
             None,
             outline.view.upcast_ref(),
         );
@@ -59,10 +60,10 @@ impl DocumentSidebar {
         media_list.set_valign(gtk::Align::Start);
         media_list.add_css_class("boxed-list");
         let media = Section::new(
-            "Media",
+            &pgettext("document sidebar", "Media"),
             "media",
-            "No media yet",
-            "Use + to add files, or drag them into the document.",
+            &gettext("No media yet"),
+            &gettext("Use + to add files, or drag them into the document."),
             Some(&add_files),
             media_list.upcast_ref(),
         );
@@ -114,13 +115,13 @@ impl DocumentSidebar {
         self.toggle.set_active(visible);
         self.split.set_show_sidebar(visible);
         let label = if visible {
-            "Hide document sidebar"
+            gettext("Hide document sidebar")
         } else {
-            "Show document sidebar"
+            gettext("Show document sidebar")
         };
-        self.toggle.set_tooltip_text(Some(label));
+        self.toggle.set_tooltip_text(Some(&label));
         self.toggle
-            .update_property(&[gtk::accessible::Property::Label(label)]);
+            .update_property(&[gtk::accessible::Property::Label(&label)]);
         self.add_files
             .set_sensitive(document.mode != carver_config::EditorMode::Rendered);
         let identity = (document.session, document.source_generation);

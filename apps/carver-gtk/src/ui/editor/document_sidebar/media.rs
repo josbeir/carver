@@ -1,5 +1,6 @@
 //! Media-specific cards and file actions.
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg};
+use gettextrs::gettext;
 use gtk::prelude::*;
 use std::path::Path;
 
@@ -51,7 +52,7 @@ pub(super) fn render_media_list(
         title.set_ellipsize(gtk::pango::EllipsizeMode::End);
         title.set_hexpand(true);
         let size = file.map_or_else(
-            || String::from("Unavailable"),
+            || gettext("Unavailable"),
             |file| glib::format_size(file.size).to_string(),
         );
         let subtitle = gtk::Label::new(Some(&size));
@@ -71,8 +72,8 @@ pub(super) fn render_media_list(
         preview.set_widget_name("editor-media-preview");
         preview.add_css_class("flat");
         preview.set_valign(gtk::Align::Center);
-        preview.set_tooltip_text(Some("Preview file"));
-        preview.update_property(&[gtk::accessible::Property::Label("Preview file")]);
+        preview.set_tooltip_text(Some(&gettext("Preview file")));
+        preview.update_property(&[gtk::accessible::Property::Label(&gettext("Preview file"))]);
         preview.set_sensitive(item.path.starts_with("assets/"));
         let preview_dispatcher = dispatcher.clone();
         let preview_selection = item.range.clone();

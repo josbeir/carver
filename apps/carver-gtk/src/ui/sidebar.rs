@@ -6,6 +6,7 @@ use std::{
 };
 
 use carver_sdk::{Category, CategoryId, CategorySummary};
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -34,7 +35,7 @@ pub(crate) fn back_to_notes_button(
 ) -> gtk::Button {
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name(widget_name);
-    back.set_tooltip_text(Some("Back to notes"));
+    back.set_tooltip_text(Some(&gettext("Back to notes")));
     let dispatcher = dispatcher.clone();
     back.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(message.clone());
@@ -117,19 +118,22 @@ fn install_sidebar_search_shortcut(container: &gtk::Box, dispatcher: &AppDispatc
 /// Builds the window-level settings menu shown in the persistent sidebar.
 fn settings_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
-    menu.append(Some("Connect an agent"), Some("win.connect-agent"));
+    menu.append(
+        Some(&gettext("Connect an agent")),
+        Some("win.connect-agent"),
+    );
     let settings_section = gtk::gio::Menu::new();
-    settings_section.append(Some("Preferences"), Some("win.preferences"));
+    settings_section.append(Some(&gettext("Preferences")), Some("win.preferences"));
     settings_section.append(
-        Some("Keyboard Shortcuts"),
+        Some(&gettext("Keyboard Shortcuts")),
         Some(super::dialogs::KEYBOARD_SHORTCUTS_ACTION),
     );
-    settings_section.append(Some("About Carver"), Some("win.about"));
+    settings_section.append(Some(&gettext("About Carver")), Some("win.about"));
     menu.append_section(None, &settings_section);
     let settings = gtk::MenuButton::new();
     settings.set_widget_name("sidebar-settings-menu-button");
     settings.set_icon_name("open-menu-symbolic");
-    settings.set_tooltip_text(Some("Settings"));
+    settings.set_tooltip_text(Some(&gettext("Settings")));
     settings.set_menu_model(Some(&menu));
     settings
 }
@@ -257,7 +261,7 @@ pub(crate) fn sidebar_toggle_button(
     let toggle = gtk::ToggleButton::new();
     toggle.set_icon_name("sidebar-show-symbolic");
     toggle.set_widget_name(widget_name);
-    toggle.set_tooltip_text(Some("Hide Categories"));
+    toggle.set_tooltip_text(Some(&gettext("Hide Categories")));
     toggle.set_active(!split_view.is_collapsed());
     let split = split_view.clone();
     let compact_navigation = Rc::clone(compact_navigation);
@@ -287,10 +291,10 @@ pub(crate) fn sidebar_toggle_button(
         resetting_for_state.set(true);
         if split.is_collapsed() {
             toggle_for_state.set_active(false);
-            toggle_for_state.set_tooltip_text(Some("Show Categories"));
+            toggle_for_state.set_tooltip_text(Some(&gettext("Show Categories")));
         } else {
             toggle_for_state.set_active(true);
-            toggle_for_state.set_tooltip_text(Some("Hide Categories"));
+            toggle_for_state.set_tooltip_text(Some(&gettext("Hide Categories")));
         }
         resetting_for_state.set(false);
     });
@@ -321,7 +325,7 @@ fn connect_selection(
 fn trash_footer(dispatcher: &AppDispatcher, split_view: &adw::NavigationSplitView) -> gtk::Widget {
     let trash = gtk::Button::new();
     trash.set_widget_name("open-trash-button");
-    trash.set_tooltip_text(Some("Open Trash"));
+    trash.set_tooltip_text(Some(&gettext("Open Trash")));
     trash.add_css_class("flat");
     let trash_content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     trash_content.set_margin_start(12);
@@ -329,7 +333,7 @@ fn trash_footer(dispatcher: &AppDispatcher, split_view: &adw::NavigationSplitVie
     trash_content.set_margin_top(8);
     trash_content.set_margin_bottom(8);
     trash_content.append(&gtk::Image::from_icon_name("user-trash-symbolic"));
-    let trash_label = gtk::Label::new(Some("Trash"));
+    let trash_label = gtk::Label::new(Some(&gettext("Trash")));
     trash_label.set_xalign(0.0);
     trash_label.add_css_class("category-card-title");
     trash_content.append(&trash_label);
@@ -362,7 +366,7 @@ fn populate_sidebar(
     let all_notes_count = categories.iter().map(|summary| summary.note_count).sum();
     let home_content = sidebar_row(
         "go-home-symbolic",
-        "All notes",
+        &gettext("All notes"),
         all_notes_count,
         Some("all-notes-count"),
     );
@@ -513,9 +517,12 @@ fn install_active_row_navigation(
 }
 
 fn note_count_label(note_count: usize) -> String {
-    if note_count == 1 {
-        "1 note".to_owned()
-    } else {
-        format!("{note_count} notes")
-    }
+    tr_fmt!(
+        ngettext(
+            "{count} note",
+            "{count} notes",
+            u32::try_from(note_count).unwrap_or(u32::MAX),
+        ),
+        count = note_count
+    )
 }

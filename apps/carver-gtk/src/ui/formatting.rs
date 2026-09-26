@@ -3,6 +3,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
+use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -33,7 +34,9 @@ pub(crate) fn choose_managed_image(
     }
     let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
-    let dialog = gtk::FileDialog::builder().title("Insert Image").build();
+    let dialog = gtk::FileDialog::builder()
+        .title(gettext("Insert Image"))
+        .build();
     dialog.set_filters(Some(&filters));
     dialog.set_default_filter(Some(&filter));
     let parent = button.root().and_downcast::<gtk::Window>();
@@ -80,15 +83,19 @@ fn show_image_alt_dialog(
 ) {
     let alt = gtk::Entry::new();
     alt.set_text(suggested_alt);
-    alt.set_placeholder_text(Some("Description (optional)"));
+    alt.set_placeholder_text(Some(&gettext("Description (optional)")));
     let dialog = adw::AlertDialog::builder()
-        .heading("Image description")
-        .body("Used as alternative text when the image cannot be displayed.")
+        .heading(gettext("Image description"))
+        .body(gettext(
+            "Used as alternative text when the image cannot be displayed.",
+        ))
         .extra_child(&alt)
         .default_response("insert")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
+    let cancel = gettext("Cancel");
+    let insert = gettext("Insert");
+    dialog.add_responses(&[("cancel", cancel.as_str()), ("insert", insert.as_str())]);
     let file = file.clone();
     let dispatcher = dispatcher.clone();
     let toast_overlay = toast_overlay.clone();
@@ -99,7 +106,7 @@ fn show_image_alt_dialog(
             return;
         }
         let Some(extension) = image_extension_for_file(&file) else {
-            toast_overlay.add_toast(adw::Toast::new("Unsupported image format"));
+            toast_overlay.add_toast(adw::Toast::new(&gettext("Unsupported image format")));
             focus.restore_later();
             return;
         };
@@ -156,7 +163,9 @@ pub(crate) fn choose_managed_files(
     dispatcher: &AppDispatcher,
     target: ImportTarget,
 ) {
-    let dialog = gtk::FileDialog::builder().title("Add files").build();
+    let dialog = gtk::FileDialog::builder()
+        .title(gettext("Add files"))
+        .build();
     let parent = button.root().and_downcast::<gtk::Window>();
     let dispatcher = dispatcher.clone();
     dialog.open_multiple(
@@ -224,7 +233,7 @@ pub(crate) fn append_table_picker(
     let menu = gtk::MenuButton::new();
     menu.set_widget_name(name);
     menu.set_icon_name("view-grid-symbolic");
-    menu.set_tooltip_text(Some("Insert table"));
+    menu.set_tooltip_text(Some(&gettext("Insert table")));
     menu.add_css_class("flat");
 
     let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
@@ -234,7 +243,11 @@ pub(crate) fn append_table_picker(
     content.set_margin_end(16);
     content.set_margin_top(16);
     content.set_margin_bottom(16);
-    let dimensions = gtk::Label::new(Some("1 × 1"));
+    let dimensions = gtk::Label::new(Some(&tr_fmt!(
+        gettext("{rows} × {columns}"),
+        rows = 1,
+        columns = 1
+    )));
     dimensions.set_halign(gtk::Align::Center);
     content.append(&dimensions);
     let grid = gtk::Grid::new();
@@ -249,7 +262,7 @@ pub(crate) fn append_table_picker(
     let header_row = gtk::Switch::new();
     header_row.set_active(true);
     let header_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    header_box.append(&gtk::Label::new(Some("Header row")));
+    header_box.append(&gtk::Label::new(Some(&gettext("Header row"))));
     header_box.append(&header_row);
     content.append(&header_box);
 
@@ -262,7 +275,11 @@ pub(crate) fn append_table_picker(
             let cell = gtk::Button::new();
             cell.add_css_class("table-size-cell");
             cell.set_hexpand(true);
-            cell.set_tooltip_text(Some(&format!("{row} rows × {column} columns")));
+            cell.set_tooltip_text(Some(&tr_fmt!(
+                gettext("{rows} rows × {columns} columns"),
+                rows = row,
+                columns = column
+            )));
             grid.attach(&cell, column - 1, row - 1, 1, 1);
             cells.borrow_mut().push((row, column, cell));
         }
@@ -274,7 +291,11 @@ pub(crate) fn append_table_picker(
         let row = row.to_owned();
         let column = column.to_owned();
         motion.connect_enter(move |_, _, _| {
-            dimensions.set_text(&format!("{row} × {column}"));
+            dimensions.set_text(&tr_fmt!(
+                gettext("{rows} × {columns}"),
+                rows = row,
+                columns = column
+            ));
             for (cell_row, cell_column, cell) in cells_for_motion.borrow().iter() {
                 if *cell_row <= row && *cell_column <= column {
                     cell.add_css_class("selected");
@@ -311,24 +332,26 @@ pub(crate) fn show_source_link_dialog(
 ) {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
     let text = gtk::Entry::new();
-    text.set_placeholder_text(Some("Link text"));
+    text.set_placeholder_text(Some(&gettext("Link text")));
     if let Some((start, end)) = buffer.selection_bounds() {
         text.set_text(&buffer.text(&start, &end, false));
     }
     let url = gtk::Entry::new();
     url.set_placeholder_text(Some("https://example.com"));
     url.set_input_purpose(gtk::InputPurpose::Url);
-    content.append(&gtk::Label::new(Some("Text")));
+    content.append(&gtk::Label::new(Some(&gettext("Text"))));
     content.append(&text);
-    content.append(&gtk::Label::new(Some("Address")));
+    content.append(&gtk::Label::new(Some(&gettext("Address"))));
     content.append(&url);
     let dialog = adw::AlertDialog::builder()
-        .heading("Insert Link")
+        .heading(gettext("Insert Link"))
         .extra_child(&content)
         .default_response("insert")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
+    let cancel = gettext("Cancel");
+    let insert = gettext("Insert");
+    dialog.add_responses(&[("cancel", cancel.as_str()), ("insert", insert.as_str())]);
     let source = buffer.clone();
     let selection = Rc::new(RefCell::new(capture_selection(&source)));
     let selection_for_response = Rc::clone(&selection);

@@ -9,6 +9,7 @@ use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
     BaseSortDirection,
 };
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
@@ -38,11 +39,18 @@ pub(crate) fn render_delete(
         let weak_button = button.downgrade();
         action.connect_activate(move |_, _| {
             let Some(parent) = weak_button.upgrade().and_then(|button| button.root()).and_downcast::<gtk::Window>() else { return; };
-            let dialog = adw::AlertDialog::builder().heading(format!("Delete “{name}”?"))
-                .body("Only this Base will be deleted. Your notes and their properties will not be changed.")
-                .close_response("cancel").default_response("cancel").build();
+            let dialog = adw::AlertDialog::builder()
+                .heading(tr_fmt!(gettext("Delete “{name}”?"), name = name))
+                .body(gettext(
+                    "Only this Base will be deleted. Your notes and their properties will not be changed.",
+                ))
+                .close_response("cancel")
+                .default_response("cancel")
+                .build();
             dialog.set_widget_name("delete-base-confirmation");
-            dialog.add_responses(&[("cancel", "Cancel"), ("delete", "Delete Base")]);
+            let cancel = gettext("Cancel");
+            let delete = gettext("Delete Base");
+            dialog.add_responses(&[("cancel", cancel.as_str()), ("delete", delete.as_str())]);
             dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
             let dispatcher = dispatcher.clone();
             dialog.connect_response(None, move |_, response| {
@@ -158,15 +166,25 @@ fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
 fn append_rule_controls<T: RuleWidgets + 'static>(
     row: &gtk::Box,
     noun: &'static str,
+    noun_label: &str,
     id: u64,
     container: &gtk::Box,
     rows: &Rc<RefCell<Vec<T>>>,
     refresh_preview: Option<&Rc<dyn Fn()>>,
 ) {
     let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    let up = rule_button("go-up-symbolic", &format!("Move {noun} up"));
-    let down = rule_button("go-down-symbolic", &format!("Move {noun} down"));
-    let remove = rule_button("list-remove-symbolic", &format!("Remove {noun}"));
+    let up = rule_button(
+        "go-up-symbolic",
+        &tr_fmt!(gettext("Move {noun} up"), noun = noun_label),
+    );
+    let down = rule_button(
+        "go-down-symbolic",
+        &tr_fmt!(gettext("Move {noun} down"), noun = noun_label),
+    );
+    let remove = rule_button(
+        "list-remove-symbolic",
+        &tr_fmt!(gettext("Remove {noun}"), noun = noun_label),
+    );
     let prefix = noun.replace(' ', "-");
     up.set_widget_name(&format!("base-rule-{prefix}-up-{id}"));
     down.set_widget_name(&format!("base-rule-{prefix}-down-{id}"));
@@ -329,20 +347,20 @@ fn selected_operator(combo: &gtk::ComboBoxText) -> BaseFilterOperator {
 )]
 fn add_operator_options(combo: &gtk::ComboBoxText) {
     for (id, label) in [
-        ("equals", "is"),
-        ("not-equals", "is not"),
-        ("contains", "contains"),
-        ("starts-with", "starts with"),
-        ("greater-than", ">"),
-        ("less-than", "<"),
-        ("greater-or-equal", "≥"),
-        ("less-or-equal", "≤"),
-        ("present", "is present"),
-        ("missing", "is missing"),
-        ("list-contains", "list contains"),
-        ("list-not-contains", "list does not contain"),
+        ("equals", gettext("is")),
+        ("not-equals", gettext("is not")),
+        ("contains", gettext("contains")),
+        ("starts-with", gettext("starts with")),
+        ("greater-than", gettext(">")),
+        ("less-than", gettext("<")),
+        ("greater-or-equal", gettext("≥")),
+        ("less-or-equal", gettext("≤")),
+        ("present", gettext("is present")),
+        ("missing", gettext("is missing")),
+        ("list-contains", gettext("list contains")),
+        ("list-not-contains", gettext("list does not contain")),
     ] {
-        combo.append(Some(id), label);
+        combo.append(Some(id), &label);
     }
 }
 
@@ -423,8 +441,8 @@ fn sort_row(
         |_| {},
     );
     let direction = gtk::ComboBoxText::new();
-    direction.append(Some("ascending"), "Ascending");
-    direction.append(Some("descending"), "Descending");
+    direction.append(Some("ascending"), &gettext("Ascending"));
+    direction.append(Some("descending"), &gettext("Descending"));
     if let Some(sort) = initial {
         direction.set_active_id(Some(
             if matches!(sort.direction, BaseSortDirection::Ascending) {
@@ -494,7 +512,7 @@ fn rebuild_visible_columns(
             .options()
             .into_iter()
             .find(|option| option.field == field)
-            .map_or_else(|| "Field".to_owned(), |option| option.metadata);
+            .map_or_else(|| gettext("Field"), |option| option.metadata);
         let metadata_label = gtk::Label::new(Some(&metadata));
         metadata_label.set_xalign(0.0);
         metadata_label.add_css_class("dim-label");
@@ -502,9 +520,9 @@ fn rebuild_visible_columns(
         content.append(&labels);
         if !matches!(field, BaseColumn::Name) {
             let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            let move_up = rule_button("go-up-symbolic", "Move field up");
+            let move_up = rule_button("go-up-symbolic", &gettext("Move field up"));
             move_up.set_widget_name(&format!("base-visible-field-move-up-{index}"));
-            let move_down = rule_button("go-down-symbolic", "Move field down");
+            let move_down = rule_button("go-down-symbolic", &gettext("Move field down"));
             move_down.set_widget_name(&format!("base-visible-field-move-down-{index}"));
             {
                 let field = field.clone();
@@ -530,9 +548,9 @@ fn rebuild_visible_columns(
             }
             let remove = gtk::Button::from_icon_name("list-remove-symbolic");
             remove.set_widget_name(&format!("base-visible-field-remove-{index}"));
-            remove.set_tooltip_text(Some("Remove field"));
+            remove.set_tooltip_text(Some(&gettext("Remove field")));
             remove.add_css_class("flat");
-            remove.update_property(&[gtk::accessible::Property::Label("Remove field")]);
+            remove.update_property(&[gtk::accessible::Property::Label(&gettext("Remove field"))]);
             let selected = Rc::clone(selected);
             let container = container.clone();
             let catalog = catalog.clone();
@@ -658,9 +676,9 @@ fn show_base_configuration_dialog(
 ) -> adw::Dialog {
     let dialog = adw::Dialog::builder()
         .title(if matches!(mode, BaseConfigurationMode::Create) {
-            "New Base"
+            gettext("New Base")
         } else {
-            "Configure Base"
+            gettext("Configure Base")
         })
         .follows_content_size(true)
         .build();
@@ -682,10 +700,10 @@ fn show_base_configuration_dialog(
 
     let name = gtk::Entry::builder()
         .text(&definition.name)
-        .placeholder_text("Base name")
+        .placeholder_text(gettext("Base name"))
         .build();
     name.set_widget_name("base-configuration-name");
-    content.append(&section_label("Name"));
+    content.append(&section_label(&gettext("Name")));
     content.append(&name);
 
     let catalog = FieldCatalog::new(definition, property_descriptors);
@@ -702,13 +720,14 @@ fn show_base_configuration_dialog(
         let selected_for_marker = Rc::clone(&selected_columns);
         let is_selected: Rc<dyn Fn(&BaseColumn) -> bool> =
             Rc::new(move |field: &BaseColumn| selected_for_marker.borrow().contains(field));
+        let add_field_label = gettext("Add field");
         let add_picker = FieldPicker::new_with_selection(
             &catalog,
             &BaseColumn::Name,
             "base-add-visible-field-picker",
             FieldPickerOptions {
                 keep_open: true,
-                button_label: Some("Add field"),
+                button_label: Some(add_field_label.as_str()),
                 button_icon_name: Some("list-add-symbolic"),
             },
             &is_selected,
@@ -726,14 +745,14 @@ fn show_base_configuration_dialog(
             },
         );
         add_picker.button.set_widget_name("base-add-visible-field");
-        style_section_action(&add_picker.button, "Add field");
-        visible_content.append(&description_label(
+        style_section_action(&add_picker.button, &add_field_label);
+        visible_content.append(&description_label(&gettext(
             "Choose the columns shown in this Base. Name is always included.",
-        ));
+        )));
         visible_content.append(&columns_box);
         visible_content.append(&add_picker.button);
         let visible_section = collapsible_section(
-            "Visible fields",
+            &gettext("Visible fields"),
             &visible_content,
             true,
             "base-visible-fields-section",
@@ -743,8 +762,8 @@ fn show_base_configuration_dialog(
     };
 
     let filter_mode = gtk::ComboBoxText::new();
-    filter_mode.append(Some("all"), "Match all filters");
-    filter_mode.append(Some("any"), "Match any filter");
+    filter_mode.append(Some("all"), &gettext("Match all filters"));
+    filter_mode.append(Some("any"), &gettext("Match any filter"));
     filter_mode.set_active_id(Some(
         if matches!(definition.filter_mode, BaseFilterMode::Any) {
             "any"
@@ -752,18 +771,17 @@ fn show_base_configuration_dialog(
             "all"
         },
     ));
-    let add_filter = section_action("Add filter");
+    let add_filter = section_action(&gettext("Add filter"));
     add_filter.set_widget_name("base-add-filter");
-    let add_sort = section_action("Add sort rule");
+    let add_sort = section_action(&gettext("Add sort rule"));
     add_sort.set_widget_name("base-add-sort");
-    let preview = gtk::Label::new(Some(&format!(
-        "Currently matches {} {}",
-        definition.row_count,
-        if definition.row_count == 1 {
-            "note"
-        } else {
-            "notes"
-        }
+    let preview = gtk::Label::new(Some(&tr_fmt!(
+        ngettext(
+            "Currently matches {count} note",
+            "Currently matches {count} notes",
+            u32::try_from(definition.row_count).unwrap_or(u32::MAX),
+        ),
+        count = definition.row_count
     )));
     preview.set_xalign(0.0);
     preview.add_css_class("dim-label");
@@ -806,6 +824,7 @@ fn show_base_configuration_dialog(
         append_rule_controls(
             &row,
             "filter",
+            &gettext("filter"),
             id,
             &filter_box,
             &filter_widgets,
@@ -814,15 +833,15 @@ fn show_base_configuration_dialog(
         filter_box.append(&row);
     }
     let filter_content = section_content();
-    filter_content.append(&description_label(
+    filter_content.append(&description_label(&gettext(
         "Use the arrows to set rule priority, or remove a rule you no longer need.",
-    ));
+    )));
     filter_content.append(&filter_mode);
     filter_content.append(&preview);
     filter_content.append(&filter_box);
     filter_content.append(&add_filter);
     let filters_section = collapsible_section(
-        "Filters",
+        &gettext("Filters"),
         &filter_content,
         !definition.filters.is_empty(),
         "base-filters-section",
@@ -845,6 +864,7 @@ fn show_base_configuration_dialog(
             append_rule_controls(
                 &row,
                 "filter",
+                &gettext("filter"),
                 id,
                 &filter_box,
                 &filter_widgets,
@@ -860,17 +880,25 @@ fn show_base_configuration_dialog(
         let id = index as u64;
         let (row, widgets) = sort_row(&catalog, Some(sort), id);
         sort_widgets.borrow_mut().push(widgets);
-        append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
+        append_rule_controls(
+            &row,
+            "sort rule",
+            &gettext("sort rule"),
+            id,
+            &sort_box,
+            &sort_widgets,
+            None,
+        );
         sort_box.append(&row);
     }
     let sort_content = section_content();
-    sort_content.append(&description_label(
+    sort_content.append(&description_label(&gettext(
         "Sort rules are applied from top to bottom.",
-    ));
+    )));
     sort_content.append(&sort_box);
     sort_content.append(&add_sort);
     let sort_section = collapsible_section(
-        "Sort",
+        &gettext("Sort"),
         &sort_content,
         !definition.sorts.is_empty(),
         "base-sort-section",
@@ -886,17 +914,25 @@ fn show_base_configuration_dialog(
             let id = allocate_rule_id(&next_sort_id);
             let (row, widgets) = sort_row(&catalog, None, id);
             sort_widgets.borrow_mut().push(widgets);
-            append_rule_controls(&row, "sort rule", id, &sort_box, &sort_widgets, None);
+            append_rule_controls(
+                &row,
+                "sort rule",
+                &gettext("sort rule"),
+                id,
+                &sort_box,
+                &sort_widgets,
+                None,
+            );
             rebuild_rule_rows(&sort_box, &sort_widgets.borrow());
             sort_section.set_expanded(true);
         });
     }
     refresh_preview();
 
-    let save = gtk::Button::with_label(if matches!(mode, BaseConfigurationMode::Create) {
-        "Create"
+    let save = gtk::Button::with_label(&if matches!(mode, BaseConfigurationMode::Create) {
+        gettext("Create")
     } else {
-        "Save"
+        gettext("Save")
     });
     save.set_widget_name("base-configuration-save");
     save.add_css_class("suggested-action");
@@ -991,9 +1027,13 @@ pub(crate) fn render_preview(dialog: &adw::Dialog, count: usize) {
     else {
         return;
     };
-    label.set_text(&format!(
-        "Currently matches {count} {}",
-        if count == 1 { "note" } else { "notes" }
+    label.set_text(&tr_fmt!(
+        ngettext(
+            "Currently matches {count} note",
+            "Currently matches {count} notes",
+            u32::try_from(count).unwrap_or(u32::MAX),
+        ),
+        count = count
     ));
 }
 

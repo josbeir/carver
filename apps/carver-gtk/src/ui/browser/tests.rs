@@ -42,6 +42,49 @@ fn relative_update_time_should_use_yesterday_for_the_previous_day() {
 }
 
 #[test]
+fn note_date_group_labels_should_describe_each_bucket() {
+    assert_eq!(NoteDateGroup::Today.label(), "Today");
+    assert_eq!(NoteDateGroup::Yesterday.label(), "Yesterday");
+    assert_eq!(NoteDateGroup::ThisWeek.label(), "This Week");
+    assert_eq!(NoteDateGroup::ThisMonth.label(), "This Month");
+    assert_eq!(NoteDateGroup::EarlierThisYear.label(), "Earlier This Year");
+    assert_eq!(NoteDateGroup::Year(2024).label(), "2024");
+}
+
+#[test]
+fn relative_update_time_should_report_a_single_minute() {
+    assert_eq!(
+        relative_update_time(
+            datetime!(2026-09-03 12:00:00 UTC),
+            datetime!(2026-09-03 12:01:00 UTC)
+        ),
+        "1 minute ago"
+    );
+}
+
+#[test]
+fn relative_update_time_should_report_minutes_before_an_hour() {
+    assert_eq!(
+        relative_update_time(
+            datetime!(2026-09-03 12:00:00 UTC),
+            datetime!(2026-09-03 12:05:30 UTC)
+        ),
+        "5 minutes ago"
+    );
+}
+
+#[test]
+fn relative_update_time_should_report_hours_before_a_day() {
+    assert_eq!(
+        relative_update_time(
+            datetime!(2026-09-03 09:00:00 UTC),
+            datetime!(2026-09-03 12:00:00 UTC)
+        ),
+        "3 hours ago"
+    );
+}
+
+#[test]
 fn note_date_group_should_use_today_for_the_current_day() {
     assert_eq!(
         note_date_group_for_days(date!(2026 - 09 - 09), date!(2026 - 09 - 09)),

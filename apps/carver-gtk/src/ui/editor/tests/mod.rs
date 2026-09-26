@@ -64,3 +64,12 @@ fn default_document_appearance_should_use_the_comfortable_reading_measure() {
     assert!(style.contains("--document-line-height: 1.55"));
     assert!(style.contains("--document-content-width: 80ch"));
 }
+
+#[test]
+fn export_filter_names_should_describe_each_format() {
+    assert_eq!(export_filter_name("crv"), "Carve documents");
+    assert_eq!(export_filter_name("md"), "Markdown documents");
+    assert_eq!(export_filter_name("html"), "HTML documents");
+    assert_eq!(export_filter_name("pdf"), "PDF documents");
+    assert_eq!(export_filter_name("zip"), "Portable ZIP archives");
+}

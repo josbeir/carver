@@ -8,6 +8,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_config::DocumentWidth;
 use carver_editor_protocol::{EditorCommand, EditorEvent, SelectionState};
+use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita::prelude::*;
 use webkit6::prelude::*;
@@ -361,8 +362,11 @@ impl RichEditor {
                     } else {
                         format!(" ({})", names.join(", "))
                     };
-                    toast_overlay.add_toast(libadwaita::Toast::new(&format!(
-                        "This note cannot be edited safely{detail}. Showing Preview instead."
+                    toast_overlay.add_toast(libadwaita::Toast::new(&tr_fmt!(
+                        gettext(
+                            "This note cannot be edited safely{detail}. Showing Preview instead."
+                        ),
+                        detail = detail
                     )));
                     if let Some(handler) = unsupported_handler.borrow().as_ref() {
                         handler();
@@ -374,8 +378,9 @@ impl RichEditor {
                     data,
                 } if session == editor.session.get() => {
                     let Ok(bytes) = STANDARD.decode(data) else {
-                        toast_overlay
-                            .add_toast(libadwaita::Toast::new("Could not read pasted image"));
+                        toast_overlay.add_toast(libadwaita::Toast::new(&gettext(
+                            "Could not read pasted image",
+                        )));
                         return;
                     };
                     let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PasteImage {
@@ -512,23 +517,25 @@ fn present_rich_link_dialog(
 ) {
     let fields = gtk::Box::new(gtk::Orientation::Vertical, 8);
     let text = gtk::Entry::new();
-    text.set_placeholder_text(Some("Link text"));
+    text.set_placeholder_text(Some(&gettext("Link text")));
     text.set_text(&context.text);
     let url = gtk::Entry::new();
     url.set_placeholder_text(Some("https://example.com"));
     url.set_input_purpose(gtk::InputPurpose::Url);
     url.set_text(&context.destination);
-    fields.append(&gtk::Label::new(Some("Text")));
+    fields.append(&gtk::Label::new(Some(&pgettext("link dialog", "Text"))));
     fields.append(&text);
-    fields.append(&gtk::Label::new(Some("Address")));
+    fields.append(&gtk::Label::new(Some(&gettext("Address"))));
     fields.append(&url);
     let dialog = libadwaita::AlertDialog::builder()
-        .heading("Insert Link")
+        .heading(gettext("Insert Link"))
         .extra_child(&fields)
         .default_response("insert")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("insert", "Insert")]);
+    let cancel = gettext("Cancel");
+    let insert = gettext("Insert");
+    dialog.add_responses(&[("cancel", cancel.as_str()), ("insert", insert.as_str())]);
     let dispatcher = dispatcher.clone();
     let focus = focus.clone();
     dialog.connect_response(None, move |_dialog, response| {

@@ -5,6 +5,7 @@ pub(crate) mod field_picker;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseRow, BaseSort, BaseSortDirection, NoteId, Revision,
 };
+use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -55,18 +56,22 @@ pub(crate) fn build_base(
         AppMsg::Navigation(NavigationMsg::ShowBrowser),
     );
     header.pack_start(&back);
-    let search = build_search_controls("base", "Search this Base", "Search this Base (Ctrl+F)");
+    let search = build_search_controls(
+        "base",
+        &gettext("Search this Base"),
+        &gettext("Search this Base (Ctrl+F)"),
+    );
     header.pack_start(&search.toggle);
-    let title = gtk::Label::new(Some("Base"));
+    let title = gtk::Label::new(Some(&gettext("Base")));
     title.set_widget_name("base-title");
     title.add_css_class("title");
     header.set_title_widget(Some(&title));
     let delete = gtk::Button::from_icon_name("user-trash-symbolic");
     delete.set_widget_name("delete-base-button");
-    delete.set_tooltip_text(Some("Delete Base"));
+    delete.set_tooltip_text(Some(&gettext("Delete Base")));
     delete.set_action_name(Some("base.delete"));
     header.pack_end(&delete);
-    let configure = gtk::Button::with_label("Configure");
+    let configure = gtk::Button::with_label(&gettext("Configure"));
     configure.set_icon_name("emblem-system-symbolic");
     configure.add_css_class("flat");
     configure.set_widget_name("configure-base-button");
@@ -95,11 +100,11 @@ pub(crate) fn build_base(
     scroll.set_child(Some(&grid));
     let status = adw::StatusPage::builder()
         .icon_name("view-grid-symbolic")
-        .title("No matching notes")
-        .description("Notes that match this Base will appear here.")
+        .title(gettext("No matching notes"))
+        .description(gettext("Notes that match this Base will appear here."))
         .build();
     status.set_widget_name("base-status");
-    let load_more = gtk::Button::with_label("Load more rows");
+    let load_more = gtk::Button::with_label(&gettext("Load more rows"));
     load_more.set_widget_name("base-load-more");
     load_more.add_css_class("flat");
     load_more.set_halign(gtk::Align::Center);
@@ -230,7 +235,7 @@ fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher:
     append_column(
         &refs.grid,
         &BaseColumn::Name,
-        "Name",
+        &gettext("Name"),
         None,
         Some(dispatcher),
     );
@@ -238,10 +243,22 @@ fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher:
         match column {
             BaseColumn::Name => {}
             BaseColumn::Category => {
-                append_column(&refs.grid, column, "Category", Some("category"), None);
+                append_column(
+                    &refs.grid,
+                    column,
+                    &gettext("Category"),
+                    Some("category"),
+                    None,
+                );
             }
             BaseColumn::Updated => {
-                append_column(&refs.grid, column, "Updated", Some("updated"), None);
+                append_column(
+                    &refs.grid,
+                    column,
+                    &gettext("Updated"),
+                    Some("updated"),
+                    None,
+                );
             }
             BaseColumn::Property(path) => append_column(
                 &refs.grid,
