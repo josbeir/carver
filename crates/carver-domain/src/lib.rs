@@ -12,6 +12,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub mod bases;
+pub mod frontmatter;
 pub mod paste;
 pub mod rendering;
 pub mod source_analysis;
@@ -21,6 +22,11 @@ pub use bases::{
     BaseSort, BaseSortDirection, FrontmatterProjection, PropertyDescriptor, PropertyKind,
     PropertyPath, base_row_matches, fold_base_text, project_base_rows, project_frontmatter,
     property_descriptors, property_paths,
+};
+pub use frontmatter::{
+    FrontmatterDocument, FrontmatterError, FrontmatterField, FrontmatterFormat, FrontmatterValue,
+    frontmatter_source, is_reserved_key, parse_frontmatter_document, render_frontmatter_document,
+    replace_frontmatter,
 };
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,
