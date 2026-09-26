@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 13:03+0200\n"
+"POT-Creation-Date: 2026-09-26 13:14+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -134,7 +134,7 @@ msgstr "Carica altre righe"
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:641
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:614
 msgid "Name"
 msgstr "Nome"
 
@@ -761,8 +761,8 @@ msgid "Show a button over the editor to edit document properties."
 msgstr "Mostra un pulsante sopra l’editor per modificare le proprietà del documento."
 
 #: apps/carver-gtk/src/ui/dialogs.rs:636
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:488
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:493
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:466
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:471
 msgid "Default properties"
 msgstr "Proprietà predefinite"
 
@@ -1341,31 +1341,31 @@ msgstr "Contenuto"
 msgid "Properties"
 msgstr "Proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:413
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:498
-msgid "Add property"
-msgstr "Aggiungi proprietà"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:417
-msgid "Add default properties"
-msgstr "Aggiungi proprietà predefinite"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:495
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:473
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "Queste proprietà sono proposte in ogni finestra delle proprietà del documento e compilano le nuove note quando è attivo."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:647
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:476
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:738
+msgid "Add property"
+msgstr "Aggiungi proprietà"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:620
 msgid "Type"
 msgstr "Tipo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:671
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:644
 msgid "New property"
 msgstr "Nuova proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:711
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:713
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:684
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:686
 msgid "Remove property"
 msgstr "Rimuovi proprietà"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:752
+msgid "Add default properties"
+msgstr "Aggiungi proprietà predefinite"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs:60
 msgid "Bold (Ctrl+B)"

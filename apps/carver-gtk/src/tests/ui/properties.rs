@@ -127,3 +127,83 @@ pub(super) fn default_properties_dialog_should_persist_typed_entries() -> TestRe
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn add_default_properties_should_offer_only_without_frontmatter() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    fixture.runtime.dispatch(AppMsg::Preferences(
+        PreferencesMsg::SetDocumentPropertiesEnabled(true),
+    ));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
+            vec![carver_config::DocumentProperty {
+                key: "author".to_owned(),
+                kind: carver_domain::PropertyKind::Text,
+                multiline: false,
+                value: serde_json::json!("Jane"),
+            }],
+        )));
+    let category = fixture.client.create_category("Properties")?;
+
+    let empty = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: empty.id,
+        revision: empty.revision,
+        source: String::new(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    let root = dialog.upcast_ref();
+    let add_defaults =
+        widget_as::<gtk::Button>(root, "document-properties-add-defaults").ok_or("add defaults")?;
+    add_defaults.emit_clicked();
+    assert!(
+        run_main_context_until(
+            || widget_as::<adw::EntryRow>(root, "document-property-key-1").is_some()
+        ),
+        "the default property row should be added"
+    );
+    dialog.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let with_frontmatter = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: with_frontmatter.id,
+        revision: with_frontmatter.revision,
+        source: "---\nauthor: Existing\n---\nBody\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    assert!(
+        widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-add-defaults").is_none(),
+        "a note with its own properties must not offer the defaults"
+    );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}

@@ -379,7 +379,7 @@ pub(crate) fn show(
                 .any(|field| matches!(field.value, FrontmatterValue::Object(_)))
     });
 
-    let save_source = if raw_mode {
+    let (save_source, action_bar) = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
         let view = gtk::TextView::new();
@@ -399,7 +399,7 @@ pub(crate) fn show(
             .build();
         group.add(&action);
         page.add(&group);
-        SaveSource::Raw(view)
+        (SaveSource::Raw(view), None)
     } else {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Properties"));
@@ -408,36 +408,14 @@ pub(crate) fn show(
         let on_change: Rc<dyn Fn()> = Rc::new(|| {});
         rebuild(&group, &rows, &drafts, &on_change);
         page.add(&group);
-
-        let actions = adw::PreferencesGroup::new();
-        let add = button_row("document-properties-add", &gettext("Add property"));
-        let add_defaults = (request.defaults_enabled && !request.defaults.is_empty()).then(|| {
-            button_row(
-                "document-properties-add-defaults",
-                &gettext("Add default properties"),
-            )
-        });
-        actions.add(&add);
-        if let Some(add_defaults) = &add_defaults {
-            actions.add(add_defaults);
-        }
-        page.add(&actions);
-
-        connect_add_property(&add, &group, &rows, &drafts, &on_change);
-        if let Some(add_defaults) = &add_defaults {
-            connect_add_defaults(
-                add_defaults,
-                &group,
-                &rows,
-                &drafts,
-                &on_change,
-                &request.defaults,
-            );
-        }
-        SaveSource::Fields { rows, drafts }
+        let bar = build_action_bar(&group, &rows, &drafts, &on_change, request);
+        (SaveSource::Fields { rows, drafts }, Some(bar))
     };
 
     toolbar.set_content(Some(&page));
+    if let Some(bar) = action_bar {
+        toolbar.add_bottom_bar(&bar);
+    }
     dialog.set_child(Some(&toolbar));
 
     let draft_cancel = dialog.clone();
@@ -517,7 +495,8 @@ pub(crate) fn show_defaults(
         Rc::new(move || persist_defaults(&rows, &drafts, &entries, &dispatcher))
     };
     rebuild(&group, &rows, &drafts, &on_change);
-    connect_add_property(&add, &group, &rows, &drafts, &on_change);
+    let add_action = add_property_action(&group, &rows, &drafts, &on_change);
+    add.connect_activated(move |_| add_action());
 
     let close_drafts = Rc::clone(&drafts);
     let close_rows = Rc::clone(&rows);
@@ -561,6 +540,8 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
             });
         }
     }
+    // Only the note's own properties are listed; configured defaults are added explicitly with
+    // the "Add default properties" action so an untouched note is never changed on save.
     let mut catalog = vec![PropertyDraft {
         key: TITLE_KEY.to_owned(),
         choice: PropertyKindChoice::Text,
@@ -568,14 +549,6 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
         fixed_key: true,
     }];
     catalog.extend(note_drafts);
-    if request.defaults_enabled {
-        for property in &request.defaults {
-            if property.key == TITLE_KEY || catalog.iter().any(|draft| draft.key == property.key) {
-                continue;
-            }
-            catalog.push(PropertyDraft::from_property(property));
-        }
-    }
     catalog
 }
 
@@ -747,18 +720,66 @@ fn build_row(
     }
 }
 
-fn connect_add_property(
-    button: &adw::ButtonRow,
+fn build_action_bar(
     group: &adw::PreferencesGroup,
     rows: &Rows,
     drafts: &Drafts,
     on_change: &Rc<dyn Fn()>,
-) {
+    request: &EditorPropertiesRequest,
+) -> gtk::Box {
+    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    bar.set_widget_name("document-properties-actions");
+    bar.set_margin_start(12);
+    bar.set_margin_end(12);
+    bar.set_margin_top(6);
+    bar.set_margin_bottom(6);
+    bar.set_halign(gtk::Align::Start);
+
+    let add = action_button("document-properties-add", &gettext("Add property"));
+    let add_action = add_property_action(group, rows, drafts, on_change);
+    add.connect_clicked(move |_| add_action());
+    bar.append(&add);
+
+    // The defaults are only offered when the note carries no properties of its own; notes that
+    // already have a frontmatter block keep exactly the properties they authored.
+    let has_fields = request
+        .document
+        .as_ref()
+        .is_some_and(|document| !document.fields.is_empty());
+    if request.defaults_enabled && !request.defaults.is_empty() && !has_fields {
+        let add_defaults = action_button(
+            "document-properties-add-defaults",
+            &gettext("Add default properties"),
+        );
+        let defaults_action =
+            add_defaults_action(group, rows, drafts, on_change, &request.defaults);
+        add_defaults.connect_clicked(move |_| defaults_action());
+        bar.append(&add_defaults);
+    }
+    bar
+}
+
+fn action_button(name: &str, label: &str) -> gtk::Button {
+    let button = gtk::Button::new();
+    button.set_widget_name(name);
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    content.append(&gtk::Image::from_icon_name("list-add-symbolic"));
+    content.append(&gtk::Label::new(Some(label)));
+    button.set_child(Some(&content));
+    button
+}
+
+fn add_property_action(
+    group: &adw::PreferencesGroup,
+    rows: &Rows,
+    drafts: &Drafts,
+    on_change: &Rc<dyn Fn()>,
+) -> Rc<dyn Fn()> {
     let group = group.clone();
     let rows = Rc::clone(rows);
     let drafts = Rc::clone(drafts);
     let on_change = Rc::clone(on_change);
-    button.connect_activated(move |_| {
+    Rc::new(move || {
         let group = group.clone();
         let rows = Rc::clone(&rows);
         let drafts = Rc::clone(&drafts);
@@ -769,23 +790,22 @@ fn connect_add_property(
             rebuild(&group, &rows, &drafts, &on_change);
             on_change();
         });
-    });
+    })
 }
 
-fn connect_add_defaults(
-    button: &adw::ButtonRow,
+fn add_defaults_action(
     group: &adw::PreferencesGroup,
     rows: &Rows,
     drafts: &Drafts,
     on_change: &Rc<dyn Fn()>,
     defaults: &[DocumentProperty],
-) {
+) -> Rc<dyn Fn()> {
     let group = group.clone();
     let rows = Rc::clone(rows);
     let drafts = Rc::clone(drafts);
     let on_change = Rc::clone(on_change);
     let defaults = defaults.to_vec();
-    button.connect_activated(move |_| {
+    Rc::new(move || {
         let group = group.clone();
         let rows = Rc::clone(&rows);
         let drafts = Rc::clone(&drafts);
@@ -808,7 +828,7 @@ fn connect_add_defaults(
             rebuild(&group, &rows, &drafts, &on_change);
             on_change();
         });
-    });
+    })
 }
 
 fn capture(rows: &Rows, drafts: &Drafts) {
@@ -952,3 +972,6 @@ fn parse_number(text: &str) -> Option<serde_json::Number> {
         .ok()
         .and_then(serde_json::Number::from_f64)
 }
+
+#[cfg(test)]
+mod tests;
