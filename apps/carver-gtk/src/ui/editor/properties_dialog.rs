@@ -141,10 +141,13 @@ impl DateTimePicker {
         content.set_margin_bottom(6);
 
         let calendar = gtk::Calendar::new();
+        calendar.set_widget_name(&format!("{name}-calendar"));
         content.append(&calendar);
 
         let hours = gtk::SpinButton::with_range(0.0, 23.0, 1.0);
         let minutes = gtk::SpinButton::with_range(0.0, 59.0, 1.0);
+        hours.set_widget_name(&format!("{name}-hours"));
+        minutes.set_widget_name(&format!("{name}-minutes"));
         hours.set_width_chars(2);
         minutes.set_width_chars(2);
         if !date_only {

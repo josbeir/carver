@@ -833,3 +833,39 @@ fn json1_query_should_match_date_range_filters() {
     );
     assert!(date_filtered_names(BaseFilterOperator::GreaterThan, "plain text").is_empty());
 }
+
+#[test]
+fn json1_query_should_ignore_non_scalar_range_filter_values() {
+    let (_directory, library, base) = date_fixture();
+    let filter = BaseFilter {
+        field: BaseColumn::Property(PropertyPath("/meta/when".to_owned())),
+        operator: BaseFilterOperator::GreaterThan,
+        value: Some(serde_json::json!(true)),
+    };
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            BaseFilterMode::All,
+            std::slice::from_ref(&filter),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+    let names: Vec<String> = library
+        .base_rows(updated.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+        .items
+        .into_iter()
+        .map(|row| row.name)
+        .collect();
+    assert!(names.is_empty());
+    assert_sql_projection_matches_domain(
+        &library,
+        &updated,
+        BaseFilterMode::All,
+        std::slice::from_ref(&filter),
+        &[],
+    );
+}

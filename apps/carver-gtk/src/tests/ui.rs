@@ -69,6 +69,14 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::changing_a_property_type_should_keep_the_row_expanded()?;
     properties::date_picker_should_offer_clear_and_done_controls()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
+    properties::date_time_default_should_edit_the_picker()?;
+    properties::typed_defaults_should_save_edited_values()?;
+    properties::title_frontmatter_should_fill_the_title_row()?;
+    properties::malformed_frontmatter_should_fall_back_to_raw_source()?;
+    properties::defaults_dialog_should_remove_a_property()?;
+    properties::defaults_dialog_should_handle_date_and_typed_values()?;
+    properties::date_default_picker_should_edit_and_save()?;
+    properties::ad_hoc_boolean_property_should_toggle_and_save()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;

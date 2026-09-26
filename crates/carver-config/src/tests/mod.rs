@@ -509,3 +509,68 @@ fn document_properties_date_time_defaults_should_drop_subsecond_precision() {
         Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
     );
 }
+
+#[test]
+fn document_property_type_should_map_to_domain_kinds() {
+    assert_eq!(DocumentPropertyType::Text.domain_kind(), PropertyKind::Text);
+    assert_eq!(
+        DocumentPropertyType::LongText.domain_kind(),
+        PropertyKind::Text
+    );
+    assert_eq!(DocumentPropertyType::Date.domain_kind(), PropertyKind::Text);
+    assert_eq!(
+        DocumentPropertyType::DateTime.domain_kind(),
+        PropertyKind::Text
+    );
+    assert_eq!(
+        DocumentPropertyType::Number.domain_kind(),
+        PropertyKind::Number
+    );
+    assert_eq!(
+        DocumentPropertyType::Boolean.domain_kind(),
+        PropertyKind::Boolean
+    );
+    assert_eq!(DocumentPropertyType::List.domain_kind(), PropertyKind::List);
+}
+
+#[test]
+fn document_properties_should_reject_blank_keys_and_bad_boolean_values() {
+    let blank = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("   "),
+            field_type: DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::Value::Null,
+        }],
+    };
+    assert!(blank.validate().is_err());
+
+    let valid = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("done"),
+            field_type: DocumentPropertyType::Boolean,
+            multiple: false,
+            value: serde_json::json!(true),
+        }],
+    };
+    assert!(valid.validate().is_ok());
+
+    let invalid = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("done"),
+            field_type: DocumentPropertyType::Boolean,
+            multiple: false,
+            value: serde_json::json!("yes"),
+        }],
+    };
+    assert!(invalid.validate().is_err());
+}

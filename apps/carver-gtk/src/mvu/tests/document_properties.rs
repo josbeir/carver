@@ -266,3 +266,49 @@ fn apply_frontmatter_should_ignore_a_stale_session() {
         Some(0)
     );
 }
+
+#[test]
+fn properties_dialog_request_without_an_editor_should_do_nothing() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::PropertiesDialogRequested),
+    );
+    assert!(effects.is_empty());
+}
+
+#[test]
+fn apply_frontmatter_without_an_editor_should_do_nothing() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session: EditorSessionId(0),
+            edit: FrontmatterEdit::Parsed(author_document()),
+        }),
+    );
+    assert!(effects.is_empty());
+}
+
+#[test]
+fn apply_raw_frontmatter_should_replace_the_block() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+        }),
+    );
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.source.contains("a: b"))
+    );
+    assert!(!effects.is_empty());
+}

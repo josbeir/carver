@@ -604,3 +604,429 @@ pub(super) fn date_picker_should_offer_clear_and_done_controls() -> TestResult {
     fixture.window.close();
     Ok(())
 }
+
+fn editor_source(fixture: &super::document_sidebar::SidebarFixture) -> String {
+    fixture
+        .runtime
+        .model()
+        .editor
+        .as_ref()
+        .map(|document| document.source.clone())
+        .unwrap_or_default()
+}
+
+fn enable_defaults(
+    fixture: &super::document_sidebar::SidebarFixture,
+    entries: Vec<carver_config::DocumentProperty>,
+) {
+    fixture.runtime.dispatch(AppMsg::Preferences(
+        PreferencesMsg::SetDocumentPropertiesEnabled(true),
+    ));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
+            entries,
+        )));
+}
+
+fn open_properties_dialog(
+    fixture: &super::document_sidebar::SidebarFixture,
+) -> Result<adw::Dialog, String> {
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    if !run_main_context_until(|| {
+        fixture
+            .window
+            .visible_dialog()
+            .is_some_and(|dialog| dialog.widget_name() == "document-properties-dialog")
+    }) {
+        return Err("document properties dialog did not open".to_owned());
+    }
+    fixture
+        .window
+        .visible_dialog()
+        .ok_or_else(|| "document properties dialog".to_owned())
+}
+
+pub(super) fn date_time_default_should_edit_the_picker() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    enable_defaults(
+        &fixture,
+        vec![carver_config::DocumentProperty {
+            key: "at".to_owned(),
+            field_type: carver_config::DocumentPropertyType::DateTime,
+            multiple: false,
+            value: serde_json::json!(""),
+        }],
+    );
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nat: 2026-09-16T08:30:00Z\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    let calendar =
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
+    let hours =
+        widget_as::<gtk::SpinButton>(root, "document-property-value-1-hours").ok_or("hours")?;
+    let minutes =
+        widget_as::<gtk::SpinButton>(root, "document-property-value-1-minutes").ok_or("minutes")?;
+
+    hours.set_value(5.0);
+    minutes.set_value(45.0);
+    calendar.set_day(20);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Button>(root, "document-property-value-1-clear")
+        .ok_or("clear")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(root, "document-property-value-1-done")
+        .ok_or("done")?
+        .emit_clicked();
+
+    hours.set_value(9.0);
+    minutes.set_value(15.0);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("at:"), "source: {source}");
+    assert!(source.contains("T09:15:"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn typed_defaults_should_save_edited_values() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    enable_defaults(
+        &fixture,
+        vec![
+            carver_config::DocumentProperty {
+                key: "notes".to_owned(),
+                field_type: carver_config::DocumentPropertyType::LongText,
+                multiple: false,
+                value: serde_json::json!("first"),
+            },
+            carver_config::DocumentProperty {
+                key: "count".to_owned(),
+                field_type: carver_config::DocumentPropertyType::Number,
+                multiple: false,
+                value: serde_json::json!(2),
+            },
+            carver_config::DocumentProperty {
+                key: "done".to_owned(),
+                field_type: carver_config::DocumentPropertyType::Boolean,
+                multiple: false,
+                value: serde_json::json!(false),
+            },
+        ],
+    );
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "Body\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    widget_as::<gtk::TextView>(root, "document-property-value-1")
+        .ok_or("long text")?
+        .buffer()
+        .set_text("second");
+    widget_as::<adw::EntryRow>(root, "document-property-value-2")
+        .ok_or("number")?
+        .set_text("7");
+    widget_as::<adw::SwitchRow>(root, "document-property-value-3")
+        .ok_or("boolean")?
+        .set_active(true);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("notes: second"), "source: {source}");
+    assert!(source.contains("count: 7"), "source: {source}");
+    assert!(source.contains("done: true"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn title_frontmatter_should_fill_the_title_row() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\ntitle: Hello\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    assert_eq!(
+        widget_as::<adw::EntryRow>(root, "document-property-value-0")
+            .ok_or("title row")?
+            .text(),
+        "Hello"
+    );
+    widget_as::<gtk::Button>(root, "document-properties-cancel")
+        .ok_or("cancel")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn malformed_frontmatter_should_fall_back_to_raw_source() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---yaml\nkey: [\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    let raw = widget_as::<gtk::TextView>(root, "document-properties-raw").ok_or("raw view")?;
+    raw.buffer().set_text("author: Jane");
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("author: Jane"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn defaults_dialog_should_remove_a_property() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let entries = std::rc::Rc::new(std::cell::RefCell::new(vec![
+        carver_config::DocumentProperty {
+            key: "author".to_owned(),
+            field_type: carver_config::DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::json!("Jane"),
+        },
+        carver_config::DocumentProperty {
+            key: "count".to_owned(),
+            field_type: carver_config::DocumentPropertyType::Number,
+            multiple: false,
+            value: serde_json::json!(2),
+        },
+    ]));
+    let dialog = crate::ui::editor::properties_dialog::show_defaults(
+        Some(fixture.window.upcast_ref::<gtk::Window>()),
+        &fixture.dispatcher,
+        &entries,
+    );
+    assert!(run_main_context_until(|| widget_as::<gtk::Button>(
+        dialog.upcast_ref(),
+        "document-property-remove-0"
+    )
+    .is_some()));
+    let root = dialog.upcast_ref();
+    widget_as::<gtk::Button>(root, "document-property-remove-0")
+        .ok_or("remove")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| entries.borrow().len() == 1));
+    assert_eq!(entries.borrow()[0].key, "count");
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn defaults_dialog_should_handle_date_and_typed_values() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let entries = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let dialog = crate::ui::editor::properties_dialog::show_defaults(
+        Some(fixture.window.upcast_ref::<gtk::Window>()),
+        &fixture.dispatcher,
+        &entries,
+    );
+    let root = dialog.upcast_ref();
+
+    // A Date default shows the dynamic-value hint instead of a fixed editor.
+    widget_as::<adw::ButtonRow>(root, "document-property-add")
+        .ok_or("add date")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::ComboRow>(
+        root,
+        "document-property-kind-0"
+    )
+    .is_some()));
+    widget_as::<adw::ComboRow>(root, "document-property-kind-0")
+        .ok_or("date kind")?
+        .set_selected(5);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        root,
+        "document-property-value-0"
+    )
+    .is_some()));
+    widget_as::<adw::EntryRow>(root, "document-property-key-0")
+        .ok_or("date key")?
+        .set_text("due");
+
+    // A number and boolean default persist their typed values.
+    widget_as::<adw::ButtonRow>(root, "document-property-add")
+        .ok_or("add number")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::ComboRow>(
+        root,
+        "document-property-kind-1"
+    )
+    .is_some()));
+    widget_as::<adw::ComboRow>(root, "document-property-kind-1")
+        .ok_or("number kind")?
+        .set_selected(2);
+    assert!(run_main_context_until(|| {
+        widget_as::<adw::EntryRow>(root, "document-property-value-1")
+            .is_some_and(|row| row.input_purpose() == gtk::InputPurpose::Number)
+    }));
+    widget_as::<adw::EntryRow>(root, "document-property-key-1")
+        .ok_or("number key")?
+        .set_text("count");
+    widget_as::<adw::EntryRow>(root, "document-property-value-1")
+        .ok_or("number value")?
+        .set_text("5");
+
+    widget_as::<adw::ButtonRow>(root, "document-property-add")
+        .ok_or("add boolean")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::ComboRow>(
+        root,
+        "document-property-kind-2"
+    )
+    .is_some()));
+    widget_as::<adw::ComboRow>(root, "document-property-kind-2")
+        .ok_or("boolean kind")?
+        .set_selected(3);
+    assert!(run_main_context_until(|| widget_as::<adw::SwitchRow>(
+        root,
+        "document-property-value-2"
+    )
+    .is_some()));
+    widget_as::<adw::EntryRow>(root, "document-property-key-2")
+        .ok_or("boolean key")?
+        .set_text("done");
+    widget_as::<adw::SwitchRow>(root, "document-property-value-2")
+        .ok_or("boolean value")?
+        .set_active(true);
+    dialog.close();
+
+    let loaded = entries.borrow().clone();
+    assert_eq!(loaded.len(), 3);
+    assert_eq!(
+        loaded[0].field_type,
+        carver_config::DocumentPropertyType::Date
+    );
+    assert_eq!(loaded[1].value, serde_json::json!(5));
+    assert_eq!(loaded[2].value, serde_json::json!(true));
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn date_default_picker_should_edit_and_save() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    enable_defaults(
+        &fixture,
+        vec![carver_config::DocumentProperty {
+            key: "due".to_owned(),
+            field_type: carver_config::DocumentPropertyType::Date,
+            multiple: false,
+            value: serde_json::json!(""),
+        }],
+    );
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\ndue: 2026-09-15\n---\nBody\n".to_owned(),
+    }));
+
+    // Saving an unchanged date exercises the preserve path.
+    let dialog = open_properties_dialog(&fixture)?;
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    // Reopen and pick a different day.
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+    let calendar =
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
+    calendar.set_day(20);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("2026-09-20"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn ad_hoc_boolean_property_should_toggle_and_save() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\ndone: true\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    let toggle =
+        widget_as::<adw::SwitchRow>(root, "document-property-value-1").ok_or("boolean row")?;
+    assert!(toggle.is_active());
+    toggle.set_active(false);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("done: false"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}

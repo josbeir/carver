@@ -244,3 +244,192 @@ fn type_for_value_should_recover_iso_dates() {
         DocumentPropertyType::Number
     );
 }
+
+fn draft_with(field_type: DocumentPropertyType, value: FrontmatterValue) -> PropertyDraft {
+    let mut draft = PropertyDraft::blank();
+    draft.choice = field_type;
+    draft.value = value;
+    draft
+}
+
+#[test]
+fn type_for_value_should_cover_every_kind() {
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Boolean(true)),
+        DocumentPropertyType::Boolean
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::List(Vec::new())),
+        DocumentPropertyType::List
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Null),
+        DocumentPropertyType::Text
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Object(Vec::new())),
+        DocumentPropertyType::Text
+    );
+}
+
+#[test]
+fn type_index_should_round_trip_every_field_type() {
+    for field_type in [
+        DocumentPropertyType::Text,
+        DocumentPropertyType::LongText,
+        DocumentPropertyType::Number,
+        DocumentPropertyType::Boolean,
+        DocumentPropertyType::List,
+        DocumentPropertyType::Date,
+        DocumentPropertyType::DateTime,
+    ] {
+        assert_eq!(type_from_index(type_index(field_type)), field_type);
+    }
+    assert_eq!(type_from_index(u32::MAX), DocumentPropertyType::Text);
+}
+
+#[test]
+fn configured_value_support_should_cover_every_field_type() {
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::Number,
+        FrontmatterValue::Number(serde_json::Number::from(1)),
+    )));
+    assert!(!configured_value_supported(&draft_with(
+        DocumentPropertyType::Number,
+        FrontmatterValue::Text("x".to_owned()),
+    )));
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::Boolean,
+        FrontmatterValue::Boolean(true),
+    )));
+    assert!(!configured_value_supported(&draft_with(
+        DocumentPropertyType::Boolean,
+        FrontmatterValue::Text("x".to_owned()),
+    )));
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::Text,
+        FrontmatterValue::Null,
+    )));
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::LongText,
+        FrontmatterValue::Text("x".to_owned()),
+    )));
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::DateTime,
+        FrontmatterValue::Text("2026-09-16T12:00:00Z".to_owned()),
+    )));
+    assert!(!configured_value_supported(&draft_with(
+        DocumentPropertyType::DateTime,
+        FrontmatterValue::Text("not a date".to_owned()),
+    )));
+    // A list without configured options stays free-form.
+    assert!(configured_value_supported(&draft_with(
+        DocumentPropertyType::List,
+        FrontmatterValue::Text("x".to_owned()),
+    )));
+}
+
+#[test]
+fn parse_number_should_accept_and_reject_inputs() {
+    assert_eq!(parse_number("42"), Some(serde_json::Number::from(42)));
+    assert_eq!(parse_number("  -7  "), Some(serde_json::Number::from(-7)));
+    assert_eq!(parse_number("1.5"), serde_json::Number::from_f64(1.5));
+    assert_eq!(parse_number("   "), None);
+    assert_eq!(parse_number("abc"), None);
+}
+
+#[test]
+fn simple_value_helpers_should_format_values() {
+    assert_eq!(frontmatter_text(&FrontmatterValue::Boolean(true)), "true");
+    assert_eq!(
+        frontmatter_text(&FrontmatterValue::Number(serde_json::Number::from(3))),
+        "3"
+    );
+    assert_eq!(frontmatter_text(&FrontmatterValue::Null), "");
+    assert_eq!(
+        frontmatter_text(&FrontmatterValue::Object(vec![(
+            "k".to_owned(),
+            FrontmatterValue::Text("v".to_owned())
+        )])),
+        "{\"k\":\"v\"}"
+    );
+    assert_eq!(
+        frontmatter_list_text(&FrontmatterValue::List(vec![
+            FrontmatterValue::Text("a".to_owned()),
+            FrontmatterValue::Text("b".to_owned()),
+        ])),
+        "a, b"
+    );
+    assert_eq!(display_title(TITLE_KEY), gettext("Title"));
+    assert_eq!(display_title("author"), "author");
+    assert_eq!(
+        list_value("a, b ,, c"),
+        FrontmatterValue::List(vec![
+            FrontmatterValue::Text("a".to_owned()),
+            FrontmatterValue::Text("b".to_owned()),
+            FrontmatterValue::Text("c".to_owned()),
+        ])
+    );
+
+    let preview = preview_text(&FrontmatterValue::Text("x".repeat(80)));
+    assert!(preview.ends_with('…'));
+    assert_eq!(preview.chars().count(), 60);
+}
+
+#[test]
+fn normalized_default_value_should_coerce_mismatches() {
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!("x")),
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!("x")),
+        serde_json::json!(false)
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::List, &serde_json::json!("x")),
+        serde_json::json!([])
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::Text, &serde_json::json!(1)),
+        serde_json::json!("")
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!(3)),
+        serde_json::json!(3)
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!(true)),
+        serde_json::json!(true)
+    );
+    assert_eq!(
+        normalized_default_value(DocumentPropertyType::List, &serde_json::json!(["a"])),
+        serde_json::json!(["a"])
+    );
+}
+
+#[test]
+fn normalized_default_properties_should_drop_blank_reserved_and_duplicate_keys() {
+    let draft = |key: &str| {
+        let mut draft = PropertyDraft::blank();
+        draft.key = key.to_owned();
+        draft.value = FrontmatterValue::Text("v".to_owned());
+        draft
+    };
+    let normalized = normalized_default_properties(&[
+        draft("title"),
+        draft(""),
+        draft("author"),
+        draft("author"),
+    ]);
+    assert_eq!(normalized.len(), 1);
+    assert_eq!(normalized[0].key, "author");
+}
+
+#[test]
+fn parse_number_should_accept_an_unsigned_integer() {
+    assert_eq!(
+        parse_number("18446744073709551615"),
+        Some(serde_json::Number::from(u64::MAX))
+    );
+}

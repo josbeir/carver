@@ -71,14 +71,6 @@ pub enum PropertyKind {
     Mixed,
 }
 
-impl PropertyKind {
-    /// Returns whether the kind can be chosen for a user-configured property.
-    #[must_use]
-    pub const fn is_selectable(self) -> bool {
-        matches!(self, Self::Text | Self::Number | Self::Boolean | Self::List)
-    }
-}
-
 /// A discovered frontmatter property with display metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -1077,5 +1069,92 @@ mod tests {
             matching(BaseFilterOperator::LessOrEqual, "2026-09-26T13:00:00+01:00"),
             vec!["early".to_owned(), "boundary".to_owned(), "late".to_owned()]
         );
+    }
+
+    #[test]
+    fn range_comparison_should_ignore_non_date_and_missing_values() {
+        // A non-range operator never takes the instant path even when both sides look like dates.
+        assert_eq!(
+            compares_as_instant(
+                BaseFilterOperator::Equals,
+                &serde_json::json!("2026-09-16"),
+                &serde_json::json!("2026-09-16")
+            ),
+            None
+        );
+
+        let rows = vec![date_row(0, "missing", None)];
+        let matched = project_base_rows(
+            rows,
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::String("2026-01-01".to_owned())),
+            }],
+            &[],
+        );
+        assert!(matched.is_empty());
+    }
+
+    #[test]
+    fn presence_filters_should_cover_present_and_missing_arms() {
+        let rows = vec![
+            date_row(0, "present", Some("2026-09-16")),
+            date_row(1, "missing", None),
+        ];
+        let present = project_base_rows(
+            rows.clone(),
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::IsPresent,
+                value: None,
+            }],
+            &[],
+        );
+        assert_eq!(present.len(), 1);
+        let missing = project_base_rows(
+            rows,
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::IsMissing,
+                value: None,
+            }],
+            &[],
+        );
+        assert_eq!(missing.len(), 1);
+    }
+
+    #[test]
+    fn numeric_comparison_should_fall_back_when_sides_are_not_numbers() {
+        let mut text_row = date_row(0, "text", None);
+        text_row.properties = serde_json::json!({"when": "five"});
+        let by_date = project_base_rows(
+            vec![text_row],
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::String("2026-01-01".to_owned())),
+            }],
+            &[],
+        );
+        assert!(by_date.is_empty());
+
+        let mut number_row = date_row(0, "number", None);
+        number_row.properties = serde_json::json!({"when": 5});
+        let by_bool = project_base_rows(
+            vec![number_row],
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::Bool(true)),
+            }],
+            &[],
+        );
+        assert!(by_bool.is_empty());
     }
 }
