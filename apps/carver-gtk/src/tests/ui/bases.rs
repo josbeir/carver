@@ -5,6 +5,9 @@ use crate::ui::tests::support::{
 };
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
+use std::{cell::Cell, rc::Rc};
+
+use carver_config::Config;
 
 pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestResult {
     let (_temp, client) = test_state()?;
@@ -563,5 +566,162 @@ pub(super) fn base_field_picker_should_add_a_valid_custom_path() -> TestResult {
     }));
     dialog.close();
     parent.close();
+    Ok(())
+}
+pub(super) fn assert_base_loading_delay() -> TestResult {
+    use crate::mvu::{
+        AppDispatcher, AppModel, AppMsg, BasesMsg, LoadState, RequestId, Route, update,
+    };
+    let dispatcher = AppDispatcher::default();
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let pages = refs.pages.clone();
+    let routes = gtk::Stack::new();
+    routes.add_named(&widget, Some("base"));
+    let view = crate::view::ViewRefs::new(routes, adw::StatusPage::new(), adw::StatusPage::new())
+        .with_dispatcher(dispatcher)
+        .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(carver_sdk::BaseId::new());
+    model.bases.definitions.state = LoadState::Loading(RequestId(1));
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(1))),
+    );
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("status"));
+    model.bases.definitions.state = LoadState::Ready(vec![carver_sdk::BaseDefinition {
+        id: model.bases.selected.ok_or("selected base")?,
+        name: "Projects".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 0,
+    }]);
+    pages.set_visible_child_name("grid");
+    model.bases.rows.state = LoadState::Loading(RequestId(2));
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    let _ = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(2))),
+    );
+    view.render(&model);
+    assert_eq!(pages.visible_child_name().as_deref(), Some("status"));
+    Ok(())
+}
+pub(super) fn assert_base_note_keyboard_activation() -> TestResult {
+    use crate::mvu::{AppDispatcher, AppModel, AppRuntime, Route};
+    let (_temporary, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let note = client.create_note(category.id)?;
+    let dispatcher = AppDispatcher::default();
+    let routes = gtk::Stack::new();
+    for route in ["browser", "editor"] {
+        routes.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(route));
+    }
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&Config::default()),
+        crate::view::ViewRefs::new(routes, adw::StatusPage::new(), adw::StatusPage::new()),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Projects".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: note.id,
+        revision: note.revision,
+        name: "Keyboard note".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({}),
+    };
+    crate::ui::bases::render_base(&refs, &definition, &[row], &dispatcher);
+    let window = gtk::Window::new();
+    window.set_child(Some(&widget));
+    window.present();
+    let name = format!("base-note:{}", note.id);
+    assert!(run_main_context_until(|| widget_as::<gtk::Button>(
+        &widget, &name
+    )
+    .is_some_and(|button| button.grab_focus())));
+    let button = widget_as::<gtk::Button>(&widget, &name).ok_or("base note button")?;
+    assert!(button.activate());
+    assert!(run_main_context_until(
+        || runtime.model().route == Route::Editor
+    ));
+    window.close();
+    Ok(())
+}
+pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
+    let sidebar = crate::ui::sidebar::build_sidebar(
+        &crate::mvu::AppDispatcher::default(),
+        &adw::NavigationSplitView::new(),
+    );
+    let base = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Projects".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 7,
+    };
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    model.bases.definitions.state = crate::mvu::LoadState::Ready(vec![base.clone()]);
+    model.sidebar.state = crate::mvu::LoadState::Ready(Vec::new());
+    sidebar.render(&model);
+    let name = format!("base:{}", base.id);
+    let button = widget_as::<gtk::Button>(&sidebar.widget, &name).ok_or("base button")?;
+    model.route = crate::mvu::Route::Base;
+    model.bases.selected = Some(base.id);
+    sidebar.render(&model);
+    assert!(button.has_css_class("sidebar-active"));
+    assert!(sidebar.list.selected_row().is_none());
+    model.route = crate::mvu::Route::Editor;
+    model.editor_return_route = crate::mvu::Route::Base;
+    sidebar.render(&model);
+    assert!(button.has_css_class("sidebar-active"));
+    model.route = crate::mvu::Route::Browser;
+    sidebar.render(&model);
+    assert!(!button.has_css_class("sidebar-active"));
+    assert!(sidebar.list.selected_row().is_some());
+    for state in [
+        crate::mvu::LoadState::Loading(crate::mvu::RequestId(1)),
+        crate::mvu::LoadState::Failed(crate::mvu::UiError::new("offline")),
+    ] {
+        model.bases.definitions.state = state;
+        sidebar.render(&model);
+        assert_eq!(
+            widget_as::<gtk::Button>(&sidebar.widget, &name),
+            Some(button.clone())
+        );
+        assert!(button.is_sensitive());
+    }
+    model.bases.definitions.state = crate::mvu::LoadState::Ready(Vec::new());
+    sidebar.render(&model);
+    assert!(widget_as::<gtk::Button>(&sidebar.widget, &name).is_none());
     Ok(())
 }

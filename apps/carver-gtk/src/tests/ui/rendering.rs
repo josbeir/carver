@@ -160,3 +160,23 @@ pub(super) fn code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline() 
     fixture.window.close();
     Ok(())
 }
+pub(super) fn assert_thumbnail_should_follow_markup_kind(
+    root: &gtk::Widget,
+    source: &gtk::TextView,
+    path: &str,
+    original: &str,
+) {
+    let has_thumbnail = || {
+        widget_as::<gtk::Button>(root, "editor-media-item")
+            .and_then(|button| button.child())
+            .and_then(|child| child.first_child())
+            .filter(|child| child.has_css_class("media-thumbnail"))
+            .and_then(|child| child.first_child())
+            .and_downcast::<gtk::Image>()
+            .is_some_and(|image| image.paintable().is_some())
+    };
+    source.buffer().set_text(&format!("[Diagram]({path})"));
+    assert!(run_main_context_until(|| !has_thumbnail()));
+    source.buffer().set_text(original);
+    assert!(run_main_context_until(has_thumbnail));
+}
