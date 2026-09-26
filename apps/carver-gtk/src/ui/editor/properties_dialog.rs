@@ -942,6 +942,10 @@ pub(crate) fn show(
     } else {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Properties"));
+        group.set_widget_name("document-properties-group");
+        group.set_description(Some(&gettext(
+            "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences.",
+        )));
         let drafts: Drafts = Rc::new(RefCell::new(initial_drafts(request)));
         let rows: Rows = Rc::new(RefCell::new(Vec::new()));
         let on_change: Rc<dyn Fn()> = Rc::new(|| {});

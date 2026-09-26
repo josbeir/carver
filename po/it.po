@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 15:45+0200\n"
+"POT-Creation-Date: 2026-09-26 15:59+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -134,7 +134,7 @@ msgstr "Carica altre righe"
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1275
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1279
 msgid "Name"
 msgstr "Nome"
 
@@ -757,8 +757,8 @@ msgid "Show a button over the editor to edit document properties."
 msgstr "Mostra un pulsante sopra l’editor per modificare le proprietà del documento."
 
 #: apps/carver-gtk/src/ui/dialogs.rs:636
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1009
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1020
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1013
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1024
 msgid "Default properties"
 msgstr "Proprietà predefinite"
 
@@ -1354,53 +1354,57 @@ msgstr "Contenuto"
 msgid "Properties"
 msgstr "Proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:952
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1025
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:947
+msgid "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences."
+msgstr "Le proprietà di questa nota sono memorizzate nel suo frontmatter. Configura le proprietà predefinite per le nuove note in Preferenze."
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:956
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1029
 msgid "Add property"
 msgstr "Aggiungi proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1022
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1026
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "Queste proprietà sono proposte in ogni finestra delle proprietà del documento e compilano le nuove note quando è attivo."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1281
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1285
 msgid "Type"
 msgstr "Tipo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1289
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1293
 msgid "New notes use today's date"
 msgstr "Le nuove note usano la data di oggi"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1291
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1295
 msgid "New notes use the current date and time"
 msgstr "Le nuove note usano la data e l’ora correnti"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1300
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1304
 msgid "Options"
 msgstr "Opzioni"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1307
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1311
 msgid "Value"
 msgstr "Valore"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1317
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1321
 msgid "Comma-separated values offered as a dropdown."
 msgstr "Valori separati da virgole offerti come elenco a discesa."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1328
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1332
 msgid "Allow multiple values"
 msgstr "Consenti più valori"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1353
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1357
 msgid "New property"
 msgstr "Nuova proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1417
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1419
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1421
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1423
 msgid "Remove property"
 msgstr "Rimuovi proprietà"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1637
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1641
 msgid "Title"
 msgstr "Titolo"
 

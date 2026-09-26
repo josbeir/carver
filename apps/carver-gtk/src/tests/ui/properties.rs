@@ -63,6 +63,13 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
         .ok_or("document properties dialog")?;
     let dialog_root = dialog.upcast_ref();
     assert!(widget_as::<gtk::TextView>(dialog_root, "document-properties-raw").is_none());
+    // The group points users at Preferences for configuring defaults.
+    assert!(
+        widget_as::<adw::PreferencesGroup>(dialog_root, "document-properties-group")
+            .and_then(|group| group.description())
+            .is_some_and(|text| text.contains("Preferences")),
+        "the dialog should introduce default properties via Preferences"
+    );
     // The always-present title field is a simple text row, not an expander.
     assert!(widget_as::<adw::EntryRow>(dialog_root, "document-property-value-0").is_some());
     widget_as::<gtk::Button>(dialog_root, "document-properties-save")
