@@ -10,12 +10,16 @@
 }
 
 .category-count-badge {
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 999px;
   background: alpha(currentColor, 0.10);
   font-size: 0.9em;
   padding: 0;
+}
+
+.category-count-badge.capped {
+  font-size: 0.72em;
 }
 
 .all-notes-icon {

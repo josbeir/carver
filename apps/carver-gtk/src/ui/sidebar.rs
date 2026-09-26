@@ -327,6 +327,9 @@ fn count_badge(widget_name: &str, note_count: usize, color_class: Option<&str>) 
     badge.set_valign(gtk::Align::Center);
     badge.set_halign(gtk::Align::Center);
     badge.add_css_class("category-count-badge");
+    if note_count > 99 {
+        badge.add_css_class("capped");
+    }
     if let Some(color_class) = color_class {
         badge.add_css_class(color_class);
     }
