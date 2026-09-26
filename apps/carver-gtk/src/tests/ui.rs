@@ -60,6 +60,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
     properties::document_properties_button_should_follow_mode_and_setting()?;
     properties::add_default_properties_should_offer_only_without_frontmatter()?;
+    properties::list_default_should_render_a_dropdown_when_single()?;
+    properties::list_default_should_render_switches_when_multiple()?;
+    properties::list_default_settings_should_offer_options_and_multiple()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;

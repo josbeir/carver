@@ -274,18 +274,21 @@ fn document_properties_should_round_trip_typed_entries() -> Result<(), Box<dyn s
             key: String::from("author"),
             kind: PropertyKind::Text,
             multiline: false,
+            multiple: false,
             value: serde_json::Value::String(String::from("Jane")),
         },
         DocumentProperty {
             key: String::from("tags"),
             kind: PropertyKind::List,
             multiline: false,
+            multiple: false,
             value: serde_json::json!(["rust", "gtk"]),
         },
         DocumentProperty {
             key: String::from("summary"),
             kind: PropertyKind::Text,
             multiline: true,
+            multiple: false,
             value: serde_json::Value::String(String::new()),
         },
     ];
@@ -309,6 +312,7 @@ fn document_properties_default_source_should_be_gated_by_enabled() {
             key: String::from("author"),
             kind: PropertyKind::Text,
             multiline: false,
+            multiple: false,
             value: serde_json::Value::String(String::from("Jane")),
         }],
     };
@@ -324,6 +328,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
         key: key.to_owned(),
         kind,
         multiline: false,
+        multiple: false,
         value: serde_json::Value::Null,
     };
 
@@ -348,6 +353,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
             key: String::from("count"),
             kind: PropertyKind::Number,
             multiline: false,
+            multiple: false,
             value: serde_json::Value::String(String::from("three")),
         }],
     };
@@ -378,4 +384,74 @@ fn loading_should_reject_a_reserved_default_property() -> Result<(), Box<dyn std
         Err(ConfigError::InvalidDocumentProperties(_))
     ));
     Ok(())
+}
+
+#[test]
+fn document_properties_list_defaults_should_seed_the_first_option() {
+    let list = |multiple: bool| DocumentProperty {
+        key: String::from("status"),
+        kind: PropertyKind::List,
+        multiline: false,
+        multiple,
+        value: serde_json::json!(["active", "archived"]),
+    };
+
+    let single = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![list(false)],
+    };
+    assert_eq!(single.default_source(), "---\nstatus: active\n---\n");
+
+    let multi = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![list(true)],
+    };
+    assert_eq!(multi.default_source(), "---\nstatus:\n- active\n---\n");
+}
+
+#[test]
+fn document_properties_list_without_options_should_seed_nothing() {
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![DocumentProperty {
+            key: String::from("status"),
+            kind: PropertyKind::List,
+            multiline: false,
+            multiple: false,
+            value: serde_json::json!([]),
+        }],
+    };
+    assert_eq!(config.default_source(), "");
+}
+
+#[test]
+fn document_properties_should_reject_invalid_list_options() {
+    let non_string = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![DocumentProperty {
+            key: String::from("status"),
+            kind: PropertyKind::List,
+            multiline: false,
+            multiple: false,
+            value: serde_json::json!(["ok", 3]),
+        }],
+    };
+    assert!(non_string.validate().is_err());
+
+    let multiple_on_text = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            kind: PropertyKind::Text,
+            multiline: false,
+            multiple: true,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    assert!(multiple_on_text.validate().is_err());
 }

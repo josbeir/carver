@@ -322,16 +322,48 @@ pub struct DocumentProperty {
     /// Whether text values use a multi-line editor.
     #[serde(default)]
     pub multiline: bool,
-    /// Default value.
+    /// Whether a list property allows selecting more than one option.
+    #[serde(default)]
+    pub multiple: bool,
+    /// The default value, or the option list (`List`).
     #[serde(default)]
     pub value: serde_json::Value,
 }
 
 impl DocumentProperty {
-    /// Converts a configured default into a domain frontmatter field.
+    /// Returns the option list for a list property.
     #[must_use]
-    pub fn to_frontmatter_field(&self) -> FrontmatterField {
-        FrontmatterField::new(self.key.clone(), FrontmatterValue::from_json(&self.value))
+    pub fn options(&self) -> Vec<String> {
+        self.value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(ToOwned::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Converts a configured default into the field seeded into a new note.
+    ///
+    /// A list property seeds its first option: a scalar when it is single-select, or a one-item
+    /// list when it allows multiple values. A list with no options seeds nothing.
+    #[must_use]
+    pub fn default_field(&self) -> Option<FrontmatterField> {
+        if self.kind == PropertyKind::List {
+            let first = self.options().into_iter().next()?;
+            let value = if self.multiple {
+                FrontmatterValue::List(vec![FrontmatterValue::Text(first)])
+            } else {
+                FrontmatterValue::Text(first)
+            };
+            return Some(FrontmatterField::new(self.key.clone(), value));
+        }
+        Some(FrontmatterField::new(
+            self.key.clone(),
+            FrontmatterValue::from_json(&self.value),
+        ))
     }
 }
 
@@ -345,7 +377,7 @@ impl DocumentPropertiesConfig {
         let fields: Vec<FrontmatterField> = self
             .entries
             .iter()
-            .map(DocumentProperty::to_frontmatter_field)
+            .filter_map(DocumentProperty::default_field)
             .collect();
         frontmatter_source(&fields)
     }
@@ -374,6 +406,11 @@ impl DocumentPropertiesConfig {
             if entry.multiline && entry.kind != PropertyKind::Text {
                 return Err(format!("property '{key}' can only be multi-line when text"));
             }
+            if entry.multiple && entry.kind != PropertyKind::List {
+                return Err(format!(
+                    "property '{key}' can only allow multiple values when it is a list"
+                ));
+            }
             if !value_matches_kind(entry.kind, &entry.value) {
                 return Err(format!("property '{key}' value does not match its kind"));
             }
@@ -393,7 +430,10 @@ fn value_matches_kind(kind: PropertyKind, value: &serde_json::Value) -> bool {
         PropertyKind::Text => value.is_string(),
         PropertyKind::Number => value.is_number(),
         PropertyKind::Boolean => value.is_boolean(),
-        PropertyKind::List => value.is_array(),
+        // A list property's value is its option list, so every entry is a string.
+        PropertyKind::List => value
+            .as_array()
+            .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
         PropertyKind::Null | PropertyKind::Mixed => false,
     }
 }

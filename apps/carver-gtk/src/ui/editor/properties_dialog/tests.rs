@@ -24,6 +24,7 @@ fn default_property(key: &str, value: &str) -> DocumentProperty {
         key: key.to_owned(),
         kind: PropertyKind::Text,
         multiline: false,
+        multiple: false,
         value: serde_json::Value::String(value.to_owned()),
     }
 }
@@ -84,6 +85,38 @@ fn initial_drafts_should_show_an_empty_title_without_frontmatter() {
     assert_eq!(drafts.len(), 1);
     assert_eq!(drafts[0].key, "title");
     assert_eq!(drafts[0].value, FrontmatterValue::Text(String::new()));
+}
+
+#[test]
+fn initial_drafts_should_carry_list_options_from_configuration() {
+    let list_default = DocumentProperty {
+        key: "status".to_owned(),
+        kind: PropertyKind::List,
+        multiline: false,
+        multiple: true,
+        value: serde_json::json!(["active", "archived"]),
+    };
+    let request = request(
+        Some(FrontmatterDocument {
+            format: FrontmatterFormat::Yaml,
+            fields: vec![FrontmatterField::new(
+                "status",
+                FrontmatterValue::List(vec![FrontmatterValue::Text("active".to_owned())]),
+            )],
+            error: None,
+        }),
+        vec![list_default],
+        true,
+    );
+
+    let drafts = initial_drafts(&request);
+    let Some(status) = drafts.iter().find(|draft| draft.key == "status") else {
+        panic!("expected a status row");
+    };
+
+    assert!(status.multiple);
+    assert_eq!(status.options, ["active", "archived"]);
+    assert!(!status.editable_kind);
 }
 
 #[test]
