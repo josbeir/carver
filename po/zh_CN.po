@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 16:02+0200\n"
+"POT-Creation-Date: 2026-09-26 16:29+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -166,7 +166,7 @@ msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 #: apps/carver-gtk/src/ui/editor/mod.rs:1620
 #: apps/carver-gtk/src/ui/editor/mod.rs:1710
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
-#: apps/carver-gtk/src/ui/editor/web.rs:536
+#: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:503
@@ -1500,36 +1500,36 @@ msgstr "插入图片…"
 msgid "Original size"
 msgstr "原始大小"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:367
+#: apps/carver-gtk/src/ui/editor/web.rs:363
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "此笔记无法安全编辑{detail}。改为显示预览。"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:382
+#: apps/carver-gtk/src/ui/editor/web.rs:378
 msgid "Could not read pasted image"
 msgstr "无法读取粘贴的图片"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:520
+#: apps/carver-gtk/src/ui/editor/web.rs:516
 #: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Link text"
 msgstr "链接文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:526
+#: apps/carver-gtk/src/ui/editor/web.rs:522
 msgctxt "link dialog"
 msgid "Text"
 msgstr "文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:528
+#: apps/carver-gtk/src/ui/editor/web.rs:524
 #: apps/carver-gtk/src/ui/formatting.rs:344
 msgid "Address"
 msgstr "地址"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:531
+#: apps/carver-gtk/src/ui/editor/web.rs:527
 #: apps/carver-gtk/src/ui/formatting.rs:347
 msgid "Insert Link"
 msgstr "插入链接"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:537
+#: apps/carver-gtk/src/ui/editor/web.rs:533
 #: apps/carver-gtk/src/ui/formatting.rs:97
 #: apps/carver-gtk/src/ui/formatting.rs:353
 msgid "Insert"

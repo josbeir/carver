@@ -159,3 +159,35 @@ export type DocumentTarget =
        */
       path: string;
     };
+
+/**
+ * Dimensions for inserting or resizing a rich-editor table.
+ */
+export interface TableCommand {
+  /**
+   * Number of columns.
+   */
+  columns: number;
+  /**
+   * Whether the first row is a header.
+   */
+  header: boolean;
+  /**
+   * Total number of rows, including the optional header row.
+   */
+  rows: number;
+}
+
+/**
+ * A labelled link to insert over the current selection.
+ */
+export interface LinkCommand {
+  /**
+   * Link destination.
+   */
+  destination: string;
+  /**
+   * Visible link text.
+   */
+  text: string;
+}

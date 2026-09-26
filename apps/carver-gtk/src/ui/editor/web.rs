@@ -7,7 +7,7 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_config::DocumentWidth;
-use carver_editor_protocol::{EditorCommand, EditorEvent, SelectionState};
+use carver_editor_protocol::{EditorCommand, EditorEvent, LinkCommand, SelectionState};
 use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita::prelude::*;
@@ -161,21 +161,17 @@ impl RichEditor {
         let (name, argument) = match command {
             EditorCommand::Named(name) => (name.as_str(), String::from("null")),
             EditorCommand::Heading(level) => ("heading", level.to_string()),
-            EditorCommand::InsertTable {
-                rows,
-                columns,
-                header,
-            } => (
+            EditorCommand::InsertTable(table) => (
                 "insert-table",
-                format!("{{rows:{rows},columns:{columns},header:{header}}}"),
+                serde_json::to_string(table).unwrap_or_else(|_| String::from("null")),
             ),
             EditorCommand::ImageWidth(width) => (
                 "image-width",
                 width.map_or_else(|| String::from("0"), |value| value.to_string()),
             ),
-            EditorCommand::InsertLink { text, destination } => (
+            EditorCommand::InsertLink(link) => (
                 "insert-link",
-                format!("{{text:{},destination:{}}}", json(text), json(destination)),
+                serde_json::to_string(link).unwrap_or_else(|_| String::from("null")),
             ),
         };
         self.evaluate(&format!(
@@ -544,10 +540,10 @@ fn present_rich_link_dialog(
             let destination = url.text();
             if !text.trim().is_empty() && !destination.trim().is_empty() {
                 let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
-                    EditorCommand::InsertLink {
+                    EditorCommand::InsertLink(LinkCommand {
                         text: text.to_string(),
                         destination: destination.to_string(),
-                    },
+                    }),
                 )));
             }
         }

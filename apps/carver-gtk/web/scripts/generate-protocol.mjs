@@ -5,35 +5,35 @@ import { compile } from 'json-schema-to-typescript';
 
 const webRoot = new URL('../', import.meta.url);
 const output = new URL('src/editor/protocol.generated.ts', webRoot);
-async function generateTypes(name, args, bannerComment) {
-  const schema = JSON.parse(
-    execFileSync(
-      'cargo',
-      [
-        'run',
-        '--quiet',
-        '--locked',
-        '-p',
-        'carver-editor-protocol',
-        '--features',
-        'json-schema',
-        '--example',
-        'export-editor-schema',
-        '--',
-        ...args,
-      ],
-      { cwd: fileURLToPath(webRoot), encoding: 'utf8' },
-    ),
-  );
+const schemas = JSON.parse(
+  execFileSync(
+    'cargo',
+    [
+      'run',
+      '--quiet',
+      '--locked',
+      '-p',
+      'carver-editor-protocol',
+      '--features',
+      'json-schema',
+      '--example',
+      'export-editor-schema',
+    ],
+    { cwd: fileURLToPath(webRoot), encoding: 'utf8' },
+  ),
+);
+async function generateTypes(name, schema, bannerComment) {
   return compile(schema, name, { additionalProperties: false, bannerComment });
 }
 const types = [
   await generateTypes(
     'EditorEvent',
-    [],
+    schemas.EditorEvent,
     '// Generated from carver-editor-protocol. Run npm run protocol:generate; do not edit.',
   ),
-  await generateTypes('DocumentTarget', ['target'], ''),
+  await generateTypes('DocumentTarget', schemas.DocumentTarget, ''),
+  await generateTypes('TableCommand', schemas.TableCommand, ''),
+  await generateTypes('LinkCommand', schemas.LinkCommand, ''),
 ].join('\n');
 const formatted = execFileSync(
   fileURLToPath(new URL('node_modules/.bin/biome', webRoot)),

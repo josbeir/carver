@@ -8,7 +8,7 @@ use std::{
 
 use carver_config::EditorMode;
 use carver_domain::source_analysis::SourceContext;
-use carver_editor_protocol::{EditorCommand, SelectionState};
+use carver_editor_protocol::{EditorCommand, SelectionState, TableCommand};
 use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -316,11 +316,11 @@ impl CommandRouter {
                 let _ = self
                     .dispatcher
                     .dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
-                        EditorCommand::InsertTable {
+                        EditorCommand::InsertTable(TableCommand {
                             rows,
                             columns,
                             header,
-                        },
+                        }),
                     )));
             }
             EditorMode::Rendered => {}
