@@ -10,6 +10,7 @@ import {
 } from '@markup-carve/carve-grammars/tiptap';
 import { unsupportedForEditing, unsupportedForPasting } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
+import { InertCarveFrontmatter } from './inert-frontmatter';
 import { resizeSelectedImage } from './image-resize';
 import { insertOrUpdateLink, linkContext } from './link';
 import { ClipboardPasteSanitizer } from './paste-sanitizer';
@@ -105,7 +106,8 @@ export class EditorController implements RichEditorApi {
     this.editor = this.createEditor({
       element: this.root,
       extensions: [
-        CarveKit.configure({ image: false }),
+        CarveKit.configure({ image: false, carveFrontmatter: false }),
+        InertCarveFrontmatter,
         CarveImage,
         CodeSyntaxDecorations,
         DiffCodeBlockDecorations,
