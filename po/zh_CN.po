@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 11:28+0200\n"
+"POT-Creation-Date: 2026-09-26 11:47+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -162,9 +162,9 @@ msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 #: apps/carver-gtk/src/ui/dialogs.rs:1277
 #: apps/carver-gtk/src/ui/dialogs.rs:1529
 #: apps/carver-gtk/src/ui/dialogs.rs:1714
-#: apps/carver-gtk/src/ui/editor/mod.rs:1566
-#: apps/carver-gtk/src/ui/editor/mod.rs:1656
-#: apps/carver-gtk/src/ui/editor/web.rs:531
+#: apps/carver-gtk/src/ui/editor/mod.rs:1576
+#: apps/carver-gtk/src/ui/editor/mod.rs:1666
+#: apps/carver-gtk/src/ui/editor/web.rs:536
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:494
@@ -471,7 +471,7 @@ msgid "Note actions"
 msgstr "笔记操作"
 
 #: apps/carver-gtk/src/ui/browser.rs:729
-#: apps/carver-gtk/src/ui/editor/mod.rs:122
+#: apps/carver-gtk/src/ui/editor/mod.rs:127
 msgid "Remove from Favorites"
 msgstr "从收藏中移除"
 
@@ -484,12 +484,12 @@ msgid "Move…"
 msgstr "移动…"
 
 #: apps/carver-gtk/src/ui/browser.rs:773
-#: apps/carver-gtk/src/ui/editor/mod.rs:1403
+#: apps/carver-gtk/src/ui/editor/mod.rs:1413
 msgid "Export note…"
 msgstr "导出笔记…"
 
 #: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1715
-#: apps/carver-gtk/src/ui/editor/mod.rs:1410
+#: apps/carver-gtk/src/ui/editor/mod.rs:1420
 msgid "Move to Trash"
 msgstr "移到回收站"
 
@@ -555,8 +555,8 @@ msgid "Toggle favorite"
 msgstr "切换收藏"
 
 #: apps/carver-gtk/src/ui/dialogs.rs:87
-#: apps/carver-gtk/src/ui/editor/mod.rs:1558
-#: apps/carver-gtk/src/ui/editor/mod.rs:1621
+#: apps/carver-gtk/src/ui/editor/mod.rs:1568
+#: apps/carver-gtk/src/ui/editor/mod.rs:1631
 msgid "Export note"
 msgstr "导出笔记"
 
@@ -1077,7 +1077,7 @@ msgid "Hide document sidebar"
 msgstr "隐藏文档侧边栏"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:120
-#: apps/carver-gtk/src/ui/editor/mod.rs:605
+#: apps/carver-gtk/src/ui/editor/mod.rs:612
 msgid "Show document sidebar"
 msgstr "显示文档侧边栏"
 
@@ -1116,110 +1116,110 @@ msgid "{count} match"
 msgid_plural "{count} matches"
 msgstr[0] "{count} 个匹配项"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:124
-#: apps/carver-gtk/src/ui/editor/mod.rs:600
-#: apps/carver-gtk/src/ui/editor/mod.rs:1361
+#: apps/carver-gtk/src/ui/editor/mod.rs:129
+#: apps/carver-gtk/src/ui/editor/mod.rs:607
+#: apps/carver-gtk/src/ui/editor/mod.rs:1371
 msgid "Add to Favorites"
 msgstr "添加到收藏"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:576
+#: apps/carver-gtk/src/ui/editor/mod.rs:583
 msgctxt "editor mode"
 msgid "Edit"
 msgstr "编辑"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:577
+#: apps/carver-gtk/src/ui/editor/mod.rs:584
 msgid "Edit with rich text"
 msgstr "使用富文本编辑"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:583
+#: apps/carver-gtk/src/ui/editor/mod.rs:590
 msgctxt "editor mode"
 msgid "Source"
 msgstr "源码"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:584
+#: apps/carver-gtk/src/ui/editor/mod.rs:591
 msgid "Edit Carve markup"
 msgstr "编辑 Carve 标记"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:590
+#: apps/carver-gtk/src/ui/editor/mod.rs:597
 msgctxt "editor mode"
 msgid "Preview"
 msgstr "预览"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:591
+#: apps/carver-gtk/src/ui/editor/mod.rs:598
 msgid "Read-only preview"
 msgstr "只读预览"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:616
-#: apps/carver-gtk/src/ui/editor/mod.rs:1366
+#: apps/carver-gtk/src/ui/editor/mod.rs:623
+#: apps/carver-gtk/src/ui/editor/mod.rs:1376
 msgid "Show rendered preview"
 msgstr "显示渲染后的预览"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1355
+#: apps/carver-gtk/src/ui/editor/mod.rs:1365
 msgid "Note options"
 msgstr "笔记选项"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1393
+#: apps/carver-gtk/src/ui/editor/mod.rs:1403
 msgid "Copy note"
 msgstr "复制笔记"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1395
+#: apps/carver-gtk/src/ui/editor/mod.rs:1405
 msgid "Paste as Markdown"
 msgstr "粘贴为 Markdown"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1404
+#: apps/carver-gtk/src/ui/editor/mod.rs:1414
 msgid "Print…"
 msgstr "打印…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1535
+#: apps/carver-gtk/src/ui/editor/mod.rs:1545
 msgctxt "export dialog"
 msgid "Format"
 msgstr "格式"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1541
+#: apps/carver-gtk/src/ui/editor/mod.rs:1551
 msgid "Include managed files"
 msgstr "包含托管文件"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1543
+#: apps/carver-gtk/src/ui/editor/mod.rs:1553
 msgid "Create a portable ZIP archive with the document and its files."
 msgstr "创建包含文档及其文件的可移植 ZIP 压缩包。"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1560
+#: apps/carver-gtk/src/ui/editor/mod.rs:1570
 msgid "Export the current note, including any unsaved edits."
 msgstr "导出当前笔记，包括所有未保存的编辑。"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1567
+#: apps/carver-gtk/src/ui/editor/mod.rs:1577
 msgid "Export…"
 msgstr "导出…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1598
+#: apps/carver-gtk/src/ui/editor/mod.rs:1608
 msgid "Carve documents"
 msgstr "Carve 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1599
+#: apps/carver-gtk/src/ui/editor/mod.rs:1609
 msgid "Markdown documents"
 msgstr "Markdown 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1600
+#: apps/carver-gtk/src/ui/editor/mod.rs:1610
 msgid "HTML documents"
 msgstr "HTML 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1601
+#: apps/carver-gtk/src/ui/editor/mod.rs:1611
 msgid "PDF documents"
 msgstr "PDF 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1602
+#: apps/carver-gtk/src/ui/editor/mod.rs:1612
 msgid "Portable ZIP archives"
 msgstr "可移植 ZIP 压缩包"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1622
+#: apps/carver-gtk/src/ui/editor/mod.rs:1632
 msgid "Export"
 msgstr "导出"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1648
+#: apps/carver-gtk/src/ui/editor/mod.rs:1658
 msgid "Export may lose content"
 msgstr "导出可能会丢失内容"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1650
+#: apps/carver-gtk/src/ui/editor/mod.rs:1660
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1230,11 +1230,11 @@ msgstr ""
 "\n"
 "仍要导出吗？"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1657
+#: apps/carver-gtk/src/ui/editor/mod.rs:1667
 msgid "Export anyway"
 msgstr "仍要导出"
 
-#: apps/carver-gtk/src/ui/editor/preview.rs:116
+#: apps/carver-gtk/src/ui/editor/preview.rs:134
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
@@ -1342,36 +1342,36 @@ msgstr "插入图片…"
 msgid "Original size"
 msgstr "原始大小"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:362
+#: apps/carver-gtk/src/ui/editor/web.rs:367
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "此笔记无法安全编辑{detail}。改为显示预览。"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:377
+#: apps/carver-gtk/src/ui/editor/web.rs:382
 msgid "Could not read pasted image"
 msgstr "无法读取粘贴的图片"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:515
+#: apps/carver-gtk/src/ui/editor/web.rs:520
 #: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Link text"
 msgstr "链接文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:521
+#: apps/carver-gtk/src/ui/editor/web.rs:526
 msgctxt "link dialog"
 msgid "Text"
 msgstr "文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:523
+#: apps/carver-gtk/src/ui/editor/web.rs:528
 #: apps/carver-gtk/src/ui/formatting.rs:344
 msgid "Address"
 msgstr "地址"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:526
+#: apps/carver-gtk/src/ui/editor/web.rs:531
 #: apps/carver-gtk/src/ui/formatting.rs:347
 msgid "Insert Link"
 msgstr "插入链接"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:532
+#: apps/carver-gtk/src/ui/editor/web.rs:537
 #: apps/carver-gtk/src/ui/formatting.rs:97
 #: apps/carver-gtk/src/ui/formatting.rs:353
 msgid "Insert"

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 11:28+0200\n"
+"POT-Creation-Date: 2026-09-26 11:47+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -162,9 +162,9 @@ msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen bli
 #: apps/carver-gtk/src/ui/dialogs.rs:1277
 #: apps/carver-gtk/src/ui/dialogs.rs:1529
 #: apps/carver-gtk/src/ui/dialogs.rs:1714
-#: apps/carver-gtk/src/ui/editor/mod.rs:1566
-#: apps/carver-gtk/src/ui/editor/mod.rs:1656
-#: apps/carver-gtk/src/ui/editor/web.rs:531
+#: apps/carver-gtk/src/ui/editor/mod.rs:1576
+#: apps/carver-gtk/src/ui/editor/mod.rs:1666
+#: apps/carver-gtk/src/ui/editor/web.rs:536
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:494
@@ -473,7 +473,7 @@ msgid "Note actions"
 msgstr "Notitieacties"
 
 #: apps/carver-gtk/src/ui/browser.rs:729
-#: apps/carver-gtk/src/ui/editor/mod.rs:122
+#: apps/carver-gtk/src/ui/editor/mod.rs:127
 msgid "Remove from Favorites"
 msgstr "Uit favorieten verwijderen"
 
@@ -486,12 +486,12 @@ msgid "Move…"
 msgstr "Verplaatsen…"
 
 #: apps/carver-gtk/src/ui/browser.rs:773
-#: apps/carver-gtk/src/ui/editor/mod.rs:1403
+#: apps/carver-gtk/src/ui/editor/mod.rs:1413
 msgid "Export note…"
 msgstr "Notitie exporteren…"
 
 #: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1715
-#: apps/carver-gtk/src/ui/editor/mod.rs:1410
+#: apps/carver-gtk/src/ui/editor/mod.rs:1420
 msgid "Move to Trash"
 msgstr "Naar prullenbak verplaatsen"
 
@@ -561,8 +561,8 @@ msgid "Toggle favorite"
 msgstr "Favoriet aan/uit"
 
 #: apps/carver-gtk/src/ui/dialogs.rs:87
-#: apps/carver-gtk/src/ui/editor/mod.rs:1558
-#: apps/carver-gtk/src/ui/editor/mod.rs:1621
+#: apps/carver-gtk/src/ui/editor/mod.rs:1568
+#: apps/carver-gtk/src/ui/editor/mod.rs:1631
 msgid "Export note"
 msgstr "Notitie exporteren"
 
@@ -1083,7 +1083,7 @@ msgid "Hide document sidebar"
 msgstr "Documentzijbalk verbergen"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:120
-#: apps/carver-gtk/src/ui/editor/mod.rs:605
+#: apps/carver-gtk/src/ui/editor/mod.rs:612
 msgid "Show document sidebar"
 msgstr "Documentzijbalk tonen"
 
@@ -1123,110 +1123,110 @@ msgid_plural "{count} matches"
 msgstr[0] "{count} overeenkomst"
 msgstr[1] "{count} overeenkomsten"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:124
-#: apps/carver-gtk/src/ui/editor/mod.rs:600
-#: apps/carver-gtk/src/ui/editor/mod.rs:1361
+#: apps/carver-gtk/src/ui/editor/mod.rs:129
+#: apps/carver-gtk/src/ui/editor/mod.rs:607
+#: apps/carver-gtk/src/ui/editor/mod.rs:1371
 msgid "Add to Favorites"
 msgstr "Aan favorieten toevoegen"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:576
+#: apps/carver-gtk/src/ui/editor/mod.rs:583
 msgctxt "editor mode"
 msgid "Edit"
 msgstr "Bewerken"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:577
+#: apps/carver-gtk/src/ui/editor/mod.rs:584
 msgid "Edit with rich text"
 msgstr "Bewerken met opgemaakte tekst"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:583
+#: apps/carver-gtk/src/ui/editor/mod.rs:590
 msgctxt "editor mode"
 msgid "Source"
 msgstr "Bron"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:584
+#: apps/carver-gtk/src/ui/editor/mod.rs:591
 msgid "Edit Carve markup"
 msgstr "Carve-opmaak bewerken"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:590
+#: apps/carver-gtk/src/ui/editor/mod.rs:597
 msgctxt "editor mode"
 msgid "Preview"
 msgstr "Voorbeeld"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:591
+#: apps/carver-gtk/src/ui/editor/mod.rs:598
 msgid "Read-only preview"
 msgstr "Alleen-lezen voorbeeld"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:616
-#: apps/carver-gtk/src/ui/editor/mod.rs:1366
+#: apps/carver-gtk/src/ui/editor/mod.rs:623
+#: apps/carver-gtk/src/ui/editor/mod.rs:1376
 msgid "Show rendered preview"
 msgstr "Weergegeven voorbeeld tonen"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1355
+#: apps/carver-gtk/src/ui/editor/mod.rs:1365
 msgid "Note options"
 msgstr "Notitieopties"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1393
+#: apps/carver-gtk/src/ui/editor/mod.rs:1403
 msgid "Copy note"
 msgstr "Notitie kopiëren"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1395
+#: apps/carver-gtk/src/ui/editor/mod.rs:1405
 msgid "Paste as Markdown"
 msgstr "Plakken als Markdown"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1404
+#: apps/carver-gtk/src/ui/editor/mod.rs:1414
 msgid "Print…"
 msgstr "Afdrukken…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1535
+#: apps/carver-gtk/src/ui/editor/mod.rs:1545
 msgctxt "export dialog"
 msgid "Format"
 msgstr "Indeling"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1541
+#: apps/carver-gtk/src/ui/editor/mod.rs:1551
 msgid "Include managed files"
 msgstr "Beheerde bestanden opnemen"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1543
+#: apps/carver-gtk/src/ui/editor/mod.rs:1553
 msgid "Create a portable ZIP archive with the document and its files."
 msgstr "Maak een draagbaar ZIP-archief met het document en de bijbehorende bestanden."
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1560
+#: apps/carver-gtk/src/ui/editor/mod.rs:1570
 msgid "Export the current note, including any unsaved edits."
 msgstr "Exporteer de huidige notitie, inclusief niet-opgeslagen wijzigingen."
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1567
+#: apps/carver-gtk/src/ui/editor/mod.rs:1577
 msgid "Export…"
 msgstr "Exporteren…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1598
+#: apps/carver-gtk/src/ui/editor/mod.rs:1608
 msgid "Carve documents"
 msgstr "Carve-documenten"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1599
+#: apps/carver-gtk/src/ui/editor/mod.rs:1609
 msgid "Markdown documents"
 msgstr "Markdown-documenten"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1600
+#: apps/carver-gtk/src/ui/editor/mod.rs:1610
 msgid "HTML documents"
 msgstr "HTML-documenten"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1601
+#: apps/carver-gtk/src/ui/editor/mod.rs:1611
 msgid "PDF documents"
 msgstr "PDF-documenten"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1602
+#: apps/carver-gtk/src/ui/editor/mod.rs:1612
 msgid "Portable ZIP archives"
 msgstr "Draagbare ZIP-archieven"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1622
+#: apps/carver-gtk/src/ui/editor/mod.rs:1632
 msgid "Export"
 msgstr "Exporteren"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1648
+#: apps/carver-gtk/src/ui/editor/mod.rs:1658
 msgid "Export may lose content"
 msgstr "Exporteren kan inhoud verliezen"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1650
+#: apps/carver-gtk/src/ui/editor/mod.rs:1660
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1237,11 +1237,11 @@ msgstr ""
 "\n"
 "Toch exporteren?"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1657
+#: apps/carver-gtk/src/ui/editor/mod.rs:1667
 msgid "Export anyway"
 msgstr "Toch exporteren"
 
-#: apps/carver-gtk/src/ui/editor/preview.rs:116
+#: apps/carver-gtk/src/ui/editor/preview.rs:134
 msgid "Could not open the link in your default browser."
 msgstr "Kon de link niet openen in je standaardbrowser."
 
@@ -1349,36 +1349,36 @@ msgstr "Afbeelding invoegen…"
 msgid "Original size"
 msgstr "Oorspronkelijk formaat"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:362
+#: apps/carver-gtk/src/ui/editor/web.rs:367
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "Deze notitie kan niet veilig worden bewerkt{detail}. In plaats daarvan wordt het voorbeeld getoond."
 
-#: apps/carver-gtk/src/ui/editor/web.rs:377
+#: apps/carver-gtk/src/ui/editor/web.rs:382
 msgid "Could not read pasted image"
 msgstr "Kon geplakte afbeelding niet lezen"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:515
+#: apps/carver-gtk/src/ui/editor/web.rs:520
 #: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Link text"
 msgstr "Linktekst"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:521
+#: apps/carver-gtk/src/ui/editor/web.rs:526
 msgctxt "link dialog"
 msgid "Text"
 msgstr "Tekst"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:523
+#: apps/carver-gtk/src/ui/editor/web.rs:528
 #: apps/carver-gtk/src/ui/formatting.rs:344
 msgid "Address"
 msgstr "Adres"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:526
+#: apps/carver-gtk/src/ui/editor/web.rs:531
 #: apps/carver-gtk/src/ui/formatting.rs:347
 msgid "Insert Link"
 msgstr "Link invoegen"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:532
+#: apps/carver-gtk/src/ui/editor/web.rs:537
 #: apps/carver-gtk/src/ui/formatting.rs:97
 #: apps/carver-gtk/src/ui/formatting.rs:353
 msgid "Insert"
