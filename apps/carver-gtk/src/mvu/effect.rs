@@ -9,8 +9,8 @@ use carver_sdk::{
 
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
-    EditorExportWarningRequest, EditorPdfExportRequest, EditorSaveRequest, EditorSessionId,
-    RequestId, SourceImageTarget, TimerId,
+    EditorExportWarningRequest, EditorPdfExportRequest, EditorPropertiesRequest, EditorSaveRequest,
+    EditorSessionId, RequestId, SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
@@ -231,6 +231,11 @@ pub enum Effect {
         /// Immutable dialog request owned by the current editor session.
         request: EditorExportDialogRequest,
     },
+    /// Present the native document-properties dialog for an immutable editor snapshot.
+    ShowDocumentProperties {
+        /// Immutable snapshot and configured defaults owned by the current editor session.
+        request: EditorPropertiesRequest,
+    },
     /// Present warnings emitted while preparing an export.
     ShowEditorExportWarning {
         /// Immutable warning request awaiting a user decision.
@@ -252,6 +257,8 @@ pub enum Effect {
     CreateNote {
         /// Category that owns the note.
         category_id: CategoryId,
+        /// Canonical Carve source seeded from configured default properties.
+        source: String,
     },
     /// Convert and import one source document into an active category.
     ImportNote {

@@ -410,6 +410,15 @@ impl ViewRefs {
             self.show_external_edit(session, deleted);
             return;
         }
+        if let Effect::ShowDocumentProperties { request } = &effect {
+            if let Some(dispatcher) = &self.dispatcher {
+                use adw::prelude::*;
+                if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
+                    crate::ui::editor::properties_dialog::show(&parent, dispatcher, request);
+                }
+            }
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };

@@ -613,6 +613,15 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.document.width = width;
             model.config.editor.document_width = width;
         }
+        PreferencesMsg::SetDocumentPropertiesEnabled(enabled) => {
+            model.config.document_properties.enabled = enabled;
+        }
+        PreferencesMsg::SetDocumentPropertiesFloatingButton(visible) => {
+            model.config.document_properties.floating_button = visible;
+        }
+        PreferencesMsg::SetDocumentProperties(entries) => {
+            model.config.document_properties.entries = entries;
+        }
     }
     persist_config_effect(model)
 }
@@ -672,6 +681,12 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
+        EditorMsg::PropertiesDialogRequested => open_properties_effect(model),
+        EditorMsg::ApplyFrontmatter {
+            session,
+            revision,
+            edit,
+        } => apply_frontmatter_effect(model, session, revision, edit),
         EditorMsg::ApplySourceCommand { command, selection } => {
             update_source_command(model, command, selection)
         }
@@ -1116,13 +1131,72 @@ fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
             }
             _ => None,
         });
+    let source = model.config.document_properties.default_source();
     category_id.map_or_else(
         || {
             model.notice = Some(UiError::new("No category is available for the new note."));
             Vec::new()
         },
-        |category_id| vec![Effect::CreateNote { category_id }],
+        |category_id| {
+            vec![Effect::CreateNote {
+                category_id,
+                source,
+            }]
+        },
     )
+}
+
+fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
+    let Some(document) = model.editor.as_ref() else {
+        return Vec::new();
+    };
+    vec![Effect::ShowDocumentProperties {
+        request: super::EditorPropertiesRequest {
+            session: document.session,
+            revision: document.revision,
+            note_id: document.note_id,
+            document: carver_domain::parse_frontmatter_document(&document.source),
+            raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
+            defaults: model.config.document_properties.entries.clone(),
+            defaults_enabled: model.config.document_properties.enabled,
+        },
+    }]
+}
+
+fn apply_frontmatter_effect(
+    model: &mut AppModel,
+    session: super::EditorSessionId,
+    revision: carver_sdk::Revision,
+    edit: super::FrontmatterEdit,
+) -> Vec<Effect> {
+    let Some(document) = model.editor.as_mut() else {
+        return Vec::new();
+    };
+    if document.session != session || document.revision != revision {
+        return Vec::new();
+    }
+    let updated = match edit {
+        super::FrontmatterEdit::Parsed(parsed) => {
+            carver_domain::replace_frontmatter(&document.source, Some(&parsed))
+        }
+        super::FrontmatterEdit::Raw { format, content } => Ok(
+            carver_domain::replace_frontmatter_raw(&document.source, format, &content),
+        ),
+    };
+    let Ok(updated) = updated else {
+        return Vec::new();
+    };
+    let changed = model
+        .editor
+        .as_mut()
+        .is_some_and(|document| document.source_changed(updated));
+    if !changed {
+        return Vec::new();
+    }
+    model.notice = None;
+    let mut effects: Vec<Effect> = schedule_preview(model).into_iter().collect();
+    effects.extend(schedule_editor_save(model));
+    effects
 }
 
 fn import_note_effect(

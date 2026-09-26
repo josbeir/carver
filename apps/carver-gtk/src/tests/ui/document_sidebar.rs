@@ -1,14 +1,16 @@
 //! Display-backed document navigation and outline presentation.
 use super::*;
 use crate::mvu::{AppDispatcher, AppModel, AppMsg, AppRuntime, EditorMsg, PreferencesMsg};
+use libadwaita::prelude::*;
 
 pub(crate) struct SidebarFixture {
     pub directory: tempfile::TempDir,
     pub client: super::super::support::TestLibraryClient,
     pub surface: gtk::Widget,
     pub runtime: AppRuntime<carver_storage_sqlite::SqliteLibrary>,
-    pub window: gtk::Window,
+    pub window: adw::Window,
     pub config_path: std::path::PathBuf,
+    pub dispatcher: AppDispatcher,
 }
 
 pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
@@ -38,16 +40,17 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         Some("browser"),
     );
     stack.add_named(&surface, Some("editor"));
-    let window = gtk::Window::builder()
+    let window = adw::Window::builder()
         .default_width(1200)
         .default_height(800)
-        .child(&stack)
         .build();
+    window.set_content(Some(&stack));
     let runtime = AppRuntime::new_with_config_path(
         client.clone(),
         AppModel::new(&config),
         crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
-            .with_editor(refs),
+            .with_editor(refs)
+            .with_dispatcher(dispatcher.clone()),
         Some(config_path.clone()),
     );
     runtime.bind_dispatcher(&dispatcher);
@@ -59,6 +62,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         runtime,
         window,
         config_path,
+        dispatcher,
     })
 }
 

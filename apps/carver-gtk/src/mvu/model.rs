@@ -505,6 +505,39 @@ pub struct EditorPdfExportRequest {
     pub print_dialog: bool,
 }
 
+/// Immutable snapshot used to open the native document-properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorPropertiesRequest {
+    /// Editor lifetime that owns the snapshot.
+    pub session: EditorSessionId,
+    /// Revision the note had when the dialog opened.
+    pub revision: Revision,
+    /// Persisted note being edited.
+    pub note_id: NoteId,
+    /// Parsed frontmatter, or `None` when the note has no block.
+    pub document: Option<carver_domain::FrontmatterDocument>,
+    /// Authored content between the fences, used by the raw fallback.
+    pub raw: Option<String>,
+    /// Configured default properties offered as empty fill-in fields.
+    pub defaults: Vec<carver_config::DocumentProperty>,
+    /// Whether the configured defaults are enabled.
+    pub defaults_enabled: bool,
+}
+
+/// A frontmatter edit produced by the native document-properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FrontmatterEdit {
+    /// Structured fields parsed and edited by the dialog.
+    Parsed(carver_domain::FrontmatterDocument),
+    /// Raw block content for malformed or complex frontmatter.
+    Raw {
+        /// Format selected in the dialog.
+        format: carver_domain::FrontmatterFormat,
+        /// Content between the fences, without them.
+        content: String,
+    },
+}
+
 impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,

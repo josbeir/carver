@@ -14,9 +14,10 @@ pub use effect::Effect;
 pub use model::{
     ActionKey, AppModel, BasesModel, BrowserModel, DocumentPreferences, EditorCopyRequest,
     EditorCopyScope, EditorDocument, EditorExportDialogRequest, EditorExportProgress,
-    EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview, EditorSaveRequest,
-    EditorSaveState, EditorSessionId, LoadState, MediaFile, MoveUndo, Preferences, RequestId,
-    Resource, Route, SidebarSelection, SourceEditorPreferences, TimerId, UiError,
+    EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest,
+    EditorSaveRequest, EditorSaveState, EditorSessionId, FrontmatterEdit, LoadState, MediaFile,
+    MoveUndo, Preferences, RequestId, Resource, Route, SidebarSelection, SourceEditorPreferences,
+    TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,

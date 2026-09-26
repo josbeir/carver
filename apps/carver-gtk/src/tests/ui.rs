@@ -6,6 +6,7 @@ pub(crate) mod document_sidebar;
 mod excerpts;
 mod html;
 pub(crate) mod interactions;
+mod properties;
 mod rendering;
 mod trash;
 
@@ -57,6 +58,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     document_sidebar::webkit_views_should_disable_smooth_scrolling()?;
     document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
+    properties::document_properties_button_should_follow_mode_and_setting()?;
+    properties::default_properties_dialog_should_persist_typed_entries()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
@@ -351,6 +354,32 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(reset_font.is_visible());
     reset_font.emit_by_name::<()>("activated", &[]);
     assert!(!reset_font.is_visible());
+    let document_properties_setting = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-setting",
+    )
+    .ok_or("document properties setting")?;
+    assert!(!document_properties_setting.is_active());
+    let document_properties_floating = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-floating-button",
+    )
+    .ok_or("document properties floating button")?;
+    assert!(document_properties_floating.is_active());
+    document_properties_floating.set_active(false);
+    assert!(run_main_context_until(|| carver_config::load(&config_path)
+        .is_ok_and(|config| !config
+            .document_properties
+            .floating_button)));
+    assert_eq!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "document-properties-row")
+            .and_then(|row| row.subtitle()),
+        Some("0 default properties".into())
+    );
+    document_properties_setting.set_active(true);
+    assert!(run_main_context_until(
+        || carver_config::load(&config_path).is_ok_and(|config| config.document_properties.enabled)
+    ));
     assert_eq!(
         window.icon_name().as_deref(),
         Some(crate::app::APPLICATION_ICON)

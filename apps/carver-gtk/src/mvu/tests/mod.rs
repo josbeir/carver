@@ -12,13 +12,14 @@ use super::model::PendingNavigation;
 use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BasesMsg, BrowserMsg,
     EditorCopyScope, EditorExportFormat, EditorMsg, EditorSaveRequest, EditorSaveState,
-    EditorSessionId, Effect, LibraryReply, LoadState, MoveUndo, NavigationMsg, PreferencesMsg,
-    RequestId, Route, SidebarMsg, SourceCommand, SourceImageTarget, TimerId, TrashMsg,
-    TrashMutation, UiError, WindowMsg, update,
+    EditorSessionId, Effect, FrontmatterEdit, LibraryReply, LoadState, MoveUndo, NavigationMsg,
+    PreferencesMsg, RequestId, Route, SidebarMsg, SourceCommand, SourceImageTarget, TimerId,
+    TrashMsg, TrashMutation, UiError, WindowMsg, update,
 };
 
 mod bases;
 mod browser;
+mod document_properties;
 mod document_sidebar;
 mod editor_assets;
 mod editor_commands;

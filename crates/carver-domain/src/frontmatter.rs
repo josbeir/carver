@@ -322,6 +322,15 @@ pub fn parse_frontmatter_document(source: &str) -> Option<FrontmatterDocument> {
     }
 }
 
+/// Returns a document's authored frontmatter format and content, without its fences.
+#[must_use]
+pub fn frontmatter_raw(source: &str) -> Option<(FrontmatterFormat, String)> {
+    let document = parse_with_options(source, &Options::default().with_positions(true));
+    let raw = document.frontmatter_raw.as_ref()?;
+    let format = FrontmatterFormat::from_token(&raw.format).unwrap_or(FrontmatterFormat::Yaml);
+    Some((format, raw.content.clone()))
+}
+
 fn parse_fields(format: FrontmatterFormat, content: &str) -> Result<Vec<FrontmatterField>, String> {
     let value = match format {
         FrontmatterFormat::Yaml => {

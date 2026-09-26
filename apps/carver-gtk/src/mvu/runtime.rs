@@ -292,6 +292,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::ShowMediaPreview { .. }
             | Effect::CopyEditorDocument { .. }
             | Effect::ShowEditorExportDialog { .. }
+            | Effect::ShowDocumentProperties { .. }
             | Effect::ShowEditorExportWarning { .. }
             | Effect::UpdateBaseConfigurationPreview { .. }
             | Effect::ExportEditorPdf { .. }) => self.run_editor_effect(effect),
@@ -312,7 +313,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
             } => self.prepare_media_preview(session, note_id, path, label),
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
-            Effect::CreateNote { category_id } => self.create_note(category_id),
+            Effect::CreateNote {
+                category_id,
+                source,
+            } => self.create_note(category_id, source),
             Effect::ImportNote {
                 category_id,
                 format,
@@ -539,12 +543,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn create_note(&self, category_id: carver_sdk::CategoryId) {
+    fn create_note(&self, category_id: carver_sdk::CategoryId, source: String) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
             let result = client
-                .create_note_async(category_id)
+                .create_note_with_source_async(category_id, source)
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::NoteCreated { result }));

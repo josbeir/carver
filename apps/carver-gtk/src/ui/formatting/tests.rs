@@ -57,7 +57,7 @@ pub(crate) fn image_description_should_import_only_after_confirmation() -> TestR
         "Diagram",
         &dispatcher,
         &overlay,
-        Some(&fixture.window),
+        Some(fixture.window.upcast_ref()),
         target.clone(),
         &focus,
     );
@@ -70,7 +70,7 @@ pub(crate) fn image_description_should_import_only_after_confirmation() -> TestR
         "Diagram",
         &dispatcher,
         &overlay,
-        Some(&fixture.window),
+        Some(fixture.window.upcast_ref()),
         target,
         &focus,
     );

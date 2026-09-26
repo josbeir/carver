@@ -1,10 +1,10 @@
 //! GNOME dialogs and window-scoped actions.
 
-use std::{rc::Rc, sync::LazyLock};
+use std::{cell::RefCell, rc::Rc, sync::LazyLock};
 
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
-use carver_config::{DocumentWidth, SourceSyntaxStyle};
+use carver_config::{DocumentProperty, DocumentWidth, SourceSyntaxStyle};
 use carver_sdk::{
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
     DocumentImportFormat, NoteId,
@@ -21,7 +21,9 @@ use crate::mvu::{
     TrashMsg,
 };
 use carver_storage_sqlite::SqliteLibrary;
-use gettextrs::{gettext, pgettext};
+use gettextrs::{gettext, ngettext, pgettext};
+
+use super::editor::properties_dialog::{PropertyKindChoice, PropertyValueFields};
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
 pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
@@ -543,9 +545,11 @@ fn show_preferences_dialog(
 
     let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
+    let properties_group = document_properties_group(parent, dispatcher, config);
     page.add(&group);
     page.add(&document_group);
     page.add(&source_group);
+    page.add(&properties_group);
     dialog.add(&page);
 
     let dispatcher_for_images = dispatcher.clone();
@@ -603,6 +607,344 @@ fn document_preferences_group(
         &reset,
     );
     group
+}
+
+fn document_properties_group(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title(&gettext("New note properties"));
+
+    let enabled = preference_switch_row(
+        "document-properties-setting",
+        &gettext("Add default properties to new notes"),
+        &gettext("Seed each new note with the default properties below."),
+        config.document_properties.enabled,
+    );
+    group.add(&enabled);
+
+    let floating = preference_switch_row(
+        "document-properties-floating-button",
+        &gettext("Show floating properties button"),
+        &gettext("Show a button over the editor to edit document properties."),
+        config.document_properties.floating_button,
+    );
+    group.add(&floating);
+
+    let defaults = adw::ActionRow::new();
+    defaults.set_widget_name("document-properties-row");
+    defaults.set_title(&gettext("Default properties"));
+    defaults.set_subtitle(&document_property_count(
+        config.document_properties.entries.len(),
+    ));
+    defaults.set_activatable(true);
+    group.add(&defaults);
+
+    let enabled_dispatcher = dispatcher.clone();
+    enabled.connect_active_notify(move |row| {
+        let _ = enabled_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesEnabled(row.is_active()),
+        ));
+    });
+    let floating_dispatcher = dispatcher.clone();
+    floating.connect_active_notify(move |row| {
+        let _ = floating_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesFloatingButton(row.is_active()),
+        ));
+    });
+    let parent = parent.clone();
+    let defaults_dispatcher = dispatcher.clone();
+    let entries = config.document_properties.entries.clone();
+    defaults.connect_activated(move |_| {
+        show_document_properties_defaults_dialog(
+            Some(parent.upcast_ref::<gtk::Window>()),
+            &defaults_dispatcher,
+            &entries,
+        );
+    });
+    group
+}
+
+fn document_property_count(count: usize) -> String {
+    tr_fmt!(
+        ngettext(
+            "{count} default property",
+            "{count} default properties",
+            u32::try_from(count).unwrap_or(u32::MAX),
+        ),
+        count = count
+    )
+}
+
+/// One editable row in the default-properties editor.
+struct DefaultPropertyRow {
+    list_row: gtk::ListBoxRow,
+    key: gtk::Entry,
+    kind: gtk::DropDown,
+    fields: PropertyValueFields,
+}
+
+/// Presents the user-configurable default frontmatter properties.
+pub(crate) fn show_document_properties_defaults_dialog(
+    parent: Option<&gtk::Window>,
+    dispatcher: &AppDispatcher,
+    entries: &[DocumentProperty],
+) -> adw::Dialog {
+    let dialog = adw::Dialog::builder()
+        .title(gettext("Default properties"))
+        .follows_content_size(true)
+        .content_width(560)
+        .build();
+    dialog.set_widget_name("document-properties-defaults-dialog");
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&adw::HeaderBar::new());
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    content.set_margin_top(12);
+    content.set_margin_bottom(18);
+    let hint = gtk::Label::new(Some(&gettext(
+        "These properties are offered in every document-properties dialog and, when enabled, seed new notes.",
+    )));
+    hint.set_xalign(0.0);
+    hint.set_wrap(true);
+    hint.add_css_class("dim-label");
+    content.append(&hint);
+
+    let list = gtk::ListBox::new();
+    list.set_widget_name("document-properties-list");
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let scroll = gtk::ScrolledWindow::new();
+    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    scroll.set_propagate_natural_height(true);
+    scroll.set_propagate_natural_width(true);
+    scroll.set_min_content_width(520);
+    scroll.set_max_content_height(420);
+    scroll.set_child(Some(&list));
+    content.append(&scroll);
+
+    let add = gtk::Button::with_label(&gettext("Add property"));
+    add.set_widget_name("document-property-add");
+    add.add_css_class("flat");
+    add.set_halign(gtk::Align::Start);
+    content.append(&add);
+    toolbar.set_content(Some(&content));
+    dialog.set_child(Some(&toolbar));
+
+    let draft = Rc::new(RefCell::new(entries.to_vec()));
+    let rows: Rc<RefCell<Vec<DefaultPropertyRow>>> = Rc::new(RefCell::new(Vec::new()));
+    rebuild_default_rows(&list, &draft, &rows, dispatcher);
+
+    {
+        let draft = Rc::clone(&draft);
+        let rows = Rc::clone(&rows);
+        let list = list.clone();
+        let dispatcher = dispatcher.clone();
+        add.connect_clicked(move |_| {
+            capture_default_rows(&draft, &rows);
+            draft.borrow_mut().push(DocumentProperty {
+                key: String::new(),
+                kind: carver_domain::PropertyKind::Text,
+                multiline: false,
+                value: serde_json::Value::Null,
+            });
+            rebuild_default_rows(&list, &draft, &rows, &dispatcher);
+            persist_default_properties(&draft, &rows, &dispatcher);
+        });
+    }
+
+    let draft_for_close = Rc::clone(&draft);
+    let rows_for_close = Rc::clone(&rows);
+    let dispatcher_for_close = dispatcher.clone();
+    dialog.connect_closed(move |_| {
+        persist_default_properties(&draft_for_close, &rows_for_close, &dispatcher_for_close);
+    });
+
+    dialog.present(parent);
+    dialog
+}
+
+fn rebuild_default_rows(
+    list: &gtk::ListBox,
+    draft: &Rc<RefCell<Vec<DocumentProperty>>>,
+    rows: &Rc<RefCell<Vec<DefaultPropertyRow>>>,
+    dispatcher: &AppDispatcher,
+) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    rows.borrow_mut().clear();
+    let properties = draft.borrow().clone();
+    for (index, property) in properties.iter().enumerate() {
+        let row = build_default_row(index, property, list, draft, rows, dispatcher);
+        list.append(&row.list_row);
+        rows.borrow_mut().push(row);
+    }
+}
+
+fn build_default_row(
+    index: usize,
+    property: &DocumentProperty,
+    list: &gtk::ListBox,
+    draft: &Rc<RefCell<Vec<DocumentProperty>>>,
+    rows: &Rc<RefCell<Vec<DefaultPropertyRow>>>,
+    dispatcher: &AppDispatcher,
+) -> DefaultPropertyRow {
+    let list_row = gtk::ListBoxRow::new();
+    list_row.set_activatable(false);
+    list_row.set_selectable(false);
+    let root = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    root.set_margin_start(12);
+    root.set_margin_end(12);
+    root.set_margin_top(6);
+    root.set_margin_bottom(6);
+
+    let key = gtk::Entry::new();
+    key.set_widget_name(&format!("document-property-key-{index}"));
+    key.set_text(&property.key);
+    key.set_placeholder_text(Some(&gettext("Property name")));
+    key.set_width_chars(14);
+    root.append(&key);
+
+    let choice = PropertyKindChoice::for_property(property);
+    let kind = super::editor::properties_dialog::property_kind_dropdown(choice);
+    kind.set_widget_name(&format!("document-property-kind-{index}"));
+    kind.set_valign(gtk::Align::Center);
+    let fields = PropertyValueFields::new();
+    fields.set_choice(choice);
+    fields.set_json(choice, &property.value);
+    fields
+        .widget()
+        .set_widget_name(&format!("document-property-value-{index}"));
+    fields.widget().set_hexpand(true);
+    super::editor::properties_dialog::connect_kind_change(&kind, &fields, choice);
+    root.append(&kind);
+    root.append(fields.widget());
+
+    let remove = gtk::Button::from_icon_name("list-remove-symbolic");
+    remove.set_widget_name(&format!("document-property-remove-{index}"));
+    remove.add_css_class("flat");
+    remove.set_tooltip_text(Some(&gettext("Remove property")));
+    remove.update_property(&[gtk::accessible::Property::Label(&gettext(
+        "Remove property",
+    ))]);
+    root.append(&remove);
+
+    {
+        // Persist discrete edits only: key/value typing waits for the row to lose focus or the
+        // dialog to close, so a whole-config write does not run on every keystroke.
+        let draft = Rc::clone(draft);
+        let rows = Rc::clone(rows);
+        let dispatcher = dispatcher.clone();
+        kind.connect_selected_notify(move |_| {
+            persist_default_properties(&draft, &rows, &dispatcher);
+        });
+    }
+    {
+        let draft = Rc::clone(draft);
+        let rows = Rc::clone(rows);
+        let list = list.clone();
+        let dispatcher = dispatcher.clone();
+        remove.connect_clicked(move |_| {
+            capture_default_rows(&draft, &rows);
+            let mut entries = draft.borrow_mut();
+            if index < entries.len() {
+                entries.remove(index);
+            }
+            drop(entries);
+            rebuild_default_rows(&list, &draft, &rows, &dispatcher);
+            persist_default_properties(&draft, &rows, &dispatcher);
+        });
+    }
+
+    list_row.set_child(Some(&root));
+    DefaultPropertyRow {
+        list_row,
+        key,
+        kind,
+        fields,
+    }
+}
+
+fn capture_default_rows(
+    draft: &Rc<RefCell<Vec<DocumentProperty>>>,
+    rows: &Rc<RefCell<Vec<DefaultPropertyRow>>>,
+) {
+    let rows = rows.borrow();
+    let mut draft = draft.borrow_mut();
+    for (property, row) in draft.iter_mut().zip(rows.iter()) {
+        let choice = PropertyKindChoice::from_index(row.kind.selected());
+        property.key = row.key.text().to_string();
+        property.kind = choice.property_kind();
+        property.multiline = choice.is_multiline();
+        property.value = row.fields.json(choice);
+    }
+}
+
+fn persist_default_properties(
+    draft: &Rc<RefCell<Vec<DocumentProperty>>>,
+    rows: &Rc<RefCell<Vec<DefaultPropertyRow>>>,
+    dispatcher: &AppDispatcher,
+) {
+    capture_default_rows(draft, rows);
+    let entries = normalized_default_properties(&draft.borrow());
+    let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
+        entries,
+    )));
+}
+
+fn normalized_default_properties(entries: &[DocumentProperty]) -> Vec<DocumentProperty> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut normalized = Vec::new();
+    for property in entries {
+        let key = property.key.trim().to_owned();
+        if key.is_empty() || carver_domain::is_reserved_key(&key) {
+            continue;
+        }
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let kind = if property.kind.is_selectable() {
+            property.kind
+        } else {
+            carver_domain::PropertyKind::Text
+        };
+        let multiline = property.multiline && kind == carver_domain::PropertyKind::Text;
+        let value = normalized_default_value(kind, &property.value);
+        normalized.push(DocumentProperty {
+            key,
+            kind,
+            multiline,
+            value,
+        });
+    }
+    normalized
+}
+
+fn normalized_default_value(
+    kind: carver_domain::PropertyKind,
+    value: &serde_json::Value,
+) -> serde_json::Value {
+    let matches = value.is_null()
+        || match kind {
+            carver_domain::PropertyKind::Text => value.is_string(),
+            carver_domain::PropertyKind::Number => value.is_number(),
+            carver_domain::PropertyKind::Boolean => value.is_boolean(),
+            carver_domain::PropertyKind::List => value.is_array(),
+            carver_domain::PropertyKind::Null | carver_domain::PropertyKind::Mixed => false,
+        };
+    if matches {
+        return value.clone();
+    }
+    match kind {
+        carver_domain::PropertyKind::Number => serde_json::Value::from(0),
+        carver_domain::PropertyKind::Boolean => serde_json::Value::Bool(false),
+        carver_domain::PropertyKind::List => serde_json::Value::Array(Vec::new()),
+        _ => serde_json::Value::String(String::new()),
+    }
 }
 
 fn document_font_row(config: &carver_config::Config) -> (adw::ActionRow, gtk::Label) {

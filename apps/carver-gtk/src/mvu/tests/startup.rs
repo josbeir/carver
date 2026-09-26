@@ -106,7 +106,10 @@ fn new_note_should_create_in_the_selected_category() {
 
     assert_eq!(
         update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote)),
-        vec![Effect::CreateNote { category_id }]
+        vec![Effect::CreateNote {
+            category_id,
+            source: String::new(),
+        }]
     );
 }
 
