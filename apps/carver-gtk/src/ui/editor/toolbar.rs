@@ -9,6 +9,7 @@ use std::{
 use carver_config::EditorMode;
 use carver_domain::source_analysis::SourceContext;
 use carver_editor_protocol::{EditorCommand, SelectionState};
+use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
@@ -51,6 +52,24 @@ impl ToolbarCommand {
             Self::OrderedList => "ordered-list",
             Self::TaskList => "task-list",
             Self::Link => "link",
+        }
+    }
+
+    fn tooltip(self) -> String {
+        match self {
+            Self::Bold => gettext("Bold (Ctrl+B)"),
+            Self::Italic => gettext("Italic (Ctrl+I)"),
+            Self::Strike => gettext("Strikethrough (Ctrl+Shift+X)"),
+            Self::Underline => gettext("Underline (Ctrl+U)"),
+            Self::Highlight => gettext("Highlight (Ctrl+Shift+H)"),
+            Self::Superscript => gettext("Superscript (Ctrl+Shift+.)"),
+            Self::Subscript => gettext("Subscript (Ctrl+Shift+,)"),
+            Self::InlineCode => gettext("Inline code"),
+            Self::CodeBlock => gettext("Code block"),
+            Self::BulletList => gettext("Bulleted list (Ctrl+Shift+8)"),
+            Self::OrderedList => gettext("Numbered list (Ctrl+Shift+7)"),
+            Self::TaskList => gettext("Task list"),
+            Self::Link => gettext("Insert link"),
         }
     }
 }
@@ -135,7 +154,6 @@ struct CommandSpec {
     command: ToolbarCommand,
     id: &'static str,
     icon: &'static str,
-    tooltip: &'static str,
 }
 
 const COMMANDS: [CommandSpec; 13] = [
@@ -143,79 +161,66 @@ const COMMANDS: [CommandSpec; 13] = [
         command: ToolbarCommand::Bold,
         id: "format-bold-button",
         icon: "format-text-bold-symbolic",
-        tooltip: "Bold (Ctrl+B)",
     },
     CommandSpec {
         command: ToolbarCommand::Italic,
         id: "format-italic-button",
         icon: "format-text-italic-symbolic",
-        tooltip: "Italic (Ctrl+I)",
     },
     CommandSpec {
         command: ToolbarCommand::Strike,
         id: "format-strike-button",
         icon: "format-text-strikethrough-symbolic",
-        tooltip: "Strikethrough (Ctrl+Shift+X)",
     },
     CommandSpec {
         command: ToolbarCommand::Underline,
         id: "format-underline-button",
         icon: "format-text-underline-symbolic",
-        tooltip: "Underline (Ctrl+U)",
     },
     CommandSpec {
         command: ToolbarCommand::Highlight,
         id: "format-highlight-button",
         icon: "format-text-highlight-symbolic",
-        tooltip: "Highlight (Ctrl+Shift+H)",
     },
     CommandSpec {
         command: ToolbarCommand::Superscript,
         id: "format-superscript-button",
         icon: "format-text-superscript-symbolic",
-        tooltip: "Superscript (Ctrl+Shift+.)",
     },
     CommandSpec {
         command: ToolbarCommand::Subscript,
         id: "format-subscript-button",
         icon: "format-text-subscript-symbolic",
-        tooltip: "Subscript (Ctrl+Shift+,)",
     },
     CommandSpec {
         command: ToolbarCommand::InlineCode,
         id: "format-code-button",
         icon: "text-editor-symbolic",
-        tooltip: "Inline code",
     },
     CommandSpec {
         command: ToolbarCommand::CodeBlock,
         id: "format-code-block-button",
         icon: "utilities-terminal-symbolic",
-        tooltip: "Code block",
     },
     CommandSpec {
         command: ToolbarCommand::BulletList,
         id: "format-bullet-button",
         icon: "view-list-bullet-symbolic",
-        tooltip: "Bulleted list (Ctrl+Shift+8)",
     },
     CommandSpec {
         command: ToolbarCommand::OrderedList,
         id: "format-ordered-button",
         icon: "view-list-ordered-symbolic",
-        tooltip: "Numbered list (Ctrl+Shift+7)",
     },
     CommandSpec {
         command: ToolbarCommand::TaskList,
         id: "format-task-button",
         icon: "object-select-symbolic",
-        tooltip: "Task list",
     },
     CommandSpec {
         command: ToolbarCommand::Link,
         id: "format-link-button",
         icon: "insert-link-symbolic",
-        tooltip: "Insert link",
     },
 ];
 
@@ -459,7 +464,7 @@ impl Toolbar {
         let source_path = gtk::Label::new(None);
         source_path.set_widget_name("source-ast-path");
         source_path.add_css_class("dim-label");
-        source_path.set_tooltip_text(Some("Carve AST context"));
+        source_path.set_tooltip_text(Some(&gettext("Carve AST context")));
         source_path.set_visible(false);
         desktop.append(&source_path);
         for spec in [COMMANDS[0], COMMANDS[1]] {
@@ -471,7 +476,7 @@ impl Toolbar {
         let more_button = gtk::MenuButton::new();
         more_button.set_widget_name("formatting-toolbar-more");
         more_button.set_icon_name("view-more-symbolic");
-        more_button.set_tooltip_text(Some("More formatting"));
+        more_button.set_tooltip_text(Some(&gettext("More formatting")));
         more_button.add_css_class("flat");
         let more_contents = gtk::Box::new(gtk::Orientation::Vertical, 4);
         for commands in [&COMMANDS[2..8], &COMMANDS[8..]] {
@@ -604,7 +609,7 @@ fn command_button(spec: CommandSpec, router: &CommandRouter) -> gtk::ToggleButto
     let button = gtk::ToggleButton::new();
     set_toolbar_icon(&button, spec.icon);
     button.set_widget_name(spec.id);
-    button.set_tooltip_text(Some(spec.tooltip));
+    button.set_tooltip_text(Some(&spec.command.tooltip()));
     button.add_css_class("flat");
     let router = router.clone();
     button.connect_clicked(move |button| router.execute(spec.command, button.upcast_ref()));
@@ -618,20 +623,20 @@ fn append_heading_menu(
     let menu = gtk::MenuButton::new();
     menu.set_widget_name("format-heading-button");
     menu.set_icon_name("format-text-rich-symbolic");
-    menu.set_tooltip_text(Some("Text style"));
+    menu.set_tooltip_text(Some(&gettext("Text style")));
     menu.add_css_class("flat");
     let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let mut active_choices = Vec::new();
     for (label, level) in [
-        ("Normal text", 0),
-        ("Heading 1", 1),
-        ("Heading 2", 2),
-        ("Heading 3", 3),
-        ("Heading 4", 4),
-        ("Heading 5", 5),
-        ("Heading 6", 6),
+        (gettext("Normal text"), 0),
+        (gettext("Heading 1"), 1),
+        (gettext("Heading 2"), 2),
+        (gettext("Heading 3"), 3),
+        (gettext("Heading 4"), 4),
+        (gettext("Heading 5"), 5),
+        (gettext("Heading 6"), 6),
     ] {
-        let choice = gtk::ToggleButton::with_label(label);
+        let choice = gtk::ToggleButton::with_label(&label);
         choice.add_css_class("flat");
         let router = router.clone();
         choice.connect_clicked(move |_| router.set_heading(level));
@@ -663,10 +668,10 @@ fn append_image_menu(
     let menu = gtk::MenuButton::new();
     menu.set_widget_name("format-image-button");
     menu.set_icon_name("image-x-generic-symbolic");
-    menu.set_tooltip_text(Some("Insert or resize image"));
+    menu.set_tooltip_text(Some(&gettext("Insert or resize image")));
     menu.add_css_class("flat");
     let choices = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let insert = gtk::Button::with_label("Insert image…");
+    let insert = gtk::Button::with_label(&gettext("Insert image…"));
     insert.add_css_class("flat");
     let router_for_insert = router.clone();
     insert.connect_clicked(move |button| router_for_insert.choose_image(button));
@@ -674,13 +679,13 @@ fn append_image_menu(
     choices.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
     let mut active_choices = Vec::new();
     for (label, width) in [
-        ("Original size", None),
-        ("25%", Some(25)),
-        ("50%", Some(50)),
-        ("75%", Some(75)),
-        ("100%", Some(100)),
+        (gettext("Original size"), None),
+        ("25%".to_owned(), Some(25)),
+        ("50%".to_owned(), Some(50)),
+        ("75%".to_owned(), Some(75)),
+        ("100%".to_owned(), Some(100)),
     ] {
-        let choice = gtk::ToggleButton::with_label(label);
+        let choice = gtk::ToggleButton::with_label(&label);
         choice.add_css_class("flat");
         let router = router.clone();
         choice.connect_clicked(move |_| router.image_width(width));

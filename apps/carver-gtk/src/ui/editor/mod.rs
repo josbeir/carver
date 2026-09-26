@@ -8,6 +8,7 @@ use std::{
 };
 
 use carver_config::{Config, EditorMode};
+use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::{
@@ -117,23 +118,16 @@ impl EditorViewRefs {
         self.rendering.set(true);
         self.source_generation.set(document.source_generation);
         self.favorite.set_active(document.is_favorite);
+        let favorite_label = if document.is_favorite {
+            gettext("Remove from Favorites")
+        } else {
+            gettext("Add to Favorites")
+        };
         self.favorite_options.remove(0);
-        self.favorite_options.insert(
-            0,
-            Some(if document.is_favorite {
-                "Remove from Favorites"
-            } else {
-                "Add to Favorites"
-            }),
-            Some("editor.toggle-favorite"),
-        );
+        self.favorite_options
+            .insert(0, Some(&favorite_label), Some("editor.toggle-favorite"));
         self.sidebar.render(document, &self.dispatcher);
-        self.favorite
-            .set_tooltip_text(Some(if document.is_favorite {
-                "Remove from Favorites"
-            } else {
-                "Add to Favorites"
-            }));
+        self.favorite.set_tooltip_text(Some(&favorite_label));
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
         let remote_images_changed = self
             .remote_images
@@ -579,22 +573,22 @@ pub(crate) fn build_editor(
     let (rich_mode, rich_mode_label) = editor_mode_button(
         "editor-mode-rich",
         "document-edit-symbolic",
-        "Edit",
-        "Edit with rich text",
+        &pgettext("editor mode", "Edit"),
+        &gettext("Edit with rich text"),
     );
     rich_mode.set_active(true);
     let (source_mode, source_mode_label) = editor_mode_button(
         "editor-mode-source",
         "text-x-generic-symbolic",
-        "Source",
-        "Edit Carve markup",
+        &pgettext("editor mode", "Source"),
+        &gettext("Edit Carve markup"),
     );
     source_mode.set_group(Some(&rich_mode));
     let (rendered_mode, rendered_mode_label) = editor_mode_button(
         "editor-mode-rendered",
         "view-reveal-symbolic",
-        "Preview",
-        "Read-only preview",
+        &pgettext("editor mode", "Preview"),
+        &gettext("Read-only preview"),
     );
     rendered_mode.set_group(Some(&rich_mode));
     mode_group.append(&rich_mode);
@@ -603,12 +597,12 @@ pub(crate) fn build_editor(
     let favorite = gtk::ToggleButton::new();
     favorite.set_icon_name("starred-symbolic");
     favorite.set_widget_name("favorite-note-button");
-    favorite.set_tooltip_text(Some("Add to Favorites"));
+    favorite.set_tooltip_text(Some(&gettext("Add to Favorites")));
     favorite.add_css_class("flat");
     let document_sidebar_toggle = gtk::ToggleButton::new();
     document_sidebar_toggle.set_icon_name("view-list-symbolic");
     document_sidebar_toggle.set_widget_name("editor-document-sidebar-toggle");
-    document_sidebar_toggle.set_tooltip_text(Some("Show document sidebar"));
+    document_sidebar_toggle.set_tooltip_text(Some(&gettext("Show document sidebar")));
     document_sidebar_toggle.add_css_class("flat");
     let options = editor_options_menu();
     header.pack_end(&options.button);
@@ -619,7 +613,7 @@ pub(crate) fn build_editor(
     let split_toggle = gtk::ToggleButton::new();
     split_toggle.set_icon_name("view-dual-symbolic");
     split_toggle.set_widget_name("source-split-toggle");
-    split_toggle.set_tooltip_text(Some("Show rendered preview"));
+    split_toggle.set_tooltip_text(Some(&gettext("Show rendered preview")));
     split_toggle.set_sensitive(false);
     let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     mode_controls.set_widget_name("editor-mode-switcher");
@@ -1358,15 +1352,18 @@ struct EditorOptionsMenu {
 fn editor_options_menu() -> EditorOptionsMenu {
     let button = gtk::MenuButton::new();
     button.set_icon_name("view-more-symbolic");
-    button.set_tooltip_text(Some("Note options"));
+    button.set_tooltip_text(Some(&gettext("Note options")));
     button.add_css_class("flat");
     button.set_widget_name("editor-options-menu");
 
     let favorites = gtk::gio::Menu::new();
-    favorites.append(Some("Add to Favorites"), Some("editor.toggle-favorite"));
+    favorites.append(
+        Some(&gettext("Add to Favorites")),
+        Some("editor.toggle-favorite"),
+    );
     let preview = gtk::gio::Menu::new();
     preview.append(
-        Some("Show rendered preview"),
+        Some(&gettext("Show rendered preview")),
         Some("editor.toggle-split-preview"),
     );
 
@@ -1393,21 +1390,24 @@ fn editor_options_menu() -> EditorOptionsMenu {
 
 fn append_clipboard_options(menu: &gtk::gio::Menu) {
     let section = gtk::gio::Menu::new();
-    section.append(Some("Copy note"), Some("editor.copy-note"));
-    section.append(Some("Paste as Markdown"), Some("editor.paste-markdown"));
+    section.append(Some(&gettext("Copy note")), Some("editor.copy-note"));
+    section.append(
+        Some(&gettext("Paste as Markdown")),
+        Some("editor.paste-markdown"),
+    );
     menu.append_section(None, &section);
 }
 
 fn append_file_options(menu: &gtk::gio::Menu) {
     let section = gtk::gio::Menu::new();
-    section.append(Some("Export note…"), Some(EXPORT_NOTE_ACTION));
-    section.append(Some("Print…"), Some(PRINT_NOTE_ACTION));
+    section.append(Some(&gettext("Export note…")), Some(EXPORT_NOTE_ACTION));
+    section.append(Some(&gettext("Print…")), Some(PRINT_NOTE_ACTION));
     menu.append_section(None, &section);
 }
 
 fn append_danger_options(menu: &gtk::gio::Menu) {
     let section = gtk::gio::Menu::new();
-    section.append(Some("Move to Trash"), Some(TRASH_NOTE_ACTION));
+    section.append(Some(&gettext("Move to Trash")), Some(TRASH_NOTE_ACTION));
     menu.append_section(None, &section);
 }
 
@@ -1532,14 +1532,16 @@ pub(crate) fn show_export_options_dialog(
     );
     let format = adw::ComboRow::new();
     format.set_widget_name("export-format-setting");
-    format.set_title("Format");
+    format.set_title(&pgettext("export dialog", "Format"));
     format.set_model(Some(&format_options));
     format.set_expression(Some(&format_expression));
     format.set_selected(0);
     let include_assets = adw::SwitchRow::new();
     include_assets.set_widget_name("export-assets-setting");
-    include_assets.set_title("Include managed files");
-    include_assets.set_subtitle("Create a portable ZIP archive with the document and its files.");
+    include_assets.set_title(&gettext("Include managed files"));
+    include_assets.set_subtitle(&gettext(
+        "Create a portable ZIP archive with the document and its files.",
+    ));
     let format_for_toggle = format.clone();
     let assets_for_toggle = include_assets.clone();
     format.connect_selected_notify(move |_| {
@@ -1553,13 +1555,17 @@ pub(crate) fn show_export_options_dialog(
     contents.add(&format);
     contents.add(&include_assets);
     let dialog = adw::AlertDialog::builder()
-        .heading("Export note")
-        .body("Export the current note, including any unsaved edits.")
+        .heading(gettext("Export note"))
+        .body(gettext(
+            "Export the current note, including any unsaved edits.",
+        ))
         .extra_child(&contents)
         .default_response("export")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("export", "Export…")]);
+    let cancel = gettext("Cancel");
+    let export = gettext("Export…");
+    dialog.add_responses(&[("cancel", cancel.as_str()), ("export", export.as_str())]);
     let parent_for_response = parent.cloned();
     dialog.connect_response(None, move |_, response| {
         if response != "export" {
@@ -1596,19 +1602,20 @@ fn show_export_file_dialog(
 ) {
     let extension = format.extension(include_assets);
     let filter = gtk::FileFilter::new();
-    filter.set_name(Some(match extension {
-        "crv" => "Carve documents",
-        "md" => "Markdown documents",
-        "html" => "HTML documents",
-        "pdf" => "PDF documents",
-        _ => "Portable ZIP archives",
-    }));
+    let filter_name = match extension {
+        "crv" => gettext("Carve documents"),
+        "md" => gettext("Markdown documents"),
+        "html" => gettext("HTML documents"),
+        "pdf" => gettext("PDF documents"),
+        _ => gettext("Portable ZIP archives"),
+    };
+    filter.set_name(Some(&filter_name));
     filter.add_suffix(extension);
     let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     let dialog = gtk::FileDialog::builder()
-        .title("Export note")
-        .accept_label("Export")
+        .title(gettext("Export note"))
+        .accept_label(gettext("Export"))
         .initial_name(format!("{filename_stem}.{extension}"))
         .build();
     dialog.set_filters(Some(&filters));
@@ -1634,12 +1641,17 @@ pub(crate) fn show_export_warning_dialog(
 ) -> adw::AlertDialog {
     let details = request.warnings.join("\n");
     let dialog = adw::AlertDialog::builder()
-        .heading("Export may lose content")
-        .body(format!("{details}\n\nExport anyway?"))
+        .heading(gettext("Export may lose content"))
+        .body(tr_fmt!(
+            gettext("{details}\n\nExport anyway?"),
+            details = details
+        ))
         .default_response("export")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("export", "Export anyway")]);
+    let cancel = gettext("Cancel");
+    let export = gettext("Export anyway");
+    dialog.add_responses(&[("cancel", cancel.as_str()), ("export", export.as_str())]);
     let request_id = request.request_id;
     dialog.connect_response(None, move |_, response| {
         let message = if response == "export" {

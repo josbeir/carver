@@ -1,0 +1,6 @@
+# Sources with translatable strings for the io.github.josbeir.Carver domain.
+#
+# Rust sources under apps/carver-gtk/src are discovered automatically by
+# scripts/update-translations.sh; the resources below are merged in explicitly.
+apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
+apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml

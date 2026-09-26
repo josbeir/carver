@@ -1,6 +1,6 @@
 //! GNOME dialogs and window-scoped actions.
 
-use std::rc::Rc;
+use std::{rc::Rc, sync::LazyLock};
 
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
@@ -21,6 +21,7 @@ use crate::mvu::{
     TrashMsg,
 };
 use carver_storage_sqlite::SqliteLibrary;
+use gettextrs::{gettext, pgettext};
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
 pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
@@ -30,167 +31,183 @@ pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
 pub(crate) const TOGGLE_FAVORITE_ACTION: &str = "win.toggle-favorite";
 pub(crate) const KEYBOARD_SHORTCUTS_ACTION: &str = "win.keyboard-shortcuts";
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Shortcut {
-    title: &'static str,
+    title: String,
     accelerator: &'static str,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ShortcutSection {
-    title: &'static str,
+    title: String,
     shortcuts: &'static [Shortcut],
 }
 
-const GENERAL_SHORTCUTS: &[Shortcut] = &[Shortcut {
-    title: "Keyboard shortcuts",
-    accelerator: "<Control>question",
-}];
+static GENERAL_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![Shortcut {
+        title: gettext("Keyboard shortcuts"),
+        accelerator: "<Control>question",
+    }]
+});
 
-const NOTES_SHORTCUTS: &[Shortcut] = &[
-    Shortcut {
-        title: "New note",
-        accelerator: "<Control>n",
-    },
-    Shortcut {
-        title: "Import note",
-        accelerator: "<Control>o",
-    },
-];
+static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![
+        Shortcut {
+            title: gettext("New note"),
+            accelerator: "<Control>n",
+        },
+        Shortcut {
+            title: gettext("Import note"),
+            accelerator: "<Control>o",
+        },
+    ]
+});
 
-const BROWSER_SHORTCUTS: &[Shortcut] = &[Shortcut {
-    title: "Search notes",
-    accelerator: "<Control>f",
-}];
-
-const BASE_SHORTCUTS: &[Shortcut] = &[Shortcut {
-    title: "Search Base rows",
-    accelerator: "<Control>f",
-}];
-
-const EDITOR_SHORTCUTS: &[Shortcut] = &[
-    Shortcut {
-        title: "Toggle favorite",
-        accelerator: "<Control><Shift>f",
-    },
-    Shortcut {
-        title: "Export note",
-        accelerator: "<Control>e",
-    },
-    Shortcut {
-        title: "Print note",
-        accelerator: "<Control>p",
-    },
-    Shortcut {
-        title: "Move note to Trash",
-        accelerator: "<Control>d",
-    },
-    Shortcut {
-        title: "Toggle document sidebar",
-        accelerator: "F9",
-    },
-];
-
-const FIND_SHORTCUTS: &[Shortcut] = &[
-    Shortcut {
-        title: "Find in note",
+static BROWSER_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![Shortcut {
+        title: gettext("Search notes"),
         accelerator: "<Control>f",
-    },
-    Shortcut {
-        title: "Next result",
-        accelerator: "<Control>g",
-    },
-    Shortcut {
-        title: "Next result",
-        accelerator: "F3",
-    },
-    Shortcut {
-        title: "Previous result",
-        accelerator: "<Control><Shift>g",
-    },
-    Shortcut {
-        title: "Previous result",
-        accelerator: "<Shift>F3",
-    },
-    Shortcut {
-        title: "Close search",
-        accelerator: "Escape",
-    },
-];
+    }]
+});
 
-const SOURCE_FORMATTING_SHORTCUTS: &[Shortcut] = &[
-    Shortcut {
-        title: "Bold",
-        accelerator: "<Control>b",
-    },
-    Shortcut {
-        title: "Italic",
-        accelerator: "<Control>i",
-    },
-    Shortcut {
-        title: "Strikethrough",
-        accelerator: "<Control><Shift>x",
-    },
-    Shortcut {
-        title: "Underline",
-        accelerator: "<Control>u",
-    },
-    Shortcut {
-        title: "Highlight",
-        accelerator: "<Control><Shift>h",
-    },
-    Shortcut {
-        title: "Superscript",
-        accelerator: "<Control><Shift>period",
-    },
-    Shortcut {
-        title: "Subscript",
-        accelerator: "<Control><Shift>comma",
-    },
-    Shortcut {
-        title: "Bulleted list",
-        accelerator: "<Control><Shift>8",
-    },
-    Shortcut {
-        title: "Numbered list",
-        accelerator: "<Control><Shift>7",
-    },
-    Shortcut {
-        title: "Insert line break",
-        accelerator: "<Shift>Return",
-    },
-];
+static BASE_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![Shortcut {
+        title: gettext("Search Base rows"),
+        accelerator: "<Control>f",
+    }]
+});
 
-const SHORTCUT_SECTIONS: &[ShortcutSection] = &[
-    ShortcutSection {
-        title: "General",
-        shortcuts: GENERAL_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Notes",
-        shortcuts: NOTES_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Browser",
-        shortcuts: BROWSER_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Base",
-        shortcuts: BASE_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Editor",
-        shortcuts: EDITOR_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Find in note",
-        shortcuts: FIND_SHORTCUTS,
-    },
-    ShortcutSection {
-        title: "Source formatting",
-        shortcuts: SOURCE_FORMATTING_SHORTCUTS,
-    },
-];
+static EDITOR_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![
+        Shortcut {
+            title: gettext("Toggle favorite"),
+            accelerator: "<Control><Shift>f",
+        },
+        Shortcut {
+            title: gettext("Export note"),
+            accelerator: "<Control>e",
+        },
+        Shortcut {
+            title: gettext("Print note"),
+            accelerator: "<Control>p",
+        },
+        Shortcut {
+            title: gettext("Move note to Trash"),
+            accelerator: "<Control>d",
+        },
+        Shortcut {
+            title: gettext("Toggle document sidebar"),
+            accelerator: "F9",
+        },
+    ]
+});
+
+static FIND_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![
+        Shortcut {
+            title: gettext("Find in note"),
+            accelerator: "<Control>f",
+        },
+        Shortcut {
+            title: gettext("Next result"),
+            accelerator: "<Control>g",
+        },
+        Shortcut {
+            title: gettext("Next result"),
+            accelerator: "F3",
+        },
+        Shortcut {
+            title: gettext("Previous result"),
+            accelerator: "<Control><Shift>g",
+        },
+        Shortcut {
+            title: gettext("Previous result"),
+            accelerator: "<Shift>F3",
+        },
+        Shortcut {
+            title: gettext("Close search"),
+            accelerator: "Escape",
+        },
+    ]
+});
+
+static SOURCE_FORMATTING_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![
+        Shortcut {
+            title: gettext("Bold"),
+            accelerator: "<Control>b",
+        },
+        Shortcut {
+            title: gettext("Italic"),
+            accelerator: "<Control>i",
+        },
+        Shortcut {
+            title: gettext("Strikethrough"),
+            accelerator: "<Control><Shift>x",
+        },
+        Shortcut {
+            title: gettext("Underline"),
+            accelerator: "<Control>u",
+        },
+        Shortcut {
+            title: gettext("Highlight"),
+            accelerator: "<Control><Shift>h",
+        },
+        Shortcut {
+            title: gettext("Superscript"),
+            accelerator: "<Control><Shift>period",
+        },
+        Shortcut {
+            title: gettext("Subscript"),
+            accelerator: "<Control><Shift>comma",
+        },
+        Shortcut {
+            title: gettext("Bulleted list"),
+            accelerator: "<Control><Shift>8",
+        },
+        Shortcut {
+            title: gettext("Numbered list"),
+            accelerator: "<Control><Shift>7",
+        },
+        Shortcut {
+            title: gettext("Insert line break"),
+            accelerator: "<Shift>Return",
+        },
+    ]
+});
+
+static SHORTCUT_SECTIONS: LazyLock<Vec<ShortcutSection>> = LazyLock::new(|| {
+    vec![
+        ShortcutSection {
+            title: gettext("General"),
+            shortcuts: GENERAL_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: pgettext("shortcut section", "Notes"),
+            shortcuts: NOTES_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: gettext("Browser"),
+            shortcuts: BROWSER_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: pgettext("shortcut section", "Base"),
+            shortcuts: BASE_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: gettext("Editor"),
+            shortcuts: EDITOR_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: gettext("Find in note"),
+            shortcuts: FIND_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
+            title: gettext("Source formatting"),
+            shortcuts: SOURCE_FORMATTING_SHORTCUTS.as_slice(),
+        },
+    ]
+});
 
 /// Installs actions exposed from the application menu.
 pub(crate) fn install_window_actions(
@@ -330,15 +347,15 @@ fn install_application_accelerators(window: &adw::ApplicationWindow) {
 
 pub(crate) fn show_import_file_dialog(parent: &gtk::Window, dispatcher: AppDispatcher) {
     let filter = gtk::FileFilter::new();
-    filter.set_name(Some("Carve and Markdown documents"));
+    filter.set_name(Some(&gettext("Carve and Markdown documents")));
     for suffix in ["crv", "md", "markdown"] {
         filter.add_suffix(suffix);
     }
     let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     let dialog = gtk::FileDialog::builder()
-        .title("Import note")
-        .accept_label("Import")
+        .title(gettext("Import note"))
+        .accept_label(gettext("Import"))
         .build();
     dialog.set_filters(Some(&filters));
     dialog.set_default_filter(Some(&filter));
@@ -356,17 +373,15 @@ pub(crate) fn show_import_file_dialog(parent: &gtk::Window, dispatcher: AppDispa
 
 pub(crate) fn read_import_file(file: &gtk::gio::File, dispatcher: AppDispatcher) {
     let Some(format) = import_format_for_file(file) else {
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ImportFailed(
-            String::from("Select a Carve (.crv) or Markdown (.md) file."),
-        )));
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::ImportFailed(gettext(
+            "Select a Carve (.crv) or Markdown (.md) file.",
+        ))));
         return;
     };
     file.load_bytes_async(None::<&gtk::gio::Cancellable>, move |result| {
         let message = match result {
             Ok((bytes, _)) => import_message_from_bytes(format, bytes.as_ref()),
-            Err(_) => {
-                NavigationMsg::ImportFailed(String::from("Could not read the selected file."))
-            }
+            Err(_) => NavigationMsg::ImportFailed(gettext("Could not read the selected file.")),
         };
         let _ = dispatcher.dispatch(AppMsg::Navigation(message));
     });
@@ -379,7 +394,7 @@ pub(crate) fn import_message_from_bytes(
     match String::from_utf8(bytes.to_vec()) {
         Ok(source) => NavigationMsg::ImportNote { format, source },
         Err(_) => {
-            NavigationMsg::ImportFailed(String::from("The selected file is not valid UTF-8 text."))
+            NavigationMsg::ImportFailed(gettext("The selected file is not valid UTF-8 text."))
         }
     }
 }
@@ -490,28 +505,32 @@ fn show_preferences_dialog(
     let dialog = adw::PreferencesDialog::new();
     dialog.set_search_enabled(false);
     let page = adw::PreferencesPage::new();
-    page.set_title("Editor");
+    page.set_title(&gettext("Editor"));
     let group = adw::PreferencesGroup::new();
-    group.set_title("Editing");
+    group.set_title(&gettext("Editing"));
 
     let remote_images = adw::SwitchRow::new();
     remote_images.set_widget_name("remote-images-setting");
-    remote_images.set_title("Load remote images automatically");
-    remote_images.set_subtitle("Download images referenced by notes when they are displayed.");
+    remote_images.set_title(&gettext("Load remote images automatically"));
+    remote_images.set_subtitle(&gettext(
+        "Download images referenced by notes when they are displayed.",
+    ));
     remote_images.set_active(config.images.load_remote_automatically);
     group.add(&remote_images);
     let formatting_toolbar = preference_switch_row(
         "formatting-toolbar-setting",
-        "Show formatting toolbar",
-        "Show formatting controls at the bottom of the editor.",
+        &gettext("Show formatting toolbar"),
+        &gettext("Show formatting controls at the bottom of the editor."),
         config.editor.show_formatting_toolbar,
     );
     group.add(&formatting_toolbar);
 
     let enhancements = preference_switch_row(
         "enhanced-carve-rendering-setting",
-        "Enable enhanced Carve rendering",
-        "Render tables of contents, collapsible details, and automatic web links in previews and HTML/PDF exports.",
+        &gettext("Enable enhanced Carve rendering"),
+        &gettext(
+            "Render tables of contents, collapsible details, and automatic web links in previews and HTML/PDF exports.",
+        ),
         config.editor.enhanced_carve_rendering,
     );
     group.add(&enhancements);
@@ -551,13 +570,15 @@ fn document_preferences_group(
     config: &carver_config::Config,
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    group.set_title("Edit and Preview");
+    group.set_title(&gettext("Edit and Preview"));
     let (font, font_value) = document_font_row(config);
     group.add(&font);
     let line_height = adw::SpinRow::with_range(1.0, 2.5, 0.05);
     line_height.set_widget_name("document-line-height-setting");
-    line_height.set_title("Line spacing");
-    line_height.set_subtitle("Adjust the space between lines in Edit and Preview.");
+    line_height.set_title(&gettext("Line spacing"));
+    line_height.set_subtitle(&gettext(
+        "Adjust the space between lines in Edit and Preview.",
+    ));
     line_height.set_digits(2);
     line_height.set_snap_to_ticks(true);
     line_height.set_value(f64::from(config.editor.document_line_height_percent) / 100.0);
@@ -566,9 +587,10 @@ fn document_preferences_group(
     group.add(&width);
     let reset = adw::ActionRow::new();
     reset.set_widget_name("document-appearance-reset-row");
-    reset.set_title("Reset appearance");
-    reset
-        .set_subtitle("Use the system document font, comfortable width, and default line spacing.");
+    reset.set_title(&gettext("Reset appearance"));
+    reset.set_subtitle(&gettext(
+        "Use the system document font, comfortable width, and default line spacing.",
+    ));
     reset.set_activatable(true);
     group.add(&reset);
     connect_document_appearance_controls(
@@ -586,7 +608,7 @@ fn document_preferences_group(
 fn document_font_row(config: &carver_config::Config) -> (adw::ActionRow, gtk::Label) {
     let row = adw::ActionRow::new();
     row.set_widget_name("document-font-setting");
-    row.set_title("Document font");
+    row.set_title(&gettext("Document font"));
     row.set_activatable(true);
     let selected_font = config
         .editor
@@ -603,7 +625,12 @@ fn document_font_row(config: &carver_config::Config) -> (adw::ActionRow, gtk::La
 }
 
 fn document_width_row(width: DocumentWidth) -> adw::ComboRow {
-    let options = gtk::StringList::new(&["Narrow", "Comfortable", "Wide", "Full width"]);
+    let options = gtk::StringList::new(&[
+        gettext("Narrow").as_str(),
+        gettext("Comfortable").as_str(),
+        gettext("Wide").as_str(),
+        gettext("Full width").as_str(),
+    ]);
     let expression = gtk::PropertyExpression::new(
         gtk::StringObject::static_type(),
         None::<gtk::Expression>,
@@ -611,8 +638,8 @@ fn document_width_row(width: DocumentWidth) -> adw::ComboRow {
     );
     let row = adw::ComboRow::new();
     row.set_widget_name("document-width-setting");
-    row.set_title("Content width");
-    row.set_subtitle("Choose the reading width in Edit and Preview.");
+    row.set_title(&gettext("Content width"));
+    row.set_subtitle(&gettext("Choose the reading width in Edit and Preview."));
     row.set_model(Some(&options));
     row.set_expression(Some(&expression));
     row.set_selected(document_width_index(width));
@@ -651,7 +678,7 @@ fn connect_document_appearance_controls(
     let font_value_for_change = font_value.clone();
     font.connect_activated(move |_| {
         let dialog = gtk::FontDialog::new();
-        dialog.set_title("Choose Document Font");
+        dialog.set_title(&gettext("Choose Document Font"));
         let initial_font = gtk::pango::FontDescription::from_string(&font_value_for_change.label());
         let dispatcher_for_result = dispatcher_for_font.clone();
         let font_value_for_result = font_value_for_change.clone();
@@ -715,22 +742,22 @@ fn line_height_percent(line_height: f64) -> u16 {
 
 fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesDialog {
     let dialog = adw::PreferencesDialog::new();
-    dialog.set_title("Agents & MCP");
+    dialog.set_title(&gettext("Agents & MCP"));
     dialog.set_search_enabled(false);
     let page = adw::PreferencesPage::new();
     let group = adw::PreferencesGroup::new();
-    group.set_title("MCP setup");
+    group.set_title(&gettext("MCP setup"));
 
     let agent = adw::ComboRow::new();
     agent.set_widget_name("agent-setup-agent");
-    agent.set_title("Agent");
+    agent.set_title(&gettext("Agent"));
     agent.set_model(Some(&gtk::StringList::new(&[
-        "Codex",
-        "Claude Code",
-        "GitHub Copilot CLI",
-        "VS Code Copilot",
-        "OpenCode",
-        "Generic / Other",
+        gettext("Codex").as_str(),
+        gettext("Claude Code").as_str(),
+        gettext("GitHub Copilot CLI").as_str(),
+        gettext("VS Code Copilot").as_str(),
+        gettext("OpenCode").as_str(),
+        gettext("Generic / Other").as_str(),
     ])));
     group.add(&agent);
 
@@ -738,16 +765,18 @@ fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesD
 
     let allow_write = adw::SwitchRow::new();
     allow_write.set_widget_name("agent-setup-allow-write");
-    allow_write.set_title("Allow note changes");
-    allow_write.set_subtitle("Enable reversible create, save, move, trash, and restore actions.");
+    allow_write.set_title(&gettext("Allow note changes"));
+    allow_write.set_subtitle(&gettext(
+        "Enable reversible create, save, move, trash, and restore actions.",
+    ));
     group.add(&allow_write);
 
     let command = adw::ActionRow::new();
     command.set_widget_name("agent-setup-command");
-    command.set_title("Setup command");
+    command.set_title(&gettext("Setup command"));
     command.set_subtitle_selectable(true);
     let copy = gtk::Button::from_icon_name("edit-copy-symbolic");
-    copy.set_tooltip_text(Some("Copy setup configuration"));
+    copy.set_tooltip_text(Some(&gettext("Copy setup configuration")));
     copy.add_css_class("flat");
     copy.add_css_class("circular");
     copy.set_valign(gtk::Align::Center);
@@ -775,7 +804,7 @@ fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesD
                 {
                     Ok(instruction) => match instruction.command.or(instruction.configuration) {
                         Some(text) => text,
-                        None => "No setup instruction is available.".to_owned(),
+                        None => gettext("No setup instruction is available."),
                     },
                     Err(error) => error.to_string(),
                 };
@@ -800,37 +829,52 @@ fn show_agent_setup_dialog(parent: &adw::ApplicationWindow) -> adw::PreferencesD
 
 fn agent_cards_group(agent: &adw::ComboRow) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    group.set_title("Choose your agent");
-    group.set_description(Some(
+    group.set_title(&gettext("Choose your agent"));
+    group.set_description(Some(&gettext(
         "Select a client to reveal its private, user-level MCP setup.",
-    ));
+    )));
     for (index, title, subtitle, icon) in [
-        (0, "Codex", "OpenAI's coding agent", "codex-openai"),
-        (1, "Claude Code", "Anthropic's terminal agent", "anthropic"),
+        (
+            0,
+            gettext("Codex"),
+            gettext("OpenAI's coding agent"),
+            "codex-openai",
+        ),
+        (
+            1,
+            gettext("Claude Code"),
+            gettext("Anthropic's terminal agent"),
+            "anthropic",
+        ),
         (
             2,
-            "GitHub Copilot CLI",
-            "GitHub's terminal assistant",
+            gettext("GitHub Copilot CLI"),
+            gettext("GitHub's terminal assistant"),
             "copilot",
         ),
         (
             3,
-            "VS Code Copilot",
-            "Configure VS Code's MCP server list",
+            gettext("VS Code Copilot"),
+            gettext("Configure VS Code's MCP server list"),
             "copilot",
         ),
-        (4, "OpenCode", "OpenCode's terminal agent", "opencode"),
+        (
+            4,
+            gettext("OpenCode"),
+            gettext("OpenCode's terminal agent"),
+            "opencode",
+        ),
         (
             5,
-            "Generic / Other",
-            "Any client that supports stdio MCP",
+            gettext("Generic / Other"),
+            gettext("Any client that supports stdio MCP"),
             "applications-system-symbolic",
         ),
     ] {
         let card = adw::ActionRow::new();
         card.set_widget_name(&format!("agent-card-{index}"));
-        card.set_title(title);
-        card.set_subtitle(subtitle);
+        card.set_title(&title);
+        card.set_subtitle(&subtitle);
         card.set_activatable(true);
         card.add_prefix(&agent_icon(icon));
         let agent_for_card = agent.clone();
@@ -859,21 +903,21 @@ fn source_editor_preferences_group(
     config: &carver_config::Config,
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    group.set_title("Source editor");
+    group.set_title(&gettext("Source editor"));
     let (source_font, font_value, reset_font) = source_font_rows(config);
     group.add(&source_font);
     group.add(&reset_font);
     let line_numbers = preference_switch_row(
         "source-line-numbers-setting",
-        "Show line numbers",
-        "Show source line positions in the editor gutter.",
+        &gettext("Show line numbers"),
+        &gettext("Show source line positions in the editor gutter."),
         config.editor.source_line_numbers,
     );
     group.add(&line_numbers);
     let current_line = preference_switch_row(
         "source-current-line-setting",
-        "Highlight current line",
-        "Shade the line containing the cursor in Source mode.",
+        &gettext("Highlight current line"),
+        &gettext("Shade the line containing the cursor in Source mode."),
         config.editor.source_highlight_current_line,
     );
     group.add(&current_line);
@@ -889,7 +933,7 @@ fn source_font_rows(
 ) -> (adw::ActionRow, gtk::Label, adw::ActionRow) {
     let row = adw::ActionRow::new();
     row.set_widget_name("source-font-setting");
-    row.set_title("Source font");
+    row.set_title(&gettext("Source font"));
     row.set_activatable(true);
     let system_font = system_monospace_font_description();
     let selected_font = config
@@ -905,8 +949,11 @@ fn source_font_rows(
     row.add_suffix(&value);
     let reset = adw::ActionRow::new();
     reset.set_widget_name("source-font-reset-row");
-    reset.set_title("Use system monospace font");
-    reset.set_subtitle(&format!("Follow the desktop setting ({system_font})."));
+    reset.set_title(&gettext("Use system monospace font"));
+    reset.set_subtitle(&tr_fmt!(
+        gettext("Follow the desktop setting ({system_font})."),
+        system_font = system_font
+    ));
     reset.set_activatable(true);
     reset.set_visible(config.editor.source_font.is_some());
     (row, value, reset)
@@ -915,7 +962,7 @@ fn source_font_rows(
 fn source_font_dialog() -> gtk::FontDialog {
     let font_filter = source_font_filter();
     let dialog = gtk::FontDialog::new();
-    dialog.set_title("Choose Source Font");
+    dialog.set_title(&gettext("Choose Source Font"));
     dialog.set_filter(Some(&font_filter));
     dialog
 }
@@ -959,7 +1006,11 @@ fn preference_switch_row(
 }
 
 fn source_syntax_style_row(style: SourceSyntaxStyle) -> adw::ComboRow {
-    let options = gtk::StringList::new(&["Detailed", "Writing focus", "Off"]);
+    let options = gtk::StringList::new(&[
+        gettext("Detailed").as_str(),
+        gettext("Writing focus").as_str(),
+        gettext("Off").as_str(),
+    ]);
     let expression = gtk::PropertyExpression::new(
         gtk::StringObject::static_type(),
         None::<gtk::Expression>,
@@ -967,8 +1018,10 @@ fn source_syntax_style_row(style: SourceSyntaxStyle) -> adw::ComboRow {
     );
     let row = adw::ComboRow::new();
     row.set_widget_name("source-syntax-style-setting");
-    row.set_title("Syntax style");
-    row.set_subtitle("Choose how much markup colour appears in Source mode.");
+    row.set_title(&gettext("Syntax style"));
+    row.set_subtitle(&gettext(
+        "Choose how much markup colour appears in Source mode.",
+    ));
     row.set_model(Some(&options));
     row.set_expression(Some(&expression));
     row.set_selected(source_syntax_style_index(style));
@@ -1099,8 +1152,8 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
         .application_name("Carver")
         .application_icon(crate::app::APPLICATION_ICON)
         .version(env!("CARGO_PKG_VERSION"))
-        .developer_name("Carver contributors")
-        .comments("A native GNOME notebook for Carve markup.")
+        .developer_name(gettext("Carver contributors"))
+        .comments(gettext("A native GNOME notebook for Carve markup."))
         .issue_url("https://github.com/josbeir/carver/issues")
         .license_type(gtk::License::MitX11)
         .build();
@@ -1116,14 +1169,14 @@ pub(crate) fn show_keyboard_shortcuts_dialog(
     parent: &adw::ApplicationWindow,
 ) -> adw::ShortcutsDialog {
     let dialog = adw::ShortcutsDialog::builder()
-        .title("Keyboard Shortcuts")
+        .title(gettext("Keyboard Shortcuts"))
         .build();
     dialog.set_widget_name("keyboard-shortcuts-dialog");
-    for section in SHORTCUT_SECTIONS {
-        let shortcuts = adw::ShortcutsSection::new(Some(section.title));
+    for section in SHORTCUT_SECTIONS.iter() {
+        let shortcuts = adw::ShortcutsSection::new(Some(section.title.as_str()));
         for shortcut in section.shortcuts {
             shortcuts.add(adw::ShortcutsItem::new(
-                shortcut.title,
+                &shortcut.title,
                 shortcut.accelerator,
             ));
         }
@@ -1143,7 +1196,7 @@ pub(crate) fn show_category_name_dialog(
     let entry = gtk::Entry::new();
     entry.set_widget_name("category-name-entry");
     entry.set_text(initial_name);
-    entry.set_placeholder_text(Some("Category name"));
+    entry.set_placeholder_text(Some(&gettext("Category name")));
     entry.set_activates_default(true);
     let dialog = adw::AlertDialog::builder()
         .heading(title)
@@ -1151,7 +1204,10 @@ pub(crate) fn show_category_name_dialog(
         .default_response("save")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("save", "Save")]);
+    dialog.add_responses(&[
+        ("cancel", gettext("Cancel").as_str()),
+        ("save", pgettext("dialog", "Save").as_str()),
+    ]);
     dialog.set_response_enabled("save", !initial_name.trim().is_empty());
     let dialog_for_entry = dialog.clone();
     entry.connect_changed(move |entry| {
@@ -1185,7 +1241,7 @@ pub(crate) fn category_form(
     let entry = gtk::Entry::new();
     entry.set_widget_name("category-name-entry");
     entry.set_text(initial_name);
-    entry.set_placeholder_text(Some("Category name"));
+    entry.set_placeholder_text(Some(&gettext("Category name")));
     content.append(&entry);
     let (picker, icon, color) = category_appearance_picker(initial_appearance);
     content.append(&picker);
@@ -1217,7 +1273,10 @@ pub(crate) fn show_category_dialog(
         .default_response("save")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("save", "Save")]);
+    dialog.add_responses(&[
+        ("cancel", gettext("Cancel").as_str()),
+        ("save", pgettext("dialog", "Save").as_str()),
+    ]);
     dialog.set_response_enabled("save", !initial_name.trim().is_empty());
     let dialog_for_entry = dialog.clone();
     entry.connect_changed(move |entry| {
@@ -1248,7 +1307,7 @@ fn category_appearance_picker(
     Rc<std::cell::Cell<CategoryColor>>,
 ) {
     let picker = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    let icon_label = gtk::Label::new(Some("Icon"));
+    let icon_label = gtk::Label::new(Some(&pgettext("category appearance", "Icon")));
     icon_label.set_xalign(0.0);
     icon_label.add_css_class("heading");
     picker.append(&icon_label);
@@ -1262,7 +1321,7 @@ fn category_appearance_picker(
     for icon in CATEGORY_ICONS {
         let button = gtk::ToggleButton::new();
         button.set_widget_name(&format!("category-icon-{}", category_icon_id(icon)));
-        button.set_tooltip_text(Some(category_icon_label(icon)));
+        button.set_tooltip_text(Some(category_icon_label(icon).as_str()));
         button.add_css_class("category-appearance-option");
         button.set_active(icon == initial.icon);
         button.set_child(Some(&gtk::Image::from_icon_name(category_icon_name(icon))));
@@ -1277,7 +1336,7 @@ fn category_appearance_picker(
         icons.insert(&button, -1);
     }
     picker.append(&icons);
-    let color_label = gtk::Label::new(Some("Colour"));
+    let color_label = gtk::Label::new(Some(&pgettext("category appearance", "Colour")));
     color_label.set_xalign(0.0);
     color_label.add_css_class("heading");
     picker.append(&color_label);
@@ -1289,9 +1348,9 @@ fn category_appearance_picker(
     let selected_color = Rc::new(std::cell::Cell::new(initial.color));
     let mut color_group = None;
     for color in CATEGORY_COLORS {
-        let button = gtk::ToggleButton::with_label(category_color_label(color));
+        let button = gtk::ToggleButton::with_label(&category_color_label(color));
         button.set_widget_name(&format!("category-color-{}", category_color_id(color)));
-        button.set_tooltip_text(Some(category_color_label(color)));
+        button.set_tooltip_text(Some(category_color_label(color).as_str()));
         button.add_css_class("category-color-option");
         button.add_css_class(category_color_css_class(color));
         button.set_active(color == initial.color);
@@ -1363,18 +1422,18 @@ fn category_icon_id(icon: CategoryIcon) -> &'static str {
     }
 }
 
-fn category_icon_label(icon: CategoryIcon) -> &'static str {
+fn category_icon_label(icon: CategoryIcon) -> String {
     match icon {
-        CategoryIcon::Folder => "Folder",
-        CategoryIcon::Briefcase => "Briefcase",
-        CategoryIcon::Calendar => "Calendar",
-        CategoryIcon::Book => "Book",
-        CategoryIcon::Heart => "Heart",
-        CategoryIcon::Home => "Home",
-        CategoryIcon::People => "People",
-        CategoryIcon::Star => "Star",
-        CategoryIcon::Tag => "Tag",
-        CategoryIcon::Lightbulb => "Idea",
+        CategoryIcon::Folder => gettext("Folder"),
+        CategoryIcon::Briefcase => gettext("Briefcase"),
+        CategoryIcon::Calendar => gettext("Calendar"),
+        CategoryIcon::Book => gettext("Book"),
+        CategoryIcon::Heart => gettext("Heart"),
+        CategoryIcon::Home => gettext("Home"),
+        CategoryIcon::People => gettext("People"),
+        CategoryIcon::Star => gettext("Star"),
+        CategoryIcon::Tag => gettext("Tag"),
+        CategoryIcon::Lightbulb => gettext("Idea"),
     }
 }
 
@@ -1391,16 +1450,16 @@ fn category_color_id(color: CategoryColor) -> &'static str {
     }
 }
 
-fn category_color_label(color: CategoryColor) -> &'static str {
+fn category_color_label(color: CategoryColor) -> String {
     match color {
-        CategoryColor::Auto => "Auto",
-        CategoryColor::Rose => "Rose",
-        CategoryColor::Tangerine => "Tangerine",
-        CategoryColor::Yellow => "Yellow",
-        CategoryColor::Olive => "Olive",
-        CategoryColor::Teal => "Teal",
-        CategoryColor::Blue => "Blue",
-        CategoryColor::Purple => "Purple",
+        CategoryColor::Auto => pgettext("category colour", "Auto"),
+        CategoryColor::Rose => gettext("Rose"),
+        CategoryColor::Tangerine => gettext("Tangerine"),
+        CategoryColor::Yellow => gettext("Yellow"),
+        CategoryColor::Olive => gettext("Olive"),
+        CategoryColor::Teal => gettext("Teal"),
+        CategoryColor::Blue => gettext("Blue"),
+        CategoryColor::Purple => gettext("Purple"),
     }
 }
 
@@ -1430,7 +1489,10 @@ pub(crate) fn show_move_note_dialog(
     categories: &[CategorySummary],
 ) -> adw::Dialog {
     let dialog = adw::Dialog::builder()
-        .title(format!("Move “{note_title}”"))
+        .title(tr_fmt!(
+            gettext("Move “{note_title}”"),
+            note_title = note_title
+        ))
         .content_width(420)
         .content_height(460)
         .build();
@@ -1440,13 +1502,16 @@ pub(crate) fn show_move_note_dialog(
     content.set_margin_end(18);
     content.set_margin_top(18);
     content.set_margin_bottom(18);
-    let title = gtk::Label::new(Some(&format!("Move “{note_title}”")));
+    let title = gtk::Label::new(Some(&tr_fmt!(
+        gettext("Move “{note_title}”"),
+        note_title = note_title
+    )));
     title.add_css_class("title-3");
     title.set_xalign(0.0);
     content.append(&title);
     let search = gtk::SearchEntry::new();
     search.set_widget_name("move-note-search");
-    search.set_placeholder_text(Some("Search categories"));
+    search.set_placeholder_text(Some(&gettext("Search categories")));
     content.append(&search);
     let list = gtk::ListBox::new();
     list.set_widget_name("move-note-category-list");
@@ -1456,12 +1521,12 @@ pub(crate) fn show_move_note_dialog(
     scroll.set_vexpand(true);
     scroll.set_child(Some(&list));
     content.append(&scroll);
-    let new_category = gtk::Button::with_label("New Category…");
+    let new_category = gtk::Button::with_label(&gettext("New Category…"));
     new_category.set_widget_name("move-note-new-category-button");
     new_category.add_css_class("flat");
     new_category.set_halign(gtk::Align::Start);
     content.append(&new_category);
-    let cancel = gtk::Button::with_label("Cancel");
+    let cancel = gtk::Button::with_label(&gettext("Cancel"));
     cancel.set_halign(gtk::Align::End);
     content.append(&cancel);
     dialog.set_child(Some(&content));
@@ -1541,7 +1606,7 @@ fn connect_move_picker_new_category(
     button.connect_clicked(move |_| {
         dialog.close();
         let dispatcher = dispatcher.clone();
-        show_category_name_dialog(parent.as_ref(), "New Category", "", move |name| {
+        show_category_name_dialog(parent.as_ref(), &gettext("New Category"), "", move |name| {
             let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryAndMoveNote {
                 name,
                 note_id,
@@ -1587,7 +1652,7 @@ fn populate_move_categories(
         label.set_hexpand(true);
         content.append(&label);
         if category.id == source_category_id {
-            let current = gtk::Label::new(Some("Current"));
+            let current = gtk::Label::new(Some(&gettext("Current")));
             current.add_css_class("dim-label");
             content.append(&current);
             button.set_sensitive(false);
@@ -1611,7 +1676,7 @@ fn populate_move_categories(
     if matching_categories == 0 {
         let row = gtk::ListBoxRow::new();
         row.set_selectable(false);
-        let label = gtk::Label::new(Some("No categories found"));
+        let label = gtk::Label::new(Some(&gettext("No categories found")));
         label.add_css_class("dim-label");
         label.set_margin_top(12);
         label.set_margin_bottom(12);
@@ -1636,13 +1701,19 @@ pub(crate) fn category_trash_dialog(
     on_confirm: impl Fn() + 'static,
 ) -> adw::AlertDialog {
     let dialog = adw::AlertDialog::new(
-        Some(&format!("Move “{category_name}” to Trash?")),
-        Some(
+        Some(&tr_fmt!(
+            gettext("Move “{category_name}” to Trash?"),
+            category_name = category_name
+        )),
+        Some(&gettext(
             "Notes in this category will no longer appear in your library. You can restore the category from Trash later.",
-        ),
+        )),
     );
     dialog.set_widget_name("category-trash-confirmation");
-    dialog.add_responses(&[("cancel", "Cancel"), ("trash", "Move to Trash")]);
+    dialog.add_responses(&[
+        ("cancel", gettext("Cancel").as_str()),
+        ("trash", gettext("Move to Trash").as_str()),
+    ]);
     dialog.set_response_appearance("trash", adw::ResponseAppearance::Destructive);
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");

@@ -34,9 +34,18 @@ jobs:
       - name: Install GTK dependencies
         run: >-
           sudo apt-get update && sudo apt-get install -y
-          libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev weston
+          libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev weston gettext
       - name: Format
         run: cargo fmt --all -- --check
+      - name: Translations
+        run: |
+          ./scripts/update-translations.sh
+          git diff --exit-code -I 'POT-Creation-Date:' po/
+          for catalog in po/*.po; do
+            output="$(mktemp --suffix=.mo)"
+            msgfmt --check -c --strict -o "$output" "$catalog"
+            rm -f "$output"
+          done
       - name: Check the bundled TypeScript editor
         working-directory: apps/carver-gtk/web
         run: npm ci && npm run check

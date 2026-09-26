@@ -18,6 +18,8 @@ carver-editor-protocol = { path = "../../crates/carver-editor-protocol", version
 carver-export = { path = "../../crates/carver-export", version = "0.3.1" }
 base64.workspace = true
 carve-lang.workspace = true
+formatx.workspace = true
+gettext-rs.workspace = true
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 glib.workspace = true
 gdk-pixbuf.workspace = true

@@ -3,6 +3,7 @@
 use super::dialogs::category_form;
 use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BasesMsg};
 use carver_sdk::CategoryAppearance;
+use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 use std::{cell::Cell, rc::Rc};
@@ -10,17 +11,17 @@ use std::{cell::Cell, rc::Rc};
 pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
     let button = gtk::Button::builder()
         .icon_name("list-add-symbolic")
-        .tooltip_text("Add")
+        .tooltip_text(gettext("Add"))
         .build();
     button.set_widget_name("sidebar-add-button");
-    button.update_property(&[gtk::accessible::Property::Label("Add")]);
+    button.update_property(&[gtk::accessible::Property::Label(&gettext("Add"))]);
     let dispatcher = dispatcher.clone();
     button.connect_clicked(move |button| {
         let Some(parent) = button.root().and_downcast::<gtk::Window>() else {
             return;
         };
         let dialog = adw::Dialog::builder()
-            .title("Add")
+            .title(gettext("Add"))
             .follows_content_size(true)
             .build();
         dialog.set_widget_name("sidebar-add-dialog");
@@ -48,7 +49,7 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
         .build();
     stack.set_widget_name("add-pages");
     let chooser = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    let heading = gtk::Label::new(Some("What would you like to add?"));
+    let heading = gtk::Label::new(Some(&gettext("What would you like to add?")));
     heading.add_css_class("heading");
     heading.set_wrap(true);
     chooser.append(&heading);
@@ -57,14 +58,14 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
     let submitted = Rc::new(Cell::new(false));
     let category_choice = choice_card(
         "category",
-        "Category",
+        &pgettext("add dialog", "Category"),
         "folder-symbolic",
-        "Keep related notes together in one place.",
-        "Examples: Work, Personal, Research",
+        &gettext("Keep related notes together in one place."),
+        &gettext("Examples: Work, Personal, Research"),
     );
     chooser.append(&category_choice);
     let (category_page, category_back, category_create) =
-        form_page("category", "Category", &category.content);
+        form_page("category", &gettext("New Category"), &category.content);
     stack.add_named(&category_page, Some("category"));
     connect_form_navigation(
         &stack,
@@ -101,10 +102,12 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
 
     let base_choice = choice_card(
         "base",
-        "Base",
+        &pgettext("add dialog", "Base"),
         "carver-database-symbolic",
-        "Build a custom view of your notes with chosen fields, a query, and a sort order.",
-        "Examples: Project tracker, Reading list",
+        &gettext(
+            "Build a custom view of your notes with chosen fields, a query, and a sort order.",
+        ),
+        &gettext("Examples: Project tracker, Reading list"),
     );
     chooser.append(&base_choice);
     let dispatcher = dispatcher.clone();
@@ -131,16 +134,16 @@ fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button
     page.set_widget_name(&format!("add-{name}-page"));
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name(&format!("add-{name}-back"));
-    back.set_tooltip_text(Some("Back"));
+    back.set_tooltip_text(Some(&gettext("Back")));
     back.add_css_class("flat");
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     header.append(&back);
-    let title = gtk::Label::new(Some(&format!("New {title}")));
+    let title = gtk::Label::new(Some(title));
     title.add_css_class("heading");
     header.append(&title);
     page.append(&header);
     page.append(form);
-    let create = gtk::Button::with_label("Create");
+    let create = gtk::Button::with_label(&gettext("Create"));
     create.set_widget_name(&format!("add-{name}-create"));
     create.add_css_class("suggested-action");
     create.set_sensitive(false);

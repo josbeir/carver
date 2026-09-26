@@ -6,6 +6,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use gettextrs::{gettext, ngettext, pgettext};
 use gtk::prelude::*;
 use libadwaita as adw;
 use time::{Date, OffsetDateTime};
@@ -247,7 +248,11 @@ impl ViewRefs {
             crate::ui::bases::actions::render_configure(&refs.configure, None, dispatcher);
             refs.grid.set_sensitive(false);
             if let LoadState::Failed(error) = &model.bases.definitions.state {
-                crate::ui::bases::render_base_status(refs, "Couldn’t load base", &error.message);
+                crate::ui::bases::render_base_status(
+                    refs,
+                    &gettext("Couldn’t load base"),
+                    &error.message,
+                );
                 return;
             }
             if !matches!(model.bases.definitions.state, LoadState::Loading(id)
@@ -255,7 +260,11 @@ impl ViewRefs {
             {
                 return;
             }
-            crate::ui::bases::render_base_status(refs, "Loading base…", "Loading its definition.");
+            crate::ui::bases::render_base_status(
+                refs,
+                &gettext("Loading base…"),
+                &gettext("Loading its definition."),
+            );
             return;
         };
         let definition = definitions.iter().find(|base| base.id == base_id);
@@ -267,7 +276,11 @@ impl ViewRefs {
         let rows = match &model.bases.rows.state {
             LoadState::Ready(rows) => rows,
             LoadState::Failed(error) => {
-                crate::ui::bases::render_base_status(refs, "Couldn’t load rows", &error.message);
+                crate::ui::bases::render_base_status(
+                    refs,
+                    &gettext("Couldn’t load rows"),
+                    &error.message,
+                );
                 return;
             }
             LoadState::Idle | LoadState::Loading(_) => {
@@ -279,8 +292,8 @@ impl ViewRefs {
                 }
                 crate::ui::bases::render_base_status(
                     refs,
-                    "Loading rows…",
-                    "Refreshing this base.",
+                    &gettext("Loading rows…"),
+                    &gettext("Refreshing this base."),
                 );
                 return;
             }
@@ -297,12 +310,12 @@ impl ViewRefs {
             refs.load_more
                 .set_visible(model.bases.rows_has_more || model.bases.rows_append_error.is_some());
             refs.load_more.set_sensitive(!loading);
-            refs.load_more.set_label(if loading {
-                "Loading more rows…"
+            refs.load_more.set_label(&if loading {
+                gettext("Loading more rows…")
             } else if model.bases.rows_append_error.is_some() {
-                "Retry loading rows"
+                gettext("Retry loading rows")
             } else {
-                "Load more rows"
+                gettext("Load more rows")
             });
         }
     }
@@ -450,14 +463,14 @@ impl ViewRefs {
         };
         let toast = adw::Toast::builder()
             .title(if deleted {
-                "This note was deleted elsewhere. Your open text is preserved."
+                gettext("This note was deleted elsewhere. Your open text is preserved.")
             } else {
-                "This note changed elsewhere. Your unsaved edits are preserved."
+                gettext("This note changed elsewhere. Your unsaved edits are preserved.")
             })
             .button_label(if deleted {
-                "Close Note…"
+                gettext("Close Note…")
             } else {
-                "Reload…"
+                gettext("Reload…")
             })
             .timeout(0)
             .build();
@@ -465,13 +478,29 @@ impl ViewRefs {
         let dispatcher = dispatcher.clone();
         toast.connect_button_clicked(move |_| {
             let dialog = adw::AlertDialog::builder()
-                .heading(if deleted { "Close deleted note?" } else { "Reload note?" })
-                .body(if deleted { "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first." }
-                    else { "Reloading replaces your unsaved edits with the latest saved note." })
+                .heading(if deleted {
+                    gettext("Close deleted note?")
+                } else {
+                    gettext("Reload note?")
+                })
+                .body(if deleted {
+                    gettext("Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first.")
+                } else {
+                    gettext("Reloading replaces your unsaved edits with the latest saved note.")
+                })
                 .default_response("cancel")
                 .close_response("cancel")
                 .build();
-            dialog.add_responses(&[("cancel", "Cancel"), ("reload", if deleted { "Discard Draft and Open Trash" } else { "Discard Edits and Reload" })]);
+            let cancel = gettext("Cancel");
+            let reload = if deleted {
+                gettext("Discard Draft and Open Trash")
+            } else {
+                gettext("Discard Edits and Reload")
+            };
+            dialog.add_responses(&[
+                ("cancel", cancel.as_str()),
+                ("reload", reload.as_str()),
+            ]);
             dialog.set_response_appearance("reload", adw::ResponseAppearance::Destructive);
             let dispatcher = dispatcher.clone();
             dialog.connect_response(None, move |_, response| {
@@ -585,9 +614,9 @@ impl ViewRefs {
                 self.browser_rendered_rows.borrow_mut().clear();
                 self.browser_rendered_context.replace(None);
                 empty_new_note.set_visible(true);
-                self.browser_status.set_title("No notes yet");
+                self.browser_status.set_title(&gettext("No notes yet"));
                 self.browser_status
-                    .set_description(Some("Create a note to get started."));
+                    .set_description(Some(&gettext("Create a note to get started.")));
                 pages.set_visible_child_name("empty");
             }
             LoadState::Ready(notes) => {
@@ -599,7 +628,7 @@ impl ViewRefs {
                 self.browser_rendered_context.replace(None);
                 empty_new_note.set_visible(false);
                 self.browser_status
-                    .set_title(resource_label(state, "No notes yet"));
+                    .set_title(&resource_label(state, "No notes yet"));
                 if let LoadState::Failed(error) = state {
                     self.browser_status.set_description(Some(&error.message));
                 }
@@ -688,22 +717,23 @@ impl ViewRefs {
         }
         match &model.trash.state {
             LoadState::Ready(contents) if contents.is_empty() => {
-                self.trash_status.set_title("Trash is empty");
-                self.trash_status
-                    .set_description(Some("Deleted notes and categories can be restored here."));
+                self.trash_status.set_title(&gettext("Trash is empty"));
+                self.trash_status.set_description(Some(&gettext(
+                    "Deleted notes and categories can be restored here.",
+                )));
                 empty_button.set_sensitive(false);
                 pages.set_visible_child_name("empty");
             }
             LoadState::Ready(contents) => {
                 empty_button.set_sensitive(true);
                 if !contents.categories.is_empty() {
-                    append_section_heading(list, "Categories");
+                    append_section_heading(list, &pgettext("Trash section", "Categories"));
                     for category in &contents.categories {
                         list.append(&trashed_category_row(category));
                     }
                 }
                 if !contents.notes.is_empty() {
-                    append_section_heading(list, "Notes");
+                    append_section_heading(list, &pgettext("Trash section", "Notes"));
                     for note in &contents.notes {
                         list.append(&trashed_note_row(note));
                     }
@@ -713,7 +743,7 @@ impl ViewRefs {
             state => {
                 empty_button.set_sensitive(false);
                 self.trash_status
-                    .set_title(resource_label(state, "Trash is empty"));
+                    .set_title(&resource_label(state, "Trash is empty"));
                 if let LoadState::Failed(error) = state {
                     self.trash_status.set_description(Some(&error.message));
                 }
@@ -752,8 +782,11 @@ impl ViewRefs {
             return;
         }
         if let Some(toast_overlay) = &self.toast_overlay {
-            let toast = adw::Toast::new(&format!("Could not save note: {}", error.message));
-            toast.set_button_label(Some("Retry"));
+            let toast = adw::Toast::new(&tr_fmt!(
+                gettext("Could not save note: {error}"),
+                error = error.message
+            ));
+            toast.set_button_label(Some(&gettext("Retry")));
             toast.set_action_name(Some("mvu.retry-save"));
             toast_overlay.add_toast(toast);
             self.last_editor_save_error
@@ -769,8 +802,8 @@ impl ViewRefs {
         if model.undo_move.is_some()
             && let Some(toast_overlay) = &self.toast_overlay
         {
-            let toast = adw::Toast::new("Moved note");
-            toast.set_button_label(Some("Undo"));
+            let toast = adw::Toast::new(&gettext("Moved note"));
+            toast.set_button_label(Some(&gettext("Undo")));
             toast.set_action_name(Some("mvu.undo-move"));
             toast_overlay.add_toast(toast);
         }
@@ -784,8 +817,8 @@ impl ViewRefs {
         if model.undo_trash_note.is_some()
             && let Some(toast_overlay) = &self.toast_overlay
         {
-            let toast = adw::Toast::new("Moved note to Trash");
-            toast.set_button_label(Some("Undo"));
+            let toast = adw::Toast::new(&gettext("Moved note to Trash"));
+            toast.set_button_label(Some(&gettext("Undo")));
             toast.set_action_name(Some("mvu.undo-trash-note"));
             toast_overlay.add_toast(toast);
         }
@@ -915,14 +948,14 @@ fn append_browser_footer(feed_store: &gtk::gio::ListStore, model: &AppModel) {
     let loading = model.browser.append_request.is_some();
     if model.browser.has_more || model.browser.append_error.is_some() {
         let label = if loading {
-            "Loading more notes…"
+            gettext("Loading more notes…")
         } else if model.browser.append_error.is_some() {
-            "Retry loading notes"
+            gettext("Retry loading notes")
         } else {
-            "Load more notes"
+            gettext("Load more notes")
         };
         feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::LoadMore {
-            label: label.to_string(),
+            label: label.clone(),
             sensitive: !loading,
         }));
     }
@@ -948,20 +981,20 @@ fn remove_browser_footer(feed_store: &gtk::gio::ListStore) {
 
 fn render_resource<T>(status: &adw::StatusPage, resource: &LoadState<T>, empty_title: &str) {
     match resource {
-        LoadState::Idle | LoadState::Ready(_) => status.set_title(empty_title),
-        LoadState::Loading(_) => status.set_title("Loading…"),
+        LoadState::Idle | LoadState::Ready(_) => status.set_title(&gettext(empty_title)),
+        LoadState::Loading(_) => status.set_title(&gettext("Loading…")),
         LoadState::Failed(error) => {
-            status.set_title("Could not load content");
+            status.set_title(&gettext("Could not load content"));
             status.set_description(Some(&error.message));
         }
     }
 }
 
-fn resource_label<T>(resource: &LoadState<T>, empty: &'static str) -> &'static str {
+fn resource_label<T>(resource: &LoadState<T>, empty: &str) -> String {
     match resource {
-        LoadState::Idle | LoadState::Ready(_) => empty,
-        LoadState::Loading(_) => "Loading…",
-        LoadState::Failed(_) => "Could not load content",
+        LoadState::Idle | LoadState::Ready(_) => gettext(empty),
+        LoadState::Loading(_) => gettext("Loading…"),
+        LoadState::Failed(_) => gettext("Could not load content"),
     }
 }
 
@@ -996,9 +1029,13 @@ fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::L
     title.set_xalign(0.0);
     title.add_css_class("note-card-title");
     details.append(&title);
-    let recovery_count = gtk::Label::new(Some(&format!(
-        "{} recoverable notes",
-        category.recoverable_note_count
+    let recovery_count = gtk::Label::new(Some(&tr_fmt!(
+        ngettext(
+            "{count} recoverable note",
+            "{count} recoverable notes",
+            u32::try_from(category.recoverable_note_count).unwrap_or(u32::MAX),
+        ),
+        count = category.recoverable_note_count
     )));
     recovery_count.set_xalign(0.0);
     recovery_count.set_ellipsize(gtk::pango::EllipsizeMode::End);
@@ -1057,8 +1094,8 @@ fn restore_button(name: &str, action: &str, target: &str) -> gtk::Button {
     let restore = gtk::Button::from_icon_name("edit-undo-symbolic");
     restore.set_widget_name(name);
     restore.add_css_class("flat");
-    restore.set_tooltip_text(Some("Restore"));
-    restore.update_property(&[gtk::accessible::Property::Label("Restore")]);
+    restore.set_tooltip_text(Some(&gettext("Restore")));
+    restore.update_property(&[gtk::accessible::Property::Label(&gettext("Restore"))]);
     restore.set_valign(gtk::Align::Center);
     restore.set_action_name(Some(action));
     restore.set_action_target_value(Some(&target.to_variant()));

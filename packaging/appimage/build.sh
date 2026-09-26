@@ -16,8 +16,9 @@ for binary in carver-gtk carver-mcp; do
   install -Dm755 "target/release/$binary" "$app_dir/usr/bin/$binary"
 done
 resources=apps/carver-gtk/resources
-install -Dm644 "$resources/io.github.josbeir.Carver.metainfo.xml" "$app_dir/usr/share/metainfo/io.github.josbeir.Carver.metainfo.xml"
 install -Dm644 LICENSE "$app_dir/usr/share/licenses/carver/LICENSE"
+# Compile .mo catalogs and the translated desktop/metainfo files.
+bash scripts/compile-translations.sh "$app_dir/usr/share"
 # These resources are loaded dynamically and cannot be inferred from ELF links.
 for directory in webkitgtk-6.0 gio/modules gstreamer-1.0; do
   mkdir -p "$app_dir/usr/lib/$(dirname "$directory")"
@@ -48,7 +49,7 @@ export LDAI_OUTPUT="$project_root/target/carver-$version-x86_64.AppImage"
 export LDAI_VERSION="$version"
 "$linuxdeploy" --appdir "$app_dir" \
   --deploy-deps-only "$app_dir/usr" \
-  --desktop-file "$resources/io.github.josbeir.Carver.desktop" \
+  --desktop-file "$app_dir/usr/share/applications/io.github.josbeir.Carver.desktop" \
   --icon-file "$resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg" \
   --custom-apprun packaging/appimage/AppRun --output appimage
 cd target

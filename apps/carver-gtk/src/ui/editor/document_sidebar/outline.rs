@@ -2,6 +2,7 @@
 use crate::mvu::{AppDispatcher, AppMsg, EditorDocument, EditorMsg, EditorSessionId};
 use carver_domain::source_analysis::HeadingOccurrence;
 use carver_editor_protocol::DocumentTarget;
+use gettextrs::gettext;
 use gtk::{gio, prelude::*};
 
 const OUTLINE_INDENT: i32 = 12;
@@ -187,7 +188,7 @@ fn row_factory(dispatcher: &AppDispatcher) -> gtk::SignalListItemFactory {
         };
         expander.set_list_row(Some(&row));
         content.set_margin_start(i32::try_from(row.depth()).unwrap_or(0) * OUTLINE_INDENT);
-        level_label.set_label(&format!("H{level}"));
+        level_label.set_label(&tr_fmt!(gettext("H{level}"), level = level));
         label.set_label(&text);
         label.set_tooltip_text(Some(&text));
     });

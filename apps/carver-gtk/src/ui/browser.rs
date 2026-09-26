@@ -8,9 +8,10 @@ use std::{
 
 use carver_config::Config;
 use carver_sdk::{Category, CategoryColor, CategorySummary, NoteSummary};
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita as adw;
-use time::{Duration, OffsetDateTime, UtcOffset, macros::format_description};
+use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{
     dialogs::{
@@ -79,14 +80,14 @@ pub(crate) enum NoteDateGroup {
 impl NoteDateGroup {
     /// Returns the user-visible heading for this group.
     #[must_use]
-    pub(crate) fn label(self) -> Cow<'static, str> {
+    pub(crate) fn label(self) -> String {
         match self {
-            Self::Today => Cow::Borrowed("Today"),
-            Self::Yesterday => Cow::Borrowed("Yesterday"),
-            Self::ThisWeek => Cow::Borrowed("This Week"),
-            Self::ThisMonth => Cow::Borrowed("This Month"),
-            Self::EarlierThisYear => Cow::Borrowed("Earlier This Year"),
-            Self::Year(year) => Cow::Owned(year.to_string()),
+            Self::Today => gettext("Today"),
+            Self::Yesterday => gettext("Yesterday"),
+            Self::ThisWeek => gettext("This Week"),
+            Self::ThisMonth => gettext("This Month"),
+            Self::EarlierThisYear => gettext("Earlier This Year"),
+            Self::Year(year) => year.to_string(),
         }
     }
 
@@ -321,7 +322,7 @@ pub(crate) fn build_browser(
     let header = adw::HeaderBar::new();
     let new_note = gtk::Button::from_icon_name("document-new-symbolic");
     new_note.set_widget_name("new-note-button");
-    new_note.set_tooltip_text(Some("New Note"));
+    new_note.set_tooltip_text(Some(&gettext("New Note")));
     header.pack_end(&browser_menu_button());
     header.pack_end(&new_note);
     header.pack_start(&sidebar_toggle_button(
@@ -329,7 +330,11 @@ pub(crate) fn build_browser(
         compact_navigation,
         "toggle-categories-button",
     ));
-    let search = build_search_controls("note", "Search notes", "Search notes (Ctrl+F)");
+    let search = build_search_controls(
+        "note",
+        &gettext("Search notes"),
+        &gettext("Search notes (Ctrl+F)"),
+    );
     header.pack_start(&search.toggle);
     view.add_top_bar(&header);
     view.add_top_bar(&search.bar);
@@ -367,12 +372,12 @@ pub(crate) fn build_browser(
     pages.set_widget_name("browser-content-pages");
     pages.add_named(&scroll, Some("contents"));
     let status = adw::StatusPage::builder()
-        .title("No notes yet")
-        .description("Create a note to get started.")
+        .title(gettext("No notes yet"))
+        .description(gettext("Create a note to get started."))
         .icon_name("document-new-symbolic")
         .build();
     status.set_widget_name("browser-empty-status");
-    let empty_new_note = gtk::Button::with_label("New Note");
+    let empty_new_note = gtk::Button::with_label(&gettext("New Note"));
     empty_new_note.set_widget_name("browser-empty-new-note-button");
     empty_new_note.add_css_class("suggested-action");
     let empty_action = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -446,12 +451,12 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
 
 fn browser_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
-    menu.append(Some("Import Note"), Some(IMPORT_NOTE_ACTION));
+    menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
 
     let button = gtk::MenuButton::new();
     button.set_widget_name("browser-menu-button");
     button.set_icon_name("view-more-symbolic");
-    button.set_tooltip_text(Some("More options"));
+    button.set_tooltip_text(Some(&gettext("More options")));
     button.add_css_class("flat");
     button.set_menu_model(Some(&menu));
     button
@@ -463,13 +468,13 @@ fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
     card.add_css_class("card");
     card.add_css_class("category-empty-card");
     card.set_visible(false);
-    let title = gtk::Label::new(Some("No notes in this category"));
+    let title = gtk::Label::new(Some(&gettext("No notes in this category")));
     title.set_xalign(0.0);
     title.add_css_class("category-empty-card-title");
-    let description = gtk::Label::new(Some("Create a note to get started."));
+    let description = gtk::Label::new(Some(&gettext("Create a note to get started.")));
     description.set_xalign(0.0);
     description.add_css_class("dim-label");
-    let new_note = gtk::Button::with_label("New Note");
+    let new_note = gtk::Button::with_label(&gettext("New Note"));
     new_note.set_widget_name("browser-category-empty-new-note-button");
     new_note.add_css_class("suggested-action");
     new_note.set_halign(gtk::Align::Start);
@@ -484,10 +489,10 @@ fn build_search_empty_card() -> gtk::Box {
     card.set_widget_name("browser-search-empty-card");
     card.add_css_class("card");
     card.add_css_class("search-empty-card");
-    let title = gtk::Label::new(Some("No matching notes"));
+    let title = gtk::Label::new(Some(&gettext("No matching notes")));
     title.set_xalign(0.0);
     title.add_css_class("search-empty-card-title");
-    let description = gtk::Label::new(Some("Try a different search term."));
+    let description = gtk::Label::new(Some(&gettext("Try a different search term.")));
     description.set_xalign(0.0);
     description.add_css_class("dim-label");
     card.append(&title);
@@ -638,7 +643,7 @@ fn favorites_heading() -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     content.set_halign(gtk::Align::Start);
     content.set_widget_name("favorites-section");
-    let label = gtk::Label::new(Some("Favorites"));
+    let label = gtk::Label::new(Some(&gettext("Favorites")));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
     content.append(&label);
@@ -716,14 +721,14 @@ fn note_actions(
     let menu = gtk::MenuButton::new();
     menu.set_widget_name(&format!("note-menu:{}", note.id));
     menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some("Note actions"));
+    menu.set_tooltip_text(Some(&gettext("Note actions")));
     menu.add_css_class("flat");
     let popover = gtk::Popover::new();
     let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let favorite_button = gtk::Button::with_label(if note.is_favorite {
-        "Remove from Favorites"
+    let favorite_button = gtk::Button::with_label(&if note.is_favorite {
+        gettext("Remove from Favorites")
     } else {
-        "Mark as Favorite"
+        gettext("Mark as Favorite")
     });
     favorite_button.set_widget_name(&format!("favorite-note-menu-button:{}", note.id));
     favorite_button.add_css_class("flat");
@@ -741,7 +746,7 @@ fn note_actions(
         }));
     });
     actions.append(&favorite_button);
-    let move_button = gtk::Button::with_label("Move…");
+    let move_button = gtk::Button::with_label(&gettext("Move…"));
     move_button.set_widget_name(&format!("move-note-button:{}", note.id));
     move_button.add_css_class("flat");
     let dispatcher_for_move = dispatcher.clone();
@@ -765,7 +770,7 @@ fn note_actions(
         );
     });
     actions.append(&move_button);
-    let export_button = gtk::Button::with_label("Export note…");
+    let export_button = gtk::Button::with_label(&gettext("Export note…"));
     export_button.set_widget_name(&format!("export-note-button:{}", note.id));
     export_button.add_css_class("flat");
     let dispatcher_for_export = dispatcher.clone();
@@ -777,7 +782,7 @@ fn note_actions(
             dispatcher_for_export.dispatch(AppMsg::Navigation(NavigationMsg::ExportNote(note_id)));
     });
     actions.append(&export_button);
-    let trash_button = gtk::Button::with_label("Move to Trash");
+    let trash_button = gtk::Button::with_label(&gettext("Move to Trash"));
     trash_button.add_css_class("flat");
     trash_button.add_css_class("destructive-action");
     let dispatcher = dispatcher.clone();
@@ -830,7 +835,7 @@ fn all_notes_hero(categories: &[CategorySummary]) -> gtk::Widget {
     category_hero_content(
         "go-home-symbolic",
         "all-notes-icon",
-        "All notes",
+        &gettext("All notes"),
         &note_count_label(note_count),
         None,
     )
@@ -898,7 +903,7 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
     actions.set_widget_name("browser-category-hero-actions");
     let edit = gtk::Button::from_icon_name("document-edit-symbolic");
     edit.set_widget_name("edit-selected-category-button");
-    edit.set_tooltip_text(Some("Edit Category"));
+    edit.set_tooltip_text(Some(&gettext("Edit Category")));
     edit.add_css_class("flat");
     let dispatcher_for_edit = dispatcher.clone();
     let category_id = category.id;
@@ -911,7 +916,7 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
         let dispatcher = dispatcher_for_edit.clone();
         show_category_dialog(
             parent.as_ref(),
-            "Edit Category",
+            &gettext("Edit Category"),
             &category_name,
             appearance,
             move |name, appearance| {
@@ -926,7 +931,7 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
     actions.append(&edit);
     let trash = gtk::Button::from_icon_name("user-trash-symbolic");
     trash.set_widget_name("trash-selected-category-button");
-    trash.set_tooltip_text(Some("Move Category to Trash"));
+    trash.set_tooltip_text(Some(&gettext("Move Category to Trash")));
     trash.add_css_class("flat");
     let dispatcher_for_trash = dispatcher.clone();
     let category_name = category.name.clone();
@@ -944,11 +949,14 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
 }
 
 fn note_count_label(note_count: usize) -> String {
-    if note_count == 1 {
-        "1 note".to_owned()
-    } else {
-        format!("{note_count} notes")
-    }
+    tr_fmt!(
+        ngettext(
+            "{count} note",
+            "{count} notes",
+            u32::try_from(note_count).unwrap_or(u32::MAX),
+        ),
+        count = note_count
+    )
 }
 
 /// Builds the shared note-card details rendered from browser snapshots.
@@ -991,9 +999,9 @@ pub(crate) fn note_card_details(
         }
         metadata.append(&category);
     }
-    let updated = gtk::Label::new(Some(&format!(
-        "Updated {}",
-        relative_update_time(note.updated_at, OffsetDateTime::now_utc())
+    let updated = gtk::Label::new(Some(&tr_fmt!(
+        gettext("Updated {time}"),
+        time = relative_update_time(note.updated_at, OffsetDateTime::now_utc())
     )));
     updated.set_widget_name(&format!("note-updated:{}", note.id));
     updated.add_css_class("note-card-updated");
@@ -1062,32 +1070,50 @@ pub(crate) fn compact_note_excerpt(title: &str, excerpt: &str) -> String {
 pub(crate) fn relative_update_time(updated_at: OffsetDateTime, now: OffsetDateTime) -> String {
     let elapsed_seconds = (now - updated_at).whole_seconds().max(0);
     if elapsed_seconds < 60 {
-        return elapsed_label(elapsed_seconds, "second");
+        return tr_fmt!(
+            ngettext(
+                "{amount} second ago",
+                "{amount} seconds ago",
+                u32::try_from(elapsed_seconds).unwrap_or(u32::MAX),
+            ),
+            amount = elapsed_seconds
+        );
     }
     let elapsed_minutes = elapsed_seconds / 60;
     if elapsed_minutes < 60 {
-        return elapsed_label(elapsed_minutes, "minute");
+        return tr_fmt!(
+            ngettext(
+                "{amount} minute ago",
+                "{amount} minutes ago",
+                u32::try_from(elapsed_minutes).unwrap_or(u32::MAX),
+            ),
+            amount = elapsed_minutes
+        );
     }
     let elapsed_hours = elapsed_minutes / 60;
     if elapsed_hours < 24 {
-        return elapsed_label(elapsed_hours, "hour");
+        return tr_fmt!(
+            ngettext(
+                "{amount} hour ago",
+                "{amount} hours ago",
+                u32::try_from(elapsed_hours).unwrap_or(u32::MAX),
+            ),
+            amount = elapsed_hours
+        );
     }
     let day = local_day(updated_at);
     let today = local_day(now);
     if day == today - Duration::days(1) {
-        return String::from("Yesterday");
+        return gettext("Yesterday");
     }
     let format = if day.year() == today.year() {
-        format_description!("[month repr:short] [day padding:none]")
+        "%b %-d"
     } else {
-        format_description!("[month repr:short] [day padding:none], [year]")
+        "%b %-d, %Y"
     };
-    day.format(format).unwrap_or_else(|_| day.to_string())
-}
-
-fn elapsed_label(amount: i64, unit: &str) -> String {
-    let suffix = if amount == 1 { "" } else { "s" };
-    format!("{amount} {unit}{suffix} ago")
+    glib::DateTime::from_unix_local(updated_at.unix_timestamp())
+        .and_then(|datetime| datetime.format(format))
+        .map_or_else(|_| day.to_string(), |formatted| formatted.to_string())
 }
 
 #[cfg(test)]

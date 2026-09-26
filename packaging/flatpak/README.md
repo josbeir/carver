@@ -44,6 +44,14 @@ bundled server with:
 flatpak run --command=carver-mcp io.github.josbeir.Carver
 ```
 
+## Translations
+
+The manifest compiles the `po/` catalogs and the translated desktop entry and
+AppStream metadata with `scripts/compile-translations.sh`, which requires the
+gettext tools (`msgfmt`) from the `org.gnome.Sdk`. The resulting `.mo` files are
+installed under `/app/share/locale`, where gettext finds them inside the
+sandbox.
+
 ## Locked dependency sources
 
 `cargo-sources.json` and `node-sources.json` are generated from the committed

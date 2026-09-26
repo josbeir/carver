@@ -6,6 +6,7 @@ use std::{
 };
 
 use carver_domain::rendering::HtmlProfile;
+use gettextrs::gettext;
 use webkit6::prelude::*;
 
 mod heading_provenance;
@@ -111,9 +112,9 @@ fn connect_external_link_handler(
             None::<&gtk::gio::Cancellable>,
             move |result| {
                 if result.is_err() {
-                    toast_overlay.add_toast(libadwaita::Toast::new(
+                    toast_overlay.add_toast(libadwaita::Toast::new(&gettext(
                         "Could not open the link in your default browser.",
-                    ));
+                    )));
                 }
             },
         );

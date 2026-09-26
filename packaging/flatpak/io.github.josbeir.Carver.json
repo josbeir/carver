@@ -37,8 +37,7 @@
                 "cargo build --release --locked --offline --package carver-gtk --package carver-mcp",
                 "install -Dm755 target/release/carver-gtk /app/bin/carver-gtk",
                 "install -Dm755 target/release/carver-mcp /app/bin/carver-mcp",
-                "install -Dm644 apps/carver-gtk/resources/io.github.josbeir.Carver.desktop /app/share/applications/io.github.josbeir.Carver.desktop",
-                "install -Dm644 apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml /app/share/metainfo/io.github.josbeir.Carver.metainfo.xml",
+                "bash scripts/compile-translations.sh /app/share",
                 "install -Dm644 apps/carver-gtk/resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg /app/share/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg",
                 "install -Dm644 LICENSE /app/share/licenses/io.github.josbeir.Carver/LICENSE"
             ],

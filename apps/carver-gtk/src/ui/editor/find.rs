@@ -3,6 +3,7 @@
 use std::{cell::Cell, rc::Rc};
 
 use carver_config::EditorMode;
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
@@ -45,7 +46,7 @@ impl FindController {
         row.set_margin_bottom(6);
         let entry = gtk::SearchEntry::new();
         entry.set_widget_name("editor-find-entry");
-        entry.set_placeholder_text(Some("Find in note"));
+        entry.set_placeholder_text(Some(&gettext("Find in note")));
         entry.set_width_chars(1);
         entry.set_hexpand(true);
         let count = gtk::Label::new(None);
@@ -53,13 +54,13 @@ impl FindController {
         count.add_css_class("dim-label");
         let previous = gtk::Button::from_icon_name("go-up-symbolic");
         previous.set_widget_name("editor-find-previous");
-        previous.set_tooltip_text(Some("Previous match"));
+        previous.set_tooltip_text(Some(&gettext("Previous match")));
         let next = gtk::Button::from_icon_name("go-down-symbolic");
         next.set_widget_name("editor-find-next");
-        next.set_tooltip_text(Some("Next match"));
+        next.set_tooltip_text(Some(&gettext("Next match")));
         let close = gtk::Button::from_icon_name("window-close-symbolic");
         close.set_widget_name("editor-find-close");
-        close.set_tooltip_text(Some("Close find"));
+        close.set_tooltip_text(Some(&gettext("Close find")));
         row.append(&entry);
         row.append(&count);
         row.append(&previous);
@@ -326,10 +327,16 @@ impl FindController {
 
     fn match_count_label(count: i32) -> String {
         match count {
-            value if value < 0 => String::from("Searching…"),
-            0 => String::from("No matches"),
-            1 => String::from("1 match"),
-            value => format!("{value} matches"),
+            value if value < 0 => gettext("Searching…"),
+            0 => gettext("No matches"),
+            value => tr_fmt!(
+                ngettext(
+                    "{count} match",
+                    "{count} matches",
+                    u32::try_from(value).unwrap_or(u32::MAX),
+                ),
+                count = value
+            ),
         }
     }
 

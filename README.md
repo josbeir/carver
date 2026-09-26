@@ -157,6 +157,27 @@ the LCOV report to Codecov:
   --include-ignored --test-threads=1
 ```
 
+## Translations
+
+Carver uses GNU gettext. English is the source language, and the shipped catalogs live in
+`po/` (`nl`, `de`, `fr`, `es`, `it`, `zh_CN`). After adding, changing, or removing a
+user-visible string, regenerate the template and refresh the catalogs:
+
+```sh
+./scripts/update-translations.sh
+```
+
+Never edit `msgid`s by hand; fix the English source and regenerate. To try a translation
+locally, compile the catalogs into a directory and point Carver at it:
+
+```sh
+./scripts/compile-translations.sh /tmp/carver-locale
+CARVER_LOCALEDIR=/tmp/carver-locale/locale LANGUAGE=de cargo run -p carver-gtk
+```
+
+Packaging installs the `.mo` catalogs and translated desktop/metainfo through
+`scripts/compile-translations.sh`.
+
 ## Data locations
 
 Carver follows the XDG base-directory convention:

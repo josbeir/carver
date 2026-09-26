@@ -3,6 +3,7 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use carver_sdk::{BaseColumn, BaseDefinition, PropertyDescriptor, PropertyKind, PropertyPath};
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
@@ -132,7 +133,7 @@ impl FieldPicker {
         catalog.ensure(initial);
         let selected = Rc::new(RefCell::new(initial.clone()));
         let initial_label = field_label(initial);
-        let action_label = options.button_label.map(ToOwned::to_owned);
+        let action_label = options.button_label.map(str::to_owned);
         let button = action_label.as_deref().map_or_else(
             || {
                 options.button_icon_name.map_or_else(
@@ -158,7 +159,7 @@ impl FieldPicker {
         root.set_margin_top(16);
         root.set_margin_bottom(16);
         let search = gtk::SearchEntry::new();
-        search.set_placeholder_text(Some("Search fields"));
+        search.set_placeholder_text(Some(&gettext("Search fields")));
         search.set_widget_name(&format!("{widget_name}-search"));
         search.set_height_request(42);
         root.append(&search);
@@ -176,7 +177,7 @@ impl FieldPicker {
         scroll.set_widget_name(&format!("{widget_name}-scroll"));
         scroll.set_child(Some(&list));
         root.append(&scroll);
-        let custom = gtk::Button::with_label("Add custom field…");
+        let custom = gtk::Button::with_label(&gettext("Add custom field…"));
         custom.add_css_class("flat");
         custom.set_halign(gtk::Align::Start);
         root.append(&custom);
@@ -304,7 +305,7 @@ fn populate_options(
     }
     let query = query.trim().to_lowercase();
     let mut matches = 0;
-    let mut deferred = 0;
+    let mut deferred = 0u32;
     for option in catalog.options() {
         if !matches_query(&option, &query) {
             continue;
@@ -318,16 +319,20 @@ fn populate_options(
         list.append(&row);
     }
     if matches == 0 {
-        let label = gtk::Label::new(Some("No matching fields"));
+        let label = gtk::Label::new(Some(&gettext("No matching fields")));
         label.add_css_class("dim-label");
         label.set_margin_top(10);
         label.set_margin_bottom(10);
         list.append(&label);
     }
     if query.is_empty() && deferred > 0 {
-        let label = gtk::Label::new(Some(&format!(
-            "Type to search {deferred} more {}",
-            if deferred == 1 { "field" } else { "fields" }
+        let label = gtk::Label::new(Some(&tr_fmt!(
+            ngettext(
+                "Type to search {count} more field",
+                "Type to search {count} more fields",
+                deferred,
+            ),
+            count = deferred
         )));
         label.set_xalign(0.0);
         label.set_wrap(true);
@@ -388,7 +393,7 @@ fn field_option_row(
     labels.append(&metadata);
     content.append(&labels);
     if is_selected(&option.field) || &option.field == selected {
-        let selected_label = gtk::Label::new(Some("Selected"));
+        let selected_label = gtk::Label::new(Some(&gettext("Selected")));
         selected_label.add_css_class("dim-label");
         content.append(&selected_label);
     }
@@ -415,10 +420,14 @@ fn show_custom_field_dialog(
         .activates_default(true)
         .build();
     entry.set_widget_name("base-custom-field-entry");
-    let hint = gtk::Label::new(Some("Use a slash-prefixed JSON Pointer for nested fields."));
+    let hint = gtk::Label::new(Some(&gettext(
+        "Use a slash-prefixed JSON Pointer for nested fields.",
+    )));
     hint.set_wrap(true);
     hint.add_css_class("dim-label");
-    let error = gtk::Label::new(Some("Enter a valid path such as /project/status."));
+    let error = gtk::Label::new(Some(&gettext(
+        "Enter a valid path such as /project/status.",
+    )));
     error.set_xalign(0.0);
     error.set_wrap(true);
     error.add_css_class("error");
@@ -428,12 +437,15 @@ fn show_custom_field_dialog(
     extra.append(&hint);
     extra.append(&error);
     let dialog = adw::AlertDialog::builder()
-        .heading("Add custom field")
+        .heading(gettext("Add custom field"))
         .extra_child(&extra)
         .default_response("add")
         .close_response("cancel")
         .build();
-    dialog.add_responses(&[("cancel", "Cancel"), ("add", "Add")]);
+    dialog.add_responses(&[
+        ("cancel", gettext("Cancel").as_str()),
+        ("add", gettext("Add").as_str()),
+    ]);
     dialog.set_response_enabled("add", false);
     {
         let dialog = dialog.clone();
@@ -482,15 +494,13 @@ fn valid_json_pointer(path: &str) -> bool {
 fn option_for_field(field: &BaseColumn, descriptor: Option<&PropertyDescriptor>) -> FieldOption {
     let label = field_label(field);
     let metadata = match field {
-        BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => {
-            "Built-in field".to_owned()
-        }
+        BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => gettext("Built-in field"),
         BaseColumn::Property(_) => descriptor.map_or_else(
-            || "Custom field".to_owned(),
+            || gettext("Custom field"),
             |descriptor| {
                 let kind = property_kind_label(descriptor.kind);
                 descriptor.example.as_deref().map_or_else(
-                    || kind.to_owned(),
+                    || kind.clone(),
                     |example| format!("{kind} · {}", truncate(example, 48)),
                 )
             },
@@ -524,7 +534,7 @@ fn update_accessibility_with_label(
         .options()
         .into_iter()
         .find(|option| option.field == *field)
-        .map_or_else(|| "Field".to_owned(), |option| option.metadata);
+        .map_or_else(|| gettext("Field"), |option| option.metadata);
     let label = picker_accessible_label(label_override, field);
     button.update_property(&[
         gtk::accessible::Property::Label(&label),
@@ -551,9 +561,9 @@ pub(crate) fn field_id(field: &BaseColumn) -> String {
 
 pub(crate) fn field_label(field: &BaseColumn) -> String {
     match field {
-        BaseColumn::Name => "Name".to_owned(),
-        BaseColumn::Category => "Category".to_owned(),
-        BaseColumn::Updated => "Updated".to_owned(),
+        BaseColumn::Name => gettext("Name"),
+        BaseColumn::Category => gettext("Category"),
+        BaseColumn::Updated => gettext("Updated"),
         BaseColumn::Property(path) => path
             .0
             .trim_start_matches('/')
@@ -564,14 +574,14 @@ pub(crate) fn field_label(field: &BaseColumn) -> String {
     }
 }
 
-fn property_kind_label(kind: PropertyKind) -> &'static str {
+fn property_kind_label(kind: PropertyKind) -> String {
     match kind {
-        PropertyKind::Text => "Text",
-        PropertyKind::Number => "Number",
-        PropertyKind::Boolean => "Boolean",
-        PropertyKind::List => "List",
-        PropertyKind::Null => "Empty",
-        PropertyKind::Mixed => "Mixed",
+        PropertyKind::Text => gettext("Text"),
+        PropertyKind::Number => gettext("Number"),
+        PropertyKind::Boolean => gettext("Boolean"),
+        PropertyKind::List => gettext("List"),
+        PropertyKind::Null => gettext("Empty"),
+        PropertyKind::Mixed => gettext("Mixed"),
     }
 }
 
