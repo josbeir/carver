@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 16:02+0200\n"
+"POT-Creation-Date: 2026-09-26 16:29+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -166,7 +166,7 @@ msgstr "Nur diese Basis wird gelöscht. Deine Notizen und ihre Eigenschaften wer
 #: apps/carver-gtk/src/ui/editor/mod.rs:1620
 #: apps/carver-gtk/src/ui/editor/mod.rs:1710
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
-#: apps/carver-gtk/src/ui/editor/web.rs:536
+#: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:503
@@ -1508,36 +1508,36 @@ msgstr "Bild einfügen…"
 msgid "Original size"
 msgstr "Originalgröße"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:367
+#: apps/carver-gtk/src/ui/editor/web.rs:363
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "Diese Notiz kann nicht sicher bearbeitet werden{detail}. Stattdessen wird die Vorschau angezeigt."
 
-#: apps/carver-gtk/src/ui/editor/web.rs:382
+#: apps/carver-gtk/src/ui/editor/web.rs:378
 msgid "Could not read pasted image"
 msgstr "Das eingefügte Bild konnte nicht gelesen werden"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:520
+#: apps/carver-gtk/src/ui/editor/web.rs:516
 #: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Link text"
 msgstr "Linktext"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:526
+#: apps/carver-gtk/src/ui/editor/web.rs:522
 msgctxt "link dialog"
 msgid "Text"
 msgstr "Text"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:528
+#: apps/carver-gtk/src/ui/editor/web.rs:524
 #: apps/carver-gtk/src/ui/formatting.rs:344
 msgid "Address"
 msgstr "Adresse"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:531
+#: apps/carver-gtk/src/ui/editor/web.rs:527
 #: apps/carver-gtk/src/ui/formatting.rs:347
 msgid "Insert Link"
 msgstr "Link einfügen"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:537
+#: apps/carver-gtk/src/ui/editor/web.rs:533
 #: apps/carver-gtk/src/ui/formatting.rs:97
 #: apps/carver-gtk/src/ui/formatting.rs:353
 msgid "Insert"
