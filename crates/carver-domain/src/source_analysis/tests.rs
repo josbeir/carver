@@ -278,9 +278,10 @@ fn critic_changes_should_keep_nested_media_discoverable() {
 }
 
 #[test]
-fn media_analysis_should_reject_traversal_and_absolute_paths() {
+fn media_analysis_should_reject_traversal_nested_and_absolute_paths() {
     let analysis = SourceAnalysis::parse(
-        "![Bad](assets/../private.png) [Absolute](/tmp/private.pdf) ![Remote](https://example.test/image.png)",
+        "![Bad](assets/../private.png) [Deep](assets/a/b/c.png) \
+         [Absolute](/tmp/private.pdf) ![Remote](https://example.test/image.png)",
     );
     assert!(analysis.media().is_empty());
 }

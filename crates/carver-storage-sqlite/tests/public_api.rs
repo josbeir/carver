@@ -48,7 +48,7 @@ fn asset_storage_should_ignore_a_preexisting_legacy_temporary_path()
 }
 
 #[test]
-fn concurrent_asset_stores_should_share_complete_bytes_across_library_connections()
+fn concurrent_asset_stores_should_keep_complete_bytes_per_note_across_library_connections()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let database = directory.path().join("library.sqlite3");
@@ -85,6 +85,6 @@ fn concurrent_asset_stores_should_share_complete_bytes_across_library_connection
         }
         Ok(())
     })?;
-    assert_eq!(std::fs::read_dir(&assets)?.count(), 1);
+    assert_eq!(std::fs::read_dir(&assets)?.count(), 8);
     Ok(())
 }

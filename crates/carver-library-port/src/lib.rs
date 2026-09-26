@@ -209,7 +209,7 @@ pub trait LibraryBackend: Send + 'static {
     fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, Self::Error>;
     /// Lists recoverable trash contents.
     fn trash_contents(&self) -> Result<TrashContents, Self::Error>;
-    /// Permanently removes trashed content and unreferenced managed assets.
+    /// Permanently removes trashed content and the managed assets owned by those notes.
     fn empty_trash(&self) -> Result<TrashPurgeResult, Self::Error>;
     /// Returns recent active notes, optionally filtered by category.
     fn recent_notes(
@@ -231,7 +231,10 @@ pub trait LibraryBackend: Send + 'static {
         category_id: Option<CategoryId>,
         page: PageRequest,
     ) -> Result<Page<SearchHit>, Self::Error>;
-    /// Stores managed file bytes and returns their relative Carve path.
+    /// Stores note-owned managed file bytes and returns their relative Carve path.
+    ///
+    /// The bytes are written under the note's private asset directory, while the returned
+    /// document-visible path is `assets/<filename>` and never contains the note id.
     fn store_asset(
         &self,
         note_id: NoteId,

@@ -621,6 +621,13 @@ mod tests {
     }
 
     #[test]
+    fn managed_asset_paths_should_exclude_nested_paths() {
+        let paths = managed_asset_paths("![A](assets/photo.png) ![B](assets/a/b/c.png)");
+
+        assert_eq!(paths, vec![String::from("assets/photo.png")]);
+    }
+
+    #[test]
     fn filename_stem_should_replace_unsafe_path_characters() {
         assert_eq!(
             sanitized_filename_stem(" /Client: brief/ "),

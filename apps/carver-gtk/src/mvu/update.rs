@@ -1221,16 +1221,17 @@ fn complete_copy_request(
 }
 
 fn request_editor_copy(model: &mut AppModel) -> Vec<Effect> {
-    let Some((session, source)) = model
+    let Some((session, note_id, source)) = model
         .editor
         .as_ref()
-        .map(|document| (document.session, document.source.clone()))
+        .map(|document| (document.session, document.note_id, document.source.clone()))
     else {
         return Vec::new();
     };
     let request = super::EditorCopyRequest {
         request_id: model.next_editor_copy_request_id(),
         session,
+        note_id,
         source,
         scope: super::EditorCopyScope::Note,
     };
@@ -1243,12 +1244,18 @@ fn request_editor_selection_copy(
     session: EditorSessionId,
     source: String,
 ) -> Vec<Effect> {
-    if !matches!(model.editor.as_ref(), Some(document) if document.session == session) {
+    let Some(note_id) = model
+        .editor
+        .as_ref()
+        .filter(|document| document.session == session)
+        .map(|document| document.note_id)
+    else {
         return Vec::new();
-    }
+    };
     let request = super::EditorCopyRequest {
         request_id: model.next_editor_copy_request_id(),
         session,
+        note_id,
         source,
         scope: super::EditorCopyScope::Selection,
     };
@@ -1313,6 +1320,7 @@ fn request_editor_export(
             html_profile: request.html_profile,
             request_id,
             session: request.session,
+            note_id: request.note_id,
             source: request.source,
             target_uri,
             print_dialog: false,
@@ -1401,10 +1409,10 @@ fn cancel_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
 }
 
 fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
-    let Some((session, source)) = model
+    let Some((session, note_id, source)) = model
         .editor
         .as_ref()
-        .map(|document| (document.session, document.source.clone()))
+        .map(|document| (document.session, document.note_id, document.source.clone()))
     else {
         return Vec::new();
     };
@@ -1412,6 +1420,7 @@ fn request_editor_print(model: &mut AppModel) -> Vec<Effect> {
         html_profile: model.preferences.html_profile,
         request_id: model.next_editor_export_request_id(),
         session,
+        note_id,
         source,
         target_uri: String::new(),
         print_dialog: true,

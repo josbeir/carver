@@ -441,6 +441,8 @@ pub struct EditorCopyRequest {
     pub request_id: u64,
     /// Editor lifetime that owns the canonical source snapshot.
     pub session: EditorSessionId,
+    /// Note that owns the managed assets referenced by the source.
+    pub note_id: NoteId,
     /// Canonical source to copy, including unsaved edits.
     pub source: String,
     /// Content scope used for user-facing completion feedback.
@@ -493,6 +495,8 @@ pub struct EditorPdfExportRequest {
     pub request_id: u64,
     /// Editor lifetime that owns the source snapshot.
     pub session: EditorSessionId,
+    /// Note that owns the managed assets referenced by the source.
+    pub note_id: NoteId,
     /// Canonical Carve source to render.
     pub source: String,
     /// Destination URI selected through GTK's file chooser.

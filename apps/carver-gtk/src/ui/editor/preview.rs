@@ -1,14 +1,27 @@
 //! Sandboxed full-Carve HTML preview used by rendered and split modes.
 
 use std::{
+    cell::RefCell,
     fs,
     path::{Component, Path, PathBuf},
+    rc::Rc,
 };
 
 use carver_domain::rendering::HtmlProfile;
 use webkit6::prelude::*;
 
 mod heading_provenance;
+
+/// Tracks the note whose private asset directory a `carver-asset` scheme handler should read.
+///
+/// The note id is an internal storage detail: it never appears in canonical Carve source, and
+/// the scheme resolves the note-relative `assets/<filename>` markup against this scope.
+pub(super) type AssetScope = Rc<RefCell<Option<carver_sdk::NoteId>>>;
+
+/// Creates an empty managed-asset scope.
+pub(super) fn asset_scope() -> AssetScope {
+    Rc::new(RefCell::new(None))
+}
 
 const PREVIEW_STYLESHEET: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/web/dist/preview.css"));
@@ -20,10 +33,15 @@ const PREVIEW_HIGHLIGHTING: &str = include_str!(concat!(
 /// Builds a non-editable `WebKitGTK` view for trusted Carve renderer output.
 pub(super) fn build_preview(
     assets_dir: Option<&Path>,
+    scope: &AssetScope,
     toast_overlay: &libadwaita::ToastOverlay,
 ) -> webkit6::WebView {
     let context = webkit6::WebContext::new();
-    install_editor_asset_scheme(&context, assets_dir.map(Path::to_path_buf));
+    install_editor_asset_scheme(
+        &context,
+        assets_dir.map(Path::to_path_buf),
+        Rc::clone(scope),
+    );
     let manager = webkit6::UserContentManager::new();
     manager.add_script(&webkit6::UserScript::new(
         PREVIEW_HIGHLIGHTING,
@@ -126,19 +144,24 @@ fn is_external_link(uri: &str) -> bool {
 }
 
 /// Installs the managed-asset scheme shared by read-only previews and the editor.
+///
+/// The requested `assets/<filename>` is resolved against the note recorded in `scope`, so the
+/// document markup never has to name the note.
 pub(super) fn install_editor_asset_scheme(
     context: &webkit6::WebContext,
     assets_dir: Option<PathBuf>,
+    scope: AssetScope,
 ) {
     context.register_uri_scheme("carver-asset", move |request| {
+        let note = *scope.borrow();
         let bytes = request
             .path()
             .as_deref()
             .and_then(asset_filename)
             .and_then(|filename| {
-                assets_dir
-                    .as_ref()
-                    .map(|directory| directory.join(filename))
+                let note = note?;
+                let directory = assets_dir.as_ref()?;
+                Some(directory.join(note.to_string()).join(filename))
             })
             .and_then(|path| fs::read(&path).ok())
             .unwrap_or_default();
@@ -164,11 +187,8 @@ pub(super) fn managed_asset_filename(path: &str) -> Option<&str> {
 }
 
 fn valid_asset_filename(relative: &str) -> Option<&str> {
-    let candidate = Path::new(relative);
-    if candidate
-        .components()
-        .all(|component| matches!(component, Component::Normal(_)))
-    {
+    let mut components = Path::new(relative).components();
+    if matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none() {
         Some(relative)
     } else {
         None

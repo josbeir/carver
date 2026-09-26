@@ -150,9 +150,72 @@ fn empty_trash_removes_search_entries_and_orphaned_assets() {
             .is_empty()
     );
     assert!(
+        !directory
+            .path()
+            .join("assets")
+            .join(saved.id.to_string())
+            .exists()
+    );
+    assert!(
         fs::read_dir(directory.path().join("assets"))
             .unwrap_or_else(|error| panic!("asset directory failed: {error}"))
             .next()
             .is_none()
     );
+}
+
+#[test]
+fn empty_trash_should_remove_assets_of_notes_in_trashed_categories() {
+    let (directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library
+        .create_category("Work", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note(category.id, now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    library
+        .store_asset(note.id, "png", b"test image")
+        .unwrap_or_else(|error| panic!("asset failed: {error}"));
+    library
+        .trash_category(category.id, now)
+        .unwrap_or_else(|error| panic!("category trash failed: {error}"));
+
+    let result = library
+        .empty_trash()
+        .unwrap_or_else(|error| panic!("empty failed: {error}"));
+
+    assert_eq!(result.notes_deleted, 1);
+    assert_eq!(result.assets_deleted, 1);
+    assert!(
+        !directory
+            .path()
+            .join("assets")
+            .join(note.id.to_string())
+            .exists()
+    );
+}
+
+#[test]
+fn trashed_note_should_keep_its_assets_until_the_trash_is_emptied() -> Result<(), StorageError> {
+    let (directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let note = library.create_note(category.id, now)?;
+    let path = library.store_asset(note.id, "png", b"test image")?;
+
+    library.trash_note(note.id, now)?;
+
+    assert_eq!(
+        library.note_asset_bytes(note.id, &path)?,
+        Some(b"test image".to_vec())
+    );
+    assert!(
+        directory
+            .path()
+            .join("assets")
+            .join(note.id.to_string())
+            .is_dir()
+    );
+    Ok(())
 }

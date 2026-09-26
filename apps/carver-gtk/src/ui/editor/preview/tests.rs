@@ -137,9 +137,10 @@ fn rendered_document_routes_managed_assets_through_the_restricted_scheme() {
 }
 
 #[test]
-fn asset_uri_rejects_parent_directory_paths() {
+fn asset_uri_rejects_parent_directory_and_nested_paths() {
     assert_eq!(asset_filename("/assets/example.png"), Some("example.png"));
     assert_eq!(asset_filename("/assets/../library.sqlite3"), None);
+    assert_eq!(asset_filename("/assets/nested/example.png"), None);
 }
 
 #[test]

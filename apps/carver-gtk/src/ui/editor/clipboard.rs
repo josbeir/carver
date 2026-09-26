@@ -43,8 +43,10 @@ pub(crate) enum ClipboardError {
 pub(crate) fn clipboard_document(
     source: &str,
     assets_dir: Option<&Path>,
+    note_id: carver_sdk::NoteId,
 ) -> Result<ClipboardDocument, ClipboardError> {
-    let (html, omitted_images) = embed_managed_images(&carve::to_html(source), assets_dir)?;
+    let (html, omitted_images) =
+        embed_managed_images(&carve::to_html(source), assets_dir, note_id)?;
     Ok(ClipboardDocument {
         html,
         plain_text: carve::to_plain_text(source),
@@ -61,8 +63,9 @@ pub(crate) fn publish_note(
     clipboard: &gtk::gdk::Clipboard,
     source: &str,
     assets_dir: Option<&Path>,
+    note_id: carver_sdk::NoteId,
 ) -> Result<ClipboardDocument, ClipboardError> {
-    let document = clipboard_document(source, assets_dir)?;
+    let document = clipboard_document(source, assets_dir, note_id)?;
     let html = gtk::gdk::ContentProvider::for_bytes(
         "text/html",
         &glib::Bytes::from(document.html.as_bytes()),
@@ -83,11 +86,14 @@ pub(crate) fn publish_note(
 fn embed_managed_images(
     html: &str,
     assets_dir: Option<&Path>,
+    note_id: carver_sdk::NoteId,
 ) -> Result<(String, usize), RewritingError> {
     let mut embedded_bytes = 0_usize;
     let mut omitted_images = 0_usize;
     let output = rewrite_managed_images(html, |image, source| {
-        if let Some(data_uri) = embedded_image_data_uri(source, assets_dir, &mut embedded_bytes) {
+        if let Some(data_uri) =
+            embedded_image_data_uri(source, assets_dir, note_id, &mut embedded_bytes)
+        {
             image.set_attribute("src", &data_uri)?;
         } else {
             let alt = image.get_attribute("alt").filter(|alt| !alt.is_empty());
@@ -108,11 +114,12 @@ fn embed_managed_images(
 fn embedded_image_data_uri(
     source: &str,
     assets_dir: Option<&Path>,
+    note_id: carver_sdk::NoteId,
     embedded_bytes: &mut usize,
 ) -> Option<String> {
     let filename = managed_asset_filename(source)?;
     let directory = assets_dir?;
-    let path = directory.join(filename);
+    let path = directory.join(note_id.to_string()).join(filename);
     let metadata = fs::metadata(&path).ok()?;
     let byte_len = usize::try_from(metadata.len()).ok()?;
     if byte_len > MAX_EMBEDDED_IMAGE_BYTES
