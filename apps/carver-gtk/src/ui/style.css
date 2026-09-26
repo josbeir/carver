@@ -10,8 +10,8 @@
 }
 
 .category-count-badge {
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 999px;
   background: alpha(currentColor, 0.10);
   font-size: 0.9em;
@@ -24,20 +24,14 @@
 
 .category-count-badge.category-color-rose,
 .category-count-badge.category-color-tangerine,
+.category-count-badge.category-color-yellow,
+.category-count-badge.category-color-olive,
 .category-count-badge.category-color-teal,
 .category-count-badge.category-color-blue,
 .category-count-badge.category-color-purple,
-.category-count-badge.category-color-auto {
-  color: white;
-}
-
-.category-count-badge.category-color-yellow,
-.category-count-badge.category-color-olive {
-  color: black;
-}
-
+.category-count-badge.category-color-auto,
 .category-count-badge.all-notes-icon {
-  color: @accent_fg_color;
+  color: white;
 }
 
 .category-color-rose { background: #e37d97; }
