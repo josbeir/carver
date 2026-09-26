@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 14:20+0200\n"
+"POT-Creation-Date: 2026-09-26 14:27+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -134,7 +134,7 @@ msgstr "加载更多行"
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1110
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1157
 msgid "Name"
 msgstr "名称"
 
@@ -165,7 +165,7 @@ msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 #: apps/carver-gtk/src/ui/dialogs.rs:1809
 #: apps/carver-gtk/src/ui/editor/mod.rs:1620
 #: apps/carver-gtk/src/ui/editor/mod.rs:1710
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:744
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:786
 #: apps/carver-gtk/src/ui/editor/web.rs:536
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
@@ -336,7 +336,7 @@ msgid "Sort"
 msgstr "排序"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:935
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:746
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:788
 msgid "Save"
 msgstr "保存"
 
@@ -383,23 +383,23 @@ msgid "Custom field"
 msgstr "自定义字段"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:69
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:83
 #: apps/carver-gtk/src/ui/formatting.rs:342
 msgid "Text"
 msgstr "文本"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:580
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:71
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:85
 msgid "Number"
 msgstr "数字"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:581
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:72
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:86
 msgid "Boolean"
 msgstr "布尔值"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:582
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:73
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:87
 msgid "List"
 msgstr "列表"
 
@@ -751,8 +751,8 @@ msgid "Show a button over the editor to edit document properties."
 msgstr "在编辑器上方显示按钮以编辑文档属性。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs:636
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:861
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:872
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:903
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:914
 msgid "Default properties"
 msgstr "默认属性"
 
@@ -1302,93 +1302,93 @@ msgstr "仍要导出"
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:70
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:84
 msgid "Long text"
 msgstr "长文本"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:74
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:88
 msgid "Date"
 msgstr "日期"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:75
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:89
 msgid "Date & time"
 msgstr "日期和时间"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:145
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:159
 msgid "Clear"
 msgstr "清除"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:163
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:177
 msgid "Not set"
 msgstr "未设置"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:636
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:655
 msgid "Not managed by this dialog"
 msgstr "不由该对话框管理"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:737
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:779
 msgid "Document Properties"
 msgstr "文档属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:775
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:817
 msgid "Raw frontmatter"
 msgstr "原始 frontmatter"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:788
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:830
 msgid "Content"
 msgstr "内容"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:796
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:838
 msgid "Properties"
 msgstr "属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:804
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:877
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:846
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:919
 msgid "Add property"
 msgstr "添加属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:874
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:916
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "这些属性会出现在每个文档属性对话框中，并在启用时为新建笔记填充默认值。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1116
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1163
 msgid "Type"
 msgstr "类型"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1123
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1171
 msgid "New notes use today's date"
 msgstr "新建笔记使用今天的日期"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1125
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1173
 msgid "New notes use the current date and time"
 msgstr "新建笔记使用当前日期和时间"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1132
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1182
 msgid "Options"
 msgstr "选项"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1139
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1189
 msgid "Value"
 msgstr "值"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1149
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1199
 msgid "Comma-separated values offered as a dropdown."
 msgstr "以逗号分隔并作为下拉列表提供的值。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1160
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1210
 msgid "Allow multiple values"
 msgstr "允许多个值"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1185
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1235
 msgid "New property"
 msgstr "新属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1245
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1247
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1296
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1298
 msgid "Remove property"
 msgstr "移除属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1448
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1503
 msgid "Title"
 msgstr "标题"
 

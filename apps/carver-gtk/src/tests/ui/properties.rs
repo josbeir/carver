@@ -416,3 +416,143 @@ pub(super) fn date_default_should_render_a_picker_and_disable_invalid_values() -
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn date_time_default_settings_should_persist_the_field_type() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let entries = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let dialog = crate::ui::editor::properties_dialog::show_defaults(
+        Some(fixture.window.upcast_ref::<gtk::Window>()),
+        &fixture.dispatcher,
+        &entries,
+    );
+    let root = dialog.upcast_ref();
+    widget_as::<adw::ButtonRow>(root, "document-property-add")
+        .ok_or("add property")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::ComboRow>(
+        root,
+        "document-property-kind-0"
+    )
+    .is_some()));
+
+    let kind = widget_as::<adw::ComboRow>(root, "document-property-kind-0").ok_or("kind")?;
+    kind.set_selected(6);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        root,
+        "document-property-value-0"
+    )
+    .is_some()));
+    widget_as::<adw::EntryRow>(root, "document-property-key-0")
+        .ok_or("property key")?
+        .set_text("post_date");
+    dialog.close();
+
+    let config_path = fixture.config_path.clone();
+    assert!(
+        run_main_context_until(|| {
+            carver_config::load(&config_path).is_ok_and(|config| {
+                config.document_properties.entries.len() == 1
+                    && config.document_properties.entries[0].field_type
+                        == carver_config::DocumentPropertyType::DateTime
+                    && config.document_properties.entries[0].value == serde_json::json!("")
+            })
+        }),
+        "config: {:?}",
+        carver_config::load(&config_path).map(|config| config.document_properties.entries)
+    );
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn ad_hoc_date_property_should_reopen_as_date() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nmydate: 2026-09-16\n---\nBody\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    let root = dialog.upcast_ref();
+    assert_eq!(
+        widget_as::<adw::ComboRow>(root, "document-property-kind-1").map(|combo| combo.selected()),
+        Some(5),
+        "an ISO date should reopen as the Date field type"
+    );
+    assert!(
+        widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker").is_some(),
+        "an inferred date should render the calendar picker"
+    );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn changing_a_property_type_should_keep_the_row_expanded() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "Body\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    let root = dialog.upcast_ref();
+
+    widget_as::<adw::ButtonRow>(root, "document-properties-add")
+        .ok_or("add property")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::ComboRow>(
+        root,
+        "document-property-kind-1"
+    )
+    .is_some()));
+    assert!(
+        widget_as::<adw::ExpanderRow>(root, "document-property-row-1")
+            .is_some_and(|row| row.is_expanded()),
+        "a newly added property should be expanded"
+    );
+
+    widget_as::<adw::ComboRow>(root, "document-property-kind-1")
+        .ok_or("kind")?
+        .set_selected(5);
+    assert!(run_main_context_until(|| widget_as::<gtk::MenuButton>(
+        root,
+        "document-property-value-1-picker"
+    )
+    .is_some()));
+    assert!(
+        widget_as::<adw::ExpanderRow>(root, "document-property-row-1")
+            .is_some_and(|row| row.is_expanded()),
+        "changing the type should keep the property expanded"
+    );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}

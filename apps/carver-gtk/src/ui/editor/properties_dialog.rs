@@ -58,10 +58,24 @@ fn type_for_value(value: &FrontmatterValue) -> DocumentPropertyType {
         FrontmatterValue::Number(_) => DocumentPropertyType::Number,
         FrontmatterValue::Boolean(_) => DocumentPropertyType::Boolean,
         FrontmatterValue::List(_) => DocumentPropertyType::List,
-        FrontmatterValue::Text(_) | FrontmatterValue::Null | FrontmatterValue::Object(_) => {
-            DocumentPropertyType::Text
+        FrontmatterValue::Text(text) => {
+            // A date or date-time is stored as text, so its type is recovered from the ISO 8601
+            // shape to round-trip an ad-hoc property across dialog opens.
+            if text.contains('T') && parse_date_time(text).is_some() {
+                DocumentPropertyType::DateTime
+            } else if parse_date(text).is_some() {
+                DocumentPropertyType::Date
+            } else {
+                DocumentPropertyType::Text
+            }
         }
+        FrontmatterValue::Null | FrontmatterValue::Object(_) => DocumentPropertyType::Text,
     }
+}
+
+/// Escapes text for the Pango markup that libadwaita rows parse in their titles and subtitles.
+fn markup_escape(text: &str) -> String {
+    glib::markup_escape_text(text).to_string()
 }
 
 fn type_label(field_type: DocumentPropertyType) -> String {
@@ -329,10 +343,11 @@ impl ValueWidget {
         name: &str,
         title: &str,
     ) -> Self {
+        let title = markup_escape(title);
         match choice {
             DocumentPropertyType::Boolean => {
                 let row = adw::SwitchRow::new();
-                row.set_title(title);
+                row.set_title(&title);
                 row.set_widget_name(name);
                 row.set_active(matches!(value, FrontmatterValue::Boolean(true)));
                 Self::Boolean(row)
@@ -348,17 +363,17 @@ impl ValueWidget {
                 scroll.add_css_class("card");
                 scroll.set_child(Some(&view));
                 let row = adw::ActionRow::builder()
-                    .title(title)
+                    .title(title.as_str())
                     .child(&scroll)
                     .build();
                 Self::Long { row, view }
             }
             DocumentPropertyType::Date | DocumentPropertyType::DateTime => {
-                Self::DateTime(DateTimePicker::new(choice, value, name, title))
+                Self::DateTime(DateTimePicker::new(choice, value, name, &title))
             }
             _ => {
                 let row = adw::EntryRow::new();
-                row.set_title(title);
+                row.set_title(&title);
                 row.set_widget_name(name);
                 if choice == DocumentPropertyType::Number {
                     row.set_input_purpose(gtk::InputPurpose::Number);
@@ -375,11 +390,15 @@ impl ValueWidget {
     }
 
     /// Builds a non-editable hint row (date or date-time defaults in Settings).
-    fn hint(text: &str) -> Self {
+    fn hint(text: &str, name: &str) -> Self {
         let label = gtk::Label::new(Some(text));
         label.set_wrap(true);
         label.set_xalign(0.0);
         label.add_css_class("dim-label");
+        label.set_margin_start(12);
+        label.set_margin_end(12);
+        label.set_margin_top(4);
+        label.set_widget_name(name);
         Self::Hint(label)
     }
 
@@ -631,7 +650,7 @@ impl SimpleValue {
     /// Builds a read-only row for a value that does not match the configured type or options.
     fn disabled(draft: &PropertyDraft, index: usize, title: &str) -> Self {
         let row = adw::ActionRow::new();
-        row.set_title(title);
+        row.set_title(&markup_escape(title));
         row.set_widget_name(&value_name(index));
         row.set_subtitle(&gettext("Not managed by this dialog"));
         let value = gtk::Label::new(Some(&frontmatter_text(&draft.value)));
@@ -651,7 +670,7 @@ impl SimpleValue {
         }
         let labels: Vec<&str> = options.iter().map(String::as_str).collect();
         let combo = adw::ComboRow::new();
-        combo.set_title(title);
+        combo.set_title(&markup_escape(title));
         combo.set_model(Some(&gtk::StringList::new(&labels)));
         let selected = options
             .iter()
@@ -665,7 +684,7 @@ impl SimpleValue {
     /// Builds a multi-select option list for a configured list property.
     fn options(draft: &PropertyDraft, index: usize, title: &str) -> Self {
         let expander = adw::ExpanderRow::new();
-        expander.set_title(title);
+        expander.set_title(&markup_escape(title));
         expander.set_widget_name(&value_name(index));
         let selected: Vec<String> = match &draft.value {
             FrontmatterValue::List(items) => items.iter().map(frontmatter_text).collect(),
@@ -676,7 +695,7 @@ impl SimpleValue {
             .iter()
             .map(|option| {
                 let row = adw::SwitchRow::new();
-                row.set_title(option);
+                row.set_title(&markup_escape(option));
                 row.set_active(selected.iter().any(|item| item == option));
                 expander.add_row(&row);
                 row
@@ -687,7 +706,7 @@ impl SimpleValue {
             let switches = switches.clone();
             Rc::new(move || {
                 let selected = selected_options(&switches);
-                expander.set_subtitle(&preview_text(&list_value(&selected)));
+                expander.set_subtitle(&markup_escape(&preview_text(&list_value(&selected))));
             })
         };
         for row in &switches {
@@ -720,6 +739,29 @@ impl BuiltRow {
         match self {
             Self::Expander { expander, .. } => expander.clone().upcast(),
             Self::Simple { widget, .. } => widget.clone(),
+        }
+    }
+
+    /// Returns whether this row exposes its editable content.
+    fn is_expanded(&self) -> bool {
+        match self {
+            Self::Expander { expander, .. } => expander.is_expanded(),
+            Self::Simple { .. } => false,
+        }
+    }
+
+    /// Expands or collapses this row's editable content.
+    fn set_expanded(&self, expanded: bool) {
+        if let Self::Expander { expander, .. } = self {
+            expander.set_expanded(expanded);
+        }
+    }
+
+    /// Expands this row and focuses its name entry so a new property can be typed immediately.
+    fn expand_and_focus(&self) {
+        if let Self::Expander { expander, key, .. } = self {
+            expander.set_expanded(true);
+            key.grab_focus();
         }
     }
 }
@@ -1021,6 +1063,8 @@ fn rebuild(
     on_change: &Rc<dyn Fn()>,
     mode: RowMode,
 ) {
+    // Keep the rows the user opened open across a rebuild (for example after a type change).
+    let expanded: Vec<bool> = rows.borrow().iter().map(BuiltRow::is_expanded).collect();
     {
         let built = rows.borrow();
         for row in built.iter() {
@@ -1031,6 +1075,9 @@ fn rebuild(
     let current = drafts.borrow().clone();
     for (index, draft) in current.iter().enumerate() {
         let row = build_row(draft, index, group, rows, drafts, on_change, mode);
+        if expanded.get(index).copied().unwrap_or(false) {
+            row.set_expanded(true);
+        }
         group.add(&row.widget());
         rows.borrow_mut().push(row);
     }
@@ -1119,11 +1166,14 @@ fn build_expander_row(
     kind.set_widget_name(&format!("document-property-kind-{index}"));
 
     let value = if mode == RowMode::Defaults && draft.choice.is_date() {
-        ValueWidget::hint(&if draft.choice == DocumentPropertyType::Date {
-            gettext("New notes use today's date")
-        } else {
-            gettext("New notes use the current date and time")
-        })
+        ValueWidget::hint(
+            &if draft.choice == DocumentPropertyType::Date {
+                gettext("New notes use today's date")
+            } else {
+                gettext("New notes use the current date and time")
+            },
+            &value_name(index),
+        )
     } else if mode == RowMode::Defaults && draft.choice == DocumentPropertyType::List {
         ValueWidget::build(
             draft.choice,
@@ -1181,11 +1231,12 @@ fn build_expander_row(
         Rc::new(move || {
             let choice = type_from_index(kind.selected());
             let key_text = key.text().to_string();
-            expander.set_title(&if key_text.trim().is_empty() {
+            let title = if key_text.trim().is_empty() {
                 gettext("New property")
             } else {
                 key_text
-            });
+            };
+            expander.set_title(&markup_escape(&title));
             expander.set_subtitle(&row_subtitle(choice, &value.frontmatter(choice)));
         })
     };
@@ -1290,6 +1341,9 @@ fn add_property_action(
             capture(&rows, &drafts);
             drafts.borrow_mut().push(PropertyDraft::blank());
             rebuild(&group, &rows, &drafts, &on_change, mode);
+            if let Some(row) = rows.borrow().last() {
+                row.expand_and_focus();
+            }
             on_change();
         });
     })
@@ -1390,11 +1444,12 @@ fn normalized_default_value(
 
 fn row_subtitle(choice: DocumentPropertyType, value: &FrontmatterValue) -> String {
     let preview = preview_text(value);
-    if preview.is_empty() {
+    let subtitle = if preview.is_empty() {
         type_label(choice)
     } else {
         format!("{} · {preview}", type_label(choice))
-    }
+    };
+    markup_escape(&subtitle)
 }
 
 fn preview_text(value: &FrontmatterValue) -> String {

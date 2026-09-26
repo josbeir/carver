@@ -494,3 +494,18 @@ fn document_properties_date_defaults_should_seed_the_configured_moment() {
         Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
     );
 }
+
+#[test]
+fn document_properties_date_time_defaults_should_drop_subsecond_precision() {
+    let now = time::macros::datetime!(2023-11-14 22:13:20.123456789 UTC);
+    let property = DocumentProperty {
+        key: String::from("at"),
+        field_type: DocumentPropertyType::DateTime,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+    assert_eq!(
+        property.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
+    );
+}

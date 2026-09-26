@@ -205,3 +205,42 @@ fn date_field_support_should_require_an_iso_value() {
     );
     assert!(configured_value_supported(&date_time));
 }
+
+#[test]
+fn type_label_should_stay_plain_while_subtitles_escape_markup() {
+    // The drop-down model renders plain text, so its label keeps the raw ampersand.
+    assert_eq!(type_label(DocumentPropertyType::DateTime), "Date & time");
+    // Row subtitles are Pango markup, so the ampersand must be escaped to render.
+    assert_eq!(
+        row_subtitle(DocumentPropertyType::DateTime, &FrontmatterValue::Null),
+        "Date &amp; time"
+    );
+}
+
+#[test]
+fn type_for_value_should_recover_iso_dates() {
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Text("2026-09-16".to_owned())),
+        DocumentPropertyType::Date
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Text(
+            "2026-09-26T14:22:49+02:00".to_owned()
+        )),
+        DocumentPropertyType::DateTime
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Text(
+            "2026-09-26T14:22:49.240147874+02:00".to_owned()
+        )),
+        DocumentPropertyType::DateTime
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Text("hello world".to_owned())),
+        DocumentPropertyType::Text
+    );
+    assert_eq!(
+        type_for_value(&FrontmatterValue::Number(serde_json::Number::from(3))),
+        DocumentPropertyType::Number
+    );
+}

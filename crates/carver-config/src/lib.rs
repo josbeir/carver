@@ -409,7 +409,9 @@ impl DocumentProperty {
             }
             DocumentPropertyType::Date => FrontmatterValue::Text(now.date().to_string()),
             DocumentPropertyType::DateTime => FrontmatterValue::Text(
-                now.format(&time::format_description::well_known::Rfc3339)
+                now.replace_nanosecond(0)
+                    .unwrap_or(now)
+                    .format(&time::format_description::well_known::Rfc3339)
                     .unwrap_or_default(),
             ),
             DocumentPropertyType::Text
