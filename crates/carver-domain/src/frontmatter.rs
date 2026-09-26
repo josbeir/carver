@@ -453,21 +453,30 @@ pub fn replace_frontmatter(
         return replace_frontmatter(source, None);
     }
     let scanned = scan_frontmatter(source);
+    // A no-op when the parsed fields already match keeps the authored source (including its
+    // body spacing) byte-for-byte.
+    if let (Some(block), Some(document)) = (&scanned, desired) {
+        let current_format =
+            FrontmatterFormat::from_token(block.opener.trim_start_matches('-').trim())
+                .unwrap_or(FrontmatterFormat::Yaml);
+        let current_fields = parse_fields(current_format, &block.content).unwrap_or_default();
+        if current_format == document.format && current_fields == document.fields {
+            return Ok(source.to_owned());
+        }
+    }
     match (scanned, desired) {
         (None, None) => Ok(source.to_owned()),
-        (Some(block), None) => {
-            let mut rest = &source[block.block_end..];
-            if let Some(stripped) = rest.strip_prefix('\n') {
-                rest = stripped;
-            }
-            Ok(rest.to_owned())
-        }
+        (Some(block), None) => Ok(source[block.block_end..]
+            .trim_start_matches('\n')
+            .to_owned()),
         (None, Some(document)) => {
             let rendered = render_frontmatter_document(document)?;
-            if source.is_empty() {
+            let body = source.trim_start_matches('\n');
+            if body.is_empty() {
                 Ok(format!("{rendered}\n"))
             } else {
-                Ok(format!("{rendered}\n{source}"))
+                // Keep a blank line after the block so the body never hugs the closing fence.
+                Ok(format!("{rendered}\n\n{body}"))
             }
         }
         (Some(block), Some(document)) => {
@@ -492,7 +501,13 @@ pub fn replace_frontmatter(
                 document.format.opener().to_owned()
             };
             let rendered = format!("{opener}\n{body}\n---");
-            Ok(format!("{rendered}{}", &source[block.block_end..]))
+            let trailing = &source[block.block_end..];
+            let trailing = trailing.trim_start_matches('\n');
+            if trailing.is_empty() {
+                Ok(format!("{rendered}\n"))
+            } else {
+                Ok(format!("{rendered}\n\n{trailing}"))
+            }
         }
     }
 }
@@ -542,9 +557,16 @@ pub fn replace_frontmatter_raw(source: &str, format: FrontmatterFormat, content:
     }
     let block = format!("{}\n{content}\n---", format.opener());
     match scan_frontmatter(source) {
-        Some(scanned) => format!("{block}{}", &source[scanned.block_end..]),
+        Some(scanned) => {
+            let trailing = source[scanned.block_end..].trim_start_matches('\n');
+            if trailing.is_empty() {
+                format!("{block}\n")
+            } else {
+                format!("{block}\n\n{trailing}")
+            }
+        }
         None if source.is_empty() => format!("{block}\n"),
-        None => format!("{block}\n{source}"),
+        None => format!("{block}\n\n{}", source.trim_start_matches('\n')),
     }
 }
 

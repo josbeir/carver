@@ -117,7 +117,7 @@ fn add_and_remove_should_edit_lines() {
     ));
     assert_eq!(
         replaced(source, Some(&desired)),
-        "---\nauthor: Jane\nproject: \"Carver\"\n---\nBody"
+        "---\nauthor: Jane\nproject: \"Carver\"\n---\n\nBody"
     );
 }
 
@@ -134,7 +134,7 @@ fn reorder_should_full_render() {
     };
     assert_eq!(
         replaced(source, Some(&desired)),
-        "---\nb: two\na: one\n---\nBody"
+        "---\nb: two\na: one\n---\n\nBody"
     );
 }
 
@@ -145,7 +145,7 @@ fn format_switch_should_render_new_fences() {
     desired.format = FrontmatterFormat::Toml;
     assert_eq!(
         replaced(source, Some(&desired)),
-        "---toml\nauthor = \"Jane\"\n---\nBody"
+        "---toml\nauthor = \"Jane\"\n---\n\nBody"
     );
 }
 
@@ -166,7 +166,7 @@ fn insert_should_prepend_a_block() {
     };
     assert_eq!(
         replaced("Body", Some(&desired)),
-        "---\nauthor: Jane\n---\nBody"
+        "---\nauthor: Jane\n---\n\nBody"
     );
 }
 
@@ -234,11 +234,15 @@ fn raw_replacement_should_keep_the_body_and_switch_format() {
             FrontmatterFormat::Json,
             "{\"x\": 1}"
         ),
-        "---json\n{\"x\": 1}\n---\nBody"
+        "---json\n{\"x\": 1}\n---\n\nBody"
     );
     assert_eq!(
         replace_frontmatter_raw("Body", FrontmatterFormat::Yaml, "a: b"),
-        "---\na: b\n---\nBody"
+        "---\na: b\n---\n\nBody"
+    );
+    assert_eq!(
+        replace_frontmatter_raw("\n\nBody", FrontmatterFormat::Yaml, "a: b"),
+        "---\na: b\n---\n\nBody"
     );
     assert_eq!(
         replace_frontmatter_raw("---\na: b\n---\nBody", FrontmatterFormat::Yaml, "  "),
@@ -264,6 +268,6 @@ fn scalar_edit_should_preserve_adjacent_comments() {
     desired.fields[0].value = FrontmatterValue::Text("changed".to_owned());
     assert_eq!(
         replaced(source, Some(&desired)),
-        "---\na: \"changed\"\n# important\nb: two\n---\nBody"
+        "---\na: \"changed\"\n# important\nb: two\n---\n\nBody"
     );
 }
