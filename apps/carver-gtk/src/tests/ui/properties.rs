@@ -59,7 +59,8 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
         .ok_or("document properties dialog")?;
     let dialog_root = dialog.upcast_ref();
     assert!(widget_as::<gtk::TextView>(dialog_root, "document-properties-raw").is_none());
-    assert!(widget_as::<adw::ExpanderRow>(dialog_root, "document-property-row-0").is_some());
+    // The always-present title field is a simple text row, not an expander.
+    assert!(widget_as::<adw::EntryRow>(dialog_root, "document-property-value-0").is_some());
     widget_as::<gtk::Button>(dialog_root, "document-properties-save")
         .ok_or("save button")?
         .emit_clicked();
@@ -170,7 +171,7 @@ pub(super) fn add_default_properties_should_offer_only_without_frontmatter() -> 
     add_defaults.emit_clicked();
     assert!(
         run_main_context_until(
-            || widget_as::<adw::EntryRow>(root, "document-property-key-1").is_some()
+            || widget_as::<adw::EntryRow>(root, "document-property-value-1").is_some()
         ),
         "the default property row should be added"
     );

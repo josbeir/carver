@@ -146,11 +146,16 @@ enum ValueWidget {
 }
 
 impl ValueWidget {
-    fn build(choice: PropertyKindChoice, value: &FrontmatterValue, name: &str) -> Self {
+    fn build(
+        choice: PropertyKindChoice,
+        value: &FrontmatterValue,
+        name: &str,
+        title: &str,
+    ) -> Self {
         match choice {
             PropertyKindChoice::Boolean => {
                 let row = adw::SwitchRow::new();
-                row.set_title(&gettext("Value"));
+                row.set_title(title);
                 row.set_widget_name(name);
                 row.set_active(matches!(value, FrontmatterValue::Boolean(true)));
                 Self::Boolean(row)
@@ -166,14 +171,14 @@ impl ValueWidget {
                 scroll.add_css_class("card");
                 scroll.set_child(Some(&view));
                 let row = adw::ActionRow::builder()
-                    .title(gettext("Value"))
+                    .title(title)
                     .child(&scroll)
                     .build();
                 Self::Long { row, view }
             }
             _ => {
                 let row = adw::EntryRow::new();
-                row.set_title(&gettext("Value"));
+                row.set_title(title);
                 row.set_widget_name(name);
                 if choice == PropertyKindChoice::Number {
                     row.set_input_purpose(gtk::InputPurpose::Number);
@@ -194,6 +199,14 @@ impl ValueWidget {
             Self::Entry(row) => row.clone().upcast(),
             Self::Long { row, .. } => row.clone().upcast(),
             Self::Boolean(row) => row.clone().upcast(),
+        }
+    }
+
+    fn add_suffix(&self, widget: &impl IsA<gtk::Widget>) {
+        match self {
+            Self::Entry(row) => row.add_suffix(widget),
+            Self::Long { row, .. } => row.add_suffix(widget),
+            Self::Boolean(row) => row.add_suffix(widget),
         }
     }
 
@@ -288,36 +301,75 @@ struct PropertyDraft {
     key: String,
     choice: PropertyKindChoice,
     value: FrontmatterValue,
-    fixed_key: bool,
+    /// Whether the user may rename the key (`title` and configured defaults are fixed).
+    editable_key: bool,
+    /// Whether the user may change the value type (configured defaults fix it).
+    editable_kind: bool,
+    /// Whether the row can be removed (`title` cannot).
+    removable: bool,
 }
 
 impl PropertyDraft {
+    /// A blank custom property.
     fn blank() -> Self {
         Self {
             key: String::new(),
             choice: PropertyKindChoice::Text,
             value: FrontmatterValue::Text(String::new()),
-            fixed_key: false,
+            editable_key: true,
+            editable_kind: true,
+            removable: true,
         }
     }
 
-    fn from_property(property: &DocumentProperty) -> Self {
+    /// A note property whose key matches a configured default: the type comes from the default.
+    fn default_row(key: String, property: &DocumentProperty, value: FrontmatterValue) -> Self {
+        Self {
+            key,
+            choice: PropertyKindChoice::for_property(property),
+            value,
+            editable_key: false,
+            editable_kind: false,
+            removable: true,
+        }
+    }
+
+    /// A configured default edited in the defaults settings, where the type is editable.
+    fn editable_property(property: &DocumentProperty) -> Self {
         Self {
             key: property.key.clone(),
             choice: PropertyKindChoice::for_property(property),
             value: FrontmatterValue::from_json(&property.value),
-            fixed_key: false,
+            editable_key: true,
+            editable_kind: true,
+            removable: true,
         }
     }
 }
 
-/// Widgets backing one expanded property row.
-struct BuiltRow {
-    expander: adw::ExpanderRow,
-    key: adw::EntryRow,
-    kind: adw::ComboRow,
-    value: ValueWidget,
-    fixed_key: bool,
+/// Widgets backing one property row.
+enum BuiltRow {
+    /// A custom property with editable name, type, and value.
+    Expander {
+        expander: adw::ExpanderRow,
+        key: adw::EntryRow,
+        kind: adw::ComboRow,
+        value: ValueWidget,
+    },
+    /// A fixed-type row (`title` or a configured default) with a typed value input.
+    Simple {
+        widget: gtk::Widget,
+        value: ValueWidget,
+    },
+}
+
+impl BuiltRow {
+    fn widget(&self) -> gtk::Widget {
+        match self {
+            Self::Expander { expander, .. } => expander.clone().upcast(),
+            Self::Simple { widget, .. } => widget.clone(),
+        }
+    }
 }
 
 type Rows = Rc<RefCell<Vec<BuiltRow>>>;
@@ -483,7 +535,7 @@ pub(crate) fn show_defaults(
         entries
             .borrow()
             .iter()
-            .map(PropertyDraft::from_property)
+            .map(PropertyDraft::editable_property)
             .collect(),
     ));
     let rows: Rows = Rc::new(RefCell::new(Vec::new()));
@@ -532,12 +584,24 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
                 title = Some(field.value.clone());
                 continue;
             }
-            note_drafts.push(PropertyDraft {
-                key: field.key.clone(),
-                choice: PropertyKindChoice::for_value(&field.value),
-                value: field.value.clone(),
-                fixed_key: false,
-            });
+            let draft = request
+                .defaults
+                .iter()
+                .find(|property| property.key == field.key)
+                .map_or_else(
+                    || PropertyDraft {
+                        key: field.key.clone(),
+                        choice: PropertyKindChoice::for_value(&field.value),
+                        value: field.value.clone(),
+                        editable_key: true,
+                        editable_kind: true,
+                        removable: true,
+                    },
+                    |property| {
+                        PropertyDraft::default_row(field.key.clone(), property, field.value.clone())
+                    },
+                );
+            note_drafts.push(draft);
         }
     }
     // Only the note's own properties are listed; configured defaults are added explicitly with
@@ -546,7 +610,9 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
         key: TITLE_KEY.to_owned(),
         choice: PropertyKindChoice::Text,
         value: title.unwrap_or(FrontmatterValue::Text(String::new())),
-        fixed_key: true,
+        editable_key: false,
+        editable_kind: false,
+        removable: false,
     }];
     catalog.extend(note_drafts);
     catalog
@@ -581,25 +647,64 @@ fn rebuild(group: &adw::PreferencesGroup, rows: &Rows, drafts: &Drafts, on_chang
     {
         let built = rows.borrow();
         for row in built.iter() {
-            group.remove(&row.expander);
+            group.remove(&row.widget());
         }
     }
     rows.borrow_mut().clear();
     let current = drafts.borrow().clone();
     for (index, draft) in current.iter().enumerate() {
         let row = build_row(draft, index, group, rows, drafts, on_change);
-        group.add(&row.expander);
+        group.add(&row.widget());
         rows.borrow_mut().push(row);
     }
 }
 
-// CONTEXT: The row keeps its widgets and its three live callbacks together so the draft is the
-// only shared state between the note editor and the defaults editor.
-#[expect(
-    clippy::too_many_lines,
-    reason = "one property row wires key, type, value, and removal together"
-)]
 fn build_row(
+    draft: &PropertyDraft,
+    index: usize,
+    group: &adw::PreferencesGroup,
+    rows: &Rows,
+    drafts: &Drafts,
+    on_change: &Rc<dyn Fn()>,
+) -> BuiltRow {
+    if draft.editable_kind {
+        build_expander_row(draft, index, group, rows, drafts, on_change)
+    } else {
+        build_simple_row(draft, index, group, rows, drafts, on_change)
+    }
+}
+
+/// Builds a fixed-type row: `title` and configured defaults use a plain typed value input.
+fn build_simple_row(
+    draft: &PropertyDraft,
+    index: usize,
+    group: &adw::PreferencesGroup,
+    rows: &Rows,
+    drafts: &Drafts,
+    on_change: &Rc<dyn Fn()>,
+) -> BuiltRow {
+    let title = if draft.key == TITLE_KEY {
+        gettext("Title")
+    } else {
+        draft.key.clone()
+    };
+    let value = ValueWidget::build(
+        draft.choice,
+        &draft.value,
+        &format!("document-property-value-{index}"),
+        &title,
+    );
+    let widget = value.widget();
+    if draft.removable {
+        let remove = remove_button(index, group, rows, drafts, on_change);
+        value.add_suffix(&remove);
+    }
+    BuiltRow::Simple { widget, value }
+}
+
+// CONTEXT: The row keeps its widgets and its live callbacks together so the draft is the only
+// shared state between the note editor and the defaults editor.
+fn build_expander_row(
     draft: &PropertyDraft,
     index: usize,
     group: &adw::PreferencesGroup,
@@ -613,7 +718,7 @@ fn build_row(
     let key = adw::EntryRow::new();
     key.set_title(&gettext("Name"));
     key.set_text(&draft.key);
-    key.set_editable(!draft.fixed_key);
+    key.set_editable(draft.editable_key);
     key.set_widget_name(&format!("document-property-key-{index}"));
 
     let kind = adw::ComboRow::new();
@@ -626,6 +731,7 @@ fn build_row(
         draft.choice,
         &draft.value,
         &format!("document-property-value-{index}"),
+        &gettext("Value"),
     );
 
     expander.add_row(&key);
@@ -677,47 +783,55 @@ fn build_row(
         });
     }
 
-    if !draft.fixed_key {
-        let remove = gtk::Button::from_icon_name("edit-delete-symbolic");
-        remove.set_widget_name(&format!("document-property-remove-{index}"));
-        remove.add_css_class("flat");
-        remove.set_tooltip_text(Some(&gettext("Remove property")));
-        remove.update_property(&[gtk::accessible::Property::Label(&gettext(
-            "Remove property",
-        ))]);
-        {
-            let group = group.clone();
-            let rows = Rc::clone(rows);
-            let drafts = Rc::clone(drafts);
-            let on_change = Rc::clone(on_change);
-            remove.connect_clicked(move |_| {
-                let group = group.clone();
-                let rows = Rc::clone(&rows);
-                let drafts = Rc::clone(&drafts);
-                let on_change = Rc::clone(&on_change);
-                glib::idle_add_local_once(move || {
-                    capture(&rows, &drafts);
-                    {
-                        let mut current = drafts.borrow_mut();
-                        if index < current.len() {
-                            current.remove(index);
-                        }
-                    }
-                    rebuild(&group, &rows, &drafts, &on_change);
-                    on_change();
-                });
-            });
-        }
+    if draft.removable {
+        let remove = remove_button(index, group, rows, drafts, on_change);
         expander.add_suffix(&remove);
     }
 
-    BuiltRow {
+    BuiltRow::Expander {
         expander,
         key,
         kind,
         value,
-        fixed_key: draft.fixed_key,
     }
+}
+
+fn remove_button(
+    index: usize,
+    group: &adw::PreferencesGroup,
+    rows: &Rows,
+    drafts: &Drafts,
+    on_change: &Rc<dyn Fn()>,
+) -> gtk::Button {
+    let remove = gtk::Button::from_icon_name("edit-delete-symbolic");
+    remove.set_widget_name(&format!("document-property-remove-{index}"));
+    remove.add_css_class("flat");
+    remove.set_tooltip_text(Some(&gettext("Remove property")));
+    remove.update_property(&[gtk::accessible::Property::Label(&gettext(
+        "Remove property",
+    ))]);
+    let group = group.clone();
+    let rows = Rc::clone(rows);
+    let drafts = Rc::clone(drafts);
+    let on_change = Rc::clone(on_change);
+    remove.connect_clicked(move |_| {
+        let group = group.clone();
+        let rows = Rc::clone(&rows);
+        let drafts = Rc::clone(&drafts);
+        let on_change = Rc::clone(&on_change);
+        glib::idle_add_local_once(move || {
+            capture(&rows, &drafts);
+            {
+                let mut current = drafts.borrow_mut();
+                if index < current.len() {
+                    current.remove(index);
+                }
+            }
+            rebuild(&group, &rows, &drafts, &on_change);
+            on_change();
+        });
+    });
+    remove
 }
 
 fn build_action_bar(
@@ -821,9 +935,11 @@ fn add_defaults_action(
                 if property.key == TITLE_KEY || present {
                     continue;
                 }
-                drafts
-                    .borrow_mut()
-                    .push(PropertyDraft::from_property(property));
+                drafts.borrow_mut().push(PropertyDraft::default_row(
+                    property.key.clone(),
+                    property,
+                    FrontmatterValue::from_json(&property.value),
+                ));
             }
             rebuild(&group, &rows, &drafts, &on_change);
             on_change();
@@ -835,12 +951,22 @@ fn capture(rows: &Rows, drafts: &Drafts) {
     let built = rows.borrow();
     let mut current = drafts.borrow_mut();
     for (draft, row) in current.iter_mut().zip(built.iter()) {
-        let choice = PropertyKindChoice::from_index(row.kind.selected());
-        draft.key = row.key.text().to_string();
-        draft.choice = choice;
-        let value = row.value.frontmatter_preserving(choice, &draft.value);
-        draft.value = value;
-        draft.fixed_key = row.fixed_key;
+        match row {
+            BuiltRow::Expander {
+                key, kind, value, ..
+            } => {
+                let choice = PropertyKindChoice::from_index(kind.selected());
+                draft.key = key.text().to_string();
+                draft.choice = choice;
+                let value = value.frontmatter_preserving(choice, &draft.value);
+                draft.value = value;
+            }
+            BuiltRow::Simple { value, .. } => {
+                // The key and type are fixed; only the value is read back.
+                let next = value.frontmatter_preserving(draft.choice, &draft.value);
+                draft.value = next;
+            }
+        }
     }
 }
 

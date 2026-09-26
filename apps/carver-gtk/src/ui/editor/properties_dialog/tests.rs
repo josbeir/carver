@@ -44,8 +44,35 @@ fn initial_drafts_should_list_only_note_properties() {
     let keys: Vec<&str> = drafts.iter().map(|draft| draft.key.as_str()).collect();
 
     assert_eq!(keys, ["title", "author"]);
-    assert!(drafts[0].fixed_key);
-    assert!(!drafts[1].fixed_key);
+    // The title row is fixed and cannot be removed; the note field is a custom row.
+    assert!(!drafts[0].editable_key);
+    assert!(!drafts[0].editable_kind);
+    assert!(!drafts[0].removable);
+    assert!(drafts[1].editable_key);
+    assert!(drafts[1].editable_kind);
+    assert!(drafts[1].removable);
+}
+
+#[test]
+fn initial_drafts_should_fix_the_type_of_configured_defaults() {
+    let request = request(
+        Some(FrontmatterDocument {
+            format: FrontmatterFormat::Yaml,
+            fields: vec![field("author", "Jane")],
+            error: None,
+        }),
+        vec![default_property("author", "Default")],
+        true,
+    );
+
+    let drafts = initial_drafts(&request);
+    let Some(author) = drafts.iter().find(|draft| draft.key == "author") else {
+        panic!("expected an author row");
+    };
+
+    assert!(!author.editable_key);
+    assert!(!author.editable_kind);
+    assert!(author.removable);
 }
 
 #[test]
