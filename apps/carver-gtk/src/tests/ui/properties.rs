@@ -139,8 +139,7 @@ pub(super) fn default_properties_should_always_show_without_removal() -> TestRes
         .dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
             vec![carver_config::DocumentProperty {
                 key: "author".to_owned(),
-                kind: carver_domain::PropertyKind::Text,
-                multiline: false,
+                field_type: carver_config::DocumentPropertyType::Text,
                 multiple: false,
                 value: serde_json::json!("Jane"),
             }],
@@ -192,8 +191,7 @@ pub(super) fn default_properties_should_always_show_without_removal() -> TestRes
 fn list_default(multiple: bool) -> carver_config::DocumentProperty {
     carver_config::DocumentProperty {
         key: "status".to_owned(),
-        kind: carver_domain::PropertyKind::List,
-        multiline: false,
+        field_type: carver_config::DocumentPropertyType::List,
         multiple,
         value: serde_json::json!(["active", "archived"]),
     }
@@ -335,6 +333,86 @@ pub(super) fn list_default_settings_should_offer_options_and_multiple() -> TestR
         "config: {:?}",
         carver_config::load(&config_path).map(|config| config.document_properties.entries)
     );
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn date_default_should_render_a_picker_and_disable_invalid_values() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    fixture.runtime.dispatch(AppMsg::Preferences(
+        PreferencesMsg::SetDocumentPropertiesEnabled(true),
+    ));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
+            vec![carver_config::DocumentProperty {
+                key: "due".to_owned(),
+                field_type: carver_config::DocumentPropertyType::Date,
+                multiple: false,
+                value: serde_json::json!(""),
+            }],
+        )));
+    let category = fixture.client.create_category("Properties")?;
+
+    let empty = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: empty.id,
+        revision: empty.revision,
+        source: "---\ndue: 2024-01-15\n---\nBody\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    assert!(
+        widget_as::<gtk::MenuButton>(dialog.upcast_ref(), "document-property-value-1-picker")
+            .is_some(),
+        "a valid date should render the calendar picker"
+    );
+    dialog.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let invalid = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: invalid.id,
+        revision: invalid.revision,
+        source: "---\ndue: not a date\n---\nBody\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    let root = dialog.upcast_ref();
+    assert!(
+        widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker").is_none(),
+        "an invalid date should not render the picker"
+    );
+    assert!(
+        widget_as::<adw::ActionRow>(root, "document-property-value-1").is_some(),
+        "an invalid date renders the read-only row"
+    );
+    dialog.close();
     fixture.window.close();
     Ok(())
 }

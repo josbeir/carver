@@ -321,16 +321,54 @@ const fn default_frontmatter_format() -> FrontmatterFormat {
     FrontmatterFormat::Yaml
 }
 
+/// A user-selectable document property field type.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentPropertyType {
+    /// A single-line text value.
+    #[default]
+    Text,
+    /// A multi-line text value.
+    LongText,
+    /// A numeric value.
+    Number,
+    /// A boolean value.
+    Boolean,
+    /// A list of configured options.
+    List,
+    /// An ISO 8601 calendar date.
+    Date,
+    /// An ISO 8601 date and time.
+    DateTime,
+}
+
+impl DocumentPropertyType {
+    /// Returns the domain value kind this field type is stored as.
+    #[must_use]
+    pub const fn domain_kind(self) -> PropertyKind {
+        match self {
+            Self::Text | Self::LongText | Self::Date | Self::DateTime => PropertyKind::Text,
+            Self::Number => PropertyKind::Number,
+            Self::Boolean => PropertyKind::Boolean,
+            Self::List => PropertyKind::List,
+        }
+    }
+
+    /// Returns whether the field type is a date or a date and time.
+    #[must_use]
+    pub const fn is_date(self) -> bool {
+        matches!(self, Self::Date | Self::DateTime)
+    }
+}
+
 /// One user-configured document property.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DocumentProperty {
     /// Property name.
     pub key: String,
-    /// Value kind offered by the properties dialog.
-    pub kind: PropertyKind,
-    /// Whether text values use a multi-line editor.
+    /// Field type offered by the properties dialog.
     #[serde(default)]
-    pub multiline: bool,
+    pub field_type: DocumentPropertyType,
     /// Whether a list property allows selecting more than one option.
     #[serde(default)]
     pub multiple: bool,
@@ -354,26 +392,44 @@ impl DocumentProperty {
             .unwrap_or_default()
     }
 
-    /// Converts a configured default into the field seeded into a new note.
+    /// Returns the field seeded into a new note at `now`.
     ///
-    /// A list property seeds its first option: a scalar when it is single-select, or a one-item
-    /// list when it allows multiple values. A list with no options seeds nothing.
+    /// A date or date-time seeds the current date/time. A list seeds its first option: a scalar
+    /// when single-select, or a one-item list when multiple; a list with no options seeds nothing.
+    #[must_use]
+    pub fn default_field_at(&self, now: time::OffsetDateTime) -> Option<FrontmatterField> {
+        let value = match self.field_type {
+            DocumentPropertyType::List => {
+                let first = self.options().into_iter().next()?;
+                if self.multiple {
+                    FrontmatterValue::List(vec![FrontmatterValue::Text(first)])
+                } else {
+                    FrontmatterValue::Text(first)
+                }
+            }
+            DocumentPropertyType::Date => FrontmatterValue::Text(now.date().to_string()),
+            DocumentPropertyType::DateTime => FrontmatterValue::Text(
+                now.format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+            ),
+            DocumentPropertyType::Text
+            | DocumentPropertyType::LongText
+            | DocumentPropertyType::Number
+            | DocumentPropertyType::Boolean => FrontmatterValue::from_json(&self.value),
+        };
+        Some(FrontmatterField::new(self.key.clone(), value))
+    }
+
+    /// Returns the field seeded into a new note using the current local time.
     #[must_use]
     pub fn default_field(&self) -> Option<FrontmatterField> {
-        if self.kind == PropertyKind::List {
-            let first = self.options().into_iter().next()?;
-            let value = if self.multiple {
-                FrontmatterValue::List(vec![FrontmatterValue::Text(first)])
-            } else {
-                FrontmatterValue::Text(first)
-            };
-            return Some(FrontmatterField::new(self.key.clone(), value));
-        }
-        Some(FrontmatterField::new(
-            self.key.clone(),
-            FrontmatterValue::from_json(&self.value),
-        ))
+        self.default_field_at(now_local())
     }
+}
+
+/// The current local time, falling back to UTC when the offset is indeterminate.
+fn now_local() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
 impl DocumentPropertiesConfig {
@@ -383,10 +439,11 @@ impl DocumentPropertiesConfig {
         if !self.enabled {
             return String::new();
         }
+        let now = now_local();
         let fields: Vec<FrontmatterField> = self
             .entries
             .iter()
-            .filter_map(DocumentProperty::default_field)
+            .filter_map(|entry| entry.default_field_at(now))
             .collect();
         frontmatter_source_with_format(&fields, self.format)
     }
@@ -395,8 +452,8 @@ impl DocumentPropertiesConfig {
     ///
     /// # Errors
     ///
-    /// Returns a message when a key is blank, reserved, or duplicated, or when a kind or value
-    /// is unsupported.
+    /// Returns a message when a key is blank, reserved, or duplicated, or when a field type or
+    /// value is unsupported.
     pub fn validate(&self) -> Result<(), String> {
         let mut seen = BTreeSet::new();
         for entry in &self.entries {
@@ -409,19 +466,13 @@ impl DocumentPropertiesConfig {
                     "'{key}' is reserved and cannot be a default property"
                 ));
             }
-            if !entry.kind.is_selectable() {
-                return Err(format!("property '{key}' has an unsupported kind"));
-            }
-            if entry.multiline && entry.kind != PropertyKind::Text {
-                return Err(format!("property '{key}' can only be multi-line when text"));
-            }
-            if entry.multiple && entry.kind != PropertyKind::List {
+            if entry.multiple && entry.field_type != DocumentPropertyType::List {
                 return Err(format!(
                     "property '{key}' can only allow multiple values when it is a list"
                 ));
             }
-            if !value_matches_kind(entry.kind, &entry.value) {
-                return Err(format!("property '{key}' value does not match its kind"));
+            if !value_matches_type(entry.field_type, &entry.value) {
+                return Err(format!("property '{key}' value does not match its type"));
             }
             if !seen.insert(key.to_owned()) {
                 return Err(format!("property '{key}' is configured more than once"));
@@ -431,19 +482,21 @@ impl DocumentPropertiesConfig {
     }
 }
 
-fn value_matches_kind(kind: PropertyKind, value: &serde_json::Value) -> bool {
+fn value_matches_type(field_type: DocumentPropertyType, value: &serde_json::Value) -> bool {
     if value.is_null() {
         return true;
     }
-    match kind {
-        PropertyKind::Text => value.is_string(),
-        PropertyKind::Number => value.is_number(),
-        PropertyKind::Boolean => value.is_boolean(),
+    match field_type {
+        DocumentPropertyType::Text
+        | DocumentPropertyType::LongText
+        | DocumentPropertyType::Date
+        | DocumentPropertyType::DateTime => value.is_string(),
+        DocumentPropertyType::Number => value.is_number(),
+        DocumentPropertyType::Boolean => value.is_boolean(),
         // A list property's value is its option list, so every entry is a string.
-        PropertyKind::List => value
+        DocumentPropertyType::List => value
             .as_array()
             .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
-        PropertyKind::Null | PropertyKind::Mixed => false,
     }
 }
 

@@ -272,22 +272,19 @@ fn document_properties_should_round_trip_typed_entries() -> Result<(), Box<dyn s
     config.document_properties.entries = vec![
         DocumentProperty {
             key: String::from("author"),
-            kind: PropertyKind::Text,
-            multiline: false,
+            field_type: DocumentPropertyType::Text,
             multiple: false,
             value: serde_json::Value::String(String::from("Jane")),
         },
         DocumentProperty {
             key: String::from("tags"),
-            kind: PropertyKind::List,
-            multiline: false,
+            field_type: DocumentPropertyType::List,
             multiple: false,
             value: serde_json::json!(["rust", "gtk"]),
         },
         DocumentProperty {
             key: String::from("summary"),
-            kind: PropertyKind::Text,
-            multiline: true,
+            field_type: DocumentPropertyType::LongText,
             multiple: false,
             value: serde_json::Value::String(String::new()),
         },
@@ -296,8 +293,8 @@ fn document_properties_should_round_trip_typed_entries() -> Result<(), Box<dyn s
 
     let source = fs::read_to_string(&path)?;
     assert!(source.contains("[document_properties]"));
-    assert!(source.contains("kind = \"text\""));
-    assert!(source.contains("multiline = true"));
+    assert!(source.contains("field_type = \"text\""));
+    assert!(source.contains("field_type = \"long-text\""));
 
     assert_eq!(load(&path)?, config);
     Ok(())
@@ -311,8 +308,7 @@ fn document_properties_default_source_should_be_gated_by_enabled() {
         format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("author"),
-            kind: PropertyKind::Text,
-            multiline: false,
+            field_type: DocumentPropertyType::Text,
             multiple: false,
             value: serde_json::Value::String(String::from("Jane")),
         }],
@@ -324,11 +320,10 @@ fn document_properties_default_source_should_be_gated_by_enabled() {
 }
 
 #[test]
-fn document_properties_should_reject_reserved_and_unsupported_entries() {
-    let property = |key: &str, kind: PropertyKind| DocumentProperty {
+fn document_properties_should_reject_reserved_and_mismatched_entries() {
+    let property = |key: &str, field_type: DocumentPropertyType| DocumentProperty {
         key: key.to_owned(),
-        kind,
-        multiline: false,
+        field_type,
         multiple: false,
         value: serde_json::Value::Null,
     };
@@ -337,17 +332,9 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
         enabled: true,
         floating_button: true,
         format: FrontmatterFormat::Yaml,
-        entries: vec![property("title", PropertyKind::Text)],
+        entries: vec![property("title", DocumentPropertyType::Text)],
     };
     assert!(reserved.validate().is_err());
-
-    let unsupported = DocumentPropertiesConfig {
-        enabled: true,
-        floating_button: true,
-        format: FrontmatterFormat::Yaml,
-        entries: vec![property("state", PropertyKind::Mixed)],
-    };
-    assert!(unsupported.validate().is_err());
 
     let mismatched = DocumentPropertiesConfig {
         enabled: true,
@@ -355,8 +342,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
         format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("count"),
-            kind: PropertyKind::Number,
-            multiline: false,
+            field_type: DocumentPropertyType::Number,
             multiple: false,
             value: serde_json::Value::String(String::from("three")),
         }],
@@ -368,8 +354,8 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
         floating_button: true,
         format: FrontmatterFormat::Yaml,
         entries: vec![
-            property("author", PropertyKind::Text),
-            property("author", PropertyKind::Text),
+            property("author", DocumentPropertyType::Text),
+            property("author", DocumentPropertyType::Text),
         ],
     };
     assert!(duplicated.validate().is_err());
@@ -381,7 +367,7 @@ fn loading_should_reject_a_reserved_default_property() -> Result<(), Box<dyn std
     let path = directory.path().join("config.toml");
     fs::write(
         &path,
-        "[[document_properties.entries]]\nkey = \"title\"\nkind = \"text\"\nvalue = \"X\"\n",
+        "[[document_properties.entries]]\nkey = \"title\"\nfield_type = \"text\"\nvalue = \"X\"\n",
     )?;
 
     assert!(matches!(
@@ -395,8 +381,7 @@ fn loading_should_reject_a_reserved_default_property() -> Result<(), Box<dyn std
 fn document_properties_list_defaults_should_seed_the_first_option() {
     let list = |multiple: bool| DocumentProperty {
         key: String::from("status"),
-        kind: PropertyKind::List,
-        multiline: false,
+        field_type: DocumentPropertyType::List,
         multiple,
         value: serde_json::json!(["active", "archived"]),
     };
@@ -426,8 +411,7 @@ fn document_properties_list_without_options_should_seed_nothing() {
         format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("status"),
-            kind: PropertyKind::List,
-            multiline: false,
+            field_type: DocumentPropertyType::List,
             multiple: false,
             value: serde_json::json!([]),
         }],
@@ -443,8 +427,7 @@ fn document_properties_should_reject_invalid_list_options() {
         format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("status"),
-            kind: PropertyKind::List,
-            multiline: false,
+            field_type: DocumentPropertyType::List,
             multiple: false,
             value: serde_json::json!(["ok", 3]),
         }],
@@ -457,8 +440,7 @@ fn document_properties_should_reject_invalid_list_options() {
         format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("author"),
-            kind: PropertyKind::Text,
-            multiline: false,
+            field_type: DocumentPropertyType::Text,
             multiple: true,
             value: serde_json::Value::String(String::from("Jane")),
         }],
@@ -474,8 +456,7 @@ fn document_properties_default_source_should_use_the_configured_format() {
         format: FrontmatterFormat::Json,
         entries: vec![DocumentProperty {
             key: String::from("author"),
-            kind: PropertyKind::Text,
-            multiline: false,
+            field_type: DocumentPropertyType::Text,
             multiple: false,
             value: serde_json::Value::String(String::from("Jane")),
         }],
@@ -486,4 +467,30 @@ fn document_properties_default_source_should_use_the_configured_format() {
 
     config.format = FrontmatterFormat::Yaml;
     assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}
+
+#[test]
+fn document_properties_date_defaults_should_seed_the_configured_moment() {
+    let now = time::macros::datetime!(2023-11-14 22:13:20 UTC);
+    let date = DocumentProperty {
+        key: String::from("due"),
+        field_type: DocumentPropertyType::Date,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+    let date_time = DocumentProperty {
+        key: String::from("at"),
+        field_type: DocumentPropertyType::DateTime,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+
+    assert_eq!(
+        date.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14")))
+    );
+    assert_eq!(
+        date_time.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
+    );
 }

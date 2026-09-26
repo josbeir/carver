@@ -3,8 +3,7 @@ use super::*;
 fn text_property(key: &str, value: &str) -> carver_config::DocumentProperty {
     carver_config::DocumentProperty {
         key: key.to_owned(),
-        kind: carver_domain::PropertyKind::Text,
-        multiline: false,
+        field_type: carver_config::DocumentPropertyType::Text,
         multiple: false,
         value: serde_json::Value::String(value.to_owned()),
     }

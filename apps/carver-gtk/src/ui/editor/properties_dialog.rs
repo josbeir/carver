@@ -8,10 +8,9 @@
 
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
-use carver_config::DocumentProperty;
+use carver_config::{DocumentProperty, DocumentPropertyType};
 use carver_domain::{
-    FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, PropertyKind,
-    is_reserved_key,
+    FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, is_reserved_key,
 };
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -25,101 +24,62 @@ use crate::mvu::{
 /// The reserved, always-present title field key.
 const TITLE_KEY: &str = "title";
 
-/// The value kinds offered by the document-properties dialogs.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PropertyKindChoice {
-    /// A single-line text value.
-    Text,
-    /// A multi-line text value.
-    LongText,
-    /// A numeric value.
-    Number,
-    /// A boolean value.
-    Boolean,
-    /// A list of text values.
-    List,
+/// The field types, in drop-down order.
+const FIELD_TYPES: [DocumentPropertyType; 7] = [
+    DocumentPropertyType::Text,
+    DocumentPropertyType::LongText,
+    DocumentPropertyType::Number,
+    DocumentPropertyType::Boolean,
+    DocumentPropertyType::List,
+    DocumentPropertyType::Date,
+    DocumentPropertyType::DateTime,
+];
+
+/// Returns the field type represented by a drop-down row index.
+fn type_from_index(index: u32) -> DocumentPropertyType {
+    FIELD_TYPES
+        .get(usize::try_from(index).unwrap_or(usize::MAX))
+        .copied()
+        .unwrap_or(DocumentPropertyType::Text)
 }
 
-impl PropertyKindChoice {
-    /// Returns the choice represented by a drop-down row index.
-    pub(crate) const fn from_index(index: u32) -> Self {
-        match index {
-            1 => Self::LongText,
-            2 => Self::Number,
-            3 => Self::Boolean,
-            4 => Self::List,
-            _ => Self::Text,
-        }
-    }
+/// Returns the drop-down row index for a field type.
+fn type_index(field_type: DocumentPropertyType) -> u32 {
+    FIELD_TYPES
+        .iter()
+        .position(|candidate| *candidate == field_type)
+        .and_then(|index| u32::try_from(index).ok())
+        .unwrap_or(0)
+}
 
-    /// Returns the drop-down row index for this choice.
-    pub(crate) const fn index(self) -> u32 {
-        match self {
-            Self::Text => 0,
-            Self::LongText => 1,
-            Self::Number => 2,
-            Self::Boolean => 3,
-            Self::List => 4,
-        }
-    }
-
-    /// Infers a choice from an existing frontmatter value.
-    pub(crate) fn for_value(value: &FrontmatterValue) -> Self {
-        match value {
-            FrontmatterValue::Text(_) | FrontmatterValue::Null | FrontmatterValue::Object(_) => {
-                Self::Text
-            }
-            FrontmatterValue::Number(_) => Self::Number,
-            FrontmatterValue::Boolean(_) => Self::Boolean,
-            FrontmatterValue::List(_) => Self::List,
-        }
-    }
-
-    /// Infers a choice from a configured default property.
-    pub(crate) fn for_property(property: &DocumentProperty) -> Self {
-        match property.kind {
-            PropertyKind::Number => Self::Number,
-            PropertyKind::Boolean => Self::Boolean,
-            PropertyKind::List => Self::List,
-            PropertyKind::Text if property.multiline => Self::LongText,
-            PropertyKind::Text | PropertyKind::Null | PropertyKind::Mixed => Self::Text,
-        }
-    }
-
-    /// Returns the persisted property kind for this choice.
-    pub(crate) const fn property_kind(self) -> PropertyKind {
-        match self {
-            Self::Number => PropertyKind::Number,
-            Self::Boolean => PropertyKind::Boolean,
-            Self::List => PropertyKind::List,
-            Self::Text | Self::LongText => PropertyKind::Text,
-        }
-    }
-
-    /// Returns whether text values use the multi-line editor.
-    pub(crate) const fn is_multiline(self) -> bool {
-        matches!(self, Self::LongText)
-    }
-
-    fn label(self) -> String {
-        match self {
-            Self::Text => gettext("Text"),
-            Self::LongText => gettext("Long text"),
-            Self::Number => gettext("Number"),
-            Self::Boolean => gettext("Boolean"),
-            Self::List => gettext("List"),
+/// Infers a field type from an existing frontmatter value.
+fn type_for_value(value: &FrontmatterValue) -> DocumentPropertyType {
+    match value {
+        FrontmatterValue::Number(_) => DocumentPropertyType::Number,
+        FrontmatterValue::Boolean(_) => DocumentPropertyType::Boolean,
+        FrontmatterValue::List(_) => DocumentPropertyType::List,
+        FrontmatterValue::Text(_) | FrontmatterValue::Null | FrontmatterValue::Object(_) => {
+            DocumentPropertyType::Text
         }
     }
 }
 
-fn kind_model() -> gtk::StringList {
-    gtk::StringList::new(&[
-        &gettext("Text"),
-        &gettext("Long text"),
-        &gettext("Number"),
-        &gettext("Boolean"),
-        &gettext("List"),
-    ])
+fn type_label(field_type: DocumentPropertyType) -> String {
+    match field_type {
+        DocumentPropertyType::Text => gettext("Text"),
+        DocumentPropertyType::LongText => gettext("Long text"),
+        DocumentPropertyType::Number => gettext("Number"),
+        DocumentPropertyType::Boolean => gettext("Boolean"),
+        DocumentPropertyType::List => gettext("List"),
+        DocumentPropertyType::Date => gettext("Date"),
+        DocumentPropertyType::DateTime => gettext("Date & time"),
+    }
+}
+
+fn type_model() -> gtk::StringList {
+    let labels: Vec<String> = FIELD_TYPES.iter().map(|value| type_label(*value)).collect();
+    let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+    gtk::StringList::new(&labels)
 }
 
 /// The value editor for one property row.
@@ -131,24 +91,253 @@ enum ValueWidget {
         view: gtk::TextView,
     },
     Boolean(adw::SwitchRow),
+    DateTime(DateTimePicker),
+    Hint(gtk::Label),
+}
+
+/// A calendar (and optional time) picker for a date or date-time value.
+#[derive(Clone)]
+struct DateTimePicker {
+    row: adw::ActionRow,
+    state: Rc<RefCell<Option<String>>>,
+}
+
+impl DateTimePicker {
+    fn new(
+        field_type: DocumentPropertyType,
+        value: &FrontmatterValue,
+        name: &str,
+        title: &str,
+    ) -> Self {
+        let date_only = field_type == DocumentPropertyType::Date;
+        let row = adw::ActionRow::new();
+        row.set_title(title);
+        row.set_widget_name(name);
+
+        let button = gtk::MenuButton::new();
+        button.set_icon_name("x-office-calendar-symbolic");
+        button.add_css_class("flat");
+        button.set_valign(gtk::Align::Center);
+        button.set_widget_name(&format!("{name}-picker"));
+        let popover = gtk::Popover::new();
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        content.set_margin_start(6);
+        content.set_margin_end(6);
+        content.set_margin_top(6);
+        content.set_margin_bottom(6);
+
+        let calendar = gtk::Calendar::new();
+        content.append(&calendar);
+
+        let hours = gtk::SpinButton::with_range(0.0, 23.0, 1.0);
+        let minutes = gtk::SpinButton::with_range(0.0, 59.0, 1.0);
+        hours.set_width_chars(2);
+        minutes.set_width_chars(2);
+        if !date_only {
+            let clock = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+            clock.set_halign(gtk::Align::Center);
+            clock.append(&hours);
+            clock.append(&gtk::Label::new(Some(":")));
+            clock.append(&minutes);
+            content.append(&clock);
+        }
+
+        let clear = gtk::Button::with_label(&gettext("Clear"));
+        clear.add_css_class("flat");
+        clear.set_halign(gtk::Align::End);
+        content.append(&clear);
+
+        popover.set_child(Some(&content));
+        button.set_popover(Some(&popover));
+        row.add_suffix(&button);
+
+        let state = Rc::new(RefCell::new(picker_text(field_type, value)));
+
+        let refresh: Rc<dyn Fn()> = {
+            let row = row.clone();
+            let state = Rc::clone(&state);
+            Rc::new(move || {
+                let subtitle = state
+                    .borrow()
+                    .as_ref()
+                    .map_or_else(|| gettext("Not set"), |iso| display_date(iso, date_only));
+                row.set_subtitle(&subtitle);
+            })
+        };
+        apply_picker_state(field_type, &state, &calendar, &hours, &minutes);
+
+        let update: Rc<dyn Fn()> = {
+            let calendar = calendar.clone();
+            let hours = hours.clone();
+            let minutes = minutes.clone();
+            let state = Rc::clone(&state);
+            let refresh = Rc::clone(&refresh);
+            Rc::new(move || {
+                *state.borrow_mut() = read_picker(field_type, &calendar, &hours, &minutes);
+                refresh();
+            })
+        };
+        {
+            let update = Rc::clone(&update);
+            calendar.connect_day_selected(move |_| update());
+        }
+        if !date_only {
+            let update_hours = Rc::clone(&update);
+            hours.connect_value_changed(move |_| update_hours());
+            let update_minutes = Rc::clone(&update);
+            minutes.connect_value_changed(move |_| update_minutes());
+        }
+        {
+            let state = Rc::clone(&state);
+            let refresh = Rc::clone(&refresh);
+            clear.connect_clicked(move |_| {
+                *state.borrow_mut() = None;
+                refresh();
+            });
+        }
+        refresh();
+
+        Self { row, state }
+    }
+
+    fn frontmatter(&self) -> FrontmatterValue {
+        self.state
+            .borrow()
+            .as_ref()
+            .map_or(FrontmatterValue::Null, |iso| {
+                FrontmatterValue::Text(iso.clone())
+            })
+    }
+
+    fn frontmatter_preserving(&self, previous: &FrontmatterValue) -> FrontmatterValue {
+        let current = self.state.borrow().clone();
+        if current.as_deref() == Some(frontmatter_text(previous).as_str()) {
+            previous.clone()
+        } else {
+            current.map_or(FrontmatterValue::Null, FrontmatterValue::Text)
+        }
+    }
+}
+
+/// Returns the value text for a picker, or `None` when it is absent or unparseable.
+fn picker_text(field_type: DocumentPropertyType, value: &FrontmatterValue) -> Option<String> {
+    let FrontmatterValue::Text(text) = value else {
+        return None;
+    };
+    let valid = if field_type == DocumentPropertyType::Date {
+        parse_date(text).is_some()
+    } else {
+        parse_date_time(text).is_some()
+    };
+    valid.then(|| text.clone())
+}
+
+/// Applies a picker state to its calendar and time spins.
+fn apply_picker_state(
+    field_type: DocumentPropertyType,
+    state: &Rc<RefCell<Option<String>>>,
+    calendar: &gtk::Calendar,
+    hours: &gtk::SpinButton,
+    minutes: &gtk::SpinButton,
+) {
+    let borrow = state.borrow();
+    let Some(iso) = borrow.as_deref() else {
+        return;
+    };
+    if field_type == DocumentPropertyType::Date {
+        if let Some(date) = parse_date(iso) {
+            set_calendar(calendar, date);
+        }
+        return;
+    }
+    let Some(instant) = parse_date_time(iso) else {
+        return;
+    };
+    let local = instant.to_offset(local_offset());
+    set_calendar(calendar, local.date());
+    hours.set_value(f64::from(local.hour()));
+    minutes.set_value(f64::from(local.minute()));
+}
+
+/// Reads the picker's calendar and time into an ISO 8601 string.
+fn read_picker(
+    field_type: DocumentPropertyType,
+    calendar: &gtk::Calendar,
+    hours: &gtk::SpinButton,
+    minutes: &gtk::SpinButton,
+) -> Option<String> {
+    let date = calendar.date();
+    let date = time::Date::from_calendar_date(
+        date.year(),
+        time::Month::try_from(u8::try_from(date.month()).ok()?).ok()?,
+        u8::try_from(date.day_of_month()).ok()?,
+    )
+    .ok()?;
+    if field_type == DocumentPropertyType::Date {
+        return Some(date.to_string());
+    }
+    let time = time::Time::from_hms(
+        u8::try_from(hours.value_as_int()).ok()?,
+        u8::try_from(minutes.value_as_int()).ok()?,
+        0,
+    )
+    .ok()?;
+    time::PrimitiveDateTime::new(date, time)
+        .assume_offset(local_offset())
+        .format(&time::format_description::well_known::Rfc3339)
+        .ok()
+}
+
+fn set_calendar(calendar: &gtk::Calendar, date: time::Date) {
+    calendar.set_year(date.year());
+    calendar.set_month(i32::from(u8::from(date.month())) - 1);
+    calendar.set_day(i32::from(date.day()));
+}
+
+fn local_offset() -> time::UtcOffset {
+    time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC)
+}
+
+fn parse_date(value: &str) -> Option<time::Date> {
+    time::Date::parse(value, &time::format_description::well_known::Iso8601::DATE).ok()
+}
+
+fn parse_date_time(value: &str) -> Option<time::OffsetDateTime> {
+    time::OffsetDateTime::parse(
+        value,
+        &time::format_description::well_known::Iso8601::DEFAULT,
+    )
+    .ok()
+}
+
+/// Formats an ISO 8601 value with the user's locale, falling back to the raw text.
+fn display_date(iso: &str, date_only: bool) -> String {
+    glib::DateTime::from_iso8601(iso, None)
+        .ok()
+        .and_then(|date_time| {
+            date_time
+                .format(if date_only { "%x" } else { "%x %X" })
+                .ok()
+        })
+        .map_or_else(|| iso.to_owned(), |formatted| formatted.to_string())
 }
 
 impl ValueWidget {
     fn build(
-        choice: PropertyKindChoice,
+        choice: DocumentPropertyType,
         value: &FrontmatterValue,
         name: &str,
         title: &str,
     ) -> Self {
         match choice {
-            PropertyKindChoice::Boolean => {
+            DocumentPropertyType::Boolean => {
                 let row = adw::SwitchRow::new();
                 row.set_title(title);
                 row.set_widget_name(name);
                 row.set_active(matches!(value, FrontmatterValue::Boolean(true)));
                 Self::Boolean(row)
             }
-            PropertyKindChoice::LongText => {
+            DocumentPropertyType::LongText => {
                 let view = gtk::TextView::new();
                 view.set_widget_name(name);
                 view.set_wrap_mode(gtk::WrapMode::WordChar);
@@ -164,14 +353,17 @@ impl ValueWidget {
                     .build();
                 Self::Long { row, view }
             }
+            DocumentPropertyType::Date | DocumentPropertyType::DateTime => {
+                Self::DateTime(DateTimePicker::new(choice, value, name, title))
+            }
             _ => {
                 let row = adw::EntryRow::new();
                 row.set_title(title);
                 row.set_widget_name(name);
-                if choice == PropertyKindChoice::Number {
+                if choice == DocumentPropertyType::Number {
                     row.set_input_purpose(gtk::InputPurpose::Number);
                 }
-                let text = if choice == PropertyKindChoice::List {
+                let text = if choice == DocumentPropertyType::List {
                     frontmatter_list_text(value)
                 } else {
                     frontmatter_text(value)
@@ -182,11 +374,22 @@ impl ValueWidget {
         }
     }
 
+    /// Builds a non-editable hint row (date or date-time defaults in Settings).
+    fn hint(text: &str) -> Self {
+        let label = gtk::Label::new(Some(text));
+        label.set_wrap(true);
+        label.set_xalign(0.0);
+        label.add_css_class("dim-label");
+        Self::Hint(label)
+    }
+
     fn widget(&self) -> gtk::Widget {
         match self {
             Self::Entry(row) => row.clone().upcast(),
             Self::Long { row, .. } => row.clone().upcast(),
             Self::Boolean(row) => row.clone().upcast(),
+            Self::DateTime(picker) => picker.row.clone().upcast(),
+            Self::Hint(label) => label.clone().upcast(),
         }
     }
 
@@ -195,22 +398,26 @@ impl ValueWidget {
             Self::Entry(row) => row.add_suffix(widget),
             Self::Long { row, .. } => row.add_suffix(widget),
             Self::Boolean(row) => row.add_suffix(widget),
+            Self::DateTime(picker) => picker.row.add_suffix(widget),
+            Self::Hint(_) => {}
         }
     }
 
-    fn frontmatter(&self, choice: PropertyKindChoice) -> FrontmatterValue {
+    fn frontmatter(&self, choice: DocumentPropertyType) -> FrontmatterValue {
         match self {
             Self::Boolean(row) => FrontmatterValue::Boolean(row.is_active()),
             Self::Long { view, .. } => FrontmatterValue::Text(buffer_text(&view.buffer())),
             Self::Entry(row) => {
                 let text = row.text().to_string();
                 match choice {
-                    PropertyKindChoice::Number => parse_number(&text)
+                    DocumentPropertyType::Number => parse_number(&text)
                         .map_or(FrontmatterValue::Text(text), FrontmatterValue::Number),
-                    PropertyKindChoice::List => list_value(&text),
+                    DocumentPropertyType::List => list_value(&text),
                     _ => FrontmatterValue::Text(text),
                 }
             }
+            Self::DateTime(picker) => picker.frontmatter(),
+            Self::Hint(_) => FrontmatterValue::Null,
         }
     }
 
@@ -221,7 +428,7 @@ impl ValueWidget {
     /// text still matches the rendered original, the parsed value is returned unchanged.
     fn frontmatter_preserving(
         &self,
-        choice: PropertyKindChoice,
+        choice: DocumentPropertyType,
         previous: &FrontmatterValue,
     ) -> FrontmatterValue {
         match self {
@@ -237,19 +444,21 @@ impl ValueWidget {
             Self::Entry(row) => {
                 let text = row.text().to_string();
                 let expected = match choice {
-                    PropertyKindChoice::List => frontmatter_list_text(previous),
+                    DocumentPropertyType::List => frontmatter_list_text(previous),
                     _ => frontmatter_text(previous),
                 };
                 if text == expected {
                     return previous.clone();
                 }
                 match choice {
-                    PropertyKindChoice::Number => parse_number(&text)
+                    DocumentPropertyType::Number => parse_number(&text)
                         .map_or(FrontmatterValue::Text(text), FrontmatterValue::Number),
-                    PropertyKindChoice::List => list_value(&text),
+                    DocumentPropertyType::List => list_value(&text),
                     _ => FrontmatterValue::Text(text),
                 }
             }
+            Self::DateTime(picker) => picker.frontmatter_preserving(previous),
+            Self::Hint(_) => previous.clone(),
         }
     }
 
@@ -267,6 +476,7 @@ impl ValueWidget {
                 let callback = Rc::clone(callback);
                 row.connect_active_notify(move |_| callback());
             }
+            Self::DateTime(_) | Self::Hint(_) => {}
         }
     }
 }
@@ -281,7 +491,7 @@ impl ValueWidget {
 #[derive(Clone)]
 struct PropertyDraft {
     key: String,
-    choice: PropertyKindChoice,
+    choice: DocumentPropertyType,
     value: FrontmatterValue,
     /// Whether the user may rename the key (`title` and configured defaults are fixed).
     editable_key: bool,
@@ -300,7 +510,7 @@ impl PropertyDraft {
     fn blank() -> Self {
         Self {
             key: String::new(),
-            choice: PropertyKindChoice::Text,
+            choice: DocumentPropertyType::Text,
             value: FrontmatterValue::Text(String::new()),
             editable_key: true,
             editable_kind: true,
@@ -315,7 +525,7 @@ impl PropertyDraft {
     fn default_row(key: String, property: &DocumentProperty, value: FrontmatterValue) -> Self {
         Self {
             key,
-            choice: PropertyKindChoice::for_property(property),
+            choice: property.field_type,
             value,
             editable_key: false,
             editable_kind: false,
@@ -329,7 +539,7 @@ impl PropertyDraft {
     fn editable_property(property: &DocumentProperty) -> Self {
         Self {
             key: property.key.clone(),
-            choice: PropertyKindChoice::for_property(property),
+            choice: property.field_type,
             value: FrontmatterValue::from_json(&property.value),
             editable_key: true,
             editable_kind: true,
@@ -389,7 +599,7 @@ impl SimpleValue {
     /// Reads the selected value, preserving an unchanged typed value.
     fn frontmatter_preserving(
         &self,
-        choice: PropertyKindChoice,
+        choice: DocumentPropertyType,
         previous: &FrontmatterValue,
     ) -> FrontmatterValue {
         match self {
@@ -419,9 +629,10 @@ impl SimpleValue {
     }
 
     /// Builds a read-only row for a value that does not match the configured type or options.
-    fn disabled(draft: &PropertyDraft, title: &str) -> Self {
+    fn disabled(draft: &PropertyDraft, index: usize, title: &str) -> Self {
         let row = adw::ActionRow::new();
         row.set_title(title);
+        row.set_widget_name(&value_name(index));
         row.set_subtitle(&gettext("Not managed by this dialog"));
         let value = gtk::Label::new(Some(&frontmatter_text(&draft.value)));
         value.add_css_class("dim-label");
@@ -728,7 +939,7 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
     }
     let mut catalog = vec![PropertyDraft {
         key: TITLE_KEY.to_owned(),
-        choice: PropertyKindChoice::Text,
+        choice: DocumentPropertyType::Text,
         value: title.unwrap_or(FrontmatterValue::Text(String::new())),
         editable_key: false,
         editable_kind: false,
@@ -766,7 +977,7 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
         }
         catalog.push(PropertyDraft {
             key,
-            choice: PropertyKindChoice::for_value(&value),
+            choice: type_for_value(&value),
             value,
             editable_key: true,
             editable_kind: true,
@@ -854,9 +1065,9 @@ fn build_simple_row(
     let title = display_title(&draft.key);
     // A configured list property offers its options. Any value that does not match the configured
     // type or options is shown read-only so the user knows it is authored by hand.
-    let configured_list = draft.choice == PropertyKindChoice::List && !draft.options.is_empty();
+    let configured_list = draft.choice == DocumentPropertyType::List && !draft.options.is_empty();
     let value = if !configured_value_supported(draft) {
-        SimpleValue::disabled(draft, &title)
+        SimpleValue::disabled(draft, index, &title)
     } else if configured_list && draft.multiple {
         SimpleValue::options(draft, index, &title)
     } else if configured_list {
@@ -903,11 +1114,17 @@ fn build_expander_row(
 
     let kind = adw::ComboRow::new();
     kind.set_title(&gettext("Type"));
-    kind.set_model(Some(&kind_model()));
-    kind.set_selected(draft.choice.index());
+    kind.set_model(Some(&type_model()));
+    kind.set_selected(type_index(draft.choice));
     kind.set_widget_name(&format!("document-property-kind-{index}"));
 
-    let value = if mode == RowMode::Defaults && draft.choice == PropertyKindChoice::List {
+    let value = if mode == RowMode::Defaults && draft.choice.is_date() {
+        ValueWidget::hint(&if draft.choice == DocumentPropertyType::Date {
+            gettext("New notes use today's date")
+        } else {
+            gettext("New notes use the current date and time")
+        })
+    } else if mode == RowMode::Defaults && draft.choice == DocumentPropertyType::List {
         ValueWidget::build(
             draft.choice,
             &draft.value,
@@ -927,7 +1144,7 @@ fn build_expander_row(
     expander.add_row(&kind);
     expander.add_row(&value.widget());
 
-    if mode == RowMode::Defaults && draft.choice == PropertyKindChoice::List {
+    if mode == RowMode::Defaults && draft.choice == DocumentPropertyType::List {
         let hint = gtk::Label::new(Some(&gettext(
             "Comma-separated values offered as a dropdown.",
         )));
@@ -962,7 +1179,7 @@ fn build_expander_row(
         let kind = kind.clone();
         let value = value.clone();
         Rc::new(move || {
-            let choice = PropertyKindChoice::from_index(kind.selected());
+            let choice = type_from_index(kind.selected());
             let key_text = key.text().to_string();
             expander.set_title(&if key_text.trim().is_empty() {
                 gettext("New property")
@@ -985,7 +1202,7 @@ fn build_expander_row(
         let drafts = Rc::clone(drafts);
         let on_change = Rc::clone(on_change);
         kind.connect_selected_notify(move |dropdown| {
-            let choice = PropertyKindChoice::from_index(dropdown.selected());
+            let choice = type_from_index(dropdown.selected());
             let group = group.clone();
             let rows = Rc::clone(&rows);
             let drafts = Rc::clone(&drafts);
@@ -1086,7 +1303,7 @@ fn capture(rows: &Rows, drafts: &Drafts) {
             BuiltRow::Expander {
                 key, kind, value, ..
             } => {
-                let choice = PropertyKindChoice::from_index(kind.selected());
+                let choice = type_from_index(kind.selected());
                 draft.key = key.text().to_string();
                 draft.choice = choice;
                 let value = value.frontmatter_preserving(choice, &draft.value);
@@ -1126,48 +1343,57 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
         if !seen.insert(key.clone()) {
             continue;
         }
-        let kind = draft.choice.property_kind();
-        let multiline = draft.choice.is_multiline();
-        let multiple = kind == PropertyKind::List && draft.multiple;
+        let field_type = draft.choice;
+        let multiple = field_type == DocumentPropertyType::List && draft.multiple;
+        let value = if field_type.is_date() {
+            // Date and date-time defaults are dynamic, so no fixed value is stored.
+            serde_json::Value::String(String::new())
+        } else {
+            normalized_default_value(field_type, &draft.value.to_json())
+        };
         normalized.push(DocumentProperty {
             key,
-            kind,
-            multiline,
+            field_type,
             multiple,
-            value: normalized_default_value(kind, &draft.value.to_json()),
+            value,
         });
     }
     normalized
 }
 
-fn normalized_default_value(kind: PropertyKind, value: &serde_json::Value) -> serde_json::Value {
+fn normalized_default_value(
+    field_type: DocumentPropertyType,
+    value: &serde_json::Value,
+) -> serde_json::Value {
     let matches = value.is_null()
-        || match kind {
-            PropertyKind::Text => value.is_string(),
-            PropertyKind::Number => value.is_number(),
-            PropertyKind::Boolean => value.is_boolean(),
-            PropertyKind::List => value
+        || match field_type {
+            DocumentPropertyType::Text
+            | DocumentPropertyType::LongText
+            | DocumentPropertyType::Date
+            | DocumentPropertyType::DateTime => value.is_string(),
+            DocumentPropertyType::Number => value.is_number(),
+            DocumentPropertyType::Boolean => value.is_boolean(),
+            DocumentPropertyType::List => value
                 .as_array()
                 .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
-            PropertyKind::Null | PropertyKind::Mixed => false,
         };
     if matches {
         return value.clone();
     }
-    match kind {
-        PropertyKind::Number => serde_json::Value::from(0),
-        PropertyKind::Boolean => serde_json::Value::Bool(false),
-        PropertyKind::List => serde_json::Value::Array(Vec::new()),
+    match field_type {
+        DocumentPropertyType::Number => serde_json::Value::from(0),
+        DocumentPropertyType::Boolean => serde_json::Value::Bool(false),
+        DocumentPropertyType::List => serde_json::Value::Array(Vec::new()),
         _ => serde_json::Value::String(String::new()),
     }
 }
 
-fn row_subtitle(choice: PropertyKindChoice, value: &FrontmatterValue) -> String {
+fn row_subtitle(choice: DocumentPropertyType, value: &FrontmatterValue) -> String {
     let preview = preview_text(value);
     if preview.is_empty() {
-        choice.label()
+        type_label(choice)
     } else {
-        format!("{} · {preview}", choice.label())
+        format!("{} · {preview}", type_label(choice))
     }
 }
 
@@ -1253,7 +1479,7 @@ fn selected_options(switches: &[adw::SwitchRow]) -> String {
 /// Returns whether a note value is representable by the configured default for its row.
 fn configured_value_supported(draft: &PropertyDraft) -> bool {
     match draft.choice {
-        PropertyKindChoice::List if !draft.options.is_empty() => {
+        DocumentPropertyType::List if !draft.options.is_empty() => {
             if draft.multiple {
                 matches!(
                     &draft.value,
@@ -1266,20 +1492,32 @@ fn configured_value_supported(draft: &PropertyDraft) -> bool {
                 )
             }
         }
-        PropertyKindChoice::Number => matches!(
+        DocumentPropertyType::Number => matches!(
             draft.value,
             FrontmatterValue::Number(_) | FrontmatterValue::Null
         ),
-        PropertyKindChoice::Boolean => matches!(
+        DocumentPropertyType::Boolean => matches!(
             draft.value,
             FrontmatterValue::Boolean(_) | FrontmatterValue::Null
         ),
-        PropertyKindChoice::Text | PropertyKindChoice::LongText => matches!(
+        DocumentPropertyType::Text | DocumentPropertyType::LongText => matches!(
             draft.value,
             FrontmatterValue::Text(_) | FrontmatterValue::Null
         ),
+        DocumentPropertyType::Date => {
+            matches!(
+                &draft.value,
+                FrontmatterValue::Text(text) if parse_date(text).is_some()
+            ) || matches!(draft.value, FrontmatterValue::Null)
+        }
+        DocumentPropertyType::DateTime => {
+            matches!(
+                &draft.value,
+                FrontmatterValue::Text(text) if parse_date_time(text).is_some()
+            ) || matches!(draft.value, FrontmatterValue::Null)
+        }
         // A list with no configured options is not an option set, so it stays free-form.
-        PropertyKindChoice::List => true,
+        DocumentPropertyType::List => true,
     }
 }
 

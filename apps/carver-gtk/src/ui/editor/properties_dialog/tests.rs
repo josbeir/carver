@@ -21,8 +21,7 @@ fn request(
 fn default_property(key: &str, value: &str) -> DocumentProperty {
     DocumentProperty {
         key: key.to_owned(),
-        kind: PropertyKind::Text,
-        multiline: false,
+        field_type: DocumentPropertyType::Text,
         multiple: false,
         value: serde_json::Value::String(value.to_owned()),
     }
@@ -97,8 +96,7 @@ fn initial_drafts_should_show_an_empty_title_without_frontmatter() {
 fn initial_drafts_should_carry_list_options_from_configuration() {
     let list_default = DocumentProperty {
         key: "status".to_owned(),
-        kind: PropertyKind::List,
-        multiline: false,
+        field_type: DocumentPropertyType::List,
         multiple: true,
         value: serde_json::json!(["active", "archived"]),
     };
@@ -147,14 +145,13 @@ fn configured_value_support_should_require_matching_type_and_options() {
 
     let list_default = DocumentProperty {
         key: "status".to_owned(),
-        kind: PropertyKind::List,
-        multiline: false,
+        field_type: DocumentPropertyType::List,
         multiple: false,
         value: serde_json::json!(["active", "archived"]),
     };
     let single = |value: FrontmatterValue| PropertyDraft {
         key: "status".to_owned(),
-        choice: PropertyKindChoice::List,
+        choice: DocumentPropertyType::List,
         value,
         editable_key: false,
         editable_kind: false,
@@ -171,4 +168,40 @@ fn configured_value_support_should_require_matching_type_and_options() {
     assert!(!configured_value_supported(&single(
         FrontmatterValue::List(vec![FrontmatterValue::Text("active".to_owned())])
     )));
+}
+
+#[test]
+fn date_field_support_should_require_an_iso_value() {
+    let date_property = DocumentProperty {
+        key: "due".to_owned(),
+        field_type: DocumentPropertyType::Date,
+        multiple: false,
+        value: serde_json::Value::String(String::new()),
+    };
+    let date = PropertyDraft::default_row(
+        "due".to_owned(),
+        &date_property,
+        FrontmatterValue::Text("2024-01-15".to_owned()),
+    );
+    assert!(configured_value_supported(&date));
+
+    let invalid = PropertyDraft::default_row(
+        "due".to_owned(),
+        &date_property,
+        FrontmatterValue::Text("not a date".to_owned()),
+    );
+    assert!(!configured_value_supported(&invalid));
+
+    let date_time_property = DocumentProperty {
+        key: "at".to_owned(),
+        field_type: DocumentPropertyType::DateTime,
+        multiple: false,
+        value: serde_json::Value::String(String::new()),
+    };
+    let date_time = PropertyDraft::default_row(
+        "at".to_owned(),
+        &date_time_property,
+        FrontmatterValue::Text("2024-01-15T10:30:00Z".to_owned()),
+    );
+    assert!(configured_value_supported(&date_time));
 }
