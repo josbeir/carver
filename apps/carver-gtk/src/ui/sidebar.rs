@@ -434,3 +434,6 @@ fn note_count_label(note_count: usize) -> String {
         count = note_count
     )
 }
+
+#[cfg(test)]
+mod tests;

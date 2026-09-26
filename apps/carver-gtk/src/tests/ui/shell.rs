@@ -190,6 +190,10 @@ pub(super) fn responsive_navigation_should_switch_sidebar_and_content(
         .ok_or("responsive sidebar toggle")?;
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.shows_content()));
+    sidebar.emit_by_name::<()>("activated", &[&0_u32]);
+    assert!(run_main_context_until(|| navigation.shows_content()));
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| !navigation.shows_content()));
     assert!(sidebar_select(
         &sidebar,
         &format!("category-count:{}", category.id)
@@ -241,5 +245,40 @@ pub(super) fn sidebar_should_use_adw_sidebar_sections(fixture: &WindowFixture) -
     assert!(run_main_context_until(
         || sidebar.mode() == adw::SidebarMode::Sidebar
     ));
+    Ok(())
+}
+
+/// Verifies large note counts collapse into a capped badge without losing the total.
+pub(super) fn sidebar_count_badge_should_cap_large_counts() -> TestResult {
+    let sidebar = crate::ui::sidebar::build_sidebar(
+        &crate::mvu::AppDispatcher::default(),
+        &adw::NavigationSplitView::new(),
+    );
+    let category_id = carver_sdk::CategoryId::new();
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    model.sidebar.state = crate::mvu::LoadState::Ready(vec![carver_sdk::CategorySummary {
+        category: carver_sdk::Category {
+            id: category_id,
+            name: "Busy".to_owned(),
+            appearance: carver_sdk::CategoryAppearance::default(),
+            position: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            trashed_at: None,
+        },
+        note_count: 150,
+    }]);
+    sidebar.render(&model);
+    let badge_name = format!("category-count:{category_id}");
+    let index = sidebar_item_index(&sidebar.sidebar, &badge_name).ok_or("capped badge item")?;
+    let badge = sidebar
+        .sidebar
+        .item(index)
+        .and_then(|item| item.suffix())
+        .and_then(|suffix| suffix.downcast::<gtk::Label>().ok())
+        .ok_or("capped badge")?;
+    assert_eq!(badge.text().as_str(), "99+");
+    assert!(badge.has_css_class("capped"));
+    assert_eq!(badge.tooltip_text().as_deref(), Some("150 notes"));
     Ok(())
 }
