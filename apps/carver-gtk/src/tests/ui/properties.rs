@@ -1095,3 +1095,60 @@ pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn heading_should_prefill_the_title_without_persisting() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    let source = "# Meeting\n\nBody\n";
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: source.to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+    assert_eq!(
+        widget_as::<adw::EntryRow>(root, "document-property-value-0")
+            .ok_or("title row")?
+            .text(),
+        "Meeting"
+    );
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    assert_eq!(editor_source(&fixture), source);
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn edited_prefilled_title_should_persist() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "# Meeting\n\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+    widget_as::<adw::EntryRow>(root, "document-property-value-0")
+        .ok_or("title row")?
+        .set_text("Renamed");
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    let source = editor_source(&fixture);
+    assert!(source.contains("title: Renamed"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}

@@ -13,6 +13,7 @@ fn request(
         note_id: carver_sdk::NoteId::new(),
         document,
         raw: None,
+        heading_title: None,
         defaults,
         default_format: FrontmatterFormat::Yaml,
     }
@@ -159,6 +160,7 @@ fn configured_value_support_should_require_matching_type_and_options() {
         multiple: false,
         options: list_default.options(),
         preserve_empty: false,
+        derived: false,
     };
     assert!(configured_value_supported(&single(FrontmatterValue::Text(
         "active".to_owned()
@@ -479,4 +481,54 @@ fn is_editable_value_should_route_complex_lists_to_raw() {
     assert!(!is_editable_value(&FrontmatterValue::List(vec![
         FrontmatterValue::Object(Vec::new())
     ])));
+}
+
+#[test]
+fn initial_drafts_should_prefill_the_title_from_a_heading() {
+    let mut request = request(None, Vec::new());
+    request.heading_title = Some("Meeting".to_owned());
+
+    let drafts = initial_drafts(&request);
+    assert_eq!(drafts[0].key, "title");
+    assert_eq!(
+        drafts[0].value,
+        FrontmatterValue::Text("Meeting".to_owned())
+    );
+    assert!(drafts[0].derived);
+}
+
+#[test]
+fn initial_drafts_should_not_prefill_over_an_authored_title() {
+    let mut request = request(
+        Some(FrontmatterDocument {
+            format: FrontmatterFormat::Yaml,
+            fields: vec![field("title", "Authored")],
+            error: None,
+        }),
+        Vec::new(),
+    );
+    request.heading_title = Some("Meeting".to_owned());
+
+    let drafts = initial_drafts(&request);
+    let Some(title) = drafts.iter().find(|draft| draft.key == "title") else {
+        panic!("expected a title row");
+    };
+    assert_eq!(title.value, FrontmatterValue::Text("Authored".to_owned()));
+    assert!(!title.derived);
+}
+
+#[test]
+fn build_document_should_skip_a_derived_title_until_edited() {
+    let mut title = PropertyDraft::title(FrontmatterValue::Text("Meeting".to_owned()));
+    title.derived = true;
+    assert!(
+        build_document(FrontmatterFormat::Yaml, &[title.clone()])
+            .fields
+            .is_empty()
+    );
+
+    title.derived = false;
+    let document = build_document(FrontmatterFormat::Yaml, &[title]);
+    assert_eq!(document.fields.len(), 1);
+    assert_eq!(document.fields[0].key, "title");
 }

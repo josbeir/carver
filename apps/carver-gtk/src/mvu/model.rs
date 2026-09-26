@@ -516,6 +516,8 @@ pub struct EditorPropertiesRequest {
     pub document: Option<carver_domain::FrontmatterDocument>,
     /// Authored content between the fences, used by the raw fallback.
     pub raw: Option<String>,
+    /// Plain text of the document's first heading, used to prefill the title row.
+    pub heading_title: Option<String>,
     /// Configured default properties always offered as value-only rows.
     pub defaults: Vec<carver_config::DocumentProperty>,
     /// Format used when the dialog creates a new frontmatter block.

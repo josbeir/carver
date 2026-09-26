@@ -15,3 +15,21 @@ fn derive_content_should_prefer_a_frontmatter_title() {
 
     assert_eq!(content.title, "Release plan");
 }
+
+#[test]
+fn derive_content_should_expose_the_heading_independently_of_the_title() {
+    assert_eq!(
+        derive_content("# Project plan\n\nPrepare the release.")
+            .heading_title
+            .as_deref(),
+        Some("Project plan")
+    );
+    assert_eq!(derive_content("Body without a heading").heading_title, None);
+    // The heading component stays available even when frontmatter owns the effective title.
+    assert_eq!(
+        derive_content("---\ntitle: Release plan\n---\n\n# Project plan")
+            .heading_title
+            .as_deref(),
+        Some("Project plan")
+    );
+}

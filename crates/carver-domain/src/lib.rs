@@ -457,6 +457,8 @@ pub struct SearchHit {
 pub struct DerivedContent {
     /// User-visible title.
     pub title: String,
+    /// Plain text of the document's first heading, when it has one.
+    pub heading_title: Option<String>,
     /// Searchable text.
     pub plain_text: String,
 }
@@ -476,8 +478,9 @@ pub enum DocumentError {
 pub fn derive_content(source: &str) -> DerivedContent {
     let document = parse_with_options(source, &Options::default().with_positions(true));
     let plain_text = to_plain_text(source);
+    let heading_title = first_heading(&document);
     let title = frontmatter_title(&document)
-        .or_else(|| first_heading(&document))
+        .or_else(|| heading_title.clone())
         .or_else(|| {
             plain_text
                 .lines()
@@ -487,7 +490,11 @@ pub fn derive_content(source: &str) -> DerivedContent {
         })
         .unwrap_or_else(|| "Untitled Note".to_owned());
 
-    DerivedContent { title, plain_text }
+    DerivedContent {
+        title,
+        heading_title,
+        plain_text,
+    }
 }
 
 fn frontmatter_title(document: &carve::Document) -> Option<String> {

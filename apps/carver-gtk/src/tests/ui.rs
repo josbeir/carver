@@ -80,6 +80,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::authored_frontmatter_order_should_survive_an_unchanged_save()?;
     properties::explicit_empty_value_should_survive_an_unchanged_save()?;
     properties::complex_frontmatter_should_fall_back_to_raw_source()?;
+    properties::heading_should_prefill_the_title_without_persisting()?;
+    properties::edited_prefilled_title_should_persist()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;

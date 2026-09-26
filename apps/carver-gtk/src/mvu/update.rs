@@ -1157,6 +1157,7 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
             note_id: document.note_id,
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
+            heading_title: carver_domain::derive_content(&document.source).heading_title,
             defaults: model.config.document_properties.entries.clone(),
             default_format: model.config.document_properties.format,
         },

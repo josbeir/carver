@@ -576,6 +576,8 @@ struct PropertyDraft {
     options: Vec<String>,
     /// Whether an authored empty or null value must survive an unchanged save.
     preserve_empty: bool,
+    /// Whether the value is a derived prefill that is only persisted once edited.
+    derived: bool,
 }
 
 impl PropertyDraft {
@@ -591,6 +593,7 @@ impl PropertyDraft {
             multiple: false,
             options: Vec::new(),
             preserve_empty: false,
+            derived: false,
         }
     }
 
@@ -606,6 +609,7 @@ impl PropertyDraft {
             multiple: false,
             options: Vec::new(),
             preserve_empty: false,
+            derived: false,
         }
     }
 
@@ -621,6 +625,7 @@ impl PropertyDraft {
             multiple: false,
             options: Vec::new(),
             preserve_empty: false,
+            derived: false,
         }
     }
 
@@ -637,6 +642,7 @@ impl PropertyDraft {
             multiple: property.multiple,
             options: property.options(),
             preserve_empty: false,
+            derived: false,
         }
     }
 
@@ -652,6 +658,7 @@ impl PropertyDraft {
             multiple: property.multiple,
             options: property.options(),
             preserve_empty: false,
+            derived: false,
         }
     }
 }
@@ -1093,12 +1100,19 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
             drafts.push(authored_draft(draft));
         }
     }
-    // A note without an authored title still shows the reserved title row first.
+    // A note without an authored title still shows the reserved title row first. When the
+    // document has a heading, prefill it as the effective title without persisting it until the
+    // user edits it.
     if !title_seen {
-        drafts.insert(
-            0,
-            PropertyDraft::title(FrontmatterValue::Text(String::new())),
-        );
+        let draft = match request.heading_title.as_deref() {
+            Some(heading) => {
+                let mut draft = PropertyDraft::title(FrontmatterValue::Text(heading.to_owned()));
+                draft.derived = true;
+                draft
+            }
+            None => PropertyDraft::title(FrontmatterValue::Text(String::new())),
+        };
+        drafts.insert(0, draft);
     }
     // Configured defaults absent from the note are appended, so the authored key order is
     // preserved and an unchanged save round-trips byte-for-byte.
@@ -1140,6 +1154,10 @@ fn build_document(format: FrontmatterFormat, drafts: &[PropertyDraft]) -> Frontm
         .filter_map(|draft| {
             let key = draft.key.trim();
             if key.is_empty() {
+                return None;
+            }
+            // A derived title prefill is only written once the user edits it.
+            if draft.derived {
                 return None;
             }
             // Empty and null values write no key unless they were authored and left untouched, so
@@ -1470,8 +1488,9 @@ fn capture(rows: &Rows, drafts: &Drafts) {
                 draft.choice = choice;
                 let next = value.frontmatter_preserving(choice, &draft.value);
                 if next != draft.value {
-                    // An edited value is no longer an authored empty, so it may be dropped.
+                    // An edited value is no longer an authored empty or a derived prefill.
                     draft.preserve_empty = false;
+                    draft.derived = false;
                 }
                 draft.value = next;
             }
@@ -1480,6 +1499,7 @@ fn capture(rows: &Rows, drafts: &Drafts) {
                 let next = value.frontmatter_preserving(draft.choice, &draft.value);
                 if next != draft.value {
                     draft.preserve_empty = false;
+                    draft.derived = false;
                 }
                 draft.value = next;
             }
