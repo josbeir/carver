@@ -45,115 +45,13 @@
   padding: 2px 6px;
 }
 
-/* Frontmatter is document metadata, not prose. Keep its raw source out of the
- * writing flow until the author explicitly opens the disclosure. CarveKit owns
- * the accessible controls and lossless updates; these rules make that compact
- * editor feel native to Carver's document surface. */
-.ProseMirror .carve-frontmatter-card {
-  margin-block-end: 1rem;
+/* Frontmatter is document metadata owned by the native GTK properties dialog. The rich
+ * editor keeps the block as a schema-only atom so canonical Carve round-trips, but its
+ * node view renders nothing inside the writing surface. */
+.ProseMirror .carve-frontmatter-hidden {
+  display: none;
 }
-.ProseMirror .carve-frontmatter-summary {
-  appearance: none;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875em;
-  font-weight: 600;
-  padding: 6px 8px;
-  text-align: start;
-}
-.ProseMirror .carve-frontmatter-summary::before {
-  display: inline-block;
-  margin-inline-end: 0.5rem;
-  color: var(--accent-color);
-  content: "▸";
-}
-.ProseMirror .carve-frontmatter-summary[aria-expanded="true"]::before {
-  transform: rotate(90deg);
-}
-.ProseMirror .carve-frontmatter-summary:hover {
-  background: var(--selection-background);
-}
-.ProseMirror .carve-frontmatter-summary:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
-}
-.ProseMirror .carve-frontmatter-body {
-  margin-block-start: 4px;
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--code-background);
-}
-.ProseMirror .carve-frontmatter-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px 12px;
-}
-.ProseMirror .carve-frontmatter-card label {
-  display: grid;
-  gap: 5px;
-  color: color-mix(in srgb, var(--document-foreground) 82%, transparent);
-  font-size: 0.8em;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.ProseMirror .carve-frontmatter-fields label:has(textarea) {
-  grid-column: 1 / -1;
-}
-.ProseMirror .carve-frontmatter-card input,
-.ProseMirror .carve-frontmatter-card textarea {
-  box-sizing: border-box;
-  min-height: 2.5rem;
-  width: 100%;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--document-background);
-  color: inherit;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 400;
-  padding: 7px 9px;
-  transition:
-    border-color 120ms ease-out,
-    box-shadow 120ms ease-out;
-}
-.ProseMirror .carve-frontmatter-card input:focus,
-.ProseMirror .carve-frontmatter-card textarea:focus {
-  border-color: var(--accent-color);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--selection-background);
-}
-.ProseMirror .carve-frontmatter-card textarea {
-  resize: vertical;
-}
-.ProseMirror .carve-frontmatter-fields label:has(textarea) textarea {
-  min-height: 5rem;
-}
-.ProseMirror .carve-frontmatter-raw {
-  margin-block-start: 16px;
-  padding-block-start: 14px;
-  border-block-start: 1px solid var(--border-color);
-}
-.ProseMirror .carve-frontmatter-raw textarea {
-  min-height: 8rem;
-  background: var(--code-language-background);
-  font-family: monospace;
-  font-weight: 400;
-}
-@media (max-width: 42rem) {
-  .ProseMirror .carve-frontmatter-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 28rem) {
-  .ProseMirror .carve-frontmatter-fields {
-    grid-template-columns: 1fr;
-  }
-}
+
 .ProseMirror-selectednode {
   outline: 2px solid var(--accent-color);
 }

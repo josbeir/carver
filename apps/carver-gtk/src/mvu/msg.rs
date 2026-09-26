@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use carver_config::{DocumentWidth, EditorMode, SourceSyntaxStyle};
+use carver_config::{DocumentProperty, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort,
@@ -11,7 +11,8 @@ use carver_sdk::{
 };
 
 use super::{
-    ActionKey, EditorSaveRequest, EditorSessionId, RequestId, SourceCommand, TimerId, UiError,
+    ActionKey, EditorSaveRequest, EditorSessionId, FrontmatterEdit, RequestId, SourceCommand,
+    TimerId, UiError,
 };
 
 /// A user-selectable format for exporting a note outside the Carver library.
@@ -307,6 +308,15 @@ pub enum EditorMsg {
     },
     /// Replace the canonical source after a source or rich projection changed it.
     SourceChanged(String),
+    /// Open the native document-properties dialog for the active note.
+    PropertiesDialogRequested,
+    /// Apply frontmatter edited in the native document-properties dialog.
+    ApplyFrontmatter {
+        /// Editor lifetime that opened the dialog.
+        session: EditorSessionId,
+        /// Structured or raw edit produced by the dialog.
+        edit: FrontmatterEdit,
+    },
     /// Apply a pure source-formatting command to the canonical editor snapshot.
     ApplySourceCommand {
         /// Operation requested by the source-mode GTK adapter.
@@ -522,6 +532,14 @@ pub enum PreferencesMsg {
     SetDocumentLineHeightPercent(u16),
     /// Set the formatted-surface maximum readable measure.
     SetDocumentWidth(DocumentWidth),
+    /// Whether new notes are seeded with the configured default properties.
+    SetDocumentPropertiesEnabled(bool),
+    /// Whether the editor shows the floating document-properties button.
+    SetDocumentPropertiesFloatingButton(bool),
+    /// Replace the configured default properties.
+    SetDocumentProperties(Vec<DocumentProperty>),
+    /// Set the frontmatter format used for new blocks and seeded notes.
+    SetDocumentPropertiesFormat(carver_domain::FrontmatterFormat),
 }
 
 /// Window state that must survive the next launch.

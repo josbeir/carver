@@ -3,12 +3,17 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeSet,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use atomic_write_file::AtomicWriteFile;
+use carver_domain::{
+    FrontmatterField, FrontmatterFormat, FrontmatterValue, PropertyKind,
+    frontmatter_source_with_format, is_reserved_key,
+};
 use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
@@ -112,6 +117,9 @@ pub struct Config {
     /// Window and navigation state.
     #[serde(default)]
     pub window: WindowConfig,
+    /// Default document properties.
+    #[serde(default)]
+    pub document_properties: DocumentPropertiesConfig,
 }
 
 /// Editor preferences.
@@ -281,6 +289,235 @@ pub struct WindowConfig {
     pub sidebar_collapsed: bool,
 }
 
+/// Default document properties applied to new notes and offered by the properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DocumentPropertiesConfig {
+    /// Whether new notes are seeded with the configured properties.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Whether the editor shows the floating properties button.
+    #[serde(default = "default_true")]
+    pub floating_button: bool,
+    /// Frontmatter format used when the dialog creates a block or seeds a new note.
+    #[serde(default = "default_frontmatter_format")]
+    pub format: FrontmatterFormat,
+    /// Ordered default properties.
+    #[serde(default)]
+    pub entries: Vec<DocumentProperty>,
+}
+
+impl Default for DocumentPropertiesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            floating_button: true,
+            format: FrontmatterFormat::Yaml,
+            entries: Vec::new(),
+        }
+    }
+}
+
+const fn default_frontmatter_format() -> FrontmatterFormat {
+    FrontmatterFormat::Yaml
+}
+
+/// A user-selectable document property field type.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentPropertyType {
+    /// A single-line text value.
+    #[default]
+    Text,
+    /// A multi-line text value.
+    LongText,
+    /// A numeric value.
+    Number,
+    /// A boolean value.
+    Boolean,
+    /// A list of configured options.
+    List,
+    /// An ISO 8601 calendar date.
+    Date,
+    /// An ISO 8601 date and time.
+    DateTime,
+}
+
+impl DocumentPropertyType {
+    /// Returns the domain value kind this field type is stored as.
+    #[must_use]
+    pub const fn domain_kind(self) -> PropertyKind {
+        match self {
+            Self::Text | Self::LongText | Self::Date | Self::DateTime => PropertyKind::Text,
+            Self::Number => PropertyKind::Number,
+            Self::Boolean => PropertyKind::Boolean,
+            Self::List => PropertyKind::List,
+        }
+    }
+
+    /// Returns whether the field type is a date or a date and time.
+    #[must_use]
+    pub const fn is_date(self) -> bool {
+        matches!(self, Self::Date | Self::DateTime)
+    }
+}
+
+/// One user-configured document property.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DocumentProperty {
+    /// Property name.
+    pub key: String,
+    /// Field type offered by the properties dialog.
+    #[serde(default)]
+    pub field_type: DocumentPropertyType,
+    /// Whether a list property allows selecting more than one option.
+    #[serde(default)]
+    pub multiple: bool,
+    /// The default value, or the option list (`List`).
+    #[serde(default)]
+    pub value: serde_json::Value,
+}
+
+impl DocumentProperty {
+    /// Returns the option list for a list property.
+    #[must_use]
+    pub fn options(&self) -> Vec<String> {
+        self.value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(ToOwned::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Returns the field seeded into a new note at `now`.
+    ///
+    /// A date or date-time seeds the current date/time. A list seeds its first option: a scalar
+    /// when single-select, or a one-item list when multiple; a list with no options seeds nothing.
+    #[must_use]
+    pub fn default_field_at(&self, now: time::OffsetDateTime) -> Option<FrontmatterField> {
+        let value = match self.field_type {
+            DocumentPropertyType::List => {
+                let first = self.options().into_iter().next()?;
+                if self.multiple {
+                    FrontmatterValue::List(vec![FrontmatterValue::Text(first)])
+                } else {
+                    FrontmatterValue::Text(first)
+                }
+            }
+            DocumentPropertyType::Date => FrontmatterValue::Text(now.date().to_string()),
+            DocumentPropertyType::DateTime => FrontmatterValue::Text(
+                now.replace_nanosecond(0)
+                    .unwrap_or(now)
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+            ),
+            DocumentPropertyType::Text
+            | DocumentPropertyType::LongText
+            | DocumentPropertyType::Number
+            | DocumentPropertyType::Boolean => FrontmatterValue::from_json(&self.value),
+        };
+        Some(FrontmatterField::new(self.key.clone(), value))
+    }
+
+    /// Returns the field seeded into a new note using the current local time.
+    #[must_use]
+    pub fn default_field(&self) -> Option<FrontmatterField> {
+        self.default_field_at(now_local())
+    }
+}
+
+/// The current local time, falling back to UTC when the offset is indeterminate.
+fn now_local() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
+}
+
+/// Returns whether a seeded default carries a value worth writing.
+///
+/// A blank text or null default is dropped so new notes are not seeded with an empty key, which
+/// matches how the properties dialog treats unfilled values.
+fn is_seedable_field(field: &FrontmatterField) -> bool {
+    match &field.value {
+        FrontmatterValue::Null => false,
+        FrontmatterValue::Text(text) => !text.trim().is_empty(),
+        FrontmatterValue::Number(_)
+        | FrontmatterValue::Boolean(_)
+        | FrontmatterValue::List(_)
+        | FrontmatterValue::Object(_) => true,
+    }
+}
+
+impl DocumentPropertiesConfig {
+    /// Returns canonical Carve source seeding a new note, or an empty string.
+    #[must_use]
+    pub fn default_source(&self) -> String {
+        if !self.enabled {
+            return String::new();
+        }
+        let now = now_local();
+        let fields: Vec<FrontmatterField> = self
+            .entries
+            .iter()
+            .filter_map(|entry| entry.default_field_at(now))
+            .filter(is_seedable_field)
+            .collect();
+        frontmatter_source_with_format(&fields, self.format)
+    }
+
+    /// Validates the configured default properties.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a key is blank, reserved, or duplicated, or when a field type or
+    /// value is unsupported.
+    pub fn validate(&self) -> Result<(), String> {
+        let mut seen = BTreeSet::new();
+        for entry in &self.entries {
+            let key = entry.key.trim();
+            if key.is_empty() {
+                return Err(String::from("property keys must not be empty"));
+            }
+            if is_reserved_key(key) {
+                return Err(format!(
+                    "'{key}' is reserved and cannot be a default property"
+                ));
+            }
+            if entry.multiple && entry.field_type != DocumentPropertyType::List {
+                return Err(format!(
+                    "property '{key}' can only allow multiple values when it is a list"
+                ));
+            }
+            if !value_matches_type(entry.field_type, &entry.value) {
+                return Err(format!("property '{key}' value does not match its type"));
+            }
+            if !seen.insert(key.to_owned()) {
+                return Err(format!("property '{key}' is configured more than once"));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn value_matches_type(field_type: DocumentPropertyType, value: &serde_json::Value) -> bool {
+    if value.is_null() {
+        return true;
+    }
+    match field_type {
+        DocumentPropertyType::Text
+        | DocumentPropertyType::LongText
+        | DocumentPropertyType::Date
+        | DocumentPropertyType::DateTime => value.is_string(),
+        DocumentPropertyType::Number => value.is_number(),
+        DocumentPropertyType::Boolean => value.is_boolean(),
+        // A list property's value is its option list, so every entry is a string.
+        DocumentPropertyType::List => value
+            .as_array()
+            .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -289,6 +526,7 @@ impl Default for Config {
             images: ImageConfig::default(),
             search: SearchConfig::default(),
             window: WindowConfig::default(),
+            document_properties: DocumentPropertiesConfig::default(),
         }
     }
 }
@@ -341,6 +579,9 @@ pub enum ConfigError {
     /// TOML could not be parsed or decoded.
     #[error("configuration is invalid: {0}")]
     InvalidToml(String),
+    /// Document-property preferences are invalid.
+    #[error("document properties are invalid: {0}")]
+    InvalidDocumentProperties(String),
 }
 
 /// Reads the existing config, returning defaults when it has not been created.
@@ -353,7 +594,13 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
         return Ok(Config::default());
     }
     let source = fs::read_to_string(path)?;
-    toml::from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))
+    let config: Config =
+        toml::from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
+    config
+        .document_properties
+        .validate()
+        .map_err(ConfigError::InvalidDocumentProperties)?;
+    Ok(config)
 }
 
 /// Saves typed configuration atomically.
@@ -362,6 +609,10 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
 ///
 /// Returns an error when the parent directory or configuration file cannot be written.
 pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
+    config
+        .document_properties
+        .validate()
+        .map_err(ConfigError::InvalidDocumentProperties)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

@@ -10,7 +10,10 @@ fn server(allow_write: bool) -> Result<(tempfile::TempDir, CarverServer), String
         &directory.path().join("assets"),
     )
     .map_err(|error| error.to_string())?;
-    Ok((directory, CarverServer::new(client, allow_write)))
+    Ok((
+        directory,
+        CarverServer::with_default_source(client, allow_write, String::new()),
+    ))
 }
 
 fn id<T: serde::de::DeserializeOwned>(result: &str) -> Result<T, String> {
@@ -40,7 +43,7 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(CategoryId, Note
     let created = server
         .create_note(Parameters(CreateNoteRequest {
             category_id,
-            source: "# Planning\n\nPrepare the launch.".to_owned(),
+            source: Some("# Planning\n\nPrepare the launch.".to_owned()),
             markdown: Some(true),
         }))
         .await
@@ -321,7 +324,7 @@ async fn update_note_timestamps_should_return_requested_dates() -> TestResult {
     let created = server
         .create_note(Parameters(CreateNoteRequest {
             category_id: id(&category)?,
-            source: "# Dated entry".to_owned(),
+            source: Some("# Dated entry".to_owned()),
             markdown: None,
         }))
         .await
@@ -514,5 +517,83 @@ fn request_schemas_should_describe_uuid_ids_and_integer_revisions() -> TestResul
         .map_err(|error| error.to_string())?;
     assert_eq!(list["$defs"]["CategoryId"]["type"], "string");
     assert_eq!(list["$defs"]["CategoryId"]["format"], "uuid");
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_note_should_seed_configured_default_properties() -> TestResult {
+    let (_directory, mut server) = server(true)?;
+    server.default_source = "---\nauthor: Jane\n---\n".to_owned();
+    let category = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Journal".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: id(&category)?,
+            source: None,
+            markdown: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+    assert_eq!(
+        created["source"],
+        serde_json::json!("---\nauthor: Jane\n---\n")
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_note_should_keep_an_explicit_source() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let category = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Journal".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: id(&category)?,
+            source: Some("# Body".to_owned()),
+            markdown: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+    assert_eq!(created["source"], serde_json::json!("# Body"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_note_should_not_convert_seeded_defaults_as_markdown() -> TestResult {
+    let (_directory, mut server) = server(true)?;
+    let seeded = "---\nauthor: Jane\n---\ntags:\n  - rust\n";
+    server.default_source = seeded.to_owned();
+    let category = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Journal".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: id(&category)?,
+            source: None,
+            markdown: Some(true),
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+    assert_eq!(created["source"], serde_json::json!(seeded));
     Ok(())
 }

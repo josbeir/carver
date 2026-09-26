@@ -41,15 +41,25 @@ type Client = InstalledLibraryClient;
 struct CarverServer {
     client: Client,
     allow_write: bool,
+    /// Canonical Carve seeded into new notes when a request omits `source`.
+    default_source: String,
     tool_router: ToolRouter<Self>,
     prompt_router: PromptRouter<Self>,
 }
 
 impl CarverServer {
     fn new(client: Client, allow_write: bool) -> Self {
+        let default_source = carver_sdk::load_installed_config()
+            .document_properties
+            .default_source();
+        Self::with_default_source(client, allow_write, default_source)
+    }
+
+    fn with_default_source(client: Client, allow_write: bool, default_source: String) -> Self {
         Self {
             client,
             allow_write,
+            default_source,
             tool_router: Self::tool_router(),
             prompt_router: Self::prompt_router(),
         }
@@ -120,7 +130,8 @@ struct UpdateCategoryRequest {
 #[derive(Deserialize, JsonSchema)]
 struct CreateNoteRequest {
     category_id: CategoryId,
-    source: String,
+    /// Canonical Carve source. Omit it to seed the configured default properties.
+    source: Option<String>,
     /// Interpret `source` as `CommonMark` and convert it to canonical Carve.
     markdown: Option<bool>,
 }
@@ -314,17 +325,26 @@ impl CarverServer {
 
     /// Creates a note from canonical Carve or, with `markdown: true`, `CommonMark` source.
     ///
-    /// The response carries the note fields plus a `report` with the version 2 importer-fidelity
-    /// assessment; a `fidelity-unverified` diagnostic marks a conversion whose fidelity could not
-    /// be confirmed.
+    /// Omitting `source` seeds the configured default document properties as canonical Carve;
+    /// `markdown` only applies to an explicitly supplied `source`. The response carries the note
+    /// fields plus a `report` with the version 2 importer-fidelity assessment; a
+    /// `fidelity-unverified` diagnostic marks a conversion whose fidelity could not be confirmed.
     #[tool(annotations(title = "Create note", destructive_hint = false))]
     async fn create_note(
         &self,
         Parameters(request): Parameters<CreateNoteRequest>,
     ) -> Result<String, ErrorData> {
         self.require_write()?;
-        let imported =
-            carver_sdk::assess_import(&request.source, document_format(request.markdown));
+        let explicit_source = request.source.is_some();
+        let source = request
+            .source
+            .unwrap_or_else(|| self.default_source.clone());
+        let format = if explicit_source {
+            document_format(request.markdown)
+        } else {
+            DocumentImportFormat::Carve
+        };
+        let imported = carver_sdk::assess_import(&source, format);
         let note = self
             .client
             .import_note_async(

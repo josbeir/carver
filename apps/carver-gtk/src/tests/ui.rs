@@ -6,6 +6,7 @@ pub(crate) mod document_sidebar;
 mod excerpts;
 mod html;
 pub(crate) mod interactions;
+mod properties;
 mod rendering;
 mod trash;
 
@@ -57,6 +58,31 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     document_sidebar::webkit_views_should_disable_smooth_scrolling()?;
     document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
+    properties::document_properties_button_should_follow_mode_and_setting()?;
+    properties::default_properties_should_always_show_without_removal()?;
+    properties::list_default_should_render_a_dropdown_when_single()?;
+    properties::list_default_should_render_switches_when_multiple()?;
+    properties::list_default_settings_should_offer_options_and_multiple()?;
+    properties::date_default_should_render_a_picker_and_disable_invalid_values()?;
+    properties::date_time_default_settings_should_persist_the_field_type()?;
+    properties::ad_hoc_date_property_should_reopen_as_date()?;
+    properties::changing_a_property_type_should_keep_the_row_expanded()?;
+    properties::date_picker_should_offer_clear_and_done_controls()?;
+    properties::default_properties_dialog_should_persist_typed_entries()?;
+    properties::date_time_default_should_edit_the_picker()?;
+    properties::typed_defaults_should_save_edited_values()?;
+    properties::title_frontmatter_should_fill_the_title_row()?;
+    properties::malformed_frontmatter_should_fall_back_to_raw_source()?;
+    properties::defaults_dialog_should_remove_a_property()?;
+    properties::defaults_dialog_should_handle_date_and_typed_values()?;
+    properties::date_default_picker_should_edit_and_save()?;
+    properties::ad_hoc_boolean_property_should_toggle_and_save()?;
+    properties::authored_frontmatter_order_should_survive_an_unchanged_save()?;
+    properties::explicit_empty_value_should_survive_an_unchanged_save()?;
+    properties::complex_frontmatter_should_fall_back_to_raw_source()?;
+    properties::heading_should_prefill_the_title_without_persisting()?;
+    properties::edited_prefilled_title_should_persist()?;
+    properties::edited_title_should_lead_the_block_on_reopen()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
@@ -351,6 +377,42 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(reset_font.is_visible());
     reset_font.emit_by_name::<()>("activated", &[]);
     assert!(!reset_font.is_visible());
+    let document_properties_setting = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-setting",
+    )
+    .ok_or("document properties setting")?;
+    assert!(!document_properties_setting.is_active());
+    let document_properties_floating = widget_as::<adw::SwitchRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-floating-button",
+    )
+    .ok_or("document properties floating button")?;
+    assert!(document_properties_floating.is_active());
+    document_properties_floating.set_active(false);
+    assert!(run_main_context_until(|| carver_config::load(&config_path)
+        .is_ok_and(|config| !config
+            .document_properties
+            .floating_button)));
+    assert_eq!(
+        widget_as::<adw::ActionRow>(preferences_dialog.upcast_ref(), "document-properties-row")
+            .and_then(|row| row.subtitle()),
+        Some("0 default properties".into())
+    );
+    document_properties_setting.set_active(true);
+    assert!(run_main_context_until(
+        || carver_config::load(&config_path).is_ok_and(|config| config.document_properties.enabled)
+    ));
+    let document_properties_format = widget_as::<adw::ComboRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-format",
+    )
+    .ok_or("document properties format")?;
+    document_properties_format.set_selected(1);
+    assert!(run_main_context_until(|| carver_config::load(&config_path)
+        .is_ok_and(
+            |config| config.document_properties.format == carver_domain::FrontmatterFormat::Json
+        )));
     assert_eq!(
         window.icon_name().as_deref(),
         Some(crate::app::APPLICATION_ICON)

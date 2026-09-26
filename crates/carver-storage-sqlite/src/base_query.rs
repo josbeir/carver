@@ -4,6 +4,12 @@ use carver_domain::{
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
 
+/// GLOB pattern matching text that begins with an ISO 8601 calendar date (`YYYY-MM-DD`).
+///
+/// Combined with `julianday(...) IS NOT NULL`, it classifies the same values as dates as the
+/// domain's `base_instant`, keeping SQL and domain sorting/filtering in lockstep.
+const ISO_DATE_GLOB: &str = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*";
+
 pub(super) struct BaseQuery {
     pub(super) filter_sql: Option<String>,
     pub(super) order_sql: String,
@@ -64,7 +70,7 @@ fn compile_filter(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String
         BaseFilterOperator::GreaterThan
         | BaseFilterOperator::LessThan
         | BaseFilterOperator::GreaterOrEqual
-        | BaseFilterOperator::LessOrEqual => numeric_match(filter, parameters),
+        | BaseFilterOperator::LessOrEqual => comparison_match(filter, parameters),
         BaseFilterOperator::Equals => scalar_equal(filter, parameters),
         BaseFilterOperator::NotEquals => {
             let present = field_is_present(&filter.field, parameters);
@@ -95,13 +101,7 @@ fn text_match(filter: &BaseFilter, parameters: &mut Vec<SqlValue>, starts_with: 
     }
 }
 
-fn numeric_match(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String {
-    let Some(expected) = filter.value.as_ref().and_then(Value::as_f64) else {
-        return "0".to_owned();
-    };
-    let value_type = field_type(&filter.field, parameters);
-    let value = field_value(&filter.field, parameters);
-    parameters.push(SqlValue::Real(expected));
+fn comparison_match(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String {
     let operator = match filter.operator {
         BaseFilterOperator::GreaterThan => ">",
         BaseFilterOperator::LessThan => "<",
@@ -109,7 +109,35 @@ fn numeric_match(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String 
         BaseFilterOperator::LessOrEqual => "<=",
         _ => return "0".to_owned(),
     };
-    format!("({value_type} IN ('integer', 'real') AND {value} {operator} ?)")
+    match filter.value.as_ref() {
+        Some(Value::Number(expected)) => {
+            let Some(expected) = expected.as_f64() else {
+                return "0".to_owned();
+            };
+            let value_type = field_type(&filter.field, parameters);
+            let value = field_value(&filter.field, parameters);
+            parameters.push(SqlValue::Real(expected));
+            format!("({value_type} IN ('integer', 'real') AND {value} {operator} ?)")
+        }
+        // A string filter value compares ISO date-time text chronologically, mirroring the
+        // domain's `compares_as_instant`; non-date strings never match.
+        Some(Value::String(expected)) => {
+            let value_type = field_type(&filter.field, parameters);
+            let value_glob = field_value(&filter.field, parameters);
+            let value_instant = field_value(&filter.field, parameters);
+            let value_compare = field_value(&filter.field, parameters);
+            parameters.push(SqlValue::Text(expected.clone()));
+            parameters.push(SqlValue::Text(expected.clone()));
+            parameters.push(SqlValue::Text(expected.clone()));
+            format!(
+                "({value_type} = 'text' AND {value_glob} GLOB '{ISO_DATE_GLOB}' \
+                 AND julianday({value_instant}) IS NOT NULL \
+                 AND julianday({value_compare}) {operator} julianday(?) \
+                 AND ? GLOB '{ISO_DATE_GLOB}' AND julianday(?) IS NOT NULL)"
+            )
+        }
+        _ => "0".to_owned(),
+    }
 }
 
 fn scalar_equal(filter: &BaseFilter, parameters: &mut Vec<SqlValue>) -> String {
@@ -192,10 +220,21 @@ fn compile_order_sql(sorts: &[BaseSort], parameters: &mut Vec<SqlValue>) -> Stri
             "CASE {value_type} WHEN 'false' THEN 1 WHEN 'true' THEN 1 WHEN 'integer' THEN 2 WHEN 'real' THEN 2 WHEN 'text' THEN 3 WHEN 'array' THEN 4 WHEN 'object' THEN 5 ELSE 0 END {direction}"
         ));
 
+        // Date and date-time text sorts chronologically. Non-date text sorts before dates to
+        // match SQLite's NULL-first ordering, staying consistent when the direction reverses.
+        let date_type = field_type(&sort.field, parameters);
+        let date_glob = field_value(&sort.field, parameters);
+        let date_value = field_value(&sort.field, parameters);
+        terms.push(format!(
+            "CASE WHEN {date_type} = 'text' AND {date_glob} GLOB '{ISO_DATE_GLOB}' THEN julianday({date_value}) END {direction}"
+        ));
+
         let text_type = field_type(&sort.field, parameters);
+        let text_glob = field_value(&sort.field, parameters);
+        let text_instant = field_value(&sort.field, parameters);
         let text_value = field_value(&sort.field, parameters);
         terms.push(format!(
-            "CASE WHEN {text_type} = 'text' THEN carver_casefold({text_value}) END {direction}"
+            "CASE WHEN {text_type} = 'text' AND NOT ({text_glob} GLOB '{ISO_DATE_GLOB}' AND julianday({text_instant}) IS NOT NULL) THEN carver_casefold({text_value}) END {direction}"
         ));
 
         let number_type = field_type(&sort.field, parameters);

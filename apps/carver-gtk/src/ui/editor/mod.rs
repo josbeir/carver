@@ -37,6 +37,7 @@ pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_s
 mod document_navigation;
 mod document_sidebar;
 mod preview;
+pub(crate) mod properties_dialog;
 mod render;
 mod source;
 pub(crate) mod source_commands;
@@ -77,6 +78,7 @@ pub(crate) struct EditorViewRefs {
     toolbar: Toolbar,
     toolbar_bar: gtk::Box,
     editor_stack: gtk::Stack,
+    document_properties: gtk::Button,
     split_toggle: gtk::ToggleButton,
     rich: RichEditor,
     source_buffer: gtk::TextBuffer,
@@ -111,6 +113,7 @@ impl EditorViewRefs {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
+            self.document_properties.set_visible(false);
             self.asset_scope.replace(None);
             self.split_preview_source.replace(None);
             self.latest_split_preview_source.replace(None);
@@ -222,6 +225,10 @@ impl EditorViewRefs {
                 self.split_toggle.set_active(false);
             }
         }
+        self.document_properties.set_visible(
+            model.config.document_properties.floating_button
+                && document.mode != EditorMode::Rendered,
+        );
         self.find.set_mode(document.mode);
         self.rendering.set(false);
         if new_document {
@@ -714,8 +721,33 @@ pub(crate) fn build_editor(
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
     toolbar_bar.append(toolbar.widget());
     view.add_bottom_bar(&toolbar_bar);
-    let sidebar =
-        document_sidebar::DocumentSidebar::new(&editor_stack, document_sidebar_toggle, dispatcher);
+    let editor_overlay = gtk::Overlay::new();
+    editor_overlay.set_widget_name("editor-overlay");
+    editor_overlay.set_child(Some(&editor_stack));
+    let document_properties = gtk::Button::from_icon_name("document-properties-symbolic");
+    document_properties.set_widget_name("document-properties-button");
+    // Keep the default theme button background so the floating control adapts to the color
+    // scheme; an OSD class forces a too-dark chip and a flat one drops the background entirely.
+    document_properties.add_css_class("circular");
+    document_properties.set_halign(gtk::Align::End);
+    document_properties.set_valign(gtk::Align::Start);
+    document_properties.set_margin_top(12);
+    document_properties.set_margin_end(12);
+    document_properties.set_tooltip_text(Some(&gettext("Document properties")));
+    document_properties.update_property(&[gtk::accessible::Property::Label(&gettext(
+        "Document properties",
+    ))]);
+    let properties_dispatcher = dispatcher.clone();
+    document_properties.connect_clicked(move |_| {
+        let _ =
+            properties_dispatcher.dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    });
+    editor_overlay.add_overlay(&document_properties);
+    let sidebar = document_sidebar::DocumentSidebar::new(
+        &editor_overlay,
+        document_sidebar_toggle,
+        dispatcher,
+    );
     view.set_content(Some(&sidebar.container));
     install_compact_editor_actions(
         &view,
@@ -819,6 +851,7 @@ pub(crate) fn build_editor(
         toolbar,
         toolbar_bar,
         editor_stack,
+        document_properties,
         split_toggle,
         rich,
         source_buffer,
@@ -1410,6 +1443,10 @@ fn append_clipboard_options(menu: &gtk::gio::Menu) {
 
 fn append_file_options(menu: &gtk::gio::Menu) {
     let section = gtk::gio::Menu::new();
+    section.append(
+        Some(&gettext("Document properties…")),
+        Some("editor.document-properties"),
+    );
     section.append(Some(&gettext("Export note…")), Some(EXPORT_NOTE_ACTION));
     section.append(Some(&gettext("Print…")), Some(PRINT_NOTE_ACTION));
     menu.append_section(None, &section);
@@ -1454,6 +1491,13 @@ fn install_compact_editor_actions(
         split_toggle.set_active(!split_toggle.is_active());
     });
     actions.add_action(&split_preview);
+    let document_properties = gtk::gio::SimpleAction::new("document-properties", None);
+    let properties_dispatcher = dispatcher.clone();
+    document_properties.connect_activate(move |_, _| {
+        let _ =
+            properties_dispatcher.dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    });
+    actions.add_action(&document_properties);
     let paste_markdown = gtk::gio::SimpleAction::new("paste-markdown", None);
     let paste_dispatcher = dispatcher.clone();
     let paste_rich = rich.clone();

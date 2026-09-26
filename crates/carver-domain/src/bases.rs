@@ -5,6 +5,8 @@ use std::{cmp::Ordering, collections::BTreeMap, fmt};
 use carve::{Options, parse_with_options};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::format_description::well_known::{Iso8601, Rfc3339};
+use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 use crate::{NoteId, Revision};
@@ -53,6 +55,7 @@ pub struct PropertyPath(pub String);
 /// The observed JSON value kind for a frontmatter property.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "kebab-case")]
 pub enum PropertyKind {
     /// A text value.
     Text,
@@ -282,6 +285,63 @@ fn number(value: &Value) -> Option<f64> {
     value.as_f64()
 }
 
+/// Returns whether text begins with an ISO 8601 calendar date (`YYYY-MM-DD`).
+///
+/// Mirrors the SQLite `GLOB` gate in the storage query so both layers classify the same values
+/// as dates.
+fn looks_like_iso_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.len() >= 10
+        && bytes[..4].iter().all(u8::is_ascii_digit)
+        && bytes[4] == b'-'
+        && bytes[5..7].iter().all(u8::is_ascii_digit)
+        && bytes[7] == b'-'
+        && bytes[8..10].iter().all(u8::is_ascii_digit)
+}
+
+/// Parses an ISO 8601 date or date-time property value as an instant.
+///
+/// A value without a time or zone is midnight UTC, matching how SQLite's `julianday` interprets
+/// the same text, so Base sorting and filtering agree across the domain and SQL layers.
+fn base_instant(text: &str) -> Option<OffsetDateTime> {
+    // SQLite's `julianday` tolerates trailing spaces, so trim them to keep the two layers in
+    // agreement.
+    let text = text.trim_end_matches(' ');
+    if !looks_like_iso_date(text) {
+        return None;
+    }
+    if let Ok(value) = OffsetDateTime::parse(text, &Rfc3339) {
+        return Some(value);
+    }
+    // SQLite accepts a space between the date and time; normalize it to `T` for the parser.
+    let normalized = if text.as_bytes().get(10) == Some(&b' ') {
+        format!("{}T{}", &text[..10], &text[11..])
+    } else {
+        text.to_owned()
+    };
+    if let Ok(value) = PrimitiveDateTime::parse(&normalized, &Iso8601::DEFAULT) {
+        return Some(value.assume_utc());
+    }
+    Date::parse(text, &Iso8601::DATE)
+        .ok()
+        .map(|date| date.midnight().assume_utc())
+}
+
+/// Compares two values for a range filter, treating ISO date-time text as chronological.
+fn compares_as_instant(operator: BaseFilterOperator, left: &Value, right: &Value) -> Option<bool> {
+    let (Value::String(left), Value::String(right)) = (left, right) else {
+        return None;
+    };
+    let (left, right) = (base_instant(left)?, base_instant(right)?);
+    Some(match operator {
+        BaseFilterOperator::GreaterThan => left > right,
+        BaseFilterOperator::LessThan => left < right,
+        BaseFilterOperator::GreaterOrEqual => left >= right,
+        BaseFilterOperator::LessOrEqual => left <= right,
+        _ => return None,
+    })
+}
+
 fn filter_matches(row: &BaseRow, filter: &BaseFilter) -> bool {
     let value = field_value(row, &filter.field).filter(|value| !value.is_null());
     match filter.operator {
@@ -331,10 +391,19 @@ fn filter_matches(row: &BaseRow, filter: &BaseFilter) -> bool {
         | BaseFilterOperator::LessThan
         | BaseFilterOperator::GreaterOrEqual
         | BaseFilterOperator::LessOrEqual => {
-            let Some(left) = value.as_ref().and_then(number) else {
+            let Some(actual) = value.as_ref() else {
                 return false;
             };
-            let Some(right) = filter.value.as_ref().and_then(number) else {
+            let Some(expected) = filter.value.as_ref() else {
+                return false;
+            };
+            if let Some(result) = compares_as_instant(filter.operator, actual, expected) {
+                return result;
+            }
+            let Some(left) = number(actual) else {
+                return false;
+            };
+            let Some(right) = number(expected) else {
                 return false;
             };
             match filter.operator {
@@ -423,7 +492,13 @@ fn compare_values(left: &Value, right: &Value) -> Ordering {
         .cmp(&rank(right))
         .then_with(|| match (left, right) {
             (Value::String(left), Value::String(right)) => {
-                fold_base_text(left).cmp(&fold_base_text(right))
+                match (base_instant(left), base_instant(right)) {
+                    (Some(left), Some(right)) => left.cmp(&right),
+                    // Non-date text sorts before date text, mirroring SQLite's NULL-first order.
+                    (Some(_), None) => Ordering::Greater,
+                    (None, Some(_)) => Ordering::Less,
+                    (None, None) => fold_base_text(left).cmp(&fold_base_text(right)),
+                }
             }
             (Value::Number(left), Value::Number(right)) => left
                 .as_f64()
@@ -865,5 +940,226 @@ mod tests {
             properties: Value::Null,
         };
         assert!(base_row_matches(&row, BaseFilterMode::Any, &[]));
+    }
+
+    fn date_row(id: u128, name: &str, when: Option<&str>) -> BaseRow {
+        let properties = when.map_or_else(
+            || serde_json::json!({}),
+            |when| serde_json::json!({"when": when}),
+        );
+        BaseRow {
+            note_id: NoteId::from_uuid(Uuid::from_u128(id)),
+            revision: Revision(1),
+            name: name.to_owned(),
+            category: String::new(),
+            updated: String::new(),
+            properties,
+        }
+    }
+
+    fn when_sort(direction: BaseSortDirection) -> BaseSort {
+        BaseSort {
+            field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+            direction,
+        }
+    }
+
+    #[test]
+    fn base_instant_should_match_sqlite_date_formats() {
+        for text in [
+            "2026-09-16",
+            "2026-09-16T12:00:00Z",
+            "2026-09-16T12:00:00+02:00",
+            "2026-09-16T12:00:00",
+            "2026-09-16 12:00:00",
+            "2026-09-16T12:00:00.123Z",
+            "2026-09-16 ",
+            "2026-09-16T12:00:00Z  ",
+        ] {
+            assert!(base_instant(text).is_some(), "{text} should parse");
+        }
+        for text in [
+            "now",
+            "12:30",
+            "2026-13-40",
+            "2026-09-16T99:00:00Z",
+            "plain text",
+        ] {
+            assert!(base_instant(text).is_none(), "{text} should not parse");
+        }
+    }
+
+    #[test]
+    fn date_text_should_sort_chronologically_by_instant() {
+        let rows = vec![
+            date_row(0, "offset", Some("2026-09-26T14:22:49+02:00")),
+            date_row(1, "utc", Some("2026-09-26T12:22:49Z")),
+            date_row(2, "date", Some("2026-09-16")),
+            date_row(3, "winter", Some("2026-03-29T02:30:00+01:00")),
+            date_row(4, "summer", Some("2026-03-29T03:00:00+02:00")),
+            date_row(5, "text", Some("arbitrary")),
+            date_row(6, "missing", None),
+        ];
+        let ascending = project_base_rows(
+            rows.clone(),
+            BaseFilterMode::All,
+            &[],
+            &[when_sort(BaseSortDirection::Ascending)],
+        );
+        let names: Vec<_> = ascending.iter().map(|row| row.name.as_str()).collect();
+        // Missing stays last; non-date text precedes dates; dates order by instant, so the DST
+        // pair summer (01:00Z) / winter (01:30Z) and the equal 12:22:49Z pair are correct.
+        assert_eq!(
+            names,
+            vec![
+                "text", "summer", "winter", "date", "offset", "utc", "missing"
+            ]
+        );
+
+        let descending = project_base_rows(
+            rows,
+            BaseFilterMode::All,
+            &[],
+            &[when_sort(BaseSortDirection::Descending)],
+        );
+        let names: Vec<_> = descending.iter().map(|row| row.name.as_str()).collect();
+        // The note-id tie-break stays ascending, so the equal-instant pair keeps its id order.
+        assert_eq!(
+            names,
+            vec![
+                "offset", "utc", "date", "winter", "summer", "text", "missing"
+            ]
+        );
+    }
+
+    #[test]
+    fn date_range_filters_should_compare_instants() {
+        let rows = vec![
+            date_row(0, "early", Some("2026-09-16")),
+            date_row(1, "boundary", Some("2026-09-20")),
+            date_row(2, "late", Some("2026-09-26T12:00:00Z")),
+            date_row(3, "text", Some("arbitrary")),
+            date_row(4, "missing", None),
+        ];
+        let matching = |operator, value: &str| {
+            project_base_rows(
+                rows.clone(),
+                BaseFilterMode::All,
+                &[BaseFilter {
+                    field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                    operator,
+                    value: Some(Value::String(value.to_owned())),
+                }],
+                &[],
+            )
+            .into_iter()
+            .map(|row| row.name)
+            .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            matching(BaseFilterOperator::GreaterOrEqual, "2026-09-20"),
+            vec!["boundary".to_owned(), "late".to_owned()]
+        );
+        assert_eq!(
+            matching(BaseFilterOperator::LessThan, "2026-09-20"),
+            vec!["early".to_owned()]
+        );
+        assert_eq!(
+            matching(BaseFilterOperator::GreaterThan, "2026-09-26T12:00:00Z"),
+            Vec::<String>::new()
+        );
+        // An equal instant written with a different offset still matches the inclusive bound.
+        assert_eq!(
+            matching(BaseFilterOperator::LessOrEqual, "2026-09-26T13:00:00+01:00"),
+            vec!["early".to_owned(), "boundary".to_owned(), "late".to_owned()]
+        );
+    }
+
+    #[test]
+    fn range_comparison_should_ignore_non_date_and_missing_values() {
+        // A non-range operator never takes the instant path even when both sides look like dates.
+        assert_eq!(
+            compares_as_instant(
+                BaseFilterOperator::Equals,
+                &serde_json::json!("2026-09-16"),
+                &serde_json::json!("2026-09-16")
+            ),
+            None
+        );
+
+        let rows = vec![date_row(0, "missing", None)];
+        let matched = project_base_rows(
+            rows,
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::String("2026-01-01".to_owned())),
+            }],
+            &[],
+        );
+        assert!(matched.is_empty());
+    }
+
+    #[test]
+    fn presence_filters_should_cover_present_and_missing_arms() {
+        let rows = vec![
+            date_row(0, "present", Some("2026-09-16")),
+            date_row(1, "missing", None),
+        ];
+        let present = project_base_rows(
+            rows.clone(),
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::IsPresent,
+                value: None,
+            }],
+            &[],
+        );
+        assert_eq!(present.len(), 1);
+        let missing = project_base_rows(
+            rows,
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::IsMissing,
+                value: None,
+            }],
+            &[],
+        );
+        assert_eq!(missing.len(), 1);
+    }
+
+    #[test]
+    fn numeric_comparison_should_fall_back_when_sides_are_not_numbers() {
+        let mut text_row = date_row(0, "text", None);
+        text_row.properties = serde_json::json!({"when": "five"});
+        let by_date = project_base_rows(
+            vec![text_row],
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::String("2026-01-01".to_owned())),
+            }],
+            &[],
+        );
+        assert!(by_date.is_empty());
+
+        let mut number_row = date_row(0, "number", None);
+        number_row.properties = serde_json::json!({"when": 5});
+        let by_bool = project_base_rows(
+            vec![number_row],
+            BaseFilterMode::All,
+            &[BaseFilter {
+                field: BaseColumn::Property(PropertyPath("/when".to_owned())),
+                operator: BaseFilterOperator::GreaterThan,
+                value: Some(Value::Bool(true)),
+            }],
+            &[],
+        );
+        assert!(by_bool.is_empty());
     }
 }

@@ -241,3 +241,372 @@ fn enhanced_rendering_should_persist_disabled_preference() {
             .contains("enhanced_carve_rendering = false")
     );
 }
+
+#[test]
+fn document_properties_should_default_to_disabled_with_the_floating_button() {
+    let config = Config::default();
+    assert!(!config.document_properties.enabled);
+    assert!(config.document_properties.floating_button);
+    assert!(config.document_properties.entries.is_empty());
+}
+
+#[test]
+fn partial_config_should_keep_document_property_defaults() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[document_properties]\nenabled = true\n")?;
+
+    let config = load(&path)?;
+    assert!(config.document_properties.enabled);
+    assert!(config.document_properties.floating_button);
+    Ok(())
+}
+
+#[test]
+fn document_properties_should_round_trip_typed_entries() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    let mut config = Config::default();
+    config.document_properties.enabled = true;
+    config.document_properties.entries = vec![
+        DocumentProperty {
+            key: String::from("author"),
+            field_type: DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        },
+        DocumentProperty {
+            key: String::from("tags"),
+            field_type: DocumentPropertyType::List,
+            multiple: false,
+            value: serde_json::json!(["rust", "gtk"]),
+        },
+        DocumentProperty {
+            key: String::from("summary"),
+            field_type: DocumentPropertyType::LongText,
+            multiple: false,
+            value: serde_json::Value::String(String::new()),
+        },
+    ];
+    save(&path, &config)?;
+
+    let source = fs::read_to_string(&path)?;
+    assert!(source.contains("[document_properties]"));
+    assert!(source.contains("field_type = \"text\""));
+    assert!(source.contains("field_type = \"long-text\""));
+
+    assert_eq!(load(&path)?, config);
+    Ok(())
+}
+
+#[test]
+fn document_properties_default_source_should_be_gated_by_enabled() {
+    let mut config = DocumentPropertiesConfig {
+        enabled: false,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            field_type: DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    assert_eq!(config.default_source(), "");
+
+    config.enabled = true;
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}
+
+#[test]
+fn document_properties_should_reject_reserved_and_mismatched_entries() {
+    let property = |key: &str, field_type: DocumentPropertyType| DocumentProperty {
+        key: key.to_owned(),
+        field_type,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+
+    let reserved = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![property("title", DocumentPropertyType::Text)],
+    };
+    assert!(reserved.validate().is_err());
+
+    let mismatched = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("count"),
+            field_type: DocumentPropertyType::Number,
+            multiple: false,
+            value: serde_json::Value::String(String::from("three")),
+        }],
+    };
+    assert!(mismatched.validate().is_err());
+
+    let duplicated = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![
+            property("author", DocumentPropertyType::Text),
+            property("author", DocumentPropertyType::Text),
+        ],
+    };
+    assert!(duplicated.validate().is_err());
+}
+
+#[test]
+fn loading_should_reject_a_reserved_default_property() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(
+        &path,
+        "[[document_properties.entries]]\nkey = \"title\"\nfield_type = \"text\"\nvalue = \"X\"\n",
+    )?;
+
+    assert!(matches!(
+        load(&path),
+        Err(ConfigError::InvalidDocumentProperties(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn document_properties_list_defaults_should_seed_the_first_option() {
+    let list = |multiple: bool| DocumentProperty {
+        key: String::from("status"),
+        field_type: DocumentPropertyType::List,
+        multiple,
+        value: serde_json::json!(["active", "archived"]),
+    };
+
+    let single = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![list(false)],
+    };
+    assert_eq!(single.default_source(), "---\nstatus: active\n---\n");
+
+    let multi = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![list(true)],
+    };
+    assert_eq!(multi.default_source(), "---\nstatus:\n- active\n---\n");
+}
+
+#[test]
+fn document_properties_list_without_options_should_seed_nothing() {
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("status"),
+            field_type: DocumentPropertyType::List,
+            multiple: false,
+            value: serde_json::json!([]),
+        }],
+    };
+    assert_eq!(config.default_source(), "");
+}
+
+#[test]
+fn document_properties_should_reject_invalid_list_options() {
+    let non_string = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("status"),
+            field_type: DocumentPropertyType::List,
+            multiple: false,
+            value: serde_json::json!(["ok", 3]),
+        }],
+    };
+    assert!(non_string.validate().is_err());
+
+    let multiple_on_text = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            field_type: DocumentPropertyType::Text,
+            multiple: true,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    assert!(multiple_on_text.validate().is_err());
+}
+
+#[test]
+fn document_properties_default_source_should_use_the_configured_format() {
+    let mut config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Json,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            field_type: DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    let json = config.default_source();
+    assert!(json.starts_with("---json\n"), "{json}");
+    assert!(json.contains("\"author\": \"Jane\""), "{json}");
+
+    config.format = FrontmatterFormat::Yaml;
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}
+
+#[test]
+fn document_properties_date_defaults_should_seed_the_configured_moment() {
+    let now = time::macros::datetime!(2023-11-14 22:13:20 UTC);
+    let date = DocumentProperty {
+        key: String::from("due"),
+        field_type: DocumentPropertyType::Date,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+    let date_time = DocumentProperty {
+        key: String::from("at"),
+        field_type: DocumentPropertyType::DateTime,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+
+    assert_eq!(
+        date.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14")))
+    );
+    assert_eq!(
+        date_time.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
+    );
+}
+
+#[test]
+fn document_properties_date_time_defaults_should_drop_subsecond_precision() {
+    let now = time::macros::datetime!(2023-11-14 22:13:20.123456789 UTC);
+    let property = DocumentProperty {
+        key: String::from("at"),
+        field_type: DocumentPropertyType::DateTime,
+        multiple: false,
+        value: serde_json::Value::Null,
+    };
+    assert_eq!(
+        property.default_field_at(now).map(|field| field.value),
+        Some(FrontmatterValue::Text(String::from("2023-11-14T22:13:20Z")))
+    );
+}
+
+#[test]
+fn document_property_type_should_map_to_domain_kinds() {
+    assert_eq!(DocumentPropertyType::Text.domain_kind(), PropertyKind::Text);
+    assert_eq!(
+        DocumentPropertyType::LongText.domain_kind(),
+        PropertyKind::Text
+    );
+    assert_eq!(DocumentPropertyType::Date.domain_kind(), PropertyKind::Text);
+    assert_eq!(
+        DocumentPropertyType::DateTime.domain_kind(),
+        PropertyKind::Text
+    );
+    assert_eq!(
+        DocumentPropertyType::Number.domain_kind(),
+        PropertyKind::Number
+    );
+    assert_eq!(
+        DocumentPropertyType::Boolean.domain_kind(),
+        PropertyKind::Boolean
+    );
+    assert_eq!(DocumentPropertyType::List.domain_kind(), PropertyKind::List);
+}
+
+#[test]
+fn document_properties_should_reject_blank_keys_and_bad_boolean_values() {
+    let blank = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("   "),
+            field_type: DocumentPropertyType::Text,
+            multiple: false,
+            value: serde_json::Value::Null,
+        }],
+    };
+    assert!(blank.validate().is_err());
+
+    let valid = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("done"),
+            field_type: DocumentPropertyType::Boolean,
+            multiple: false,
+            value: serde_json::json!(true),
+        }],
+    };
+    assert!(valid.validate().is_ok());
+
+    let invalid = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![DocumentProperty {
+            key: String::from("done"),
+            field_type: DocumentPropertyType::Boolean,
+            multiple: false,
+            value: serde_json::json!("yes"),
+        }],
+    };
+    assert!(invalid.validate().is_err());
+}
+
+#[test]
+fn document_properties_default_source_should_drop_blank_values() {
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![
+            DocumentProperty {
+                key: String::from("blank"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!("   "),
+            },
+            DocumentProperty {
+                key: String::from("empty"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!(""),
+            },
+            DocumentProperty {
+                key: String::from("nulled"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::Value::Null,
+            },
+            DocumentProperty {
+                key: String::from("author"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!("Jane"),
+            },
+        ],
+    };
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}

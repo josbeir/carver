@@ -30,7 +30,7 @@ pub(super) struct DocumentSidebar {
 
 impl DocumentSidebar {
     pub fn new(
-        content: &gtk::Stack,
+        content: &impl IsA<gtk::Widget>,
         toggle: gtk::ToggleButton,
         dispatcher: &AppDispatcher,
     ) -> Self {

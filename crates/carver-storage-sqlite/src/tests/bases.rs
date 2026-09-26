@@ -692,3 +692,180 @@ fn legacy_columns_only_base_definitions_should_load_with_default_configuration()
     assert!(loaded[0].filters.is_empty());
     assert!(loaded[0].sorts.is_empty());
 }
+
+fn date_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
+    let (directory, library) = library();
+    let category = library
+        .create_category("Dates", OffsetDateTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    for (offset, source) in [
+        "---yaml\nmeta:\n  when: 2026-09-16\n---\n# Date",
+        "---yaml\nmeta:\n  when: 2026-09-26T14:22:49+02:00\n---\n# Offset",
+        "---yaml\nmeta:\n  when: 2026-09-26T12:22:50Z\n---\n# Utc",
+        "---yaml\nmeta:\n  when: 2026-03-29T02:30:00+01:00\n---\n# Winter",
+        "---yaml\nmeta:\n  when: 2026-03-29T03:00:00+02:00\n---\n# Summer",
+        "---yaml\nmeta:\n  when: arbitrary\n---\n# Text",
+        "---yaml\nnote: no date\n---\n# Missing",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        library
+            .create_note_with_source(
+                category.id,
+                source,
+                OffsetDateTime::UNIX_EPOCH
+                    + time::Duration::seconds(i64::try_from(offset).unwrap_or_default()),
+            )
+            .unwrap_or_else(|error| panic!("note failed: {error}"));
+    }
+    let base = library
+        .create_base("Dates", &[])
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    (directory, library, base)
+}
+
+fn sorted_date_names(direction: BaseSortDirection) -> Vec<String> {
+    let (_directory, library, base) = date_fixture();
+    let sort = BaseSort {
+        field: BaseColumn::Property(PropertyPath("/meta/when".to_owned())),
+        direction,
+    };
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            BaseFilterMode::All,
+            &[],
+            std::slice::from_ref(&sort),
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+    let names = library
+        .base_rows(updated.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+        .items
+        .into_iter()
+        .map(|row| row.name)
+        .collect();
+    // Re-check parity against the freshly saved configuration.
+    assert_sql_projection_matches_domain(
+        &library,
+        &updated,
+        BaseFilterMode::All,
+        &[],
+        std::slice::from_ref(&sort),
+    );
+    names
+}
+
+#[test]
+fn json1_query_should_order_date_properties_chronologically() {
+    // Non-date text precedes dates; missing stays last; dates order by instant (DST and offset).
+    assert_eq!(
+        sorted_date_names(BaseSortDirection::Ascending),
+        vec![
+            "Text", "Summer", "Winter", "Date", "Offset", "Utc", "Missing"
+        ]
+    );
+    assert_eq!(
+        sorted_date_names(BaseSortDirection::Descending),
+        vec![
+            "Utc", "Offset", "Date", "Winter", "Summer", "Text", "Missing"
+        ]
+    );
+}
+
+fn date_filtered_names(operator: BaseFilterOperator, value: &str) -> Vec<String> {
+    let (_directory, library, base) = date_fixture();
+    let filter = BaseFilter {
+        field: BaseColumn::Property(PropertyPath("/meta/when".to_owned())),
+        operator,
+        value: Some(serde_json::json!(value)),
+    };
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            BaseFilterMode::All,
+            std::slice::from_ref(&filter),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+    let names = library
+        .base_rows(updated.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+        .items
+        .into_iter()
+        .map(|row| row.name)
+        .collect();
+    assert_sql_projection_matches_domain(
+        &library,
+        &updated,
+        BaseFilterMode::All,
+        std::slice::from_ref(&filter),
+        &[],
+    );
+    names
+}
+
+#[test]
+fn json1_query_should_match_date_range_filters() {
+    assert_eq!(
+        date_filtered_names(BaseFilterOperator::GreaterOrEqual, "2026-09-20"),
+        vec!["Utc", "Offset"]
+    );
+    assert_eq!(
+        date_filtered_names(BaseFilterOperator::LessThan, "2026-09-20"),
+        vec!["Summer", "Winter", "Date"]
+    );
+    assert_eq!(
+        date_filtered_names(BaseFilterOperator::GreaterThan, "2026-09-26T12:22:49Z"),
+        vec!["Utc"]
+    );
+    // An equal instant written with a different offset still satisfies the inclusive bound.
+    assert_eq!(
+        date_filtered_names(BaseFilterOperator::LessOrEqual, "2026-09-26T14:22:49+02:00"),
+        vec!["Summer", "Winter", "Offset", "Date"]
+    );
+    assert!(date_filtered_names(BaseFilterOperator::GreaterThan, "plain text").is_empty());
+}
+
+#[test]
+fn json1_query_should_ignore_non_scalar_range_filter_values() {
+    let (_directory, library, base) = date_fixture();
+    let filter = BaseFilter {
+        field: BaseColumn::Property(PropertyPath("/meta/when".to_owned())),
+        operator: BaseFilterOperator::GreaterThan,
+        value: Some(serde_json::json!(true)),
+    };
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            &base.name,
+            &[],
+            BaseFilterMode::All,
+            std::slice::from_ref(&filter),
+            &[],
+        )
+        .unwrap_or_else(|error| panic!("base update failed: {error}"));
+    let names: Vec<String> = library
+        .base_rows(updated.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"))
+        .items
+        .into_iter()
+        .map(|row| row.name)
+        .collect();
+    assert!(names.is_empty());
+    assert_sql_projection_matches_domain(
+        &library,
+        &updated,
+        BaseFilterMode::All,
+        std::slice::from_ref(&filter),
+        &[],
+    );
+}

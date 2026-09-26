@@ -1,10 +1,10 @@
 //! GNOME dialogs and window-scoped actions.
 
-use std::{rc::Rc, sync::LazyLock};
+use std::{cell::RefCell, rc::Rc, sync::LazyLock};
 
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
-use carver_config::{DocumentWidth, SourceSyntaxStyle};
+use carver_config::{DocumentProperty, DocumentWidth, SourceSyntaxStyle};
 use carver_sdk::{
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
     DocumentImportFormat, NoteId,
@@ -21,7 +21,7 @@ use crate::mvu::{
     TrashMsg,
 };
 use carver_storage_sqlite::SqliteLibrary;
-use gettextrs::{gettext, pgettext};
+use gettextrs::{gettext, ngettext, pgettext};
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
 pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
@@ -543,9 +543,11 @@ fn show_preferences_dialog(
 
     let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
+    let properties_group = document_properties_group(parent, dispatcher, config);
     page.add(&group);
     page.add(&document_group);
     page.add(&source_group);
+    page.add(&properties_group);
     dialog.add(&page);
 
     let dispatcher_for_images = dispatcher.clone();
@@ -603,6 +605,99 @@ fn document_preferences_group(
         &reset,
     );
     group
+}
+
+fn document_properties_group(
+    parent: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title(&gettext("New note properties"));
+
+    let enabled = preference_switch_row(
+        "document-properties-setting",
+        &gettext("Add default properties to new notes"),
+        &gettext("Seed each new note with the default properties below."),
+        config.document_properties.enabled,
+    );
+    group.add(&enabled);
+
+    let floating = preference_switch_row(
+        "document-properties-floating-button",
+        &gettext("Show floating properties button"),
+        &gettext("Show a button over the editor to edit document properties."),
+        config.document_properties.floating_button,
+    );
+    group.add(&floating);
+
+    let defaults = adw::ActionRow::new();
+    defaults.set_widget_name("document-properties-row");
+    defaults.set_title(&gettext("Default properties"));
+    defaults.set_subtitle(&document_property_count(
+        config.document_properties.entries.len(),
+    ));
+    defaults.set_activatable(true);
+    group.add(&defaults);
+
+    let enabled_dispatcher = dispatcher.clone();
+    enabled.connect_active_notify(move |row| {
+        let _ = enabled_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesEnabled(row.is_active()),
+        ));
+    });
+    let floating_dispatcher = dispatcher.clone();
+    floating.connect_active_notify(move |row| {
+        let _ = floating_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesFloatingButton(row.is_active()),
+        ));
+    });
+
+    let format = adw::ComboRow::new();
+    format.set_title(&gettext("Format"));
+    let formats = gtk::StringList::new(&[&gettext("YAML"), &gettext("JSON"), &gettext("TOML")]);
+    format.set_model(Some(&formats));
+    format.set_selected(match config.document_properties.format {
+        carver_domain::FrontmatterFormat::Yaml => 0,
+        carver_domain::FrontmatterFormat::Json => 1,
+        carver_domain::FrontmatterFormat::Toml => 2,
+    });
+    format.set_widget_name("document-properties-format");
+    group.add(&format);
+    let format_dispatcher = dispatcher.clone();
+    format.connect_selected_notify(move |row| {
+        let format = match row.selected() {
+            1 => carver_domain::FrontmatterFormat::Json,
+            2 => carver_domain::FrontmatterFormat::Toml,
+            _ => carver_domain::FrontmatterFormat::Yaml,
+        };
+        let _ = format_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesFormat(format),
+        ));
+    });
+    let parent = parent.clone();
+    let defaults_dispatcher = dispatcher.clone();
+    let entries: Rc<RefCell<Vec<DocumentProperty>>> =
+        Rc::new(RefCell::new(config.document_properties.entries.clone()));
+    defaults.connect_activated(move |_| {
+        let _ = super::editor::properties_dialog::show_defaults(
+            Some(parent.upcast_ref::<gtk::Window>()),
+            &defaults_dispatcher,
+            &entries,
+        );
+    });
+    group
+}
+
+fn document_property_count(count: usize) -> String {
+    tr_fmt!(
+        ngettext(
+            "{count} default property",
+            "{count} default properties",
+            u32::try_from(count).unwrap_or(u32::MAX),
+        ),
+        count = count
+    )
 }
 
 fn document_font_row(config: &carver_config::Config) -> (adw::ActionRow, gtk::Label) {
