@@ -941,7 +941,6 @@ pub(crate) fn show(
         SaveSource::Raw(view)
     } else {
         let group = adw::PreferencesGroup::new();
-        group.set_title(&gettext("Properties"));
         group.set_widget_name("document-properties-group");
         group.set_description(Some(&gettext(
             "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences.",
