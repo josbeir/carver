@@ -552,6 +552,11 @@ pub(super) fn changing_a_property_type_should_keep_the_row_expanded() -> TestRes
             .is_some_and(|row| row.is_expanded()),
         "changing the type should keep the property expanded"
     );
+    assert!(
+        widget_as::<adw::ComboRow>(root, "document-property-kind-1")
+            .is_some_and(|combo| combo.has_focus()),
+        "the type control should keep focus instead of jumping to the title"
+    );
     dialog.close();
     fixture.window.close();
     Ok(())

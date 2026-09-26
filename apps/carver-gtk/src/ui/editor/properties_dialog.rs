@@ -759,9 +759,21 @@ impl BuiltRow {
 
     /// Expands this row and focuses its name entry so a new property can be typed immediately.
     fn expand_and_focus(&self) {
-        if let Self::Expander { expander, key, .. } = self {
-            expander.set_expanded(true);
+        self.set_expanded(true);
+        self.focus_key();
+    }
+
+    /// Focuses this row's name entry.
+    fn focus_key(&self) {
+        if let Self::Expander { key, .. } = self {
             key.grab_focus();
+        }
+    }
+
+    /// Keeps keyboard focus on this row's type control after a rebuild.
+    fn focus_kind(&self) {
+        if let Self::Expander { kind, .. } = self {
+            kind.grab_focus();
         }
     }
 }
@@ -1264,6 +1276,9 @@ fn build_expander_row(
                     draft.choice = choice;
                 }
                 rebuild(&group, &rows, &drafts, &on_change, mode);
+                if let Some(row) = rows.borrow().get(index) {
+                    row.focus_kind();
+                }
                 on_change();
             });
         });
@@ -1315,6 +1330,10 @@ fn remove_button(
                 }
             }
             rebuild(&group, &rows, &drafts, &on_change, mode);
+            let target = index.min(rows.borrow().len().saturating_sub(1));
+            if let Some(row) = rows.borrow().get(target) {
+                row.focus_key();
+            }
             on_change();
         });
     });
