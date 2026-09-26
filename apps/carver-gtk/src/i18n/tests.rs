@@ -2,7 +2,12 @@
 
 use std::{ffi::OsString, path::PathBuf};
 
-use super::locate_localedir_from;
+use super::{init, locate_localedir_from};
+
+#[test]
+fn init_should_bind_the_text_domain_without_panicking() {
+    init();
+}
 
 #[test]
 fn override_directory_takes_precedence_over_flatpak() {
