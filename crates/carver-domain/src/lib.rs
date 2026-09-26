@@ -26,7 +26,7 @@ pub use bases::{
 pub use frontmatter::{
     FrontmatterDocument, FrontmatterError, FrontmatterField, FrontmatterFormat, FrontmatterValue,
     frontmatter_source, is_reserved_key, parse_frontmatter_document, render_frontmatter_document,
-    replace_frontmatter,
+    replace_frontmatter, replace_frontmatter_raw,
 };
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,

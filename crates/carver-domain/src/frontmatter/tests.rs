@@ -225,3 +225,23 @@ fn number_and_boolean_should_survive_yaml_round_trip() {
     );
     assert_eq!(document.fields[1].value, FrontmatterValue::Boolean(false));
 }
+
+#[test]
+fn raw_replacement_should_keep_the_body_and_switch_format() {
+    assert_eq!(
+        replace_frontmatter_raw(
+            "---\na: b\n---\nBody",
+            FrontmatterFormat::Json,
+            "{\"x\": 1}"
+        ),
+        "---json\n{\"x\": 1}\n---\nBody"
+    );
+    assert_eq!(
+        replace_frontmatter_raw("Body", FrontmatterFormat::Yaml, "a: b"),
+        "---\na: b\n---\nBody"
+    );
+    assert_eq!(
+        replace_frontmatter_raw("---\na: b\n---\nBody", FrontmatterFormat::Yaml, "  "),
+        "Body"
+    );
+}

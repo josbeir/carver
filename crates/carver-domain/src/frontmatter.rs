@@ -61,7 +61,7 @@ impl FrontmatterFormat {
 }
 
 /// One frontmatter value with its original kind.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FrontmatterValue {
     /// A text scalar.
     Text(String),
@@ -241,7 +241,7 @@ impl<'de> Deserialize<'de> for FrontmatterValue {
 }
 
 /// One top-level frontmatter property.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontmatterField {
     /// Property name.
     pub key: String,
@@ -267,7 +267,7 @@ impl FrontmatterField {
 }
 
 /// An ordered view of a document's frontmatter block.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FrontmatterDocument {
     /// Format of the block.
     pub format: FrontmatterFormat,
@@ -504,6 +504,24 @@ pub fn frontmatter_source(fields: &[FrontmatterField]) -> String {
     };
     render_frontmatter_document(&document)
         .map_or_else(|_| String::new(), |block| format!("{block}\n"))
+}
+
+/// Replaces a document's frontmatter block with raw authored `content`.
+///
+/// Used by the properties dialog's raw fallback, where the block cannot be parsed into fields.
+/// Passing empty content removes the block.
+#[must_use]
+pub fn replace_frontmatter_raw(source: &str, format: FrontmatterFormat, content: &str) -> String {
+    let content = content.trim_end_matches('\n');
+    if content.trim().is_empty() {
+        return replace_frontmatter(source, None).unwrap_or_else(|_| source.to_owned());
+    }
+    let block = format!("{}\n{content}\n---", format.opener());
+    match scan_frontmatter(source) {
+        Some(scanned) => format!("{block}{}", &source[scanned.block_end..]),
+        None if source.is_empty() => format!("{block}\n"),
+        None => format!("{block}\n{source}"),
+    }
 }
 
 fn apply_fields(
