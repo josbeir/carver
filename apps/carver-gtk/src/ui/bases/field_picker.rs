@@ -598,6 +598,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn property_kind_labels_should_describe_each_kind() {
+        assert_eq!(property_kind_label(PropertyKind::Text), "Text");
+        assert_eq!(property_kind_label(PropertyKind::Number), "Number");
+        assert_eq!(property_kind_label(PropertyKind::Boolean), "Boolean");
+        assert_eq!(property_kind_label(PropertyKind::List), "List");
+        assert_eq!(property_kind_label(PropertyKind::Null), "Empty");
+        assert_eq!(property_kind_label(PropertyKind::Mixed), "Mixed");
+    }
+
+    #[test]
     fn field_search_should_match_nested_paths_and_leaf_names() {
         let field = BaseColumn::Property(PropertyPath("/project/status".to_owned()));
         let option = option_for_field(&field, None);

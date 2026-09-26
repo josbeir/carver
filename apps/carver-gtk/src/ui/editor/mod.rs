@@ -1592,6 +1592,17 @@ pub(crate) fn show_export_options_dialog(
     dialog
 }
 
+/// Returns the file-filter label for an export extension.
+fn export_filter_name(extension: &str) -> String {
+    match extension {
+        "crv" => gettext("Carve documents"),
+        "md" => gettext("Markdown documents"),
+        "html" => gettext("HTML documents"),
+        "pdf" => gettext("PDF documents"),
+        _ => gettext("Portable ZIP archives"),
+    }
+}
+
 fn show_export_file_dialog(
     request_id: u64,
     filename_stem: &str,
@@ -1602,14 +1613,7 @@ fn show_export_file_dialog(
 ) {
     let extension = format.extension(include_assets);
     let filter = gtk::FileFilter::new();
-    let filter_name = match extension {
-        "crv" => gettext("Carve documents"),
-        "md" => gettext("Markdown documents"),
-        "html" => gettext("HTML documents"),
-        "pdf" => gettext("PDF documents"),
-        _ => gettext("Portable ZIP archives"),
-    };
-    filter.set_name(Some(&filter_name));
+    filter.set_name(Some(&export_filter_name(extension)));
     filter.add_suffix(extension);
     let filters = gtk::gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
