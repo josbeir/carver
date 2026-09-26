@@ -586,3 +586,27 @@ fn inline_object_keys_should_be_quoted_when_needed() {
         Some("{\"a b\": \"v\"}".to_owned())
     );
 }
+
+#[test]
+fn removing_a_field_should_keep_trailing_comments() {
+    let source = "---\na: one\n# explanation for b\nb: two\n---\nBody";
+    let mut desired = yaml_document(source);
+    desired.fields.retain(|field| field.key != "a");
+    assert_eq!(
+        replaced(source, Some(&desired)),
+        "---\n# explanation for b\nb: two\n---\n\nBody"
+    );
+}
+
+#[test]
+fn raw_replacement_should_preserve_the_authored_fence() {
+    // Unchanged content is a no-op and an explicit `---yaml` fence is not normalized.
+    assert_eq!(
+        replace_frontmatter_raw("---yaml\na: b\n---\nBody", FrontmatterFormat::Yaml, "a: b"),
+        "---yaml\na: b\n---\nBody"
+    );
+    assert_eq!(
+        replace_frontmatter_raw("---yaml\na: b\n---\nBody", FrontmatterFormat::Yaml, "a: c"),
+        "---yaml\na: c\n---\n\nBody"
+    );
+}

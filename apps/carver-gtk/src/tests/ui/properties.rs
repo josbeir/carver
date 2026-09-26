@@ -1030,3 +1030,68 @@ pub(super) fn ad_hoc_boolean_property_should_toggle_and_save() -> TestResult {
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn authored_frontmatter_order_should_survive_an_unchanged_save() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    let source = "---\nstatus: draft\nauthor: Jane\n---\nBody\n";
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: source.to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    assert_eq!(editor_source(&fixture), source);
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn explicit_empty_value_should_survive_an_unchanged_save() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    let source = "---\nsummary: \"\"\n---\nBody\n";
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: source.to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    assert_eq!(editor_source(&fixture), source);
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nitems: [true, 2]\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    assert!(
+        widget_as::<gtk::TextView>(dialog.upcast_ref(), "document-properties-raw").is_some(),
+        "a list with typed elements should use the raw editor"
+    );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}

@@ -574,3 +574,39 @@ fn document_properties_should_reject_blank_keys_and_bad_boolean_values() {
     };
     assert!(invalid.validate().is_err());
 }
+
+#[test]
+fn document_properties_default_source_should_drop_blank_values() {
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Yaml,
+        entries: vec![
+            DocumentProperty {
+                key: String::from("blank"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!("   "),
+            },
+            DocumentProperty {
+                key: String::from("empty"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!(""),
+            },
+            DocumentProperty {
+                key: String::from("nulled"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::Value::Null,
+            },
+            DocumentProperty {
+                key: String::from("author"),
+                field_type: DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!("Jane"),
+            },
+        ],
+    };
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}

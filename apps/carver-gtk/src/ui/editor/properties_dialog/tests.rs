@@ -41,8 +41,8 @@ fn initial_drafts_should_always_offer_configured_defaults() {
     let drafts = initial_drafts(&request);
     let keys: Vec<&str> = drafts.iter().map(|draft| draft.key.as_str()).collect();
 
-    // Title, then the configured default, then the note's own custom property.
-    assert_eq!(keys, ["title", "type", "author"]);
+    // Title, then the note's authored fields in order, then an appended configured default.
+    assert_eq!(keys, ["title", "author", "type"]);
     assert!(!drafts[0].editable_key);
     assert!(!drafts[0].removable);
     let Some(kind) = drafts.iter().find(|draft| draft.key == "type") else {
@@ -158,6 +158,7 @@ fn configured_value_support_should_require_matching_type_and_options() {
         removable: false,
         multiple: false,
         options: list_default.options(),
+        preserve_empty: false,
     };
     assert!(configured_value_supported(&single(FrontmatterValue::Text(
         "active".to_owned()
@@ -432,4 +433,50 @@ fn parse_number_should_accept_an_unsigned_integer() {
         parse_number("18446744073709551615"),
         Some(serde_json::Number::from(u64::MAX))
     );
+}
+
+#[test]
+fn build_document_should_keep_authored_empty_values_but_drop_unfilled_ones() {
+    let authored_empty = authored_draft(PropertyDraft::custom(
+        "note".to_owned(),
+        FrontmatterValue::Text(String::new()),
+    ));
+    let authored_null = authored_draft(PropertyDraft::custom(
+        "flag".to_owned(),
+        FrontmatterValue::Null,
+    ));
+    let mut unfilled = PropertyDraft::blank();
+    unfilled.key = "unfilled".to_owned();
+    let mut filled = PropertyDraft::blank();
+    filled.key = "filled".to_owned();
+    filled.value = FrontmatterValue::Text("x".to_owned());
+
+    let document = build_document(
+        FrontmatterFormat::Yaml,
+        &[authored_empty, authored_null, unfilled, filled],
+    );
+    let keys: Vec<&str> = document
+        .fields
+        .iter()
+        .map(|field| field.key.as_str())
+        .collect();
+    assert_eq!(keys, ["note", "flag", "filled"]);
+}
+
+#[test]
+fn is_editable_value_should_route_complex_lists_to_raw() {
+    assert!(is_editable_value(&FrontmatterValue::Text("x".to_owned())));
+    assert!(is_editable_value(&FrontmatterValue::List(vec![
+        FrontmatterValue::Text("a".to_owned())
+    ])));
+    assert!(!is_editable_value(&FrontmatterValue::Object(Vec::new())));
+    assert!(!is_editable_value(&FrontmatterValue::List(vec![
+        FrontmatterValue::Boolean(true)
+    ])));
+    assert!(!is_editable_value(&FrontmatterValue::List(vec![
+        FrontmatterValue::Text("a,b".to_owned())
+    ])));
+    assert!(!is_editable_value(&FrontmatterValue::List(vec![
+        FrontmatterValue::Object(Vec::new())
+    ])));
 }

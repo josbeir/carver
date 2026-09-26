@@ -73,6 +73,24 @@ fn type_for_value(value: &FrontmatterValue) -> DocumentPropertyType {
     }
 }
 
+/// Returns whether a value can be edited through the structured fields UI.
+///
+/// Scalars and lists of plain, comma-free text are editable; nested objects and lists holding
+/// typed, nested, or comma-bearing elements are not, so they fall back to the raw editor rather
+/// than being flattened into text.
+fn is_editable_value(value: &FrontmatterValue) -> bool {
+    match value {
+        FrontmatterValue::Object(_) => false,
+        FrontmatterValue::List(items) => items
+            .iter()
+            .all(|item| matches!(item, FrontmatterValue::Text(text) if !text.contains(','))),
+        FrontmatterValue::Text(_)
+        | FrontmatterValue::Number(_)
+        | FrontmatterValue::Boolean(_)
+        | FrontmatterValue::Null => true,
+    }
+}
+
 /// Escapes text for the Pango markup that libadwaita rows parse in their titles and subtitles.
 fn markup_escape(text: &str) -> String {
     glib::markup_escape_text(text).to_string()
@@ -284,8 +302,14 @@ fn apply_picker_state(
     let Some(instant) = parse_date_time(iso) else {
         return;
     };
-    let local = instant.to_offset(local_offset());
-    set_calendar(calendar, local.date());
+    // Convert the stored instant to the local wall clock, which resolves the offset for that
+    // instant (honouring daylight-saving shifts) rather than assuming today's offset.
+    let Some(local) = glib::DateTime::from_unix_local(instant.unix_timestamp()).ok() else {
+        return;
+    };
+    calendar.set_year(local.year());
+    calendar.set_month(local.month() - 1);
+    calendar.set_day(local.day_of_month());
     hours.set_value(f64::from(local.hour()));
     minutes.set_value(f64::from(local.minute()));
 }
@@ -297,24 +321,38 @@ fn read_picker(
     hours: &gtk::SpinButton,
     minutes: &gtk::SpinButton,
 ) -> Option<String> {
-    let date = calendar.date();
+    let selected = calendar.date();
     let date = time::Date::from_calendar_date(
-        date.year(),
-        time::Month::try_from(u8::try_from(date.month()).ok()?).ok()?,
-        u8::try_from(date.day_of_month()).ok()?,
+        selected.year(),
+        time::Month::try_from(u8::try_from(selected.month()).ok()?).ok()?,
+        u8::try_from(selected.day_of_month()).ok()?,
     )
     .ok()?;
     if field_type == DocumentPropertyType::Date {
         return Some(date.to_string());
     }
+    // Build the selected wall clock in the local zone so the stored offset matches that date.
+    let local = glib::DateTime::new(
+        &glib::TimeZone::local(),
+        selected.year(),
+        selected.month(),
+        selected.day_of_month(),
+        hours.value_as_int(),
+        minutes.value_as_int(),
+        0.0,
+    )
+    .ok()?;
+    let offset =
+        time::UtcOffset::from_whole_seconds(i32::try_from(local.utc_offset().as_seconds()).ok()?)
+            .ok()?;
     let time = time::Time::from_hms(
-        u8::try_from(hours.value_as_int()).ok()?,
-        u8::try_from(minutes.value_as_int()).ok()?,
+        u8::try_from(local.hour()).ok()?,
+        u8::try_from(local.minute()).ok()?,
         0,
     )
     .ok()?;
     time::PrimitiveDateTime::new(date, time)
-        .assume_offset(local_offset())
+        .assume_offset(offset)
         .format(&time::format_description::well_known::Rfc3339)
         .ok()
 }
@@ -323,10 +361,6 @@ fn set_calendar(calendar: &gtk::Calendar, date: time::Date) {
     calendar.set_year(date.year());
     calendar.set_month(i32::from(u8::from(date.month())) - 1);
     calendar.set_day(i32::from(date.day()));
-}
-
-fn local_offset() -> time::UtcOffset {
-    time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC)
 }
 
 fn parse_date(value: &str) -> Option<time::Date> {
@@ -345,6 +379,7 @@ fn parse_date_time(value: &str) -> Option<time::OffsetDateTime> {
 fn display_date(iso: &str, date_only: bool) -> String {
     glib::DateTime::from_iso8601(iso, None)
         .ok()
+        .and_then(|date_time| date_time.to_local().ok())
         .and_then(|date_time| {
             date_time
                 .format(if date_only { "%x" } else { "%x %X" })
@@ -539,6 +574,8 @@ struct PropertyDraft {
     multiple: bool,
     /// The configured options of a list property; empty for custom properties.
     options: Vec<String>,
+    /// Whether an authored empty or null value must survive an unchanged save.
+    preserve_empty: bool,
 }
 
 impl PropertyDraft {
@@ -553,6 +590,37 @@ impl PropertyDraft {
             removable: true,
             multiple: false,
             options: Vec::new(),
+            preserve_empty: false,
+        }
+    }
+
+    /// The reserved, always-present title row.
+    fn title(value: FrontmatterValue) -> Self {
+        Self {
+            key: TITLE_KEY.to_owned(),
+            choice: DocumentPropertyType::Text,
+            value,
+            editable_key: false,
+            editable_kind: false,
+            removable: false,
+            multiple: false,
+            options: Vec::new(),
+            preserve_empty: false,
+        }
+    }
+
+    /// An ad-hoc note property with an editable name, type, and value.
+    fn custom(key: String, value: FrontmatterValue) -> Self {
+        Self {
+            key,
+            choice: type_for_value(&value),
+            value,
+            editable_key: true,
+            editable_kind: true,
+            removable: true,
+            multiple: false,
+            options: Vec::new(),
+            preserve_empty: false,
         }
     }
 
@@ -568,6 +636,7 @@ impl PropertyDraft {
             removable: false,
             multiple: property.multiple,
             options: property.options(),
+            preserve_empty: false,
         }
     }
 
@@ -582,6 +651,7 @@ impl PropertyDraft {
             removable: true,
             multiple: property.multiple,
             options: property.options(),
+            preserve_empty: false,
         }
     }
 }
@@ -838,7 +908,7 @@ pub(crate) fn show(
             || document
                 .fields
                 .iter()
-                .any(|field| matches!(field.value, FrontmatterValue::Object(_)))
+                .any(|field| !is_editable_value(&field.value))
     });
 
     let save_source = if raw_mode {
@@ -997,67 +1067,71 @@ fn button_row(name: &str, title: &str) -> adw::ButtonRow {
 }
 
 fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
-    let mut title: Option<FrontmatterValue> = None;
-    let mut note_values: Vec<(String, FrontmatterValue)> = Vec::new();
+    let mut drafts: Vec<PropertyDraft> = Vec::new();
+    let mut seen_keys: BTreeSet<String> = BTreeSet::new();
+    let mut title_seen = false;
     if let Some(document) = &request.document {
         for field in &document.fields {
-            if field.key == TITLE_KEY && title.is_none() {
-                title = Some(field.value.clone());
+            if !seen_keys.insert(field.key.clone()) {
                 continue;
             }
-            note_values.push((field.key.clone(), field.value.clone()));
+            if field.key == TITLE_KEY {
+                title_seen = true;
+                drafts.push(authored_draft(PropertyDraft::title(field.value.clone())));
+                continue;
+            }
+            let draft = match request
+                .defaults
+                .iter()
+                .find(|property| property.key == field.key)
+            {
+                Some(property) => {
+                    PropertyDraft::default_row(field.key.clone(), property, field.value.clone())
+                }
+                None => PropertyDraft::custom(field.key.clone(), field.value.clone()),
+            };
+            drafts.push(authored_draft(draft));
         }
     }
-    let mut catalog = vec![PropertyDraft {
-        key: TITLE_KEY.to_owned(),
-        choice: DocumentPropertyType::Text,
-        value: title.unwrap_or(FrontmatterValue::Text(String::new())),
-        editable_key: false,
-        editable_kind: false,
-        removable: false,
-        multiple: false,
-        options: Vec::new(),
-    }];
-    // Configured defaults are always present as value-only rows. A note value wins; otherwise the
-    // configured default value is shown so every note carries the configured attributes.
+    // A note without an authored title still shows the reserved title row first.
+    if !title_seen {
+        drafts.insert(
+            0,
+            PropertyDraft::title(FrontmatterValue::Text(String::new())),
+        );
+    }
+    // Configured defaults absent from the note are appended, so the authored key order is
+    // preserved and an unchanged save round-trips byte-for-byte.
     for property in &request.defaults {
-        if is_reserved_key(&property.key) || catalog.iter().any(|draft| draft.key == property.key) {
+        if is_reserved_key(&property.key) || seen_keys.contains(&property.key) {
             continue;
         }
-        let value = note_values
-            .iter()
-            .find(|(key, _)| key == &property.key)
-            .map_or_else(
-                || {
-                    property
-                        .default_field()
-                        .map_or(FrontmatterValue::Null, |field| field.value)
-                },
-                |(_, value)| value.clone(),
-            );
-        catalog.push(PropertyDraft::default_row(
+        let value = property
+            .default_field()
+            .map_or(FrontmatterValue::Null, |field| field.value);
+        drafts.push(PropertyDraft::default_row(
             property.key.clone(),
             property,
             value,
         ));
     }
-    // Remaining note properties are custom and keep the editable name/type/value editor.
-    for (key, value) in note_values {
-        if catalog.iter().any(|draft| draft.key == key) {
-            continue;
-        }
-        catalog.push(PropertyDraft {
-            key,
-            choice: type_for_value(&value),
-            value,
-            editable_key: true,
-            editable_kind: true,
-            removable: true,
-            multiple: false,
-            options: Vec::new(),
-        });
+    drafts
+}
+
+/// Marks a draft built from an authored field so an explicit empty or null value survives an
+/// unchanged save.
+fn authored_draft(mut draft: PropertyDraft) -> PropertyDraft {
+    draft.preserve_empty = is_blank_value(&draft.value);
+    draft
+}
+
+/// Returns whether a value is an explicit empty text or null.
+fn is_blank_value(value: &FrontmatterValue) -> bool {
+    match value {
+        FrontmatterValue::Null => true,
+        FrontmatterValue::Text(text) => text.trim().is_empty(),
+        _ => false,
     }
-    catalog
 }
 
 fn build_document(format: FrontmatterFormat, drafts: &[PropertyDraft]) -> FrontmatterDocument {
@@ -1068,11 +1142,9 @@ fn build_document(format: FrontmatterFormat, drafts: &[PropertyDraft]) -> Frontm
             if key.is_empty() {
                 return None;
             }
-            // An empty text value writes no key, so clearing the reserved title row (or an
-            // unfilled default) leaves the source untouched instead of persisting `key: ""`.
-            if matches!(&draft.value, FrontmatterValue::Text(text) if text.trim().is_empty())
-                || draft.value == FrontmatterValue::Null
-            {
+            // Empty and null values write no key unless they were authored and left untouched, so
+            // unfilled defaults and cleared fields disappear while explicit empties survive.
+            if !draft.preserve_empty && is_blank_value(&draft.value) {
                 return None;
             }
             Some(FrontmatterField::new(key, draft.value.clone()))
@@ -1396,12 +1468,19 @@ fn capture(rows: &Rows, drafts: &Drafts) {
                 let choice = type_from_index(kind.selected());
                 draft.key = key.text().to_string();
                 draft.choice = choice;
-                let value = value.frontmatter_preserving(choice, &draft.value);
-                draft.value = value;
+                let next = value.frontmatter_preserving(choice, &draft.value);
+                if next != draft.value {
+                    // An edited value is no longer an authored empty, so it may be dropped.
+                    draft.preserve_empty = false;
+                }
+                draft.value = next;
             }
             BuiltRow::Simple { value, .. } => {
                 // The key and type are fixed; only the value is read back.
                 let next = value.frontmatter_preserving(draft.choice, &draft.value);
+                if next != draft.value {
+                    draft.preserve_empty = false;
+                }
                 draft.value = next;
             }
         }

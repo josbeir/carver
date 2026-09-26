@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 14:53+0200\n"
+"POT-Creation-Date: 2026-09-26 15:21+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -140,7 +140,7 @@ msgstr ""
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1186
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1258
 msgid "Name"
 msgstr ""
 
@@ -173,7 +173,7 @@ msgstr ""
 #: apps/carver-gtk/src/ui/dialogs.rs:1809
 #: apps/carver-gtk/src/ui/editor/mod.rs:1620
 #: apps/carver-gtk/src/ui/editor/mod.rs:1710
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:815
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:885
 #: apps/carver-gtk/src/ui/editor/web.rs:536
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
@@ -346,7 +346,7 @@ msgid "Sort"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:935
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:817
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:887
 msgid "Save"
 msgstr ""
 
@@ -394,23 +394,23 @@ msgid "Custom field"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:83
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:101
 #: apps/carver-gtk/src/ui/formatting.rs:342
 msgid "Text"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:580
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:85
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:103
 msgid "Number"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:581
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:86
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:104
 msgid "Boolean"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:582
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:87
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:105
 msgid "List"
 msgstr ""
 
@@ -769,8 +769,8 @@ msgid "Show a button over the editor to edit document properties."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs:636
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:932
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:943
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1002
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1013
 msgid "Default properties"
 msgstr ""
 
@@ -1321,99 +1321,99 @@ msgstr ""
 msgid "Could not open the link in your default browser."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:84
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
 msgid "Long text"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:88
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:106
 msgid "Date"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:89
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:107
 msgid "Date & time"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:163
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:181
 msgid "Clear"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:168
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:186
 msgid "Done"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:190
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:208
 msgid "Not set"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:672
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:742
 msgid "Not managed by this dialog"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:808
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:878
 msgid "Document Properties"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:846
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:916
 msgid "Raw frontmatter"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:859
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:929
 msgid "Content"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:867
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:937
 msgid "Properties"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:875
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:948
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:945
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1018
 msgid "Add property"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:945
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1015
 msgid ""
 "These properties are offered in every document-properties dialog and, when "
 "enabled, seed new notes."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1192
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1264
 msgid "Type"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1200
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1272
 msgid "New notes use today's date"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1202
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1274
 msgid "New notes use the current date and time"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1211
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1283
 msgid "Options"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1218
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1290
 msgid "Value"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1228
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1300
 msgid "Comma-separated values offered as a dropdown."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1239
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1311
 msgid "Allow multiple values"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1264
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1336
 msgid "New property"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1328
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1330
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1400
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1402
 msgid "Remove property"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1539
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1618
 msgid "Title"
 msgstr ""
 

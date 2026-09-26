@@ -304,6 +304,9 @@ fn looks_like_iso_date(text: &str) -> bool {
 /// A value without a time or zone is midnight UTC, matching how SQLite's `julianday` interprets
 /// the same text, so Base sorting and filtering agree across the domain and SQL layers.
 fn base_instant(text: &str) -> Option<OffsetDateTime> {
+    // SQLite's `julianday` tolerates trailing spaces, so trim them to keep the two layers in
+    // agreement.
+    let text = text.trim_end_matches(' ');
     if !looks_like_iso_date(text) {
         return None;
     }
@@ -970,6 +973,8 @@ mod tests {
             "2026-09-16T12:00:00",
             "2026-09-16 12:00:00",
             "2026-09-16T12:00:00.123Z",
+            "2026-09-16 ",
+            "2026-09-16T12:00:00Z  ",
         ] {
             assert!(base_instant(text).is_some(), "{text} should parse");
         }

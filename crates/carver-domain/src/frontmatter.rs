@@ -555,8 +555,23 @@ pub fn replace_frontmatter_raw(source: &str, format: FrontmatterFormat, content:
     if content.trim().is_empty() {
         return replace_frontmatter(source, None).unwrap_or_else(|_| source.to_owned());
     }
-    let block = format!("{}\n{content}\n---", format.opener());
-    match scan_frontmatter(source) {
+    let scanned = scan_frontmatter(source);
+    // Keep an authored fence spelling (such as `---yaml`) when it maps to the requested format,
+    // so re-saving unchanged content stays a byte-for-byte no-op.
+    let opener = scanned
+        .as_ref()
+        .map(|block| block.opener.clone())
+        .filter(|opener| {
+            FrontmatterFormat::from_token(opener.trim_start_matches('-').trim()) == Some(format)
+        })
+        .unwrap_or_else(|| format.opener().to_owned());
+    if scanned.as_ref().is_some_and(|block| {
+        opener == block.opener && block.content.trim_end_matches('\n') == content
+    }) {
+        return source.to_owned();
+    }
+    let block = format!("{opener}\n{content}\n---");
+    match scanned {
         Some(scanned) => {
             let trailing = source[scanned.block_end..].trim_start_matches('\n');
             if trailing.is_empty() {
@@ -610,6 +625,14 @@ fn apply_fields(
         }
         cursor = entry.end;
         let Some(field) = desired.iter().find(|field| field.key == entry.key) else {
+            // Removing a field drops its value lines but keeps authored comments and blank
+            // lines that sit between it and the next key, matching the changed-field path.
+            for line in &lines[entry.start + 1..entry.end] {
+                let trimmed = line.trim_start();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    output.push((*line).to_owned());
+                }
+            }
             continue;
         };
         let unchanged = current

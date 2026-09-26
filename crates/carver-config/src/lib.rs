@@ -434,6 +434,21 @@ fn now_local() -> time::OffsetDateTime {
     time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
+/// Returns whether a seeded default carries a value worth writing.
+///
+/// A blank text or null default is dropped so new notes are not seeded with an empty key, which
+/// matches how the properties dialog treats unfilled values.
+fn is_seedable_field(field: &FrontmatterField) -> bool {
+    match &field.value {
+        FrontmatterValue::Null => false,
+        FrontmatterValue::Text(text) => !text.trim().is_empty(),
+        FrontmatterValue::Number(_)
+        | FrontmatterValue::Boolean(_)
+        | FrontmatterValue::List(_)
+        | FrontmatterValue::Object(_) => true,
+    }
+}
+
 impl DocumentPropertiesConfig {
     /// Returns canonical Carve source seeding a new note, or an empty string.
     #[must_use]
@@ -446,6 +461,7 @@ impl DocumentPropertiesConfig {
             .entries
             .iter()
             .filter_map(|entry| entry.default_field_at(now))
+            .filter(is_seedable_field)
             .collect();
         frontmatter_source_with_format(&fields, self.format)
     }
