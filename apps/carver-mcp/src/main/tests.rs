@@ -520,6 +520,31 @@ fn request_schemas_should_describe_uuid_ids_and_integer_revisions() -> TestResul
     Ok(())
 }
 
+#[test]
+fn request_schemas_should_bound_pagination_and_describe_timestamps() -> TestResult {
+    for schema in [
+        schemars::schema_for!(ListNotesRequest),
+        schemars::schema_for!(SearchRequest),
+    ] {
+        let schema = serde_json::to_value(schema).map_err(|error| error.to_string())?;
+        let limit = &schema["properties"]["limit"];
+        assert_eq!(limit["minimum"], 1);
+        assert_eq!(limit["maximum"], 100);
+    }
+
+    let timestamps = serde_json::to_value(schemars::schema_for!(UpdateNoteTimestampsRequest))
+        .map_err(|error| error.to_string())?;
+    assert_eq!(
+        timestamps["properties"]["created_at"]["format"],
+        "date-time"
+    );
+    assert_eq!(
+        timestamps["properties"]["updated_at"]["format"],
+        "date-time"
+    );
+    Ok(())
+}
+
 #[tokio::test]
 async fn create_note_should_seed_configured_default_properties() -> TestResult {
     let (_directory, mut server) = server(true)?;

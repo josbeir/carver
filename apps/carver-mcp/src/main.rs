@@ -95,6 +95,8 @@ struct GetNoteRequest {
 #[derive(Deserialize, JsonSchema)]
 struct ListNotesRequest {
     category_id: Option<CategoryId>,
+    /// Maximum number of notes to return, between 1 and 100. Defaults to 50.
+    #[schemars(range(min = 1, max = 100))]
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -103,6 +105,8 @@ struct ListNotesRequest {
 struct SearchRequest {
     query: String,
     category_id: Option<CategoryId>,
+    /// Maximum number of matches to return, between 1 and 100. Defaults to 50.
+    #[schemars(range(min = 1, max = 100))]
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -150,8 +154,10 @@ struct UpdateNoteTimestampsRequest {
     note_id: NoteId,
     revision: Revision,
     /// ISO 8601/RFC 3339 creation timestamp, for example `2026-09-05T12:30:00Z`.
+    #[schemars(extend("format" = "date-time"))]
     created_at: String,
     /// ISO 8601/RFC 3339 modification timestamp, for example `2026-09-05T12:30:00Z`.
+    #[schemars(extend("format" = "date-time"))]
     updated_at: String,
 }
 
