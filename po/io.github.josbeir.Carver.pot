@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 11:13+0200\n"
+"POT-Creation-Date: 2026-09-26 11:28+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -171,7 +171,7 @@ msgstr ""
 #: apps/carver-gtk/src/ui/dialogs.rs:1529
 #: apps/carver-gtk/src/ui/dialogs.rs:1714
 #: apps/carver-gtk/src/ui/editor/mod.rs:1566
-#: apps/carver-gtk/src/ui/editor/mod.rs:1652
+#: apps/carver-gtk/src/ui/editor/mod.rs:1656
 #: apps/carver-gtk/src/ui/editor/web.rs:531
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
@@ -571,7 +571,7 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs:87
 #: apps/carver-gtk/src/ui/editor/mod.rs:1558
-#: apps/carver-gtk/src/ui/editor/mod.rs:1617
+#: apps/carver-gtk/src/ui/editor/mod.rs:1621
 msgid "Export note"
 msgstr ""
 
@@ -1212,35 +1212,35 @@ msgstr ""
 msgid "Export…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1606
+#: apps/carver-gtk/src/ui/editor/mod.rs:1598
 msgid "Carve documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1607
+#: apps/carver-gtk/src/ui/editor/mod.rs:1599
 msgid "Markdown documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1608
+#: apps/carver-gtk/src/ui/editor/mod.rs:1600
 msgid "HTML documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1609
+#: apps/carver-gtk/src/ui/editor/mod.rs:1601
 msgid "PDF documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1610
+#: apps/carver-gtk/src/ui/editor/mod.rs:1602
 msgid "Portable ZIP archives"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1618
+#: apps/carver-gtk/src/ui/editor/mod.rs:1622
 msgid "Export"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1644
+#: apps/carver-gtk/src/ui/editor/mod.rs:1648
 msgid "Export may lose content"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1646
+#: apps/carver-gtk/src/ui/editor/mod.rs:1650
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1248,7 +1248,7 @@ msgid ""
 "Export anyway?"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1653
+#: apps/carver-gtk/src/ui/editor/mod.rs:1657
 msgid "Export anyway"
 msgstr ""
 
