@@ -17,6 +17,25 @@ fn clipboard_document_should_embed_a_small_managed_image() -> Result<(), Box<dyn
 }
 
 #[test]
+fn clipboard_document_should_embed_a_note_owned_managed_image()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let note = "01a0dcdd-07b9-7b52-803c-75af0ec5acea";
+    let relative = format!("{note}/example.png");
+    fs::create_dir_all(directory.path().join(note))?;
+    fs::write(directory.path().join(&relative), [1_u8, 2, 3])?;
+
+    let document = clipboard_document(
+        &format!("![Diagram](assets/{relative})"),
+        Some(directory.path()),
+    )?;
+
+    assert!(document.html.contains("src=\"data:image/png;base64,AQID\""));
+    assert_eq!(document.omitted_images, 0);
+    Ok(())
+}
+
+#[test]
 fn clipboard_document_should_preserve_external_images() -> Result<(), Box<dyn std::error::Error>> {
     let document = clipboard_document("![Logo](https://example.test/logo.png)", None)?;
 

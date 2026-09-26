@@ -574,14 +574,20 @@ fn image_width(attrs: Option<&carve::Attrs>) -> Option<u8> {
 }
 
 fn is_managed_asset_path(path: &str) -> bool {
-    let Some(filename) = path.strip_prefix("assets/") else {
+    let Some(relative) = path.strip_prefix("assets/") else {
         return false;
     };
-    !filename.is_empty()
-        && !filename.contains('/')
-        && !filename.contains('\\')
-        && filename != "."
-        && filename != ".."
+    if relative.is_empty() || relative.contains('\\') {
+        return false;
+    }
+    let mut segments = relative.split('/');
+    let valid = |segment: &str| !segment.is_empty() && segment != "." && segment != "..";
+    match (segments.next(), segments.next(), segments.next()) {
+        // Legacy flat managed assets and note-owned `assets/<note-id>/<filename>` paths.
+        (Some(filename), None, _) => valid(filename),
+        (Some(note), Some(filename), None) => valid(note) && valid(filename),
+        _ => false,
+    }
 }
 
 fn inline_label(nodes: &[InlineNode]) -> String {

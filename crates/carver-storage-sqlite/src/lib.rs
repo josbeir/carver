@@ -8,7 +8,7 @@ mod migrations;
 use std::{
     fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use atomic_write_file::AtomicWriteFile;
@@ -969,7 +969,7 @@ impl SqliteLibrary {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
-                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id)
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL
                AND (?1 IS NULL OR n.category_id = ?1)
@@ -999,7 +999,7 @@ impl SqliteLibrary {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
-                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id)
              FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.is_favorite = 1
                AND (?1 IS NULL OR n.category_id = ?1)
@@ -1033,7 +1033,7 @@ impl SqliteLibrary {
         let category = category_id.map(|id| id.to_string());
         let mut statement = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
-                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id),
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id),
                     snippet(note_fts, 2, '', '', '…', 14)
              FROM note_fts JOIN notes n ON n.id = note_fts.note_id
              JOIN categories c ON c.id = n.category_id
@@ -1110,7 +1110,7 @@ impl SqliteLibrary {
             .collect::<Result<Vec<_>, _>>()?;
         let mut notes = self.connection.prepare(
             "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.trashed_at,
-                    EXISTS(SELECT 1 FROM note_assets a WHERE a.note_id = n.id)
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id)
              FROM notes n
              JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NOT NULL AND c.trashed_at IS NULL
@@ -1122,7 +1122,11 @@ impl SqliteLibrary {
         Ok(TrashContents { categories, notes })
     }
 
-    /// Permanently removes all trashed notes, categories, and unreferenced managed assets.
+    /// Permanently removes all trashed notes, categories, and their managed assets.
+    ///
+    /// Each note owns a directory of managed files, so purging a note removes its files and
+    /// prunes its now-empty directory. Assets of soft-deleted notes are retained until this
+    /// explicit purge so that restore and Undo keep working.
     ///
     /// # Errors
     ///
@@ -1136,6 +1140,20 @@ impl SqliteLibrary {
              )",
             [],
         )?;
+        let mut doomed_assets = transaction.prepare(
+            "SELECT a.note_id, a.filename FROM assets a
+             JOIN notes n ON n.id = a.note_id
+             JOIN categories c ON c.id = n.category_id
+             WHERE n.trashed_at IS NOT NULL OR c.trashed_at IS NOT NULL",
+        )?;
+        let doomed = doomed_assets
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(doomed_assets);
+        // Deleting the notes cascades to `assets`; each asset belongs to exactly one note.
+        let assets_deleted = doomed.len();
         let notes_deleted = transaction.execute(
             "DELETE FROM notes WHERE id IN (
                  SELECT n.id FROM notes n JOIN categories c ON c.id = n.category_id
@@ -1145,27 +1163,19 @@ impl SqliteLibrary {
         )?;
         let categories_deleted =
             transaction.execute("DELETE FROM categories WHERE trashed_at IS NOT NULL", [])?;
-        let mut orphan_assets = transaction.prepare(
-            "SELECT filename FROM assets
-             WHERE NOT EXISTS (SELECT 1 FROM note_assets WHERE note_assets.asset_hash = assets.hash)",
-        )?;
-        let orphan_filenames = orphan_assets
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        let orphan_paths = orphan_filenames
-            .iter()
-            .map(|filename| self.managed_asset_path(filename))
-            .collect::<Result<Vec<_>, _>>()?;
-        drop(orphan_assets);
-        let assets_deleted = transaction.execute(
-            "DELETE FROM assets
-             WHERE NOT EXISTS (SELECT 1 FROM note_assets WHERE note_assets.asset_hash = assets.hash)",
-            [],
-        )?;
         transaction.commit()?;
-        for path in orphan_paths {
+        let mut note_directories = std::collections::BTreeSet::new();
+        for (note_id, filename) in &doomed {
+            let path = self.managed_asset_path(&format!("{note_id}/{filename}"))?;
             if path.exists() {
                 fs::remove_file(path)?;
+            }
+            note_directories.insert(note_id.clone());
+        }
+        for note_id in note_directories {
+            let directory = self.assets_dir.join(&note_id);
+            if directory.is_dir() && fs::read_dir(&directory)?.next().is_none() {
+                fs::remove_dir(directory)?;
             }
         }
         Ok(TrashPurgeResult {
@@ -1175,7 +1185,12 @@ impl SqliteLibrary {
         })
     }
 
-    /// Adds file bytes to the managed asset store and returns its portable source path.
+    /// Adds file bytes to a note-owned managed asset directory and returns its source path.
+    ///
+    /// Assets are content-addressed and deduplicated within a single note, so a note that
+    /// references identical bytes twice stores them once. Two notes that reference identical
+    /// bytes each receive their own file so that a note can be removed without affecting the
+    /// other. The returned path is `assets/<note-id>/<filename>`.
     ///
     /// # Errors
     ///
@@ -1187,12 +1202,13 @@ impl SqliteLibrary {
         bytes: &[u8],
     ) -> Result<String, StorageError> {
         let extension = asset_extension(extension)?;
+        let note = note_id.to_string();
         let digest = format!("{:x}", Sha256::digest(bytes));
         let existing_filename: Option<String> = self
             .connection
             .query_row(
-                "SELECT filename FROM assets WHERE hash = ?1",
-                [&digest],
+                "SELECT filename FROM assets WHERE note_id = ?1 AND hash = ?2",
+                params![&note, &digest],
                 |row| row.get(0),
             )
             .optional()?;
@@ -1200,28 +1216,30 @@ impl SqliteLibrary {
             Some(filename) => filename,
             None => format!("{digest}.{extension}"),
         };
-        let path = self.assets_dir.join(&filename);
+        let directory = self.assets_dir.join(&note);
+        fs::create_dir_all(&directory)?;
+        let path = directory.join(&filename);
         if !path.exists() {
             let mut file = AtomicWriteFile::open(&path)?;
             file.write_all(bytes)?;
             file.commit()?;
         }
         self.connection.execute(
-            "INSERT OR IGNORE INTO assets (hash, filename, byte_size) VALUES (?1, ?2, ?3)",
+            "INSERT OR IGNORE INTO assets (note_id, filename, hash, byte_size) VALUES (?1, ?2, ?3, ?4)",
             params![
-                &digest,
+                &note,
                 &filename,
+                &digest,
                 i64::try_from(bytes.len()).unwrap_or(i64::MAX)
             ],
         )?;
-        self.connection.execute(
-            "INSERT OR IGNORE INTO note_assets (note_id, asset_hash) VALUES (?1, ?2)",
-            params![note_id.to_string(), &digest],
-        )?;
-        Ok(format!("assets/{filename}"))
+        Ok(format!("assets/{note}/{filename}"))
     }
 
     /// Returns the on-disk size of an asset belonging to this note without reading its bytes.
+    ///
+    /// Only paths of the form `assets/<note-id>/<filename>` that match this note's owned
+    /// directory are accepted; anything else is treated as a missing asset.
     ///
     /// # Errors
     /// Returns an error for unsafe paths, database failures, or inaccessible files.
@@ -1230,21 +1248,29 @@ impl SqliteLibrary {
         note_id: NoteId,
         relative_path: &str,
     ) -> Result<Option<u64>, StorageError> {
-        let Some(filename) = relative_path.strip_prefix("assets/") else {
+        let Some((note, filename)) = split_managed_asset_path(relative_path) else {
             return Ok(None);
         };
-        let attached: bool = self.connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM assets a JOIN note_assets na ON na.asset_hash = a.hash WHERE na.note_id = ?1 AND a.filename = ?2)",
-            params![note_id.to_string(), filename], |row| row.get(0))?;
-        if !attached {
+        if note != note_id.to_string() {
+            return Ok(None);
+        }
+        let owned: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM assets WHERE note_id = ?1 AND filename = ?2)",
+            params![note, filename],
+            |row| row.get(0),
+        )?;
+        if !owned {
             return Ok(None);
         }
         Ok(Some(
-            fs::metadata(self.managed_asset_path(filename)?)?.len(),
+            fs::metadata(self.managed_asset_path(&format!("{note}/{filename}"))?)?.len(),
         ))
     }
 
     /// Reads a managed file only when it belongs to the requested note.
+    ///
+    /// Only paths of the form `assets/<note-id>/<filename>` that match this note's owned
+    /// directory are accepted; anything else is treated as a missing asset.
     ///
     /// # Errors
     ///
@@ -1254,22 +1280,23 @@ impl SqliteLibrary {
         note_id: NoteId,
         relative_path: &str,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        let Some(filename) = relative_path.strip_prefix("assets/") else {
+        let Some((note, filename)) = split_managed_asset_path(relative_path) else {
             return Ok(None);
         };
-        let attached: Option<String> = self
-            .connection
-            .query_row(
-                "SELECT a.filename FROM assets a JOIN note_assets na ON na.asset_hash = a.hash
-             WHERE na.note_id = ?1 AND a.filename = ?2",
-                params![note_id.to_string(), filename],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let Some(filename) = attached else {
+        if note != note_id.to_string() {
             return Ok(None);
-        };
-        Ok(Some(fs::read(self.managed_asset_path(&filename)?)?))
+        }
+        let owned: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM assets WHERE note_id = ?1 AND filename = ?2)",
+            params![note, filename],
+            |row| row.get(0),
+        )?;
+        if !owned {
+            return Ok(None);
+        }
+        Ok(Some(fs::read(
+            self.managed_asset_path(&format!("{note}/{filename}"))?,
+        )?))
     }
 
     fn replace_fts(
@@ -1298,17 +1325,32 @@ impl SqliteLibrary {
             .map_err(Into::into)
     }
 
-    fn managed_asset_path(&self, filename: &str) -> Result<PathBuf, StorageError> {
-        let path = Path::new(filename);
-        let is_single_filename = path.components().count() == 1
-            && path.file_name().and_then(|value| value.to_str()) == Some(filename);
-        if !is_single_filename {
+    fn managed_asset_path(&self, relative_path: &str) -> Result<PathBuf, StorageError> {
+        let path = Path::new(relative_path);
+        let is_safe_relative_path = path.components().count() >= 1
+            && path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)));
+        if !is_safe_relative_path {
             return Err(StorageError::Corrupt(format!(
-                "managed asset filename is unsafe: {filename}"
+                "managed asset path is unsafe: {relative_path}"
             )));
         }
         Ok(self.assets_dir.join(path))
     }
+}
+
+/// Splits `assets/<note-id>/<filename>` into its note identifier and filename.
+///
+/// Returns `None` for any other shape, including legacy flat `assets/<filename>` paths,
+/// absolute paths, and paths with extra directory components.
+fn split_managed_asset_path(relative_path: &str) -> Option<(&str, &str)> {
+    let relative = relative_path.strip_prefix("assets/")?;
+    let (note, filename) = relative.split_once('/')?;
+    if note.is_empty() || filename.is_empty() || filename.contains('/') || filename.contains('\\') {
+        return None;
+    }
+    Some((note, filename))
 }
 
 impl LibraryBackend for SqliteLibrary {

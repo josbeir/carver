@@ -82,12 +82,31 @@ const INITIAL_SCHEMA: &str = "
         END;
 ";
 
+/// Reshapes managed assets from a globally shared, content-addressed table into note-owned
+/// storage.
+///
+/// The legacy `assets`/`note_assets` tables are replaced by a single `assets` table keyed by
+/// `(note_id, filename)`, and each note owns a directory on disk. The migration is intentionally
+/// schema-only: it does not move legacy files or rewrite note source, so previously stored assets
+/// are discarded and their flat files are left untouched. New assets are stored per note.
+const ASSET_OWNERSHIP_SCHEMA: &str = "
+    DROP TABLE IF EXISTS note_assets;
+    DROP TABLE IF EXISTS assets;
+    CREATE TABLE assets (
+        note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL, hash TEXT NOT NULL, byte_size INTEGER NOT NULL,
+        PRIMARY KEY(note_id, filename)
+    );
+    CREATE INDEX IF NOT EXISTS assets_note_idx ON assets(note_id);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(INITIAL_SCHEMA, migrate_category_appearance_columns),
         M::up_with_hook("", migrate_note_favorite_columns),
         M::up_with_hook("", migrate_bases),
         M::up_with_hook("", migrate_derived_titles),
+        M::up(ASSET_OWNERSHIP_SCHEMA),
     ])
 }
 

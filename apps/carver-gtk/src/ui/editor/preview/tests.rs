@@ -137,9 +137,27 @@ fn rendered_document_routes_managed_assets_through_the_restricted_scheme() {
 }
 
 #[test]
+fn rendered_document_routes_note_owned_assets_through_the_restricted_scheme() {
+    let note = "01a0dcdd-07b9-7b52-803c-75af0ec5acea";
+    let html = rendered_document(&format!("![image](assets/{note}/example.png)"), false);
+    assert!(html.contains(&format!("carver-asset:///assets/{note}/example.png")));
+}
+
+#[test]
 fn asset_uri_rejects_parent_directory_paths() {
     assert_eq!(asset_filename("/assets/example.png"), Some("example.png"));
     assert_eq!(asset_filename("/assets/../library.sqlite3"), None);
+}
+
+#[test]
+fn asset_uri_accepts_note_owned_paths_and_rejects_traversal() {
+    let note = "01a0dcdd-07b9-7b52-803c-75af0ec5acea";
+    let owned = format!("/assets/{note}/example.png");
+    let expected = format!("{note}/example.png");
+    assert_eq!(asset_filename(&owned), Some(expected.as_str()));
+
+    let traversal = format!("/assets/{note}/../library.sqlite3");
+    assert_eq!(asset_filename(&traversal), None);
 }
 
 #[test]

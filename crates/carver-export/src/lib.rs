@@ -621,6 +621,16 @@ mod tests {
     }
 
     #[test]
+    fn managed_asset_paths_should_include_note_owned_paths_and_exclude_deep_traversal() {
+        let note = "01a0dcdd-07b9-7b52-803c-75af0ec5acea";
+        let paths = managed_asset_paths(&format!(
+            "![A](assets/{note}/photo.png) ![B](assets/a/b/c.png) ![C](assets/../private.png)"
+        ));
+
+        assert_eq!(paths, vec![format!("assets/{note}/photo.png")]);
+    }
+
+    #[test]
     fn filename_stem_should_replace_unsafe_path_characters() {
         assert_eq!(
             sanitized_filename_stem(" /Client: brief/ "),

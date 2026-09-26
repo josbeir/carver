@@ -35,21 +35,89 @@ fn store_asset_accepts_non_image_file_extensions() -> Result<(), StorageError> {
 }
 
 #[test]
-fn store_asset_reuses_the_canonical_filename_for_identical_bytes() -> Result<(), StorageError> {
+fn store_asset_reuses_the_canonical_filename_within_one_note() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let note = library.create_note(category.id, now)?;
+
+    let first_path = library.store_asset(note.id, "png", b"same bytes")?;
+    let second_path = library.store_asset(note.id, "png", b"same bytes")?;
+
+    assert_eq!(first_path, second_path);
+    assert_eq!(
+        library.note_asset_bytes(note.id, &second_path)?,
+        Some(b"same bytes".to_vec())
+    );
+    Ok(())
+}
+
+#[test]
+fn store_asset_keeps_identical_bytes_separate_between_notes() -> Result<(), StorageError> {
     let (_directory, library) = library();
     let now = OffsetDateTime::now_utc();
     let category = library.create_category("Work", now)?;
     let first = library.create_note(category.id, now)?;
     let second = library.create_note(category.id, now)?;
 
-    let first_path = library.store_asset(first.id, "pdf", b"same bytes")?;
-    let second_path = library.store_asset(second.id, "txt", b"same bytes")?;
+    let first_path = library.store_asset(first.id, "png", b"same bytes")?;
+    let second_path = library.store_asset(second.id, "png", b"same bytes")?;
 
-    assert_eq!(first_path, second_path);
+    assert_ne!(first_path, second_path);
+    assert!(first_path.starts_with(&format!("assets/{}/", first.id)));
+    assert!(second_path.starts_with(&format!("assets/{}/", second.id)));
     assert_eq!(
         library.note_asset_bytes(second.id, &second_path)?,
         Some(b"same bytes".to_vec())
     );
+    assert_eq!(library.note_asset_bytes(second.id, &first_path)?, None);
+    assert_eq!(library.note_asset_bytes(first.id, &second_path)?, None);
+    Ok(())
+}
+
+#[test]
+fn store_asset_keeps_bytes_in_a_note_owned_directory() -> Result<(), StorageError> {
+    let (directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let note = library.create_note(category.id, now)?;
+
+    let path = library.store_asset(note.id, "png", b"image")?;
+    let filename = path
+        .strip_prefix(&format!("assets/{}/", note.id))
+        .unwrap_or_else(|| panic!("unexpected asset path: {path}"));
+
+    assert!(
+        directory
+            .path()
+            .join("assets")
+            .join(note.id.to_string())
+            .join(filename)
+            .is_file()
+    );
+    Ok(())
+}
+
+#[test]
+fn note_asset_lookup_should_reject_nested_traversal_paths() -> Result<(), StorageError> {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::now_utc();
+    let category = library.create_category("Work", now)?;
+    let note = library.create_note(category.id, now)?;
+    let path = library.store_asset(note.id, "png", b"image")?;
+    let filename = path
+        .strip_prefix(&format!("assets/{}/", note.id))
+        .unwrap_or_else(|| panic!("unexpected asset path: {path}"));
+
+    for unsafe_path in [
+        format!("assets/../../{filename}"),
+        format!("assets/{}/../{filename}", note.id),
+        format!("assets/{}/nested/{filename}", note.id),
+        "assets/../database.sqlite".to_owned(),
+    ] {
+        assert_eq!(library.note_asset_bytes(note.id, &unsafe_path)?, None);
+        assert_eq!(library.note_asset_size(note.id, &unsafe_path)?, None);
+    }
     Ok(())
 }
 
