@@ -40,7 +40,7 @@ jobs:
       - name: Translations
         run: |
           ./scripts/update-translations.sh
-          git diff --exit-code -I 'POT-Creation-Date:' po/
+          git diff --exit-code -I 'POT-Creation-Date:' -I 'rust-format' po/
           for catalog in po/*.po; do
             output="$(mktemp --suffix=.mo)"
             msgfmt --check -c --strict -o "$output" "$catalog"

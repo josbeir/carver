@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 10:56+0200\n"
+"POT-Creation-Date: 2026-09-26 11:13+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1089,11 +1089,6 @@ msgstr "不可用"
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs:76
 msgid "Preview file"
 msgstr "预览文件"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar/outline.rs:191
-#, rust-format
-msgid "H{level}"
-msgstr "H{level}"
 
 #: apps/carver-gtk/src/ui/editor/find.rs:57
 msgid "Previous match"
