@@ -207,7 +207,9 @@ fn asset_ownership_migration_should_reshape_legacy_asset_tables() {
     let path = migrated
         .store_asset(note.id, "png", b"fresh")
         .unwrap_or_else(|error| panic!("asset store failed: {error}"));
-    assert!(path.starts_with(&format!("assets/{}/", note.id)));
+    // The note id stays out of the document-visible path.
+    assert!(path.starts_with("assets/"));
+    assert!(!path.contains(&note.id.to_string()));
     assert_eq!(
         migrated
             .note_asset_bytes(note.id, &path)

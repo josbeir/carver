@@ -621,13 +621,10 @@ mod tests {
     }
 
     #[test]
-    fn managed_asset_paths_should_include_note_owned_paths_and_exclude_deep_traversal() {
-        let note = "01a0dcdd-07b9-7b52-803c-75af0ec5acea";
-        let paths = managed_asset_paths(&format!(
-            "![A](assets/{note}/photo.png) ![B](assets/a/b/c.png) ![C](assets/../private.png)"
-        ));
+    fn managed_asset_paths_should_exclude_nested_paths() {
+        let paths = managed_asset_paths("![A](assets/photo.png) ![B](assets/a/b/c.png)");
 
-        assert_eq!(paths, vec![format!("assets/{note}/photo.png")]);
+        assert_eq!(paths, vec![String::from("assets/photo.png")]);
     }
 
     #[test]

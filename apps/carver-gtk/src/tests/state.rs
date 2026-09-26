@@ -59,11 +59,16 @@ fn library_fixture_should_store_managed_images() -> TestResult {
     let note = client.create_note(category.id)?;
     let image_path = client.store_asset(note.id, "png", b"test-png-bytes")?;
     assert!(image_path.starts_with("assets/"));
+    let filename = image_path
+        .strip_prefix("assets/")
+        .ok_or("managed asset path")?;
     assert!(
         temporary_directory
             .path()
             .join("data")
-            .join(image_path)
+            .join("assets")
+            .join(note.id.to_string())
+            .join(filename)
             .is_file()
     );
     Ok(())

@@ -97,6 +97,7 @@ pub(crate) struct EditorViewRefs {
     source_generation: Cell<u64>,
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
+    asset_scope: preview::AssetScope,
     _document_font_settings: Option<gtk::gio::Settings>,
 }
 
@@ -109,11 +110,15 @@ impl EditorViewRefs {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
+            self.asset_scope.replace(None);
             self.split_preview_source.replace(None);
             self.latest_split_preview_source.replace(None);
             self.rendered_preview_source.replace(None);
             return;
         };
+        // The asset scope follows the active document so previews and the rich editor resolve
+        // note-relative `assets/<filename>` markup against the right private directory.
+        self.asset_scope.replace(Some(document.note_id));
         self.rendering.set(true);
         self.source_generation.set(document.source_generation);
         self.favorite.set_active(document.is_favorite);
@@ -414,10 +419,11 @@ impl EditorViewRefs {
         let dispatcher = self.dispatcher.clone();
         let source = request.source.clone();
         let assets_dir = self.assets_dir.clone();
+        let note_id = request.note_id;
         let clipboard = self.source_editor.view().display().clipboard();
         let request_id = request.request_id;
         glib::idle_add_local_once(move || {
-            let message = match publish_note(&clipboard, &source, assets_dir.as_deref()) {
+            let message = match publish_note(&clipboard, &source, assets_dir.as_deref(), note_id) {
                 Ok(document) => AppMsg::Editor(EditorMsg::CopyCompleted {
                     request_id,
                     omitted_images: document.omitted_images,
@@ -462,6 +468,7 @@ impl EditorViewRefs {
             &request.target_uri,
             parent.as_ref(),
             self.assets_dir.as_deref(),
+            request.note_id,
             self.dispatcher.clone(),
             request.request_id,
             request.html_profile,
@@ -635,8 +642,10 @@ pub(crate) fn build_editor(
     let source_editor = SourceEditor::new(source_syntax_dir)?;
     let source_buffer = source_editor.buffer().clone();
     let source = source_editor.view().clone();
+    let asset_scope = preview::asset_scope();
     let rich = RichEditor::new(
         assets_dir.clone(),
+        &asset_scope,
         allow_remote_images,
         dispatcher,
         &source_buffer,
@@ -644,9 +653,9 @@ pub(crate) fn build_editor(
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     refresh_rich_theme(&rich);
-    let split_preview = build_preview(assets_dir.as_deref(), toast_overlay);
+    let split_preview = build_preview(assets_dir.as_deref(), &asset_scope, toast_overlay);
     split_preview.set_widget_name("source-split-preview");
-    let rendered_preview = build_preview(assets_dir.as_deref(), toast_overlay);
+    let rendered_preview = build_preview(assets_dir.as_deref(), &asset_scope, toast_overlay);
     rendered_preview.set_widget_name("editor-rendered-preview");
     let rendered_navigation = document_navigation::PreviewNavigation::new(
         &rendered_preview,
@@ -837,6 +846,7 @@ pub(crate) fn build_editor(
         source_generation: Cell::new(0),
         dispatcher: dispatcher.clone(),
         assets_dir,
+        asset_scope,
         _document_font_settings: document_font_settings,
     };
     Ok(EditorSurface {
@@ -1665,12 +1675,15 @@ pub(crate) fn export_rendered_snapshot(
     target_uri: &str,
     parent: Option<&gtk::Window>,
     assets_dir: Option<&Path>,
+    note_id: carver_sdk::NoteId,
     dispatcher: AppDispatcher,
     request_id: u64,
     html_profile: carver_domain::rendering::HtmlProfile,
 ) {
     let toast_overlay = adw::ToastOverlay::new();
-    let preview = build_preview(assets_dir, &toast_overlay);
+    let asset_scope = preview::asset_scope();
+    asset_scope.replace(Some(note_id));
+    let preview = build_preview(assets_dir, &asset_scope, &toast_overlay);
     let source = source.to_owned();
     let target_uri = target_uri.to_owned();
     let parent = parent.cloned();

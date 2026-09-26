@@ -1190,7 +1190,8 @@ impl SqliteLibrary {
     /// Assets are content-addressed and deduplicated within a single note, so a note that
     /// references identical bytes twice stores them once. Two notes that reference identical
     /// bytes each receive their own file so that a note can be removed without affecting the
-    /// other. The returned path is `assets/<note-id>/<filename>`.
+    /// other. The file is written under the note's directory, while the returned Carve path is
+    /// the note-relative `assets/<filename>` that keeps the note id out of the document.
     ///
     /// # Errors
     ///
@@ -1233,13 +1234,13 @@ impl SqliteLibrary {
                 i64::try_from(bytes.len()).unwrap_or(i64::MAX)
             ],
         )?;
-        Ok(format!("assets/{note}/{filename}"))
+        Ok(format!("assets/{filename}"))
     }
 
     /// Returns the on-disk size of an asset belonging to this note without reading its bytes.
     ///
-    /// Only paths of the form `assets/<note-id>/<filename>` that match this note's owned
-    /// directory are accepted; anything else is treated as a missing asset.
+    /// Only the note-relative `assets/<filename>` form is accepted; nested, traversal, and
+    /// absolute paths are treated as missing assets. Ownership is checked against this note.
     ///
     /// # Errors
     /// Returns an error for unsafe paths, database failures, or inaccessible files.
@@ -1248,15 +1249,13 @@ impl SqliteLibrary {
         note_id: NoteId,
         relative_path: &str,
     ) -> Result<Option<u64>, StorageError> {
-        let Some((note, filename)) = split_managed_asset_path(relative_path) else {
+        let Some(filename) = managed_asset_filename(relative_path) else {
             return Ok(None);
         };
-        if note != note_id.to_string() {
-            return Ok(None);
-        }
+        let note = note_id.to_string();
         let owned: bool = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM assets WHERE note_id = ?1 AND filename = ?2)",
-            params![note, filename],
+            params![&note, filename],
             |row| row.get(0),
         )?;
         if !owned {
@@ -1269,8 +1268,8 @@ impl SqliteLibrary {
 
     /// Reads a managed file only when it belongs to the requested note.
     ///
-    /// Only paths of the form `assets/<note-id>/<filename>` that match this note's owned
-    /// directory are accepted; anything else is treated as a missing asset.
+    /// Only the note-relative `assets/<filename>` form is accepted; nested, traversal, and
+    /// absolute paths are treated as missing assets. Ownership is checked against this note.
     ///
     /// # Errors
     ///
@@ -1280,15 +1279,13 @@ impl SqliteLibrary {
         note_id: NoteId,
         relative_path: &str,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        let Some((note, filename)) = split_managed_asset_path(relative_path) else {
+        let Some(filename) = managed_asset_filename(relative_path) else {
             return Ok(None);
         };
-        if note != note_id.to_string() {
-            return Ok(None);
-        }
+        let note = note_id.to_string();
         let owned: bool = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM assets WHERE note_id = ?1 AND filename = ?2)",
-            params![note, filename],
+            params![&note, filename],
             |row| row.get(0),
         )?;
         if !owned {
@@ -1340,17 +1337,16 @@ impl SqliteLibrary {
     }
 }
 
-/// Splits `assets/<note-id>/<filename>` into its note identifier and filename.
+/// Returns the filename from a note-relative `assets/<filename>` managed path.
 ///
-/// Returns `None` for any other shape, including legacy flat `assets/<filename>` paths,
-/// absolute paths, and paths with extra directory components.
-fn split_managed_asset_path(relative_path: &str) -> Option<(&str, &str)> {
-    let relative = relative_path.strip_prefix("assets/")?;
-    let (note, filename) = relative.split_once('/')?;
-    if note.is_empty() || filename.is_empty() || filename.contains('/') || filename.contains('\\') {
+/// Returns `None` for absolute paths, nested directory components, backslash separators, and
+/// `.`/`..` filenames.
+fn managed_asset_filename(relative_path: &str) -> Option<&str> {
+    let filename = relative_path.strip_prefix("assets/")?;
+    if filename.is_empty() || filename.contains('/') || filename.contains('\\') {
         return None;
     }
-    Some((note, filename))
+    Some(filename)
 }
 
 impl LibraryBackend for SqliteLibrary {

@@ -233,7 +233,8 @@ pub trait LibraryBackend: Send + 'static {
     ) -> Result<Page<SearchHit>, Self::Error>;
     /// Stores note-owned managed file bytes and returns their relative Carve path.
     ///
-    /// The returned path is `assets/<note-id>/<filename>`.
+    /// The bytes are written under the note's private asset directory, while the returned
+    /// document-visible path is `assets/<filename>` and never contains the note id.
     fn store_asset(
         &self,
         note_id: NoteId,

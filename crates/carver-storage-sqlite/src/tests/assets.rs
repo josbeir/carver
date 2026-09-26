@@ -53,8 +53,8 @@ fn store_asset_reuses_the_canonical_filename_within_one_note() -> Result<(), Sto
 }
 
 #[test]
-fn store_asset_keeps_identical_bytes_separate_between_notes() -> Result<(), StorageError> {
-    let (_directory, library) = library();
+fn identical_bytes_should_be_owned_by_each_note_in_its_own_directory() -> Result<(), StorageError> {
+    let (directory, library) = library();
     let now = OffsetDateTime::now_utc();
     let category = library.create_category("Work", now)?;
     let first = library.create_note(category.id, now)?;
@@ -62,16 +62,37 @@ fn store_asset_keeps_identical_bytes_separate_between_notes() -> Result<(), Stor
 
     let first_path = library.store_asset(first.id, "png", b"same bytes")?;
     let second_path = library.store_asset(second.id, "png", b"same bytes")?;
+    let filename = first_path
+        .strip_prefix("assets/")
+        .unwrap_or_else(|| panic!("unexpected asset path: {first_path}"));
 
-    assert_ne!(first_path, second_path);
-    assert!(first_path.starts_with(&format!("assets/{}/", first.id)));
-    assert!(second_path.starts_with(&format!("assets/{}/", second.id)));
+    // The document-visible path stays note-relative and identical...
+    assert_eq!(first_path, second_path);
+    // ...while each note owns an independent copy on disk.
+    assert!(
+        directory
+            .path()
+            .join("assets")
+            .join(first.id.to_string())
+            .join(filename)
+            .is_file()
+    );
+    assert!(
+        directory
+            .path()
+            .join("assets")
+            .join(second.id.to_string())
+            .join(filename)
+            .is_file()
+    );
+    assert_eq!(
+        library.note_asset_bytes(first.id, &first_path)?,
+        Some(b"same bytes".to_vec())
+    );
     assert_eq!(
         library.note_asset_bytes(second.id, &second_path)?,
         Some(b"same bytes".to_vec())
     );
-    assert_eq!(library.note_asset_bytes(second.id, &first_path)?, None);
-    assert_eq!(library.note_asset_bytes(first.id, &second_path)?, None);
     Ok(())
 }
 
@@ -84,7 +105,7 @@ fn store_asset_keeps_bytes_in_a_note_owned_directory() -> Result<(), StorageErro
 
     let path = library.store_asset(note.id, "png", b"image")?;
     let filename = path
-        .strip_prefix(&format!("assets/{}/", note.id))
+        .strip_prefix("assets/")
         .unwrap_or_else(|| panic!("unexpected asset path: {path}"));
 
     assert!(
@@ -99,24 +120,22 @@ fn store_asset_keeps_bytes_in_a_note_owned_directory() -> Result<(), StorageErro
 }
 
 #[test]
-fn note_asset_lookup_should_reject_nested_traversal_paths() -> Result<(), StorageError> {
+fn note_asset_lookup_should_reject_nested_and_traversal_paths() -> Result<(), StorageError> {
     let (_directory, library) = library();
     let now = OffsetDateTime::now_utc();
     let category = library.create_category("Work", now)?;
     let note = library.create_note(category.id, now)?;
-    let path = library.store_asset(note.id, "png", b"image")?;
-    let filename = path
-        .strip_prefix(&format!("assets/{}/", note.id))
-        .unwrap_or_else(|| panic!("unexpected asset path: {path}"));
+    library.store_asset(note.id, "png", b"image")?;
 
     for unsafe_path in [
-        format!("assets/../../{filename}"),
-        format!("assets/{}/../{filename}", note.id),
-        format!("assets/{}/nested/{filename}", note.id),
-        "assets/../database.sqlite".to_owned(),
+        "assets/../database.sqlite",
+        "assets/nested/image.png",
+        "assets/./image.png",
+        "../image.png",
+        "/tmp/image.png",
     ] {
-        assert_eq!(library.note_asset_bytes(note.id, &unsafe_path)?, None);
-        assert_eq!(library.note_asset_size(note.id, &unsafe_path)?, None);
+        assert_eq!(library.note_asset_bytes(note.id, unsafe_path)?, None);
+        assert_eq!(library.note_asset_size(note.id, unsafe_path)?, None);
     }
     Ok(())
 }

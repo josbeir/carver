@@ -47,13 +47,18 @@ impl RichEditor {
     /// Builds an editor backed by the locally bundled, sandboxed Tiptap application.
     pub(crate) fn new(
         assets_dir: Option<std::path::PathBuf>,
+        asset_scope: &super::preview::AssetScope,
         allow_remote_images: bool,
         dispatcher: &AppDispatcher,
         source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
     ) -> Self {
         let context = webkit6::WebContext::new();
-        super::preview::install_editor_asset_scheme(&context, assets_dir);
+        super::preview::install_editor_asset_scheme(
+            &context,
+            assets_dir,
+            std::rc::Rc::clone(asset_scope),
+        );
         let manager = webkit6::UserContentManager::new();
         manager.register_script_message_handler("carver", None);
         // Use WebKit's privileged user-script channel instead of an inline
