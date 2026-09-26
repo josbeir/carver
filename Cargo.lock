@@ -159,8 +159,10 @@ name = "carver-config"
 version = "0.3.1"
 dependencies = [
  "atomic-write-file",
+ "carver-domain",
  "directories",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "toml",

@@ -241,3 +241,141 @@ fn enhanced_rendering_should_persist_disabled_preference() {
             .contains("enhanced_carve_rendering = false")
     );
 }
+
+#[test]
+fn document_properties_should_default_to_disabled_with_the_floating_button() {
+    let config = Config::default();
+    assert!(!config.document_properties.enabled);
+    assert!(config.document_properties.floating_button);
+    assert!(config.document_properties.entries.is_empty());
+}
+
+#[test]
+fn partial_config_should_keep_document_property_defaults() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[document_properties]\nenabled = true\n")?;
+
+    let config = load(&path)?;
+    assert!(config.document_properties.enabled);
+    assert!(config.document_properties.floating_button);
+    Ok(())
+}
+
+#[test]
+fn document_properties_should_round_trip_typed_entries() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    let mut config = Config::default();
+    config.document_properties.enabled = true;
+    config.document_properties.entries = vec![
+        DocumentProperty {
+            key: String::from("author"),
+            kind: PropertyKind::Text,
+            multiline: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        },
+        DocumentProperty {
+            key: String::from("tags"),
+            kind: PropertyKind::List,
+            multiline: false,
+            value: serde_json::json!(["rust", "gtk"]),
+        },
+        DocumentProperty {
+            key: String::from("summary"),
+            kind: PropertyKind::Text,
+            multiline: true,
+            value: serde_json::Value::String(String::new()),
+        },
+    ];
+    save(&path, &config)?;
+
+    let source = fs::read_to_string(&path)?;
+    assert!(source.contains("[document_properties]"));
+    assert!(source.contains("kind = \"text\""));
+    assert!(source.contains("multiline = true"));
+
+    assert_eq!(load(&path)?, config);
+    Ok(())
+}
+
+#[test]
+fn document_properties_default_source_should_be_gated_by_enabled() {
+    let mut config = DocumentPropertiesConfig {
+        enabled: false,
+        floating_button: true,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            kind: PropertyKind::Text,
+            multiline: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    assert_eq!(config.default_source(), "");
+
+    config.enabled = true;
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
+}
+
+#[test]
+fn document_properties_should_reject_reserved_and_unsupported_entries() {
+    let property = |key: &str, kind: PropertyKind| DocumentProperty {
+        key: key.to_owned(),
+        kind,
+        multiline: false,
+        value: serde_json::Value::Null,
+    };
+
+    let reserved = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![property("title", PropertyKind::Text)],
+    };
+    assert!(reserved.validate().is_err());
+
+    let unsupported = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![property("state", PropertyKind::Mixed)],
+    };
+    assert!(unsupported.validate().is_err());
+
+    let mismatched = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![DocumentProperty {
+            key: String::from("count"),
+            kind: PropertyKind::Number,
+            multiline: false,
+            value: serde_json::Value::String(String::from("three")),
+        }],
+    };
+    assert!(mismatched.validate().is_err());
+
+    let duplicated = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        entries: vec![
+            property("author", PropertyKind::Text),
+            property("author", PropertyKind::Text),
+        ],
+    };
+    assert!(duplicated.validate().is_err());
+}
+
+#[test]
+fn loading_should_reject_a_reserved_default_property() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(
+        &path,
+        "[[document_properties.entries]]\nkey = \"title\"\nkind = \"text\"\nvalue = \"X\"\n",
+    )?;
+
+    assert!(matches!(
+        load(&path),
+        Err(ConfigError::InvalidDocumentProperties(_))
+    ));
+    Ok(())
+}

@@ -53,6 +53,7 @@ pub struct PropertyPath(pub String);
 /// The observed JSON value kind for a frontmatter property.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "kebab-case")]
 pub enum PropertyKind {
     /// A text value.
     Text,
@@ -66,6 +67,14 @@ pub enum PropertyKind {
     Null,
     /// Multiple value kinds were observed at this path.
     Mixed,
+}
+
+impl PropertyKind {
+    /// Returns whether the kind can be chosen for a user-configured property.
+    #[must_use]
+    pub const fn is_selectable(self) -> bool {
+        matches!(self, Self::Text | Self::Number | Self::Boolean | Self::List)
+    }
 }
 
 /// A discovered frontmatter property with display metadata.

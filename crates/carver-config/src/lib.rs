@@ -3,12 +3,16 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeSet,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use atomic_write_file::AtomicWriteFile;
+use carver_domain::{
+    FrontmatterField, FrontmatterValue, PropertyKind, frontmatter_source, is_reserved_key,
+};
 use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
@@ -112,6 +116,9 @@ pub struct Config {
     /// Window and navigation state.
     #[serde(default)]
     pub window: WindowConfig,
+    /// Default document properties.
+    #[serde(default)]
+    pub document_properties: DocumentPropertiesConfig,
 }
 
 /// Editor preferences.
@@ -281,6 +288,116 @@ pub struct WindowConfig {
     pub sidebar_collapsed: bool,
 }
 
+/// Default document properties applied to new notes and offered by the properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DocumentPropertiesConfig {
+    /// Whether new notes are seeded with the configured properties.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Whether the editor shows the floating properties button.
+    #[serde(default = "default_true")]
+    pub floating_button: bool,
+    /// Ordered default properties.
+    #[serde(default)]
+    pub entries: Vec<DocumentProperty>,
+}
+
+impl Default for DocumentPropertiesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            floating_button: true,
+            entries: Vec::new(),
+        }
+    }
+}
+
+/// One user-configured document property.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DocumentProperty {
+    /// Property name.
+    pub key: String,
+    /// Value kind offered by the properties dialog.
+    pub kind: PropertyKind,
+    /// Whether text values use a multi-line editor.
+    #[serde(default)]
+    pub multiline: bool,
+    /// Default value.
+    #[serde(default)]
+    pub value: serde_json::Value,
+}
+
+impl DocumentProperty {
+    /// Converts a configured default into a domain frontmatter field.
+    #[must_use]
+    pub fn to_frontmatter_field(&self) -> FrontmatterField {
+        FrontmatterField::new(self.key.clone(), FrontmatterValue::from_json(&self.value))
+    }
+}
+
+impl DocumentPropertiesConfig {
+    /// Returns canonical Carve source seeding a new note, or an empty string.
+    #[must_use]
+    pub fn default_source(&self) -> String {
+        if !self.enabled {
+            return String::new();
+        }
+        let fields: Vec<FrontmatterField> = self
+            .entries
+            .iter()
+            .map(DocumentProperty::to_frontmatter_field)
+            .collect();
+        frontmatter_source(&fields)
+    }
+
+    /// Validates the configured default properties.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a key is blank, reserved, or duplicated, or when a kind or value
+    /// is unsupported.
+    pub fn validate(&self) -> Result<(), String> {
+        let mut seen = BTreeSet::new();
+        for entry in &self.entries {
+            let key = entry.key.trim();
+            if key.is_empty() {
+                return Err(String::from("property keys must not be empty"));
+            }
+            if is_reserved_key(key) {
+                return Err(format!(
+                    "'{key}' is reserved and cannot be a default property"
+                ));
+            }
+            if !entry.kind.is_selectable() {
+                return Err(format!("property '{key}' has an unsupported kind"));
+            }
+            if entry.multiline && entry.kind != PropertyKind::Text {
+                return Err(format!("property '{key}' can only be multi-line when text"));
+            }
+            if !value_matches_kind(entry.kind, &entry.value) {
+                return Err(format!("property '{key}' value does not match its kind"));
+            }
+            if !seen.insert(key.to_owned()) {
+                return Err(format!("property '{key}' is configured more than once"));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn value_matches_kind(kind: PropertyKind, value: &serde_json::Value) -> bool {
+    if value.is_null() {
+        return true;
+    }
+    match kind {
+        PropertyKind::Text => value.is_string(),
+        PropertyKind::Number => value.is_number(),
+        PropertyKind::Boolean => value.is_boolean(),
+        PropertyKind::List => value.is_array(),
+        PropertyKind::Null | PropertyKind::Mixed => false,
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -289,6 +406,7 @@ impl Default for Config {
             images: ImageConfig::default(),
             search: SearchConfig::default(),
             window: WindowConfig::default(),
+            document_properties: DocumentPropertiesConfig::default(),
         }
     }
 }
@@ -341,6 +459,9 @@ pub enum ConfigError {
     /// TOML could not be parsed or decoded.
     #[error("configuration is invalid: {0}")]
     InvalidToml(String),
+    /// Document-property preferences are invalid.
+    #[error("document properties are invalid: {0}")]
+    InvalidDocumentProperties(String),
 }
 
 /// Reads the existing config, returning defaults when it has not been created.
@@ -353,7 +474,13 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
         return Ok(Config::default());
     }
     let source = fs::read_to_string(path)?;
-    toml::from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))
+    let config: Config =
+        toml::from_str(&source).map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
+    config
+        .document_properties
+        .validate()
+        .map_err(ConfigError::InvalidDocumentProperties)?;
+    Ok(config)
 }
 
 /// Saves typed configuration atomically.
@@ -362,6 +489,10 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
 ///
 /// Returns an error when the parent directory or configuration file cannot be written.
 pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
+    config
+        .document_properties
+        .validate()
+        .map_err(ConfigError::InvalidDocumentProperties)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
