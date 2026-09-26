@@ -314,8 +314,6 @@ pub enum EditorMsg {
     ApplyFrontmatter {
         /// Editor lifetime that opened the dialog.
         session: EditorSessionId,
-        /// Revision the note had when the dialog opened.
-        revision: Revision,
         /// Structured or raw edit produced by the dialog.
         edit: FrontmatterEdit,
     },

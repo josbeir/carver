@@ -219,6 +219,51 @@ impl ValueWidget {
         }
     }
 
+    /// Reads the value while keeping an unchanged typed value intact.
+    ///
+    /// The list editor joins elements with commas, so re-parsing an untouched row would turn
+    /// `[true, 2]` into `["true", "2"]` and split elements containing commas. When the widget
+    /// text still matches the rendered original, the parsed value is returned unchanged.
+    fn frontmatter_preserving(
+        &self,
+        choice: PropertyKindChoice,
+        previous: &FrontmatterValue,
+    ) -> FrontmatterValue {
+        match self {
+            Self::Boolean(row) => FrontmatterValue::Boolean(row.is_active()),
+            Self::Long { view, .. } => {
+                let text = buffer_text(&view.buffer());
+                if text == frontmatter_text(previous) {
+                    previous.clone()
+                } else {
+                    FrontmatterValue::Text(text)
+                }
+            }
+            Self::Entry(row) => {
+                let text = row.text().to_string();
+                let expected = match choice {
+                    PropertyKindChoice::List => frontmatter_list_text(previous),
+                    _ => frontmatter_text(previous),
+                };
+                if text == expected {
+                    return previous.clone();
+                }
+                match choice {
+                    PropertyKindChoice::Number => parse_number(&text)
+                        .map_or(FrontmatterValue::Text(text), FrontmatterValue::Number),
+                    PropertyKindChoice::List => FrontmatterValue::List(
+                        text.split(',')
+                            .map(str::trim)
+                            .filter(|item| !item.is_empty())
+                            .map(|item| FrontmatterValue::Text(item.to_owned()))
+                            .collect(),
+                    ),
+                    _ => FrontmatterValue::Text(text),
+                }
+            }
+        }
+    }
+
     fn connect_changed(&self, callback: &Rc<dyn Fn()>) {
         match self {
             Self::Entry(row) => {
@@ -401,7 +446,6 @@ pub(crate) fn show(
     });
 
     let session = request.session;
-    let revision = request.revision;
     let dispatcher = dispatcher.clone();
     let dialog_for_save = dialog.clone();
     save.connect_clicked(move |_| {
@@ -418,7 +462,6 @@ pub(crate) fn show(
         let _ = dialog_for_save.close();
         let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
-            revision,
             edit,
         }));
     });
@@ -433,10 +476,13 @@ enum SaveSource {
 }
 
 /// Presents the editor for the user-configurable default properties.
+///
+/// `entries` is shared with the caller so reopening the dialog reflects the latest persisted
+/// defaults rather than the snapshot captured when the Preferences dialog was built.
 pub(crate) fn show_defaults(
     parent: Option<&gtk::Window>,
     dispatcher: &AppDispatcher,
-    entries: &[DocumentProperty],
+    entries: &Rc<RefCell<Vec<DocumentProperty>>>,
 ) -> adw::Dialog {
     let dialog = adw::PreferencesDialog::new();
     dialog.set_title(&gettext("Default properties"));
@@ -456,23 +502,34 @@ pub(crate) fn show_defaults(
     dialog.add(&page);
 
     let drafts: Drafts = Rc::new(RefCell::new(
-        entries.iter().map(PropertyDraft::from_property).collect(),
+        entries
+            .borrow()
+            .iter()
+            .map(PropertyDraft::from_property)
+            .collect(),
     ));
     let rows: Rows = Rc::new(RefCell::new(Vec::new()));
     let on_change: Rc<dyn Fn()> = {
         let drafts = Rc::clone(&drafts);
         let rows = Rc::clone(&rows);
+        let entries = Rc::clone(entries);
         let dispatcher = dispatcher.clone();
-        Rc::new(move || persist_defaults(&rows, &drafts, &dispatcher))
+        Rc::new(move || persist_defaults(&rows, &drafts, &entries, &dispatcher))
     };
     rebuild(&group, &rows, &drafts, &on_change);
     connect_add_property(&add, &group, &rows, &drafts, &on_change);
 
     let close_drafts = Rc::clone(&drafts);
     let close_rows = Rc::clone(&rows);
+    let close_entries = Rc::clone(entries);
     let close_dispatcher = dispatcher.clone();
     dialog.connect_closed(move |_| {
-        persist_defaults(&close_rows, &close_drafts, &close_dispatcher);
+        persist_defaults(
+            &close_rows,
+            &close_drafts,
+            &close_entries,
+            &close_dispatcher,
+        );
     });
 
     dialog.present(parent);
@@ -761,16 +818,23 @@ fn capture(rows: &Rows, drafts: &Drafts) {
         let choice = PropertyKindChoice::from_index(row.kind.selected());
         draft.key = row.key.text().to_string();
         draft.choice = choice;
-        draft.value = row.value.frontmatter(choice);
+        let value = row.value.frontmatter_preserving(choice, &draft.value);
+        draft.value = value;
         draft.fixed_key = row.fixed_key;
     }
 }
 
-fn persist_defaults(rows: &Rows, drafts: &Drafts, dispatcher: &AppDispatcher) {
+fn persist_defaults(
+    rows: &Rows,
+    drafts: &Drafts,
+    entries: &Rc<RefCell<Vec<DocumentProperty>>>,
+    dispatcher: &AppDispatcher,
+) {
     capture(rows, drafts);
-    let entries = normalized_default_properties(&drafts.borrow());
+    let properties = normalized_default_properties(&drafts.borrow());
+    entries.borrow_mut().clone_from(&properties);
     let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
-        entries,
+        properties,
     )));
 }
 

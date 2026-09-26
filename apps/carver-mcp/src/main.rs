@@ -325,8 +325,9 @@ impl CarverServer {
 
     /// Creates a note from canonical Carve or, with `markdown: true`, `CommonMark` source.
     ///
-    /// Omitting `source` seeds the configured default document properties. The response carries
-    /// the note fields plus a `report` with the version 2 importer-fidelity assessment; a
+    /// Omitting `source` seeds the configured default document properties as canonical Carve;
+    /// `markdown` only applies to an explicitly supplied `source`. The response carries the note
+    /// fields plus a `report` with the version 2 importer-fidelity assessment; a
     /// `fidelity-unverified` diagnostic marks a conversion whose fidelity could not be confirmed.
     #[tool(annotations(title = "Create note", destructive_hint = false))]
     async fn create_note(
@@ -334,10 +335,16 @@ impl CarverServer {
         Parameters(request): Parameters<CreateNoteRequest>,
     ) -> Result<String, ErrorData> {
         self.require_write()?;
+        let explicit_source = request.source.is_some();
         let source = request
             .source
             .unwrap_or_else(|| self.default_source.clone());
-        let imported = carver_sdk::assess_import(&source, document_format(request.markdown));
+        let format = if explicit_source {
+            document_format(request.markdown)
+        } else {
+            DocumentImportFormat::Carve
+        };
+        let imported = carver_sdk::assess_import(&source, format);
         let note = self
             .client
             .import_note_async(

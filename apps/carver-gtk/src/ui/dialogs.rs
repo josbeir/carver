@@ -1,10 +1,10 @@
 //! GNOME dialogs and window-scoped actions.
 
-use std::{rc::Rc, sync::LazyLock};
+use std::{cell::RefCell, rc::Rc, sync::LazyLock};
 
 use adw::prelude::*;
 use carver_agent_integration::{AgentClient, InstallChannel, setup_instruction};
-use carver_config::{DocumentWidth, SourceSyntaxStyle};
+use carver_config::{DocumentProperty, DocumentWidth, SourceSyntaxStyle};
 use carver_sdk::{
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary,
     DocumentImportFormat, NoteId,
@@ -654,7 +654,8 @@ fn document_properties_group(
     });
     let parent = parent.clone();
     let defaults_dispatcher = dispatcher.clone();
-    let entries = config.document_properties.entries.clone();
+    let entries: Rc<RefCell<Vec<DocumentProperty>>> =
+        Rc::new(RefCell::new(config.document_properties.entries.clone()));
     defaults.connect_activated(move |_| {
         let _ = super::editor::properties_dialog::show_defaults(
             Some(parent.upcast_ref::<gtk::Window>()),

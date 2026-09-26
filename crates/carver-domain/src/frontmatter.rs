@@ -589,6 +589,14 @@ fn apply_fields(
             }
         } else {
             output.push(render_field_line(format, field)?);
+            // The entry span absorbs trailing comments and blank lines. Keep that trivia so a
+            // scalar replacement does not delete authored comments.
+            for line in &lines[entry.start + 1..entry.end] {
+                let trimmed = line.trim_start();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    output.push((*line).to_owned());
+                }
+            }
         }
     }
     while cursor < lines.len() {

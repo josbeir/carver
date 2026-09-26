@@ -682,11 +682,9 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::PropertiesDialogRequested => open_properties_effect(model),
-        EditorMsg::ApplyFrontmatter {
-            session,
-            revision,
-            edit,
-        } => apply_frontmatter_effect(model, session, revision, edit),
+        EditorMsg::ApplyFrontmatter { session, edit } => {
+            apply_frontmatter_effect(model, session, edit)
+        }
         EditorMsg::ApplySourceCommand { command, selection } => {
             update_source_command(model, command, selection)
         }
@@ -1153,7 +1151,6 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
     vec![Effect::ShowDocumentProperties {
         request: super::EditorPropertiesRequest {
             session: document.session,
-            revision: document.revision,
             note_id: document.note_id,
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
@@ -1166,13 +1163,14 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
 fn apply_frontmatter_effect(
     model: &mut AppModel,
     session: super::EditorSessionId,
-    revision: carver_sdk::Revision,
     edit: super::FrontmatterEdit,
 ) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
-    if document.session != session || document.revision != revision {
+    // A local autosave may advance the revision while the dialog is open; only an unresolved
+    // external change invalidates the dialog.
+    if document.session != session || document.external_change.is_some() {
         return Vec::new();
     }
     let updated = match edit {
@@ -1193,9 +1191,18 @@ fn apply_frontmatter_effect(
     if !changed {
         return Vec::new();
     }
+    let source = model
+        .editor
+        .as_ref()
+        .map(|document| document.source.clone());
     model.notice = None;
     let mut effects: Vec<Effect> = schedule_preview(model).into_iter().collect();
     effects.extend(schedule_editor_save(model));
+    if let Some(source) = source {
+        // The rich projection caches the old frontmatter atom; reload it so the next rich edit
+        // serializes the new block instead of reverting the change.
+        effects.push(Effect::ReloadRichEditor { session, source });
+    }
     effects
 }
 

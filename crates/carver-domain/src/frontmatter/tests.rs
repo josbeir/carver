@@ -256,3 +256,14 @@ fn empty_fields_should_remove_or_leave_the_block_empty() {
     assert_eq!(replaced("---\na: b\n---\nBody", Some(&empty)), "Body");
     assert_eq!(replaced("Body", Some(&empty)), "Body");
 }
+
+#[test]
+fn scalar_edit_should_preserve_adjacent_comments() {
+    let source = "---\na: one\n# important\nb: two\n---\nBody";
+    let mut desired = yaml_document(source);
+    desired.fields[0].value = FrontmatterValue::Text("changed".to_owned());
+    assert_eq!(
+        replaced(source, Some(&desired)),
+        "---\na: \"changed\"\n# important\nb: two\n---\nBody"
+    );
+}

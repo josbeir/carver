@@ -571,3 +571,29 @@ async fn create_note_should_keep_an_explicit_source() -> TestResult {
     assert_eq!(created["source"], serde_json::json!("# Body"));
     Ok(())
 }
+
+#[tokio::test]
+async fn create_note_should_not_convert_seeded_defaults_as_markdown() -> TestResult {
+    let (_directory, mut server) = server(true)?;
+    let seeded = "---\nauthor: Jane\n---\ntags:\n  - rust\n";
+    server.default_source = seeded.to_owned();
+    let category = server
+        .create_category(Parameters(CreateCategoryRequest {
+            name: "Journal".to_owned(),
+            appearance: None,
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: id(&category)?,
+            source: None,
+            markdown: Some(true),
+        }))
+        .await
+        .map_err(|error| error.to_string())?;
+    let created =
+        serde_json::from_str::<serde_json::Value>(&created).map_err(|error| error.to_string())?;
+    assert_eq!(created["source"], serde_json::json!(seeded));
+    Ok(())
+}

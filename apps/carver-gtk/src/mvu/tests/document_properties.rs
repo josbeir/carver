@@ -9,7 +9,7 @@ fn text_property(key: &str, value: &str) -> carver_config::DocumentProperty {
     }
 }
 
-fn load_editor(model: &mut AppModel, source: &str) -> (EditorSessionId, Revision) {
+fn load_editor(model: &mut AppModel, source: &str) -> EditorSessionId {
     let _ = update(
         model,
         AppMsg::Editor(EditorMsg::Load {
@@ -21,9 +21,18 @@ fn load_editor(model: &mut AppModel, source: &str) -> (EditorSessionId, Revision
     model
         .editor
         .as_ref()
-        .map_or((EditorSessionId(0), Revision(0)), |document| {
-            (document.session, document.revision)
-        })
+        .map_or(EditorSessionId(0), |document| document.session)
+}
+
+fn author_document() -> carver_domain::FrontmatterDocument {
+    carver_domain::FrontmatterDocument {
+        format: carver_domain::FrontmatterFormat::Yaml,
+        fields: vec![carver_domain::FrontmatterField::new(
+            "author",
+            carver_domain::FrontmatterValue::Text("Jane".to_owned()),
+        )],
+        error: None,
+    }
 }
 
 #[test]
@@ -115,24 +124,15 @@ fn create_note_should_not_seed_disabled_default_properties() {
 }
 
 #[test]
-fn apply_frontmatter_should_update_the_source_and_bump_the_generation() {
+fn apply_frontmatter_should_update_the_source_and_reload_the_rich_projection() {
     let mut model = AppModel::new(&Config::default());
-    let (session, revision) = load_editor(&mut model, "Body\n");
-    let document = carver_domain::FrontmatterDocument {
-        format: carver_domain::FrontmatterFormat::Yaml,
-        fields: vec![carver_domain::FrontmatterField::new(
-            "author",
-            carver_domain::FrontmatterValue::Text("Jane".to_owned()),
-        )],
-        error: None,
-    };
+    let session = load_editor(&mut model, "Body\n");
 
     let effects = update(
         &mut model,
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
-            revision,
-            edit: FrontmatterEdit::Parsed(document),
+            edit: FrontmatterEdit::Parsed(author_document()),
         }),
     );
 
@@ -148,15 +148,20 @@ fn apply_frontmatter_should_update_the_source_and_bump_the_generation() {
             .any(|effect| matches!(effect, Effect::ScheduleEditorSave { .. })),
         "applying frontmatter should autosave"
     );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ReloadRichEditor { .. })),
+        "applying frontmatter should reload the rich projection"
+    );
 }
 
 #[test]
 fn apply_frontmatter_should_be_a_noop_for_unchanged_source() {
     let source = "---\ntitle: Hello\n---\nBody\n";
     let mut model = AppModel::new(&Config::default());
-    let (session, revision) = load_editor(&mut model, source);
+    let session = load_editor(&mut model, source);
     let document = carver_domain::parse_frontmatter_document(source);
-    assert!(document.is_some());
     let Some(document) = document else {
         return;
     };
@@ -165,7 +170,6 @@ fn apply_frontmatter_should_be_a_noop_for_unchanged_source() {
         &mut model,
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
-            revision,
             edit: FrontmatterEdit::Parsed(document),
         }),
     );
@@ -188,24 +192,45 @@ fn apply_frontmatter_should_be_a_noop_for_unchanged_source() {
 }
 
 #[test]
-fn apply_frontmatter_should_ignore_a_stale_revision() {
+fn apply_frontmatter_should_accept_a_local_autosave() {
     let mut model = AppModel::new(&Config::default());
-    let (session, revision) = load_editor(&mut model, "Body\n");
-    let document = carver_domain::FrontmatterDocument {
-        format: carver_domain::FrontmatterFormat::Yaml,
-        fields: vec![carver_domain::FrontmatterField::new(
-            "author",
-            carver_domain::FrontmatterValue::Text("Jane".to_owned()),
-        )],
-        error: None,
-    };
+    let session = load_editor(&mut model, "Body\n");
+    // A local autosave advances the persisted revision while the dialog is open.
+    if let Some(document) = model.editor.as_mut() {
+        document.revision = Revision(2);
+    }
 
     let effects = update(
         &mut model,
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
-            revision: Revision(revision.0 + 1),
-            edit: FrontmatterEdit::Parsed(document),
+            edit: FrontmatterEdit::Parsed(author_document()),
+        }),
+    );
+
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.source.contains("author: Jane")),
+        "a local autosave must not discard the dialog save"
+    );
+    assert!(!effects.is_empty());
+}
+
+#[test]
+fn apply_frontmatter_should_ignore_an_external_change() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    if let Some(document) = model.editor.as_mut() {
+        document.external_change = Some(crate::mvu::model::ExternalChange::Edited(Revision(2)));
+    }
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(author_document()),
         }),
     );
 
@@ -222,22 +247,13 @@ fn apply_frontmatter_should_ignore_a_stale_revision() {
 #[test]
 fn apply_frontmatter_should_ignore_a_stale_session() {
     let mut model = AppModel::new(&Config::default());
-    let (session, revision) = load_editor(&mut model, "Body\n");
-    let document = carver_domain::FrontmatterDocument {
-        format: carver_domain::FrontmatterFormat::Yaml,
-        fields: vec![carver_domain::FrontmatterField::new(
-            "author",
-            carver_domain::FrontmatterValue::Text("Jane".to_owned()),
-        )],
-        error: None,
-    };
+    let session = load_editor(&mut model, "Body\n");
 
     let effects = update(
         &mut model,
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session: EditorSessionId(session.0 + 1),
-            revision,
-            edit: FrontmatterEdit::Parsed(document),
+            edit: FrontmatterEdit::Parsed(author_document()),
         }),
     );
 

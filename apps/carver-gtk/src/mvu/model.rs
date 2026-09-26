@@ -510,8 +510,6 @@ pub struct EditorPdfExportRequest {
 pub struct EditorPropertiesRequest {
     /// Editor lifetime that owns the snapshot.
     pub session: EditorSessionId,
-    /// Revision the note had when the dialog opened.
-    pub revision: Revision,
     /// Persisted note being edited.
     pub note_id: NoteId,
     /// Parsed frontmatter, or `None` when the note has no block.

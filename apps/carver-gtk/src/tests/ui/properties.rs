@@ -82,10 +82,11 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
 
 pub(super) fn default_properties_dialog_should_persist_typed_entries() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
+    let entries = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let dialog = crate::ui::editor::properties_dialog::show_defaults(
         Some(fixture.window.upcast_ref::<gtk::Window>()),
         &fixture.dispatcher,
-        &[],
+        &entries,
     );
     assert!(run_main_context_until(|| fixture
         .window
