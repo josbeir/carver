@@ -20,8 +20,12 @@ fi
 socket_name="carver-test-${RANDOM}"
 weston_log="$(mktemp "${TMPDIR:-/tmp}/carver-weston.XXXXXX.log")"
 weston_pid=""
+command_pid=""
 
 cleanup() {
+  if [[ -n "$command_pid" ]]; then
+    kill "$command_pid" 2>/dev/null || true
+  fi
   if [[ -n "$weston_pid" ]]; then
     kill "$weston_pid" 2>/dev/null || true
     wait "$weston_pid" 2>/dev/null || true
@@ -31,7 +35,18 @@ cleanup() {
   fi
   rm -f "$weston_log"
 }
-trap cleanup EXIT INT TERM
+
+# Forward INT/TERM to the wrapped command so a CI cancellation stops the test
+# rather than leaving it running until the trap can fire.
+forward_signal() {
+  if [[ -n "$command_pid" ]]; then
+    kill "-$1" "$command_pid" 2>/dev/null || true
+  fi
+}
+
+trap cleanup EXIT
+trap 'forward_signal TERM' TERM
+trap 'forward_signal INT' INT
 
 if [[ "$owns_runtime_dir" == true ]]; then
   chmod 700 "$runtime_dir"
@@ -57,12 +72,21 @@ weston_pid=$!
 
 for _ in $(seq 1 100); do
   if [[ -S "$runtime_dir/$socket_name" ]]; then
-    exec env \
+    # Run the command in the background rather than `exec`-ing it: `exec`
+    # replaces this shell and skips the EXIT trap, and a foreground command
+    # defers the INT/TERM traps, so either way a cancellation leaks the
+    # headless Weston compositor (and its repaint loop).
+    env \
       XDG_RUNTIME_DIR="$runtime_dir" \
       WAYLAND_DISPLAY="$socket_name" \
       GDK_BACKEND=wayland \
       GSK_RENDERER="${GSK_RENDERER:-cairo}" \
-      "$@"
+      "$@" &
+    command_pid=$!
+    status=0
+    wait "$command_pid" || status=$?
+    command_pid=""
+    exit "$status"
   fi
   if ! kill -0 "$weston_pid" 2>/dev/null; then
     cat "$weston_log" >&2
