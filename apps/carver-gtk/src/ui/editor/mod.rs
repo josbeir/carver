@@ -726,9 +726,9 @@ pub(crate) fn build_editor(
     editor_overlay.set_child(Some(&editor_stack));
     let document_properties = gtk::Button::from_icon_name("document-properties-symbolic");
     document_properties.set_widget_name("document-properties-button");
-    document_properties.add_css_class("osd");
+    // Keep the default theme button background so the floating control adapts to the color
+    // scheme; an OSD class forces a too-dark chip and a flat one drops the background entirely.
     document_properties.add_css_class("circular");
-    document_properties.add_css_class("flat");
     document_properties.set_halign(gtk::Align::End);
     document_properties.set_valign(gtk::Align::Start);
     document_properties.set_margin_top(12);

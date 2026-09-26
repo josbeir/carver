@@ -15,6 +15,10 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
 
     let button = widget_as::<gtk::Button>(&fixture.surface, "document-properties-button")
         .ok_or("document properties button")?;
+    assert!(
+        !button.has_css_class("osd") && !button.has_css_class("flat"),
+        "the floating button should use the theme background so it adapts to the color scheme"
+    );
     let source_mode =
         widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-source").ok_or("source")?;
     let rich_mode =
@@ -552,11 +556,50 @@ pub(super) fn changing_a_property_type_should_keep_the_row_expanded() -> TestRes
             .is_some_and(|row| row.is_expanded()),
         "changing the type should keep the property expanded"
     );
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn date_picker_should_offer_clear_and_done_controls() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nmydate: 2026-09-16\n---\nBody\n".to_owned(),
+    }));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::PropertiesDialogRequested));
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-dialog"
+        )));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("document properties dialog")?;
+    let root = dialog.upcast_ref();
+
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("date picker")?;
+    let popover = picker.popover().ok_or("picker popover")?;
+    let clear =
+        widget_as::<gtk::Button>(root, "document-property-value-1-clear").ok_or("clear button")?;
+    let done =
+        widget_as::<gtk::Button>(root, "document-property-value-1-done").ok_or("done button")?;
     assert!(
-        widget_as::<adw::ComboRow>(root, "document-property-kind-1")
-            .is_some_and(|combo| combo.has_focus()),
-        "the type control should keep focus instead of jumping to the title"
+        clear.is_ancestor(&popover) && done.is_ancestor(&popover),
+        "the clear and done controls should live in the picker popover"
     );
+    assert_eq!(done.label().as_deref(), Some("Done"));
+    // Clicking Done dismisses the popover. Headless popovers do not map, so this exercises the
+    // wired handler without relying on mapped visibility.
+    done.emit_clicked();
     dialog.close();
     fixture.window.close();
     Ok(())

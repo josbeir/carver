@@ -156,12 +156,22 @@ impl DateTimePicker {
             content.append(&clock);
         }
 
+        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         let clear = gtk::Button::with_label(&gettext("Clear"));
         clear.add_css_class("flat");
-        clear.set_halign(gtk::Align::End);
-        content.append(&clear);
+        clear.set_halign(gtk::Align::Start);
+        clear.set_hexpand(true);
+        clear.set_widget_name(&format!("{name}-clear"));
+        let done = gtk::Button::with_label(&gettext("Done"));
+        done.add_css_class("suggested-action");
+        done.set_halign(gtk::Align::End);
+        done.set_widget_name(&format!("{name}-done"));
+        actions.append(&clear);
+        actions.append(&done);
+        content.append(&actions);
 
         popover.set_child(Some(&content));
+        popover.set_widget_name(&format!("{name}-popover"));
         button.set_popover(Some(&popover));
         row.add_suffix(&button);
 
@@ -208,6 +218,10 @@ impl DateTimePicker {
                 *state.borrow_mut() = None;
                 refresh();
             });
+        }
+        {
+            let popover = popover.clone();
+            done.connect_clicked(move |_| popover.popdown());
         }
         refresh();
 

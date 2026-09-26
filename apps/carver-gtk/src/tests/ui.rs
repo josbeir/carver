@@ -67,6 +67,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::date_time_default_settings_should_persist_the_field_type()?;
     properties::ad_hoc_date_property_should_reopen_as_date()?;
     properties::changing_a_property_type_should_keep_the_row_expanded()?;
+    properties::date_picker_should_offer_clear_and_done_controls()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
     assert_document_sidebar_visibility_should_restore_without_reentrant_toggles()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
