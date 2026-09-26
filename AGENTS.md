@@ -172,11 +172,13 @@ name:
   --include-ignored --test-threads=1 mvu_window_should_keep_sidebar
 ```
 
-`scripts/with-weston.sh` must run the command as a child and never `exec` it: `exec` replaces the
-shell and therefore skips the `EXIT` trap that stops Weston, so every `exec` run leaked a headless
-compositor. Leaked compositors keep repainting at `--idle-time=0` (≈2% CPU each) and accumulate
-across runs until the machine crawls — which is why a new agent session could see the suite appear
-to hang. If things feel slow, check `pgrep -a weston` and kill stray
+`scripts/with-weston.sh` must run the command in the background and never `exec` it or run it in the
+foreground: `exec` replaces the shell and skips the `EXIT` trap that stops Weston, and a foreground
+child defers the `INT`/`TERM` traps, so either way a cancellation leaked a headless compositor.
+Leaked compositors keep repainting at `--idle-time=0` (≈2% CPU each) and accumulate across runs
+until the machine crawls — which is why a new agent session could see the suite appear to hang. The
+harness forwards `INT`/`TERM` to the wrapped command, so a CI cancellation stops the test and then
+lets the `EXIT` trap stop Weston. If things feel slow, check `pgrep -a weston` and kill stray
 `weston --backend=headless ... carver-test-*` processes.
 
 CI enforces formatting, Clippy, display-backed tests, LLVM coverage, rustdoc, and
