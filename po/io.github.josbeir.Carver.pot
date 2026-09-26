@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 12:42+0200\n"
+"POT-Creation-Date: 2026-09-26 12:55+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -76,7 +76,7 @@ msgstr ""
 msgid "Examples: Work, Personal, Research"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/add.rs:68 apps/carver-gtk/src/ui/dialogs.rs:1951
+#: apps/carver-gtk/src/ui/add.rs:68 apps/carver-gtk/src/ui/dialogs.rs:1680
 msgid "New Category"
 msgstr ""
 
@@ -140,6 +140,7 @@ msgstr ""
 #: apps/carver-gtk/src/ui/bases.rs:238
 #: apps/carver-gtk/src/ui/bases/actions.rs:706
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:584
 msgid "Name"
 msgstr ""
 
@@ -166,13 +167,13 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
-#: apps/carver-gtk/src/ui/dialogs.rs:1550
-#: apps/carver-gtk/src/ui/dialogs.rs:1619
-#: apps/carver-gtk/src/ui/dialogs.rs:1871
-#: apps/carver-gtk/src/ui/dialogs.rs:2056
+#: apps/carver-gtk/src/ui/dialogs.rs:1279
+#: apps/carver-gtk/src/ui/dialogs.rs:1348
+#: apps/carver-gtk/src/ui/dialogs.rs:1600
+#: apps/carver-gtk/src/ui/dialogs.rs:1785
 #: apps/carver-gtk/src/ui/editor/mod.rs:1620
 #: apps/carver-gtk/src/ui/editor/mod.rs:1710
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:367
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:299
 #: apps/carver-gtk/src/ui/editor/web.rs:536
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
@@ -345,7 +346,7 @@ msgid "Sort"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:935
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:368
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:301
 msgid "Save"
 msgstr ""
 
@@ -393,23 +394,27 @@ msgid "Custom field"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:98
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:106
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:117
 #: apps/carver-gtk/src/ui/formatting.rs:342
 msgid "Text"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:580
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:100
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:108
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:119
 msgid "Number"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:581
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:101
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:109
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:120
 msgid "Boolean"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:582
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:110
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:121
 msgid "List"
 msgstr ""
 
@@ -446,7 +451,7 @@ msgstr ""
 msgid "New Note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/browser.rs:335 apps/carver-gtk/src/ui/dialogs.rs:70
+#: apps/carver-gtk/src/ui/browser.rs:335 apps/carver-gtk/src/ui/dialogs.rs:68
 msgid "Search notes"
 msgstr ""
 
@@ -505,7 +510,7 @@ msgstr ""
 msgid "Export note…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:2057
+#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1786
 #: apps/carver-gtk/src/ui/editor/mod.rs:1457
 msgid "Move to Trash"
 msgstr ""
@@ -555,568 +560,542 @@ msgid_plural "{amount} hours ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:50
+#: apps/carver-gtk/src/ui/dialogs.rs:48
 msgid "Keyboard shortcuts"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:58
+#: apps/carver-gtk/src/ui/dialogs.rs:56
 msgid "New note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:62 apps/carver-gtk/src/ui/dialogs.rs:359
+#: apps/carver-gtk/src/ui/dialogs.rs:60 apps/carver-gtk/src/ui/dialogs.rs:357
 msgid "Import note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:77
+#: apps/carver-gtk/src/ui/dialogs.rs:75
 msgid "Search Base rows"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:85
+#: apps/carver-gtk/src/ui/dialogs.rs:83
 msgid "Toggle favorite"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:89
+#: apps/carver-gtk/src/ui/dialogs.rs:87
 #: apps/carver-gtk/src/ui/editor/mod.rs:1612
 #: apps/carver-gtk/src/ui/editor/mod.rs:1675
 msgid "Export note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:93
+#: apps/carver-gtk/src/ui/dialogs.rs:91
 msgid "Print note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:97
+#: apps/carver-gtk/src/ui/dialogs.rs:95
 msgid "Move note to Trash"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:101
+#: apps/carver-gtk/src/ui/dialogs.rs:99
 msgid "Toggle document sidebar"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:110 apps/carver-gtk/src/ui/dialogs.rs:204
+#: apps/carver-gtk/src/ui/dialogs.rs:108 apps/carver-gtk/src/ui/dialogs.rs:202
 #: apps/carver-gtk/src/ui/editor/find.rs:49
 msgid "Find in note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:114 apps/carver-gtk/src/ui/dialogs.rs:118
+#: apps/carver-gtk/src/ui/dialogs.rs:112 apps/carver-gtk/src/ui/dialogs.rs:116
 msgid "Next result"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:122 apps/carver-gtk/src/ui/dialogs.rs:126
+#: apps/carver-gtk/src/ui/dialogs.rs:120 apps/carver-gtk/src/ui/dialogs.rs:124
 msgid "Previous result"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:130
+#: apps/carver-gtk/src/ui/dialogs.rs:128
 msgid "Close search"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:139
+#: apps/carver-gtk/src/ui/dialogs.rs:137
 msgid "Bold"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:143
+#: apps/carver-gtk/src/ui/dialogs.rs:141
 msgid "Italic"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:147
+#: apps/carver-gtk/src/ui/dialogs.rs:145
 msgid "Strikethrough"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:151
+#: apps/carver-gtk/src/ui/dialogs.rs:149
 msgid "Underline"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:155
+#: apps/carver-gtk/src/ui/dialogs.rs:153
 msgid "Highlight"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:159
+#: apps/carver-gtk/src/ui/dialogs.rs:157
 msgid "Superscript"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:163
+#: apps/carver-gtk/src/ui/dialogs.rs:161
 msgid "Subscript"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:167
+#: apps/carver-gtk/src/ui/dialogs.rs:165
 msgid "Bulleted list"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:171
+#: apps/carver-gtk/src/ui/dialogs.rs:169
 msgid "Numbered list"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:175
+#: apps/carver-gtk/src/ui/dialogs.rs:173
 msgid "Insert line break"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:184
+#: apps/carver-gtk/src/ui/dialogs.rs:182
 msgid "General"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:188
+#: apps/carver-gtk/src/ui/dialogs.rs:186
 msgctxt "shortcut section"
 msgid "Notes"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:192
+#: apps/carver-gtk/src/ui/dialogs.rs:190
 msgid "Browser"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:196
+#: apps/carver-gtk/src/ui/dialogs.rs:194
 msgctxt "shortcut section"
 msgid "Base"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:200 apps/carver-gtk/src/ui/dialogs.rs:510
+#: apps/carver-gtk/src/ui/dialogs.rs:198 apps/carver-gtk/src/ui/dialogs.rs:508
 msgid "Editor"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:208
+#: apps/carver-gtk/src/ui/dialogs.rs:206
 msgid "Source formatting"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:352
+#: apps/carver-gtk/src/ui/dialogs.rs:350
 msgid "Carve and Markdown documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:360
+#: apps/carver-gtk/src/ui/dialogs.rs:358
 msgid "Import"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:379
+#: apps/carver-gtk/src/ui/dialogs.rs:377
 msgid "Select a Carve (.crv) or Markdown (.md) file."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:386
+#: apps/carver-gtk/src/ui/dialogs.rs:384
 msgid "Could not read the selected file."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:399
+#: apps/carver-gtk/src/ui/dialogs.rs:397
 msgid "The selected file is not valid UTF-8 text."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:512
+#: apps/carver-gtk/src/ui/dialogs.rs:510
 msgid "Editing"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:516
+#: apps/carver-gtk/src/ui/dialogs.rs:514
 msgid "Load remote images automatically"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:518
+#: apps/carver-gtk/src/ui/dialogs.rs:516
 msgid "Download images referenced by notes when they are displayed."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:524
+#: apps/carver-gtk/src/ui/dialogs.rs:522
 msgid "Show formatting toolbar"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:525
+#: apps/carver-gtk/src/ui/dialogs.rs:523
 msgid "Show formatting controls at the bottom of the editor."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:532
+#: apps/carver-gtk/src/ui/dialogs.rs:530
 msgid "Enable enhanced Carve rendering"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:534
+#: apps/carver-gtk/src/ui/dialogs.rs:532
 msgid ""
 "Render tables of contents, collapsible details, and automatic web links in "
 "previews and HTML/PDF exports."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:577
+#: apps/carver-gtk/src/ui/dialogs.rs:575
 msgid "Edit and Preview"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:582
+#: apps/carver-gtk/src/ui/dialogs.rs:580
 msgid "Line spacing"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:584
+#: apps/carver-gtk/src/ui/dialogs.rs:582
 msgid "Adjust the space between lines in Edit and Preview."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:594
+#: apps/carver-gtk/src/ui/dialogs.rs:592
 msgid "Reset appearance"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:596
+#: apps/carver-gtk/src/ui/dialogs.rs:594
 msgid ""
 "Use the system document font, comfortable width, and default line spacing."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:618
+#: apps/carver-gtk/src/ui/dialogs.rs:616
 msgid "New note properties"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:622
+#: apps/carver-gtk/src/ui/dialogs.rs:620
 msgid "Add default properties to new notes"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:623
+#: apps/carver-gtk/src/ui/dialogs.rs:621
 msgid "Seed each new note with the default properties below."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:630
+#: apps/carver-gtk/src/ui/dialogs.rs:628
 msgid "Show floating properties button"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:631
+#: apps/carver-gtk/src/ui/dialogs.rs:629
 msgid "Show a button over the editor to edit document properties."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:638 apps/carver-gtk/src/ui/dialogs.rs:696
+#: apps/carver-gtk/src/ui/dialogs.rs:636
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:442
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:447
 msgid "Default properties"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:673
+#: apps/carver-gtk/src/ui/dialogs.rs:671
 #, rust-format
 msgid "{count} default property"
 msgid_plural "{count} default properties"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:709
-msgid ""
-"These properties are offered in every document-properties dialog and, when "
-"enabled, seed new notes."
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs:729
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:354
-msgid "Add property"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs:808
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:496
-msgid "Property name"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs:830 apps/carver-gtk/src/ui/dialogs.rs:832
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:515
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:517
-msgid "Remove property"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs:953
+#: apps/carver-gtk/src/ui/dialogs.rs:682
 msgid "Document font"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:971
+#: apps/carver-gtk/src/ui/dialogs.rs:700
 msgid "Narrow"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:972
+#: apps/carver-gtk/src/ui/dialogs.rs:701
 msgid "Comfortable"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:973
+#: apps/carver-gtk/src/ui/dialogs.rs:702
 msgid "Wide"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:974
+#: apps/carver-gtk/src/ui/dialogs.rs:703
 msgid "Full width"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:983
+#: apps/carver-gtk/src/ui/dialogs.rs:712
 msgid "Content width"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:984
+#: apps/carver-gtk/src/ui/dialogs.rs:713
 msgid "Choose the reading width in Edit and Preview."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1023
+#: apps/carver-gtk/src/ui/dialogs.rs:752
 msgid "Choose Document Font"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1087
+#: apps/carver-gtk/src/ui/dialogs.rs:816
 msgid "Agents & MCP"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1091
+#: apps/carver-gtk/src/ui/dialogs.rs:820
 msgid "MCP setup"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1095
+#: apps/carver-gtk/src/ui/dialogs.rs:824
 msgid "Agent"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1097
-#: apps/carver-gtk/src/ui/dialogs.rs:1181
+#: apps/carver-gtk/src/ui/dialogs.rs:826 apps/carver-gtk/src/ui/dialogs.rs:910
 msgid "Codex"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1098
-#: apps/carver-gtk/src/ui/dialogs.rs:1187
+#: apps/carver-gtk/src/ui/dialogs.rs:827 apps/carver-gtk/src/ui/dialogs.rs:916
 msgid "Claude Code"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1099
-#: apps/carver-gtk/src/ui/dialogs.rs:1193
+#: apps/carver-gtk/src/ui/dialogs.rs:828 apps/carver-gtk/src/ui/dialogs.rs:922
 msgid "GitHub Copilot CLI"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1100
-#: apps/carver-gtk/src/ui/dialogs.rs:1199
+#: apps/carver-gtk/src/ui/dialogs.rs:829 apps/carver-gtk/src/ui/dialogs.rs:928
 msgid "VS Code Copilot"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1101
-#: apps/carver-gtk/src/ui/dialogs.rs:1205
+#: apps/carver-gtk/src/ui/dialogs.rs:830 apps/carver-gtk/src/ui/dialogs.rs:934
 msgid "OpenCode"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1102
-#: apps/carver-gtk/src/ui/dialogs.rs:1211
+#: apps/carver-gtk/src/ui/dialogs.rs:831 apps/carver-gtk/src/ui/dialogs.rs:940
 msgid "Generic / Other"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1110
+#: apps/carver-gtk/src/ui/dialogs.rs:839
 msgid "Allow note changes"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1112
+#: apps/carver-gtk/src/ui/dialogs.rs:841
 msgid "Enable reversible create, save, move, trash, and restore actions."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1118
+#: apps/carver-gtk/src/ui/dialogs.rs:847
 msgid "Setup command"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1121
+#: apps/carver-gtk/src/ui/dialogs.rs:850
 msgid "Copy setup configuration"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1149
+#: apps/carver-gtk/src/ui/dialogs.rs:878
 msgid "No setup instruction is available."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1174
+#: apps/carver-gtk/src/ui/dialogs.rs:903
 msgid "Choose your agent"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1176
+#: apps/carver-gtk/src/ui/dialogs.rs:905
 msgid "Select a client to reveal its private, user-level MCP setup."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1182
+#: apps/carver-gtk/src/ui/dialogs.rs:911
 msgid "OpenAI's coding agent"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1188
+#: apps/carver-gtk/src/ui/dialogs.rs:917
 msgid "Anthropic's terminal agent"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1194
+#: apps/carver-gtk/src/ui/dialogs.rs:923
 msgid "GitHub's terminal assistant"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1200
+#: apps/carver-gtk/src/ui/dialogs.rs:929
 msgid "Configure VS Code's MCP server list"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1206
+#: apps/carver-gtk/src/ui/dialogs.rs:935
 msgid "OpenCode's terminal agent"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1212
+#: apps/carver-gtk/src/ui/dialogs.rs:941
 msgid "Any client that supports stdio MCP"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1248
+#: apps/carver-gtk/src/ui/dialogs.rs:977
 msgid "Source editor"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1254
+#: apps/carver-gtk/src/ui/dialogs.rs:983
 msgid "Show line numbers"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1255
+#: apps/carver-gtk/src/ui/dialogs.rs:984
 msgid "Show source line positions in the editor gutter."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1261
+#: apps/carver-gtk/src/ui/dialogs.rs:990
 msgid "Highlight current line"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1262
+#: apps/carver-gtk/src/ui/dialogs.rs:991
 msgid "Shade the line containing the cursor in Source mode."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1278
+#: apps/carver-gtk/src/ui/dialogs.rs:1007
 msgid "Source font"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1294
+#: apps/carver-gtk/src/ui/dialogs.rs:1023
 msgid "Use system monospace font"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1296
+#: apps/carver-gtk/src/ui/dialogs.rs:1025
 #, rust-format
 msgid "Follow the desktop setting ({system_font})."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1307
+#: apps/carver-gtk/src/ui/dialogs.rs:1036
 msgid "Choose Source Font"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1352
+#: apps/carver-gtk/src/ui/dialogs.rs:1081
 msgid "Detailed"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1353
+#: apps/carver-gtk/src/ui/dialogs.rs:1082
 msgid "Writing focus"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1354
+#: apps/carver-gtk/src/ui/dialogs.rs:1083
 msgid "Off"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1363
+#: apps/carver-gtk/src/ui/dialogs.rs:1092
 msgid "Syntax style"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1365
+#: apps/carver-gtk/src/ui/dialogs.rs:1094
 msgid "Choose how much markup colour appears in Source mode."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1497
+#: apps/carver-gtk/src/ui/dialogs.rs:1226
 msgid "Carver contributors"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1498
+#: apps/carver-gtk/src/ui/dialogs.rs:1227
 msgid "A native GNOME notebook for Carve markup."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1514 apps/carver-gtk/src/ui/sidebar.rs:128
+#: apps/carver-gtk/src/ui/dialogs.rs:1243 apps/carver-gtk/src/ui/sidebar.rs:128
 msgid "Keyboard Shortcuts"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1541
-#: apps/carver-gtk/src/ui/dialogs.rs:1586
+#: apps/carver-gtk/src/ui/dialogs.rs:1270
+#: apps/carver-gtk/src/ui/dialogs.rs:1315
 msgid "Category name"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1551
-#: apps/carver-gtk/src/ui/dialogs.rs:1620
+#: apps/carver-gtk/src/ui/dialogs.rs:1280
+#: apps/carver-gtk/src/ui/dialogs.rs:1349
 msgctxt "dialog"
 msgid "Save"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1652
+#: apps/carver-gtk/src/ui/dialogs.rs:1381
 msgctxt "category appearance"
 msgid "Icon"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1681
+#: apps/carver-gtk/src/ui/dialogs.rs:1410
 msgctxt "category appearance"
 msgid "Colour"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1769
+#: apps/carver-gtk/src/ui/dialogs.rs:1498
 msgid "Folder"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1770
+#: apps/carver-gtk/src/ui/dialogs.rs:1499
 msgid "Briefcase"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1771
+#: apps/carver-gtk/src/ui/dialogs.rs:1500
 msgid "Calendar"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1772
+#: apps/carver-gtk/src/ui/dialogs.rs:1501
 msgid "Book"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1773
+#: apps/carver-gtk/src/ui/dialogs.rs:1502
 msgid "Heart"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1774
+#: apps/carver-gtk/src/ui/dialogs.rs:1503
 msgid "Home"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1775
+#: apps/carver-gtk/src/ui/dialogs.rs:1504
 msgid "People"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1776
+#: apps/carver-gtk/src/ui/dialogs.rs:1505
 msgid "Star"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1777
+#: apps/carver-gtk/src/ui/dialogs.rs:1506
 msgid "Tag"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1778
+#: apps/carver-gtk/src/ui/dialogs.rs:1507
 msgid "Idea"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1797
+#: apps/carver-gtk/src/ui/dialogs.rs:1526
 msgctxt "category colour"
 msgid "Auto"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1798
+#: apps/carver-gtk/src/ui/dialogs.rs:1527
 msgid "Rose"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1799
+#: apps/carver-gtk/src/ui/dialogs.rs:1528
 msgid "Tangerine"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1800
+#: apps/carver-gtk/src/ui/dialogs.rs:1529
 msgid "Yellow"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1801
+#: apps/carver-gtk/src/ui/dialogs.rs:1530
 msgid "Olive"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1802
+#: apps/carver-gtk/src/ui/dialogs.rs:1531
 msgid "Teal"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1803
+#: apps/carver-gtk/src/ui/dialogs.rs:1532
 msgid "Blue"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1804
+#: apps/carver-gtk/src/ui/dialogs.rs:1533
 msgid "Purple"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1835
-#: apps/carver-gtk/src/ui/dialogs.rs:1848
+#: apps/carver-gtk/src/ui/dialogs.rs:1564
+#: apps/carver-gtk/src/ui/dialogs.rs:1577
 #, rust-format
 msgid "Move “{note_title}”"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1856
+#: apps/carver-gtk/src/ui/dialogs.rs:1585
 msgid "Search categories"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1866
+#: apps/carver-gtk/src/ui/dialogs.rs:1595
 msgid "New Category…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1997
+#: apps/carver-gtk/src/ui/dialogs.rs:1726
 msgid "Current"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:2021
+#: apps/carver-gtk/src/ui/dialogs.rs:1750
 msgid "No categories found"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:2047
+#: apps/carver-gtk/src/ui/dialogs.rs:1776
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:2051
+#: apps/carver-gtk/src/ui/dialogs.rs:1780
 msgid ""
 "Notes in this category will no longer appear in your library. You can "
 "restore the category from Trash later."
@@ -1330,32 +1309,75 @@ msgstr ""
 msgid "Could not open the link in your default browser."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:99
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:107
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:118
 msgid "Long text"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:291
-msgid "Document Properties"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:310
-msgid "Format"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:359
-msgid "Add default properties"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:624
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:126
 msgid "JSON"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:624
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:126
 msgid "TOML"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:624
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:126
 msgid "YAML"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:153
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:169
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:176
+msgid "Value"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:292
+msgid "Document Properties"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:318
+msgid "Format"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:339
+msgid "Raw frontmatter"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:352
+msgid "Content"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:360
+msgid "Properties"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:368
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:452
+msgid "Add property"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:372
+msgid "Add default properties"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:449
+msgid ""
+"These properties are offered in every document-properties dialog and, when "
+"enabled, seed new notes."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:590
+msgid "Type"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:614
+msgid "New property"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:654
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:656
+msgid "Remove property"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs:60

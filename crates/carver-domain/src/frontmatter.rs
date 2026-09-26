@@ -448,6 +448,10 @@ pub fn replace_frontmatter(
     source: &str,
     desired: Option<&FrontmatterDocument>,
 ) -> Result<String, FrontmatterError> {
+    // An empty field set means "no frontmatter": remove the block rather than writing `{}`.
+    if desired.is_some_and(|document| document.fields.is_empty()) {
+        return replace_frontmatter(source, None);
+    }
     let scanned = scan_frontmatter(source);
     match (scanned, desired) {
         (None, None) => Ok(source.to_owned()),

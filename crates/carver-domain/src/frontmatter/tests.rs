@@ -245,3 +245,14 @@ fn raw_replacement_should_keep_the_body_and_switch_format() {
         "Body"
     );
 }
+
+#[test]
+fn empty_fields_should_remove_or_leave_the_block_empty() {
+    let empty = FrontmatterDocument {
+        format: FrontmatterFormat::Yaml,
+        fields: Vec::new(),
+        error: None,
+    };
+    assert_eq!(replaced("---\na: b\n---\nBody", Some(&empty)), "Body");
+    assert_eq!(replaced("Body", Some(&empty)), "Body");
+}

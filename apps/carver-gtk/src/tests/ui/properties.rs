@@ -59,6 +59,7 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
         .ok_or("document properties dialog")?;
     let dialog_root = dialog.upcast_ref();
     assert!(widget_as::<gtk::TextView>(dialog_root, "document-properties-raw").is_none());
+    assert!(widget_as::<adw::ExpanderRow>(dialog_root, "document-property-row-0").is_some());
     widget_as::<gtk::Button>(dialog_root, "document-properties-save")
         .ok_or("save button")?
         .emit_clicked();
@@ -81,7 +82,7 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
 
 pub(super) fn default_properties_dialog_should_persist_typed_entries() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
-    let dialog = crate::ui::dialogs::show_document_properties_defaults_dialog(
+    let dialog = crate::ui::editor::properties_dialog::show_defaults(
         Some(fixture.window.upcast_ref::<gtk::Window>()),
         &fixture.dispatcher,
         &[],
@@ -93,18 +94,19 @@ pub(super) fn default_properties_dialog_should_persist_typed_entries() -> TestRe
             |visible| visible.widget_name() == "document-properties-defaults-dialog"
         )));
     let root = dialog.upcast_ref();
-    assert!(widget_as::<gtk::ListBox>(root, "document-properties-list").is_some());
 
-    widget_as::<gtk::Button>(root, "document-property-add")
-        .ok_or("add property")?
-        .emit_clicked();
-    let key = widget_as::<gtk::Entry>(root, "document-property-key-0").ok_or("property key")?;
+    let add = widget_as::<adw::ButtonRow>(root, "document-property-add").ok_or("add property")?;
+    add.emit_by_name::<()>("activated", &[]);
+    assert!(
+        run_main_context_until(
+            || widget_as::<adw::EntryRow>(root, "document-property-key-0").is_some()
+        ),
+        "the added property row should be built"
+    );
+    let key = widget_as::<adw::EntryRow>(root, "document-property-key-0").ok_or("property key")?;
     key.set_text("author");
-    let value = widget_as::<gtk::Stack>(root, "document-property-value-0")
-        .ok_or("property value")?
-        .visible_child()
-        .and_downcast::<gtk::Entry>()
-        .ok_or("property text value")?;
+    let value =
+        widget_as::<adw::EntryRow>(root, "document-property-value-0").ok_or("property value")?;
     value.set_text("Jane");
     dialog.close();
 
