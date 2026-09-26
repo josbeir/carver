@@ -57,12 +57,16 @@ weston_pid=$!
 
 for _ in $(seq 1 100); do
   if [[ -S "$runtime_dir/$socket_name" ]]; then
-    exec env \
+    # Run the command as a child rather than `exec`-ing it: `exec` replaces this
+    # shell and therefore skips the EXIT trap, leaking the headless Weston
+    # compositor (and its repaint loop) on every invocation.
+    env \
       XDG_RUNTIME_DIR="$runtime_dir" \
       WAYLAND_DISPLAY="$socket_name" \
       GDK_BACKEND=wayland \
       GSK_RENDERER="${GSK_RENDERER:-cairo}" \
       "$@"
+    exit $?
   fi
   if ! kill -0 "$weston_pid" 2>/dev/null; then
     cat "$weston_log" >&2

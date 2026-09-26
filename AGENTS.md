@@ -161,6 +161,24 @@ Install Weston (`pacman -S weston` on Arch) and use the same harness locally and
   --include-ignored --test-threads=1
 ```
 
+The ignored GTK suite is where the display-backed scenarios actually run; without the harness they
+are skipped. It is one ignored `#[test]` that drives real WebKit under a single GTK init, so it must
+run with `--test-threads=1` and completes in roughly 30 s from a warm build. Do not run
+`--include-ignored` as a routine compile check; prefer filtering to the affected test binary or
+name:
+
+```sh
+./scripts/with-weston.sh cargo test -p carver-gtk --locked -- \
+  --include-ignored --test-threads=1 mvu_window_should_keep_sidebar
+```
+
+`scripts/with-weston.sh` must run the command as a child and never `exec` it: `exec` replaces the
+shell and therefore skips the `EXIT` trap that stops Weston, so every `exec` run leaked a headless
+compositor. Leaked compositors keep repainting at `--idle-time=0` (≈2% CPU each) and accumulate
+across runs until the machine crawls — which is why a new agent session could see the suite appear
+to hang. If things feel slow, check `pgrep -a weston` and kill stray
+`weston --backend=headless ... carver-test-*` processes.
+
 CI enforces formatting, Clippy, display-backed tests, LLVM coverage, rustdoc, and
 `cargo deny check`. New behavior requires a focused unit test and, for every user-facing GTK
 signal or state transition, a display-backed interaction test. Add a regression test for every
@@ -180,6 +198,12 @@ fixed persistence or source/rich round-trip bug.
   consumer.
 - Name tests as behavior: `action_should_result_when_condition`.
 - Keep unit tests focused on one behavior; share fixtures, not multi-purpose scenarios.
+- Display-backed GTK scenarios live in `apps/carver-gtk/src/tests/ui/*.rs` as `pub(super) fn`
+  functions grouped by surface (shell, library, editor, source/rich mode, preferences, …). They
+  are not separate `#[test]`s: `tests/ui.rs` keeps exactly one ignored `#[test]` that initializes
+  GTK once and calls each scenario in order, sharing the `WindowFixture` in `tests/ui/window.rs`.
+  Add a new named scenario instead of growing the orchestrator, and keep the call order when the
+  scenarios share window state.
 - Test public SDK/storage behavior from outside its implementation where practical.
 - Keep GTK tests deterministic: one GTK initialization thread, explicit signal emission,
   and no real user directories or network resources.
