@@ -518,6 +518,8 @@ pub struct EditorPropertiesRequest {
     pub raw: Option<String>,
     /// Configured default properties always offered as value-only rows.
     pub defaults: Vec<carver_config::DocumentProperty>,
+    /// Format used when the dialog creates a new frontmatter block.
+    pub default_format: carver_domain::FrontmatterFormat,
 }
 
 /// A frontmatter edit produced by the native document-properties dialog.

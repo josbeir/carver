@@ -179,7 +179,10 @@ pub(super) fn default_properties_should_always_show_without_removal() -> TestRes
         widget_as::<gtk::Button>(root, "document-property-remove-1").is_none(),
         "a configured default must not be removable"
     );
-    assert!(widget_as::<gtk::Button>(root, "document-properties-add").is_some());
+    assert!(
+        widget_as::<adw::ButtonRow>(root, "document-properties-add").is_some(),
+        "the add-property action should be a full-width button row"
+    );
 
     dialog.close();
     fixture.window.close();
@@ -311,7 +314,7 @@ pub(super) fn list_default_settings_should_offer_options_and_multiple() -> TestR
     widget_as::<adw::EntryRow>(root, "document-property-key-0")
         .ok_or("property key")?
         .set_text("status");
-    widget_as::<gtk::Entry>(root, "document-property-value-0")
+    widget_as::<adw::EntryRow>(root, "document-property-value-0")
         .ok_or("options entry")?
         .set_text("active, archived");
     widget_as::<adw::SwitchRow>(root, "document-property-multiple-0")

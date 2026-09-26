@@ -308,6 +308,7 @@ fn document_properties_default_source_should_be_gated_by_enabled() {
     let mut config = DocumentPropertiesConfig {
         enabled: false,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("author"),
             kind: PropertyKind::Text,
@@ -335,6 +336,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
     let reserved = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![property("title", PropertyKind::Text)],
     };
     assert!(reserved.validate().is_err());
@@ -342,6 +344,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
     let unsupported = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![property("state", PropertyKind::Mixed)],
     };
     assert!(unsupported.validate().is_err());
@@ -349,6 +352,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
     let mismatched = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("count"),
             kind: PropertyKind::Number,
@@ -362,6 +366,7 @@ fn document_properties_should_reject_reserved_and_unsupported_entries() {
     let duplicated = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![
             property("author", PropertyKind::Text),
             property("author", PropertyKind::Text),
@@ -399,6 +404,7 @@ fn document_properties_list_defaults_should_seed_the_first_option() {
     let single = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![list(false)],
     };
     assert_eq!(single.default_source(), "---\nstatus: active\n---\n");
@@ -406,6 +412,7 @@ fn document_properties_list_defaults_should_seed_the_first_option() {
     let multi = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![list(true)],
     };
     assert_eq!(multi.default_source(), "---\nstatus:\n- active\n---\n");
@@ -416,6 +423,7 @@ fn document_properties_list_without_options_should_seed_nothing() {
     let config = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("status"),
             kind: PropertyKind::List,
@@ -432,6 +440,7 @@ fn document_properties_should_reject_invalid_list_options() {
     let non_string = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("status"),
             kind: PropertyKind::List,
@@ -445,6 +454,7 @@ fn document_properties_should_reject_invalid_list_options() {
     let multiple_on_text = DocumentPropertiesConfig {
         enabled: true,
         floating_button: true,
+        format: FrontmatterFormat::Yaml,
         entries: vec![DocumentProperty {
             key: String::from("author"),
             kind: PropertyKind::Text,
@@ -454,4 +464,26 @@ fn document_properties_should_reject_invalid_list_options() {
         }],
     };
     assert!(multiple_on_text.validate().is_err());
+}
+
+#[test]
+fn document_properties_default_source_should_use_the_configured_format() {
+    let mut config = DocumentPropertiesConfig {
+        enabled: true,
+        floating_button: true,
+        format: FrontmatterFormat::Json,
+        entries: vec![DocumentProperty {
+            key: String::from("author"),
+            kind: PropertyKind::Text,
+            multiline: false,
+            multiple: false,
+            value: serde_json::Value::String(String::from("Jane")),
+        }],
+    };
+    let json = config.default_source();
+    assert!(json.starts_with("---json\n"), "{json}");
+    assert!(json.contains("\"author\": \"Jane\""), "{json}");
+
+    config.format = FrontmatterFormat::Yaml;
+    assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
 }

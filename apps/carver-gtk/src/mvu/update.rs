@@ -622,6 +622,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
         PreferencesMsg::SetDocumentProperties(entries) => {
             model.config.document_properties.entries = entries;
         }
+        PreferencesMsg::SetDocumentPropertiesFormat(format) => {
+            model.config.document_properties.format = format;
+        }
     }
     persist_config_effect(model)
 }
@@ -1155,6 +1158,7 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
             defaults: model.config.document_properties.entries.clone(),
+            default_format: model.config.document_properties.format,
         },
     }]
 }

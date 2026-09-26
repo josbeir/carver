@@ -538,6 +538,8 @@ pub enum PreferencesMsg {
     SetDocumentPropertiesFloatingButton(bool),
     /// Replace the configured default properties.
     SetDocumentProperties(Vec<DocumentProperty>),
+    /// Set the frontmatter format used for new blocks and seeded notes.
+    SetDocumentPropertiesFormat(carver_domain::FrontmatterFormat),
 }
 
 /// Window state that must survive the next launch.

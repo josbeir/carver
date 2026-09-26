@@ -652,6 +652,29 @@ fn document_properties_group(
             PreferencesMsg::SetDocumentPropertiesFloatingButton(row.is_active()),
         ));
     });
+
+    let format = adw::ComboRow::new();
+    format.set_title(&gettext("Format"));
+    let formats = gtk::StringList::new(&[&gettext("YAML"), &gettext("JSON"), &gettext("TOML")]);
+    format.set_model(Some(&formats));
+    format.set_selected(match config.document_properties.format {
+        carver_domain::FrontmatterFormat::Yaml => 0,
+        carver_domain::FrontmatterFormat::Json => 1,
+        carver_domain::FrontmatterFormat::Toml => 2,
+    });
+    format.set_widget_name("document-properties-format");
+    group.add(&format);
+    let format_dispatcher = dispatcher.clone();
+    format.connect_selected_notify(move |row| {
+        let format = match row.selected() {
+            1 => carver_domain::FrontmatterFormat::Json,
+            2 => carver_domain::FrontmatterFormat::Toml,
+            _ => carver_domain::FrontmatterFormat::Yaml,
+        };
+        let _ = format_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesFormat(format),
+        ));
+    });
     let parent = parent.clone();
     let defaults_dispatcher = dispatcher.clone();
     let entries: Rc<RefCell<Vec<DocumentProperty>>> =

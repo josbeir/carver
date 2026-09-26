@@ -14,6 +14,7 @@ fn request(
         document,
         raw: None,
         defaults,
+        default_format: FrontmatterFormat::Yaml,
     }
 }
 
@@ -132,4 +133,42 @@ fn build_document_should_skip_an_empty_title() {
     let document = build_document(FrontmatterFormat::Yaml, &drafts);
 
     assert!(document.fields.is_empty());
+}
+
+#[test]
+fn configured_value_support_should_require_matching_type_and_options() {
+    // A text default with a numeric note value is not controllable.
+    let text = PropertyDraft::default_row(
+        "author".to_owned(),
+        &default_property("author", "Jane"),
+        FrontmatterValue::Number(serde_json::Number::from(3)),
+    );
+    assert!(!configured_value_supported(&text));
+
+    let list_default = DocumentProperty {
+        key: "status".to_owned(),
+        kind: PropertyKind::List,
+        multiline: false,
+        multiple: false,
+        value: serde_json::json!(["active", "archived"]),
+    };
+    let single = |value: FrontmatterValue| PropertyDraft {
+        key: "status".to_owned(),
+        choice: PropertyKindChoice::List,
+        value,
+        editable_key: false,
+        editable_kind: false,
+        removable: false,
+        multiple: false,
+        options: list_default.options(),
+    };
+    assert!(configured_value_supported(&single(FrontmatterValue::Text(
+        "active".to_owned()
+    ))));
+    assert!(!configured_value_supported(&single(
+        FrontmatterValue::Text("other".to_owned())
+    )));
+    assert!(!configured_value_supported(&single(
+        FrontmatterValue::List(vec![FrontmatterValue::Text("active".to_owned())])
+    )));
 }

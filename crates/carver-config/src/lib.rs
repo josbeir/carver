@@ -11,7 +11,8 @@ use std::{
 
 use atomic_write_file::AtomicWriteFile;
 use carver_domain::{
-    FrontmatterField, FrontmatterValue, PropertyKind, frontmatter_source, is_reserved_key,
+    FrontmatterField, FrontmatterFormat, FrontmatterValue, PropertyKind,
+    frontmatter_source_with_format, is_reserved_key,
 };
 use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -297,6 +298,9 @@ pub struct DocumentPropertiesConfig {
     /// Whether the editor shows the floating properties button.
     #[serde(default = "default_true")]
     pub floating_button: bool,
+    /// Frontmatter format used when the dialog creates a block or seeds a new note.
+    #[serde(default = "default_frontmatter_format")]
+    pub format: FrontmatterFormat,
     /// Ordered default properties.
     #[serde(default)]
     pub entries: Vec<DocumentProperty>,
@@ -307,9 +311,14 @@ impl Default for DocumentPropertiesConfig {
         Self {
             enabled: false,
             floating_button: true,
+            format: FrontmatterFormat::Yaml,
             entries: Vec::new(),
         }
     }
+}
+
+const fn default_frontmatter_format() -> FrontmatterFormat {
+    FrontmatterFormat::Yaml
 }
 
 /// One user-configured document property.
@@ -379,7 +388,7 @@ impl DocumentPropertiesConfig {
             .iter()
             .filter_map(DocumentProperty::default_field)
             .collect();
-        frontmatter_source(&fields)
+        frontmatter_source_with_format(&fields, self.format)
     }
 
     /// Validates the configured default properties.

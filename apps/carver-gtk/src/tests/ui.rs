@@ -384,6 +384,16 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     assert!(run_main_context_until(
         || carver_config::load(&config_path).is_ok_and(|config| config.document_properties.enabled)
     ));
+    let document_properties_format = widget_as::<adw::ComboRow>(
+        preferences_dialog.upcast_ref(),
+        "document-properties-format",
+    )
+    .ok_or("document properties format")?;
+    document_properties_format.set_selected(1);
+    assert!(run_main_context_until(|| carver_config::load(&config_path)
+        .is_ok_and(
+            |config| config.document_properties.format == carver_domain::FrontmatterFormat::Json
+        )));
     assert_eq!(
         window.icon_name().as_deref(),
         Some(crate::app::APPLICATION_ICON)

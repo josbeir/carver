@@ -502,6 +502,17 @@ pub fn replace_frontmatter(
 /// Reserved keys such as `title` are dropped. The block ends with a newline.
 #[must_use]
 pub fn frontmatter_source(fields: &[FrontmatterField]) -> String {
+    frontmatter_source_with_format(fields, FrontmatterFormat::Yaml)
+}
+
+/// Renders canonical Carve source seeding a new note in the requested format.
+///
+/// Reserved keys such as `title` and blank keys are dropped. The block ends with a newline.
+#[must_use]
+pub fn frontmatter_source_with_format(
+    fields: &[FrontmatterField],
+    format: FrontmatterFormat,
+) -> String {
     let fields: Vec<FrontmatterField> = fields
         .iter()
         .filter(|field| !field.key.trim().is_empty() && !is_reserved_key(&field.key))
@@ -511,7 +522,7 @@ pub fn frontmatter_source(fields: &[FrontmatterField]) -> String {
         return String::new();
     }
     let document = FrontmatterDocument {
-        format: FrontmatterFormat::Yaml,
+        format,
         fields,
         error: None,
     };

@@ -122,18 +122,6 @@ fn kind_model() -> gtk::StringList {
     ])
 }
 
-fn format_model() -> gtk::StringList {
-    gtk::StringList::new(&[&gettext("YAML"), &gettext("JSON"), &gettext("TOML")])
-}
-
-fn selected_format(dropdown: &adw::ComboRow) -> FrontmatterFormat {
-    match dropdown.selected() {
-        1 => FrontmatterFormat::Json,
-        2 => FrontmatterFormat::Toml,
-        _ => FrontmatterFormat::Yaml,
-    }
-}
-
 /// The value editor for one property row.
 #[derive(Clone)]
 enum ValueWidget {
@@ -143,11 +131,6 @@ enum ValueWidget {
         view: gtk::TextView,
     },
     Boolean(adw::SwitchRow),
-    /// A comma-separated option list with a description (list properties in Settings).
-    Options {
-        row: adw::ActionRow,
-        entry: gtk::Entry,
-    },
 }
 
 impl ValueWidget {
@@ -199,46 +182,19 @@ impl ValueWidget {
         }
     }
 
-    /// Builds the option-list editor used for list properties in Settings.
-    fn options(value: &FrontmatterValue, name: &str, title: &str, description: &str) -> Self {
-        let entry = gtk::Entry::new();
-        entry.set_widget_name(name);
-        entry.set_text(&frontmatter_list_text(value));
-        entry.set_hexpand(true);
-        let row = adw::ActionRow::builder()
-            .title(title)
-            .subtitle(description)
-            .child(&entry)
-            .build();
-        Self::Options { row, entry }
-    }
-
-    // CONTEXT: Each arm upcasts or extends a distinct libadwaita row type; the bodies are
-    // intentionally identical.
-    #[expect(
-        clippy::match_same_arms,
-        reason = "each arm upcasts a distinct row type"
-    )]
     fn widget(&self) -> gtk::Widget {
         match self {
             Self::Entry(row) => row.clone().upcast(),
             Self::Long { row, .. } => row.clone().upcast(),
             Self::Boolean(row) => row.clone().upcast(),
-            Self::Options { row, .. } => row.clone().upcast(),
         }
     }
 
-    // CONTEXT: Each arm extends a distinct libadwaita row type with the same suffix widget.
-    #[expect(
-        clippy::match_same_arms,
-        reason = "each arm extends a distinct row type"
-    )]
     fn add_suffix(&self, widget: &impl IsA<gtk::Widget>) {
         match self {
             Self::Entry(row) => row.add_suffix(widget),
             Self::Long { row, .. } => row.add_suffix(widget),
             Self::Boolean(row) => row.add_suffix(widget),
-            Self::Options { row, .. } => row.add_suffix(widget),
         }
     }
 
@@ -255,7 +211,6 @@ impl ValueWidget {
                     _ => FrontmatterValue::Text(text),
                 }
             }
-            Self::Options { entry, .. } => list_value(&entry.text()),
         }
     }
 
@@ -295,14 +250,6 @@ impl ValueWidget {
                     _ => FrontmatterValue::Text(text),
                 }
             }
-            Self::Options { entry, .. } => {
-                let text = entry.text().to_string();
-                if text == frontmatter_list_text(previous) {
-                    previous.clone()
-                } else {
-                    list_value(&text)
-                }
-            }
         }
     }
 
@@ -319,10 +266,6 @@ impl ValueWidget {
             Self::Boolean(row) => {
                 let callback = Rc::clone(callback);
                 row.connect_active_notify(move |_| callback());
-            }
-            Self::Options { entry, .. } => {
-                let callback = Rc::clone(callback);
-                entry.connect_changed(move |_| callback());
             }
         }
     }
@@ -420,6 +363,8 @@ enum SimpleValue {
         expander: adw::ExpanderRow,
         switches: Vec<adw::SwitchRow>,
     },
+    /// A value that does not match the configured type or options; shown read-only.
+    Disabled { row: adw::ActionRow },
 }
 
 impl SimpleValue {
@@ -428,6 +373,7 @@ impl SimpleValue {
             Self::Typed(value) => value.widget(),
             Self::Choice { combo, .. } => combo.clone().upcast(),
             Self::Options { expander, .. } => expander.clone().upcast(),
+            Self::Disabled { row } => row.clone().upcast(),
         }
     }
 
@@ -436,6 +382,7 @@ impl SimpleValue {
             Self::Typed(value) => value.add_suffix(widget),
             Self::Choice { combo, .. } => combo.add_suffix(widget),
             Self::Options { expander, .. } => expander.add_suffix(widget),
+            Self::Disabled { row } => row.add_suffix(widget),
         }
     }
 
@@ -466,7 +413,22 @@ impl SimpleValue {
                     list_value(&selected)
                 }
             }
+            // A value the dialog does not control is preserved exactly as authored.
+            Self::Disabled { .. } => previous.clone(),
         }
+    }
+
+    /// Builds a read-only row for a value that does not match the configured type or options.
+    fn disabled(draft: &PropertyDraft, title: &str) -> Self {
+        let row = adw::ActionRow::new();
+        row.set_title(title);
+        row.set_subtitle(&gettext("Not managed by this dialog"));
+        let value = gtk::Label::new(Some(&frontmatter_text(&draft.value)));
+        value.add_css_class("dim-label");
+        value.set_selectable(true);
+        row.add_suffix(&value);
+        row.set_sensitive(false);
+        Self::Disabled { row }
     }
 
     /// Builds a single-select option dropdown for a configured list property.
@@ -555,10 +517,6 @@ type Rows = Rc<RefCell<Vec<BuiltRow>>>;
 type Drafts = Rc<RefCell<Vec<PropertyDraft>>>;
 
 /// Presents the native document-properties dialog for an immutable editor snapshot.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the dialog keeps its widget graph and save closure together for modal state"
-)]
 pub(crate) fn show(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
@@ -584,23 +542,14 @@ pub(crate) fn show(
     toolbar.add_top_bar(&header);
 
     let page = adw::PreferencesPage::new();
+    page.set_width_request(560);
 
-    let initial_format = request
+    // The frontmatter format is configured in Settings; the dialog preserves the note's own
+    // format and never changes it here.
+    let format = request
         .document
         .as_ref()
-        .map_or(FrontmatterFormat::Yaml, |document| document.format);
-    let format_group = adw::PreferencesGroup::new();
-    let format = adw::ComboRow::new();
-    format.set_title(&gettext("Format"));
-    format.set_model(Some(&format_model()));
-    format.set_selected(match initial_format {
-        FrontmatterFormat::Yaml => 0,
-        FrontmatterFormat::Json => 1,
-        FrontmatterFormat::Toml => 2,
-    });
-    format.set_widget_name("document-properties-format");
-    format_group.add(&format);
-    page.add(&format_group);
+        .map_or(request.default_format, |document| document.format);
 
     let raw_mode = request.document.as_ref().is_some_and(|document| {
         document.error.is_some()
@@ -610,7 +559,7 @@ pub(crate) fn show(
                 .any(|field| matches!(field.value, FrontmatterValue::Object(_)))
     });
 
-    let (save_source, action_bar) = if raw_mode {
+    let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
         let view = gtk::TextView::new();
@@ -630,7 +579,7 @@ pub(crate) fn show(
             .build();
         group.add(&action);
         page.add(&group);
-        (SaveSource::Raw(view), None)
+        SaveSource::Raw(view)
     } else {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Properties"));
@@ -639,14 +588,18 @@ pub(crate) fn show(
         let on_change: Rc<dyn Fn()> = Rc::new(|| {});
         rebuild(&group, &rows, &drafts, &on_change, RowMode::Note);
         page.add(&group);
-        let bar = build_action_bar(&group, &rows, &drafts, &on_change, RowMode::Note);
-        (SaveSource::Fields { rows, drafts }, Some(bar))
+
+        let actions = adw::PreferencesGroup::new();
+        let add = button_row("document-properties-add", &gettext("Add property"));
+        actions.add(&add);
+        page.add(&actions);
+        let add_action = add_property_action(&group, &rows, &drafts, &on_change, RowMode::Note);
+        add.connect_activated(move |_| add_action());
+
+        SaveSource::Fields { rows, drafts }
     };
 
     toolbar.set_content(Some(&page));
-    if let Some(bar) = action_bar {
-        toolbar.add_bottom_bar(&bar);
-    }
     dialog.set_child(Some(&toolbar));
 
     let draft_cancel = dialog.clone();
@@ -660,12 +613,12 @@ pub(crate) fn show(
     save.connect_clicked(move |_| {
         let edit = match &save_source {
             SaveSource::Raw(view) => FrontmatterEdit::Raw {
-                format: selected_format(&format),
+                format,
                 content: buffer_text(&view.buffer()),
             },
             SaveSource::Fields { rows, drafts } => {
                 capture(rows, drafts);
-                FrontmatterEdit::Parsed(build_document(selected_format(&format), &drafts.borrow()))
+                FrontmatterEdit::Parsed(build_document(format, &drafts.borrow()))
             }
         };
         let _ = dialog_for_save.close();
@@ -703,6 +656,7 @@ pub(crate) fn show_defaults(
     toolbar.add_top_bar(&adw::HeaderBar::new());
 
     let page = adw::PreferencesPage::new();
+    page.set_width_request(560);
     let group = adw::PreferencesGroup::new();
     group.set_title(&gettext("Default properties"));
     group.set_description(Some(&gettext(
@@ -898,31 +852,23 @@ fn build_simple_row(
     mode: RowMode,
 ) -> BuiltRow {
     let title = display_title(&draft.key);
-    // A configured list property offers its options: a dropdown for single-select or a switch
-    // per option for multi-select. Anything else falls back to a free-form typed input.
+    // A configured list property offers its options. Any value that does not match the configured
+    // type or options is shown read-only so the user knows it is authored by hand.
     let configured_list = draft.choice == PropertyKindChoice::List && !draft.options.is_empty();
-    let value =
-        if configured_list && draft.multiple && matches!(draft.value, FrontmatterValue::List(_)) {
-            Some(SimpleValue::options(draft, index, &title))
-        } else if configured_list
-            && !draft.multiple
-            && matches!(
-                draft.value,
-                FrontmatterValue::Text(_) | FrontmatterValue::Null
-            )
-        {
-            Some(SimpleValue::choice(draft, index, &title))
-        } else {
-            None
-        };
-    let value = value.unwrap_or_else(|| {
+    let value = if !configured_value_supported(draft) {
+        SimpleValue::disabled(draft, &title)
+    } else if configured_list && draft.multiple {
+        SimpleValue::options(draft, index, &title)
+    } else if configured_list {
+        SimpleValue::choice(draft, index, &title)
+    } else {
         SimpleValue::Typed(ValueWidget::build(
             draft.choice,
             &draft.value,
             &value_name(index),
             &title,
         ))
-    });
+    };
     let widget = value.widget();
     if draft.removable {
         let remove = remove_button(index, group, rows, drafts, on_change, mode);
@@ -933,6 +879,10 @@ fn build_simple_row(
 
 // CONTEXT: The row keeps its widgets and its live callbacks together so the draft is the only
 // shared state between the note editor and the defaults editor.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one property row wires key, type, value, hint, and removal together"
+)]
 fn build_expander_row(
     draft: &PropertyDraft,
     index: usize,
@@ -958,11 +908,11 @@ fn build_expander_row(
     kind.set_widget_name(&format!("document-property-kind-{index}"));
 
     let value = if mode == RowMode::Defaults && draft.choice == PropertyKindChoice::List {
-        ValueWidget::options(
+        ValueWidget::build(
+            draft.choice,
             &draft.value,
             &value_name(index),
             &gettext("Options"),
-            &gettext("Comma-separated values offered as a dropdown."),
         )
     } else {
         ValueWidget::build(
@@ -978,6 +928,17 @@ fn build_expander_row(
     expander.add_row(&value.widget());
 
     if mode == RowMode::Defaults && draft.choice == PropertyKindChoice::List {
+        let hint = gtk::Label::new(Some(&gettext(
+            "Comma-separated values offered as a dropdown.",
+        )));
+        hint.set_wrap(true);
+        hint.set_xalign(0.0);
+        hint.add_css_class("dim-label");
+        hint.set_margin_start(12);
+        hint.set_margin_end(12);
+        hint.set_margin_top(4);
+        expander.add_row(&hint);
+
         let multiple = adw::SwitchRow::new();
         multiple.set_title(&gettext("Allow multiple values"));
         multiple.set_active(draft.multiple);
@@ -1090,38 +1051,6 @@ fn remove_button(
         });
     });
     remove
-}
-
-fn build_action_bar(
-    group: &adw::PreferencesGroup,
-    rows: &Rows,
-    drafts: &Drafts,
-    on_change: &Rc<dyn Fn()>,
-    mode: RowMode,
-) -> gtk::Box {
-    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    bar.set_widget_name("document-properties-actions");
-    bar.set_margin_start(12);
-    bar.set_margin_end(12);
-    bar.set_margin_top(6);
-    bar.set_margin_bottom(6);
-    bar.set_halign(gtk::Align::Start);
-
-    let add = action_button("document-properties-add", &gettext("Add property"));
-    let add_action = add_property_action(group, rows, drafts, on_change, mode);
-    add.connect_clicked(move |_| add_action());
-    bar.append(&add);
-    bar
-}
-
-fn action_button(name: &str, label: &str) -> gtk::Button {
-    let button = gtk::Button::new();
-    button.set_widget_name(name);
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    content.append(&gtk::Image::from_icon_name("list-add-symbolic"));
-    content.append(&gtk::Label::new(Some(label)));
-    button.set_child(Some(&content));
-    button
 }
 
 fn add_property_action(
@@ -1319,6 +1248,43 @@ fn selected_options(switches: &[adw::SwitchRow]) -> String {
         .map(|row| row.title().to_string())
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Returns whether a note value is representable by the configured default for its row.
+fn configured_value_supported(draft: &PropertyDraft) -> bool {
+    match draft.choice {
+        PropertyKindChoice::List if !draft.options.is_empty() => {
+            if draft.multiple {
+                matches!(
+                    &draft.value,
+                    FrontmatterValue::List(items) if items.iter().all(|item| option_supported(draft, item))
+                )
+            } else {
+                matches!(
+                    &draft.value,
+                    FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text)
+                )
+            }
+        }
+        PropertyKindChoice::Number => matches!(
+            draft.value,
+            FrontmatterValue::Number(_) | FrontmatterValue::Null
+        ),
+        PropertyKindChoice::Boolean => matches!(
+            draft.value,
+            FrontmatterValue::Boolean(_) | FrontmatterValue::Null
+        ),
+        PropertyKindChoice::Text | PropertyKindChoice::LongText => matches!(
+            draft.value,
+            FrontmatterValue::Text(_) | FrontmatterValue::Null
+        ),
+        // A list with no configured options is not an option set, so it stays free-form.
+        PropertyKindChoice::List => true,
+    }
+}
+
+fn option_supported(draft: &PropertyDraft, item: &FrontmatterValue) -> bool {
+    matches!(item, FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text))
 }
 
 fn parse_number(text: &str) -> Option<serde_json::Number> {
