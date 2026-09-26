@@ -461,6 +461,13 @@ fn build_document(format: FrontmatterFormat, drafts: &[RowDraft]) -> Frontmatter
             if key.is_empty() {
                 return None;
             }
+            // An empty text value writes no key, so clearing the reserved title row (or an
+            // unfilled default) leaves the source untouched instead of persisting `key: ""`.
+            if matches!(&draft.value, FrontmatterValue::Text(text) if text.trim().is_empty())
+                || draft.value == FrontmatterValue::Null
+            {
+                return None;
+            }
             Some(FrontmatterField::new(key, draft.value.clone()))
         })
         .collect();
