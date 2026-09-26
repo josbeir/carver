@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 17:55+0200\n"
+"POT-Creation-Date: 2026-09-26 18:26+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -502,7 +502,7 @@ msgstr "Notitie exporteren…"
 msgid "Move to Trash"
 msgstr "Naar prullenbak verplaatsen"
 
-#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:369
+#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:288
 msgid "All notes"
 msgstr "Alle notities"
 
@@ -514,7 +514,7 @@ msgstr "Categorie bewerken"
 msgid "Move Category to Trash"
 msgstr "Categorie naar prullenbak verplaatsen"
 
-#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:522
+#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:430
 #, rust-format
 msgid "{count} note"
 msgid_plural "{count} notes"
@@ -983,7 +983,7 @@ msgstr "Carver-bijdragers"
 msgid "A native GNOME notebook for Carve markup."
 msgstr "Een native GNOME-notitieboek voor Carve-opmaak."
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:128
+#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:139
 msgid "Keyboard Shortcuts"
 msgstr "Sneltoetsen"
 
@@ -1595,39 +1595,39 @@ msgstr "Koprij"
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} rijen × {columns} kolommen"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:38 apps/carver-gtk/src/ui/trash.rs:24
+#: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
 msgstr "Terug naar notities"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:122
+#: apps/carver-gtk/src/ui/sidebar.rs:133
 msgid "Connect an agent"
 msgstr "Een agent verbinden"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:126
+#: apps/carver-gtk/src/ui/sidebar.rs:137
 msgid "Preferences"
 msgstr "Voorkeuren"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:131
+#: apps/carver-gtk/src/ui/sidebar.rs:142
 msgid "About Carver"
 msgstr "Over Carver"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:136
+#: apps/carver-gtk/src/ui/sidebar.rs:147
 msgid "Settings"
 msgstr "Instellingen"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:264 apps/carver-gtk/src/ui/sidebar.rs:297
+#: apps/carver-gtk/src/ui/sidebar.rs:357 apps/carver-gtk/src/ui/sidebar.rs:390
 msgid "Hide Categories"
 msgstr "Categorieën verbergen"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:294
+#: apps/carver-gtk/src/ui/sidebar.rs:387
 msgid "Show Categories"
 msgstr "Categorieën tonen"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:328
+#: apps/carver-gtk/src/ui/sidebar.rs:400
 msgid "Open Trash"
 msgstr "Prullenbak openen"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:336 apps/carver-gtk/src/ui/trash.rs:31
+#: apps/carver-gtk/src/ui/sidebar.rs:408 apps/carver-gtk/src/ui/trash.rs:31
 msgid "Trash"
 msgstr "Prullenbak"
 

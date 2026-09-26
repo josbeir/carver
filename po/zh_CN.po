@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 17:55+0200\n"
+"POT-Creation-Date: 2026-09-26 18:26+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -500,7 +500,7 @@ msgstr "导出笔记…"
 msgid "Move to Trash"
 msgstr "移到回收站"
 
-#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:369
+#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:288
 msgid "All notes"
 msgstr "所有笔记"
 
@@ -512,7 +512,7 @@ msgstr "编辑分类"
 msgid "Move Category to Trash"
 msgstr "将分类移到回收站"
 
-#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:522
+#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:430
 #, rust-format
 msgid "{count} note"
 msgid_plural "{count} notes"
@@ -976,7 +976,7 @@ msgstr "Carver 贡献者"
 msgid "A native GNOME notebook for Carve markup."
 msgstr "用于 Carve 标记的原生 GNOME 笔记本。"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:128
+#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:139
 msgid "Keyboard Shortcuts"
 msgstr "键盘快捷键"
 
@@ -1587,39 +1587,39 @@ msgstr "表头行"
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} 行 × {columns} 列"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:38 apps/carver-gtk/src/ui/trash.rs:24
+#: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
 msgstr "返回笔记"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:122
+#: apps/carver-gtk/src/ui/sidebar.rs:133
 msgid "Connect an agent"
 msgstr "连接智能体"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:126
+#: apps/carver-gtk/src/ui/sidebar.rs:137
 msgid "Preferences"
 msgstr "首选项"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:131
+#: apps/carver-gtk/src/ui/sidebar.rs:142
 msgid "About Carver"
 msgstr "关于 Carver"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:136
+#: apps/carver-gtk/src/ui/sidebar.rs:147
 msgid "Settings"
 msgstr "设置"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:264 apps/carver-gtk/src/ui/sidebar.rs:297
+#: apps/carver-gtk/src/ui/sidebar.rs:357 apps/carver-gtk/src/ui/sidebar.rs:390
 msgid "Hide Categories"
 msgstr "隐藏分类"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:294
+#: apps/carver-gtk/src/ui/sidebar.rs:387
 msgid "Show Categories"
 msgstr "显示分类"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:328
+#: apps/carver-gtk/src/ui/sidebar.rs:400
 msgid "Open Trash"
 msgstr "打开回收站"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:336 apps/carver-gtk/src/ui/trash.rs:31
+#: apps/carver-gtk/src/ui/sidebar.rs:408 apps/carver-gtk/src/ui/trash.rs:31
 msgid "Trash"
 msgstr "回收站"
 

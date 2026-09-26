@@ -5,24 +5,40 @@ use std::{
     rc::Rc,
 };
 
-use carver_sdk::{Category, CategoryId, CategorySummary};
+use adw::prelude::*;
+use carver_sdk::{BaseDefinition, BaseId, CategoryId, CategorySummary};
 use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use super::dialogs::{category_color_css_class, category_icon_name};
-use crate::mvu::{AppDispatcher, AppModel, AppMsg, BasesMsg, LoadState, NavigationMsg};
+use crate::mvu::{
+    AppDispatcher, AppModel, AppMsg, BasesMsg, LoadState, NavigationMsg, SidebarSelection,
+};
+
+/// One navigation destination rendered by the sidebar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SidebarKey {
+    /// All notes.
+    AllNotes,
+    /// One category.
+    Category(CategoryId),
+    /// One saved Base.
+    Base(BaseId),
+}
 
 /// Responsive category sidebar and its snapshot renderer.
 #[derive(Clone)]
 pub(crate) struct SidebarSurface {
     pub(crate) widget: gtk::Widget,
-    pub(crate) list: gtk::ListBox,
-    dispatcher: AppDispatcher,
-    split_view: adw::NavigationSplitView,
+    pub(crate) sidebar: adw::Sidebar,
     rendering: Rc<Cell<bool>>,
-    base_rows: gtk::Box,
-    rendered_bases: Rc<RefCell<Vec<carver_sdk::BaseDefinition>>>,
+    category_section: adw::SidebarSection,
+    bases_section: adw::SidebarSection,
+    category_keys: Rc<RefCell<Vec<SidebarKey>>>,
+    base_keys: Rc<RefCell<Vec<SidebarKey>>>,
+    rendered_categories: Rc<RefCell<Option<Vec<CategorySummary>>>>,
+    rendered_bases: Rc<RefCell<Vec<BaseDefinition>>>,
 }
 
 pub(crate) type CompactNavigation = Rc<Cell<bool>>;
@@ -48,56 +64,51 @@ pub(crate) fn build_sidebar(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
 ) -> SidebarSurface {
-    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let container = adw::ToolbarView::new();
     container.set_widget_name("sidebar-surface");
-    container.add_css_class("sidebar");
     let header = adw::HeaderBar::new();
     header.pack_start(&super::add::button(dispatcher));
     header.pack_end(&settings_menu_button());
-    container.append(&header);
-
-    let list = gtk::ListBox::new();
-    list.set_widget_name("category-list");
-    list.set_selection_mode(gtk::SelectionMode::Single);
-    list.add_css_class("navigation-sidebar");
-    let rendering = Rc::new(Cell::new(false));
-    connect_selection(dispatcher, split_view, &list, &rendering);
+    container.add_top_bar(&header);
     install_sidebar_search_shortcut(&container, dispatcher);
 
-    let bases_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    bases_box.set_visible(false);
-    bases_box.set_margin_bottom(8);
-    let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
-    divider.set_widget_name("bases-divider");
-    divider.set_margin_start(8);
-    divider.set_margin_end(8);
-    divider.set_margin_top(6);
-    divider.set_margin_bottom(6);
-    bases_box.append(&divider);
-    let base_rows = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    bases_box.append(&base_rows);
-    let scroll_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    scroll_content.append(&list);
-    scroll_content.append(&bases_box);
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_widget_name("sidebar-navigation-scroll");
-    scroll.set_child(Some(&scroll_content));
-    scroll.set_vexpand(true);
-    container.append(&scroll);
-    container.append(&trash_footer(dispatcher, split_view));
+    let sidebar = adw::Sidebar::new();
+    sidebar.set_widget_name("category-sidebar");
+    let category_section = adw::SidebarSection::new();
+    let bases_section = adw::SidebarSection::new();
+    sidebar.append(category_section.clone());
+    sidebar.append(bases_section.clone());
+
+    let rendering = Rc::new(Cell::new(false));
+    let category_keys = Rc::new(RefCell::new(Vec::new()));
+    let base_keys = Rc::new(RefCell::new(Vec::new()));
+    connect_selection(
+        dispatcher,
+        split_view,
+        &sidebar,
+        &rendering,
+        &category_keys,
+        &base_keys,
+    );
+
+    container.set_content(Some(&sidebar));
+    container.add_bottom_bar(&trash_footer(dispatcher, split_view));
+
     SidebarSurface {
         widget: container.upcast(),
-        list,
-        dispatcher: dispatcher.clone(),
-        split_view: split_view.clone(),
+        sidebar,
         rendering,
-        base_rows,
+        category_section,
+        bases_section,
+        category_keys,
+        base_keys,
+        rendered_categories: Rc::new(RefCell::new(None)),
         rendered_bases: Rc::new(RefCell::new(Vec::new())),
     }
 }
 
 /// Captures note search from the sidebar without intercepting editor shortcuts.
-fn install_sidebar_search_shortcut(container: &gtk::Box, dispatcher: &AppDispatcher) {
+fn install_sidebar_search_shortcut(container: &impl IsA<gtk::Widget>, dispatcher: &AppDispatcher) {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("sidebar-search-shortcut"));
     controller.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -139,117 +150,199 @@ fn settings_menu_button() -> gtk::MenuButton {
 }
 
 impl SidebarSurface {
-    /// Renders category rows from the current application snapshot.
+    /// Renders sidebar rows from the current application snapshot.
     pub(crate) fn render(&self, model: &AppModel) {
         self.rendering.set(true);
         let LoadState::Ready(categories) = &model.sidebar.state else {
-            clear_list(&self.list);
+            self.category_section.remove_all();
+            self.category_keys.borrow_mut().clear();
+            self.rendered_categories.replace(None);
+            self.apply_selection(model.sidebar_selection());
             self.rendering.set(false);
             return;
         };
-        populate_sidebar(
-            &self.list,
-            &self.dispatcher,
-            &self.split_view,
-            categories,
-            model.selected_category,
-        );
+
+        if self.rendered_categories.borrow().as_ref() != Some(categories) {
+            rebuild_category_section(&self.category_section, &self.category_keys, categories);
+            self.rendered_categories.replace(Some(categories.clone()));
+        }
+
         if let LoadState::Ready(bases) = &model.bases.definitions.state {
             let changed = *self.rendered_bases.borrow() != *bases;
             if changed {
-                render_bases(&self.base_rows, &self.dispatcher, &self.split_view, model);
+                rebuild_bases_section(&self.bases_section, &self.base_keys, bases);
                 self.rendered_bases.replace(bases.clone());
             }
         }
-        let selection = model.sidebar_selection();
-        if !matches!(selection, crate::mvu::SidebarSelection::Category(_)) {
-            self.list.unselect_all();
-        }
-        let selected_name = match selection {
-            crate::mvu::SidebarSelection::Base(id) => format!("base:{id}"),
-            _ => String::new(),
-        };
-        let mut child = self.base_rows.first_child();
-        while let Some(button) = child {
-            let active = button.widget_name() == selected_name;
-            if active {
-                button.add_css_class("sidebar-active");
-            } else {
-                button.remove_css_class("sidebar-active");
-            }
-            child = button.next_sibling();
-        }
+
+        self.apply_selection(model.sidebar_selection());
         self.rendering.set(false);
     }
+
+    /// Highlights the destination derived from the current navigation route.
+    fn apply_selection(&self, selection: SidebarSelection) {
+        self.sidebar.set_selected(self.selection_index(selection));
+    }
+
+    /// Maps a model selection onto the flat index used by `AdwSidebar`.
+    fn selection_index(&self, selection: SidebarSelection) -> u32 {
+        let category_keys = self.category_keys.borrow();
+        let base_keys = self.base_keys.borrow();
+        let position = match selection {
+            SidebarSelection::Category(category) => {
+                let key = category.map_or(SidebarKey::AllNotes, SidebarKey::Category);
+                category_keys.iter().position(|candidate| *candidate == key)
+            }
+            SidebarSelection::Base(id) => base_keys
+                .iter()
+                .position(|candidate| *candidate == SidebarKey::Base(id))
+                .map(|index| category_keys.len() + index),
+            SidebarSelection::None => None,
+        };
+        position.map_or(gtk::INVALID_LIST_POSITION, |index| {
+            u32::try_from(index).unwrap_or(gtk::INVALID_LIST_POSITION)
+        })
+    }
 }
 
-fn render_bases(
-    container: &gtk::Box,
+fn connect_selection(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
-    model: &AppModel,
+    sidebar: &adw::Sidebar,
+    rendering: &Rc<Cell<bool>>,
+    category_keys: &Rc<RefCell<Vec<SidebarKey>>>,
+    base_keys: &Rc<RefCell<Vec<SidebarKey>>>,
 ) {
-    let LoadState::Ready(bases) = &model.bases.definitions.state else {
-        return;
-    };
-    if let Some(section) = container.parent() {
-        section.set_visible(!bases.is_empty());
-    }
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
-    }
-    for base in bases {
-        let button = gtk::Button::new();
-        button.set_widget_name(&format!("base:{}", base.id));
-        button.add_css_class("base-sidebar-button");
-        button.set_child(Some(&base_button_content(
-            "carver-database-symbolic",
-            &base.name,
-            Some(base.row_count),
-            Some(&format!("base-count:{}", base.id)),
-        )));
-        button.add_css_class("flat");
-        let dispatcher = dispatcher.clone();
-        let split_view = split_view.clone();
-        let base_id = base.id;
-        button.connect_clicked(move |_| {
-            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Open(base_id)));
-            if split_view.is_collapsed() {
-                split_view.set_show_content(true);
+    let dispatcher = dispatcher.clone();
+    let split_view_for_selection = split_view.clone();
+    let rendering = Rc::clone(rendering);
+    let category_keys = Rc::clone(category_keys);
+    let base_keys = Rc::clone(base_keys);
+    sidebar.connect_selected_notify(move |sidebar| {
+        if rendering.get() {
+            return;
+        }
+        let mut keys = category_keys.borrow().clone();
+        keys.extend(base_keys.borrow().iter().copied());
+        let Some(key) = keys.get(sidebar.selected() as usize).copied() else {
+            return;
+        };
+        match key {
+            SidebarKey::AllNotes => {
+                let _ =
+                    dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::SelectCategory(None)));
             }
-        });
-        container.append(&button);
-    }
+            SidebarKey::Category(id) => {
+                let _ = dispatcher
+                    .dispatch(AppMsg::Navigation(NavigationMsg::SelectCategory(Some(id))));
+            }
+            SidebarKey::Base(id) => {
+                let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::Open(id)));
+            }
+        }
+        if split_view_for_selection.is_collapsed() {
+            split_view_for_selection.set_show_content(true);
+        }
+    });
+
+    let split_view_for_activation = split_view.clone();
+    sidebar.connect_activated(move |_, _| {
+        if split_view_for_activation.is_collapsed() {
+            split_view_for_activation.set_show_content(true);
+        }
+    });
 }
 
-fn base_button_content(
-    icon: &str,
-    text: &str,
-    count: Option<usize>,
-    count_widget_name: Option<&str>,
-) -> gtk::Box {
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    content.add_css_class("category-row-content");
-    content.set_margin_start(10);
-    content.set_margin_end(10);
-    content.set_margin_top(6);
-    content.set_margin_bottom(6);
-    content.append(&sidebar_icon_tile(icon, "base-icon-tile"));
-    let label = gtk::Label::new(Some(text));
-    label.set_xalign(0.0);
-    label.set_hexpand(true);
-    label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    content.append(&label);
-    if let Some(count) = count {
-        let badge = gtk::Label::new(Some(&count.to_string()));
-        if let Some(widget_name) = count_widget_name {
-            badge.set_widget_name(widget_name);
-        }
-        badge.set_tooltip_text(Some(&note_count_label(count)));
-        badge.add_css_class("category-count-badge");
-        content.append(&badge);
+fn rebuild_category_section(
+    section: &adw::SidebarSection,
+    keys: &Rc<RefCell<Vec<SidebarKey>>>,
+    categories: &[CategorySummary],
+) {
+    section.remove_all();
+    let all_notes_count = categories.iter().map(|summary| summary.note_count).sum();
+    section.append(all_notes_item(all_notes_count));
+    let mut new_keys = Vec::with_capacity(categories.len() + 1);
+    new_keys.push(SidebarKey::AllNotes);
+    for summary in categories {
+        section.append(category_item(&summary.category, summary.note_count));
+        new_keys.push(SidebarKey::Category(summary.category.id));
     }
-    content
+    *keys.borrow_mut() = new_keys;
+}
+
+fn rebuild_bases_section(
+    section: &adw::SidebarSection,
+    keys: &Rc<RefCell<Vec<SidebarKey>>>,
+    bases: &[BaseDefinition],
+) {
+    section.remove_all();
+    let mut new_keys = Vec::with_capacity(bases.len());
+    for base in bases {
+        section.append(base_item(base));
+        new_keys.push(SidebarKey::Base(base.id));
+    }
+    *keys.borrow_mut() = new_keys;
+}
+
+fn all_notes_item(note_count: usize) -> adw::SidebarItem {
+    let item = adw::SidebarItem::new(&gettext("All notes"));
+    item.set_icon_name(Some("go-home-symbolic"));
+    item.set_suffix(Some(&count_badge(
+        "all-notes-count",
+        note_count,
+        Some("all-notes-icon"),
+    )));
+    item
+}
+
+fn category_item(category: &carver_sdk::Category, note_count: usize) -> adw::SidebarItem {
+    let item = adw::SidebarItem::new(&category.name);
+    item.set_icon_name(Some(category_icon_name(category.appearance.icon)));
+    let color = category.appearance.color.resolved_for(category.id);
+    item.set_suffix(Some(&count_badge(
+        &format!("category-count:{}", category.id),
+        note_count,
+        Some(category_color_css_class(color)),
+    )));
+    item.set_tooltip(Some(&note_count_label(note_count)));
+    item
+}
+
+fn base_item(base: &BaseDefinition) -> adw::SidebarItem {
+    let item = adw::SidebarItem::new(&base.name);
+    item.set_icon_name(Some("carver-database-symbolic"));
+    item.set_suffix(Some(&count_badge(
+        &format!("base-count:{}", base.id),
+        base.row_count,
+        None,
+    )));
+    item
+}
+
+/// Builds the note-count badge, optionally tinted with a category colour.
+fn count_badge(widget_name: &str, note_count: usize, color_class: Option<&str>) -> gtk::Label {
+    let badge = gtk::Label::new(Some(&badge_text(note_count)));
+    badge.set_widget_name(widget_name);
+    badge.set_tooltip_text(Some(&note_count_label(note_count)));
+    badge.set_valign(gtk::Align::Center);
+    badge.set_halign(gtk::Align::Center);
+    badge.add_css_class("category-count-badge");
+    if note_count > 99 {
+        badge.add_css_class("capped");
+    }
+    if let Some(color_class) = color_class {
+        badge.add_css_class(color_class);
+    }
+    badge
+}
+
+/// Caps the badge text so the pill stays a circle at every note count.
+fn badge_text(note_count: usize) -> String {
+    if note_count > 99 {
+        "99+".to_owned()
+    } else {
+        note_count.to_string()
+    }
 }
 
 /// Builds the shared control that expands or collapses the category sidebar.
@@ -301,27 +394,6 @@ pub(crate) fn sidebar_toggle_button(
     toggle
 }
 
-fn connect_selection(
-    dispatcher: &AppDispatcher,
-    split_view: &adw::NavigationSplitView,
-    list: &gtk::ListBox,
-    rendering: &Rc<Cell<bool>>,
-) {
-    let dispatcher = dispatcher.clone();
-    let split_view = split_view.clone();
-    let rendering = Rc::clone(rendering);
-    list.connect_row_selected(move |_list, row| {
-        if rendering.get() {
-            return;
-        }
-        let selected = row.and_then(category_id_from_row);
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::SelectCategory(selected)));
-        if split_view.is_collapsed() {
-            split_view.set_show_content(true);
-        }
-    });
-}
-
 fn trash_footer(dispatcher: &AppDispatcher, split_view: &adw::NavigationSplitView) -> gtk::Widget {
     let trash = gtk::Button::new();
     trash.set_widget_name("open-trash-button");
@@ -352,170 +424,6 @@ fn trash_footer(dispatcher: &AppDispatcher, split_view: &adw::NavigationSplitVie
     footer.upcast()
 }
 
-fn populate_sidebar(
-    list: &gtk::ListBox,
-    dispatcher: &AppDispatcher,
-    split_view: &adw::NavigationSplitView,
-    categories: &[CategorySummary],
-    selected_category: Option<CategoryId>,
-) {
-    clear_list(list);
-    let home = gtk::ListBoxRow::new();
-    home.set_selectable(true);
-    home.add_css_class("category-card");
-    let all_notes_count = categories.iter().map(|summary| summary.note_count).sum();
-    let home_content = sidebar_row(
-        "go-home-symbolic",
-        &gettext("All notes"),
-        all_notes_count,
-        Some("all-notes-count"),
-    );
-    install_active_row_navigation(&home_content, dispatcher, split_view, None);
-    home.set_child(Some(&home_content));
-    list.append(&home);
-    let mut selected_row = None;
-    for summary in categories {
-        let row = category_sidebar_row(
-            dispatcher,
-            split_view,
-            &summary.category,
-            summary.note_count,
-        );
-        if Some(summary.category.id) == selected_category {
-            selected_row = Some(row.clone());
-        }
-        list.append(&row);
-    }
-    list.select_row(selected_row.as_ref().or(Some(&home)));
-}
-
-fn clear_list(list: &gtk::ListBox) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-}
-
-fn category_id_from_row(row: &gtk::ListBoxRow) -> Option<CategoryId> {
-    row.widget_name()
-        .strip_prefix("category:")
-        .and_then(|value| uuid::Uuid::parse_str(value).ok())
-        .map(CategoryId::from_uuid)
-}
-
-fn sidebar_row(
-    icon_name: &str,
-    label: &str,
-    note_count: usize,
-    count_widget_name: Option<&str>,
-) -> gtk::Widget {
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    row.add_css_class("category-row-content");
-    row.set_margin_start(10);
-    row.set_margin_end(10);
-    row.set_margin_top(6);
-    row.set_margin_bottom(6);
-    row.append(&sidebar_icon_tile(icon_name, "all-notes-icon"));
-    let title = gtk::Label::new(Some(label));
-    title.add_css_class("category-card-title");
-    title.set_xalign(0.0);
-    title.set_hexpand(true);
-    row.append(&title);
-    let count = gtk::Label::new(Some(&note_count.to_string()));
-    if let Some(widget_name) = count_widget_name {
-        count.set_widget_name(widget_name);
-    }
-    count.set_tooltip_text(Some(&note_count_label(note_count)));
-    count.add_css_class("category-count-badge");
-    row.append(&count);
-    row.upcast()
-}
-
-fn category_sidebar_row(
-    dispatcher: &AppDispatcher,
-    split_view: &adw::NavigationSplitView,
-    category: &Category,
-    note_count: usize,
-) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_selectable(true);
-    row.set_widget_name(&format!("category:{}", category.id));
-    row.add_css_class("category-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    content.add_css_class("category-row-content");
-    content.set_margin_start(10);
-    content.set_margin_end(10);
-    content.set_margin_top(6);
-    content.set_margin_bottom(6);
-    let primary_content = category_primary_content(category, note_count);
-    install_active_row_navigation(&primary_content, dispatcher, split_view, Some(category.id));
-    content.append(&primary_content);
-    row.set_child(Some(&content));
-    row
-}
-
-fn category_primary_content(category: &Category, note_count: usize) -> gtk::Box {
-    let primary_content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    primary_content.set_hexpand(true);
-    primary_content.append(&category_icon_tile(category));
-    let name = gtk::Label::new(Some(&category.name));
-    name.set_xalign(0.0);
-    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    name.set_single_line_mode(true);
-    name.set_hexpand(true);
-    name.add_css_class("category-card-title");
-    primary_content.append(&name);
-    let count_label = gtk::Label::new(Some(&note_count.to_string()));
-    count_label.set_widget_name(&format!("category-count:{}", category.id));
-    count_label.set_tooltip_text(Some(&note_count_label(note_count)));
-    count_label.add_css_class("category-count-badge");
-    primary_content.append(&count_label);
-    primary_content
-}
-
-fn sidebar_icon_tile(icon_name: &str, color_class: &str) -> gtk::Box {
-    let tile = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    tile.add_css_class("category-icon-tile");
-    tile.add_css_class(color_class);
-    tile.set_halign(gtk::Align::Fill);
-    tile.set_valign(gtk::Align::Fill);
-    tile.set_homogeneous(true);
-    let image = gtk::Image::from_icon_name(icon_name);
-    image.set_pixel_size(16);
-    image.set_halign(gtk::Align::Center);
-    image.set_valign(gtk::Align::Center);
-    tile.append(&image);
-    tile
-}
-
-fn category_icon_tile(category: &Category) -> gtk::Box {
-    let color = category.appearance.color.resolved_for(category.id);
-    sidebar_icon_tile(
-        category_icon_name(category.appearance.icon),
-        category_color_css_class(color),
-    )
-}
-
-fn install_active_row_navigation(
-    widget: &impl IsA<gtk::Widget>,
-    dispatcher: &AppDispatcher,
-    split_view: &adw::NavigationSplitView,
-    category_id: Option<CategoryId>,
-) {
-    let click = gtk::GestureClick::new();
-    click.set_button(gtk::gdk::BUTTON_PRIMARY);
-    let dispatcher = dispatcher.clone();
-    let split_view = split_view.clone();
-    click.connect_released(move |_, _, _, _| {
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::SelectCategory(
-            category_id,
-        )));
-        if split_view.is_collapsed() {
-            split_view.set_show_content(true);
-        }
-    });
-    widget.add_controller(click);
-}
-
 fn note_count_label(note_count: usize) -> String {
     tr_fmt!(
         ngettext(
@@ -526,3 +434,6 @@ fn note_count_label(note_count: usize) -> String {
         count = note_count
     )
 }
+
+#[cfg(test)]
+mod tests;

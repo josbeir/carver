@@ -148,6 +148,7 @@ fn build_window(
     split_view.set_content(Some(&content_page));
     toast_overlay.set_child(Some(&responsive_navigation(
         &split_view,
+        &sidebar.sidebar,
         &compact_navigation,
     )));
     window.set_content(Some(&toast_overlay));
@@ -197,6 +198,7 @@ fn build_window(
 
 fn responsive_navigation(
     split_view: &adw::NavigationSplitView,
+    sidebar: &adw::Sidebar,
     compact_navigation: &CompactNavigation,
 ) -> adw::BreakpointBin {
     let container = adw::BreakpointBin::new();
@@ -209,6 +211,7 @@ fn responsive_navigation(
         adw::LengthUnit::Px,
     ));
     breakpoint.add_setters(&[(split_view, "collapsed", true)]);
+    breakpoint.add_setters(&[(sidebar, "mode", adw::SidebarMode::Page)]);
     let compact_for_apply = Rc::clone(compact_navigation);
     breakpoint.connect_apply(move |_| compact_for_apply.set(true));
     let compact_for_unapply = Rc::clone(compact_navigation);

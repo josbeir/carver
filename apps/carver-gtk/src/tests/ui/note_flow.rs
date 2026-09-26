@@ -64,11 +64,10 @@ pub(super) fn note_should_delete_restore_and_favorite_from_shortcuts(
     favorite.emit_clicked();
     back.emit_clicked();
     assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
-    let source_category_row =
-        find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
-            .and_downcast::<gtk::ListBoxRow>()
-            .ok_or("source category row")?;
-    sidebar.select_row(Some(&source_category_row));
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("category-count:{}", category.id)
+    ));
     assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("browser")

@@ -12,11 +12,7 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("editor")
-            && all_notes_row(&sidebar).is_some_and(|all_notes| {
-                sidebar
-                    .selected_row()
-                    .is_some_and(|selected| selected == all_notes)
-            })
+            && sidebar_selected_badge(&sidebar).as_deref() == Some("all-notes-count")
     }));
     let controllers = route_stack.observe_controllers();
     let mouse_back = (0..controllers.n_items())

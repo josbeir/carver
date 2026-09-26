@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 17:55+0200\n"
+"POT-Creation-Date: 2026-09-26 18:26+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -502,7 +502,7 @@ msgstr "Exporter la note…"
 msgid "Move to Trash"
 msgstr "Mettre à la corbeille"
 
-#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:369
+#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:288
 msgid "All notes"
 msgstr "Toutes les notes"
 
@@ -514,7 +514,7 @@ msgstr "Modifier la catégorie"
 msgid "Move Category to Trash"
 msgstr "Mettre la catégorie à la corbeille"
 
-#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:522
+#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:430
 #, rust-format
 msgid "{count} note"
 msgid_plural "{count} notes"
@@ -983,7 +983,7 @@ msgstr "Contributeurs de Carver"
 msgid "A native GNOME notebook for Carve markup."
 msgstr "Un carnet GNOME natif pour le balisage Carve."
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:128
+#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:139
 msgid "Keyboard Shortcuts"
 msgstr "Raccourcis clavier"
 
@@ -1595,39 +1595,39 @@ msgstr "Ligne d’en-tête"
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} lignes × {columns} colonnes"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:38 apps/carver-gtk/src/ui/trash.rs:24
+#: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
 msgstr "Retour aux notes"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:122
+#: apps/carver-gtk/src/ui/sidebar.rs:133
 msgid "Connect an agent"
 msgstr "Connecter un agent"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:126
+#: apps/carver-gtk/src/ui/sidebar.rs:137
 msgid "Preferences"
 msgstr "Préférences"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:131
+#: apps/carver-gtk/src/ui/sidebar.rs:142
 msgid "About Carver"
 msgstr "À propos de Carver"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:136
+#: apps/carver-gtk/src/ui/sidebar.rs:147
 msgid "Settings"
 msgstr "Paramètres"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:264 apps/carver-gtk/src/ui/sidebar.rs:297
+#: apps/carver-gtk/src/ui/sidebar.rs:357 apps/carver-gtk/src/ui/sidebar.rs:390
 msgid "Hide Categories"
 msgstr "Masquer les catégories"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:294
+#: apps/carver-gtk/src/ui/sidebar.rs:387
 msgid "Show Categories"
 msgstr "Afficher les catégories"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:328
+#: apps/carver-gtk/src/ui/sidebar.rs:400
 msgid "Open Trash"
 msgstr "Ouvrir la corbeille"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:336 apps/carver-gtk/src/ui/trash.rs:31
+#: apps/carver-gtk/src/ui/sidebar.rs:408 apps/carver-gtk/src/ui/trash.rs:31
 msgid "Trash"
 msgstr "Corbeille"
 

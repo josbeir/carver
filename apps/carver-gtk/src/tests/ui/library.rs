@@ -96,9 +96,10 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         .items
         .pop()
         .ok_or("created note")?;
-    assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
-    let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
-    sidebar.select_row(Some(&all_notes));
+    assert!(run_main_context_until(|| {
+        sidebar_item_index(&sidebar, "all-notes-count").is_some()
+    }));
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
     Ok(note)
 }
 
@@ -251,7 +252,7 @@ pub(super) fn move_picker_should_filter_and_move_notes(
         .flatten()
         .is_some_and(|moved| moved.category_id == destination.id)));
     assert!(run_main_context_until(|| {
-        find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id)).is_some()
+        sidebar_item_index(&sidebar, &format!("category-count:{}", category.id)).is_some()
     }));
     Ok(())
 }
@@ -263,10 +264,10 @@ pub(super) fn category_selection_should_show_empty_state(
     let category = &fixture.category;
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
-    let category_row = find_widget(sidebar.upcast_ref(), &format!("category:{}", category.id))
-        .and_downcast::<gtk::ListBoxRow>()
-        .ok_or("category row")?;
-    sidebar.select_row(Some(&category_row));
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("category-count:{}", category.id)
+    ));
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(&root, "browser-hero-title")
             .is_some_and(|title| title.text() == "Notes")
@@ -280,11 +281,7 @@ pub(super) fn category_selection_should_show_empty_state(
                 .is_some_and(|button| button.is_visible())
             && widget_as::<gtk::Stack>(&root, "browser-content-pages")
                 .is_some_and(|pages| pages.visible_child_name().as_deref() == Some("contents"))
-            && find_widget(
-                sidebar.upcast_ref(),
-                &format!("category-actions:{}", category.id),
-            )
-            .is_none()
+            && sidebar_item_index(&sidebar, &format!("category-actions:{}", category.id)).is_none()
             && find_widget(&root, &format!("note-category:{}", note.id)).is_none()
     }));
     let browser_scroll = widget_as::<gtk::ScrolledWindow>(&root, "browser-content-scroll")
@@ -329,12 +326,6 @@ pub(super) fn category_switch_should_retain_previous_browser(
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
     let note_list = fixture.note_list()?;
-    let destination_category_row = find_widget(
-        sidebar.upcast_ref(),
-        &format!("category:{}", destination.id),
-    )
-    .and_downcast::<gtk::ListBoxRow>()
-    .ok_or("destination category row")?;
     let notes_without_favorites = Rc::new(Cell::new(false));
     let observed_rows = note_list.model().ok_or("note list model")?;
     let note_id = note.id;
@@ -350,7 +341,10 @@ pub(super) fn category_switch_should_retain_previous_browser(
             }
         }
     });
-    sidebar.select_row(Some(&destination_category_row));
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("category-count:{}", destination.id)
+    ));
     assert!(run_main_context_until(|| {
         widget_as::<gtk::Label>(&root, "browser-hero-title")
             .is_some_and(|title| title.text() == "Projects")
@@ -366,11 +360,12 @@ pub(super) fn category_switch_should_retain_previous_browser(
         !notes_without_favorites.get(),
         "category notes should never appear before their favorites"
     );
-    assert!(run_main_context_until(|| all_notes_row(&sidebar).is_some()));
-    let all_notes = all_notes_row(&sidebar).ok_or("all notes row")?;
+    assert!(run_main_context_until(|| {
+        sidebar_item_index(&sidebar, "all-notes-count").is_some()
+    }));
     let previous_favorite = find_widget(&root, &format!("favorite-note:{}", note.id))
         .ok_or("previous category favorite")?;
-    sidebar.select_row(Some(&all_notes));
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
     assert_eq!(
         find_widget(&root, &format!("favorite-note:{}", note.id)),
         Some(previous_favorite),

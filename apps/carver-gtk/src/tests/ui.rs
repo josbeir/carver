@@ -31,7 +31,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::{
     ActionRowExt, AdwDialogExt, BreakpointBinExt, ComboRowExt, PreferencesDialogExt,
-    PreferencesPageExt, PreferencesRowExt,
+    PreferencesPageExt, PreferencesRowExt, SidebarItemExt,
 };
 use sourceview5::prelude::*;
 use webkit6::prelude::*;
@@ -128,6 +128,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     shell::window_shortcuts_should_open_dialogs(&fixture)?;
     let note = library::browser_actions_should_import_and_create_a_note(&fixture)?;
     shell::responsive_navigation_should_switch_sidebar_and_content(&fixture)?;
+    shell::sidebar_should_use_adw_sidebar_sections(&fixture)?;
+    shell::sidebar_count_badge_should_cap_large_counts()?;
     library::note_cards_should_group_and_favorite(&fixture, &note)?;
     library::move_picker_should_filter_and_move_notes(&fixture, &note)?;
     library::category_selection_should_show_empty_state(&fixture, &note)?;
