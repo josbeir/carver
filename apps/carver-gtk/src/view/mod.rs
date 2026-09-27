@@ -4,6 +4,7 @@
 mod tests;
 
 use std::cell::{Cell, RefCell};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -99,6 +100,7 @@ pub struct ViewRefs {
     last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::ui::editor::EditorViewRefs>,
+    source_syntax_dir: Option<PathBuf>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
 }
@@ -142,6 +144,7 @@ impl ViewRefs {
             last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
             editor: None,
+            source_syntax_dir: None,
             last_sidebar_snapshot: RefCell::new(None),
             rendering: Cell::new(false),
         }
@@ -214,6 +217,13 @@ impl ViewRefs {
     #[must_use]
     pub(crate) fn with_editor(mut self, editor: crate::ui::editor::EditorViewRefs) -> Self {
         self.editor = Some(editor);
+        self
+    }
+
+    /// Adds the installed `GtkSourceView` syntax directory used by the properties dialog.
+    #[must_use]
+    pub(crate) fn with_source_syntax_dir(mut self, source_syntax_dir: PathBuf) -> Self {
+        self.source_syntax_dir = Some(source_syntax_dir);
         self
     }
 
@@ -473,7 +483,12 @@ impl ViewRefs {
             if let Some(dispatcher) = &self.dispatcher {
                 use adw::prelude::*;
                 if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
-                    crate::ui::editor::properties_dialog::show(&parent, dispatcher, request);
+                    crate::ui::editor::properties_dialog::show(
+                        &parent,
+                        dispatcher,
+                        request,
+                        self.source_syntax_dir.as_deref(),
+                    );
                 }
             }
             return;

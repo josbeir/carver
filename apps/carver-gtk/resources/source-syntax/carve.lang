@@ -41,9 +41,26 @@
     <context id="h6" style-ref="heading-6" class="carve-heading carve-heading-6"><match>^######[ ]+.+$</match></context>
     <context id="frontmatter-key" style-ref="frontmatter-key" class="carve-frontmatter-key"><match>^[ \t]*(?:[A-Za-z_][A-Za-z0-9_.-]*|&quot;(?:\\.|[^&quot;\\\n])*&quot;)(?=[ \t]*[:=])</match></context>
     <context id="frontmatter-value" style-ref="frontmatter-value" class="carve-frontmatter-value"><match>&quot;(?:\\.|[^&quot;\\\n])*&quot;|'(?:''|[^'\n])*'|\b(?:true|false|null)\b|\b[+-]?\d[\d_]*(?:\.\d[\d_]*)?\b|#[^\n]*$</match></context>
-    <context id="frontmatter" style-ref="frontmatter-fence" class="carve-frontmatter" first-line-only="true">
-      <start>^---(?:[ \t]*(?:yaml|yml|json|toml|[A-Za-z0-9_-]+))?[ \t]*$</start><end>^---[ \t]*$</end>
-      <include><context ref="frontmatter-key"/><context ref="frontmatter-value"/></include>
+    <!-- A known frontmatter format embeds its real grammar, so source mode matches the
+         document-properties raw editor instead of applying Carve's coarse key/value palette.
+         As with fenced code, the per-line inner context skips the closing fence line so the
+         block still terminates. -->
+    <context id="frontmatter-yaml" class="carve-frontmatter carve-frontmatter-yaml" first-line-only="true">
+      <start>^---(?:[ \t]*(?:yaml|yml))?[ \t]*$</start><end>^---[ \t]*$</end>
+      <include><context sub-pattern="0" where="start" style-ref="frontmatter-fence"/><context sub-pattern="0" where="end" style-ref="frontmatter-fence"/><context class="carve-frontmatter-line" end-at-line-end="true"><start>^(?![ \t]*---[ \t]*$)(?=.)</start><include><context ref="yaml:yaml"/></include></context></include>
+    </context>
+    <context id="frontmatter-toml" class="carve-frontmatter carve-frontmatter-toml" first-line-only="true">
+      <start>^---[ \t]*toml[ \t]*$</start><end>^---[ \t]*$</end>
+      <include><context sub-pattern="0" where="start" style-ref="frontmatter-fence"/><context sub-pattern="0" where="end" style-ref="frontmatter-fence"/><context class="carve-frontmatter-line" end-at-line-end="true"><start>^(?![ \t]*---[ \t]*$)(?=.)</start><include><context ref="toml:toml"/></include></context></include>
+    </context>
+    <context id="frontmatter-json" class="carve-frontmatter carve-frontmatter-json" first-line-only="true">
+      <start>^---[ \t]*json[ \t]*$</start><end>^---[ \t]*$</end>
+      <include><context sub-pattern="0" where="start" style-ref="frontmatter-fence"/><context sub-pattern="0" where="end" style-ref="frontmatter-fence"/><context class="carve-frontmatter-line" end-at-line-end="true"><start>^(?![ \t]*---[ \t]*$)(?=.)</start><include><context ref="json:json"/></include></context></include>
+    </context>
+    <!-- Any other (unsupported) token keeps the generic key/value fallback. -->
+    <context id="frontmatter" class="carve-frontmatter" first-line-only="true">
+      <start>^---[ \t]*(?!(?:ya?ml|json|toml)[ \t]*$)[A-Za-z0-9_-]+[ \t]*$</start><end>^---[ \t]*$</end>
+      <include><context sub-pattern="0" where="start" style-ref="frontmatter-fence"/><context sub-pattern="0" where="end" style-ref="frontmatter-fence"/><context ref="frontmatter-key"/><context ref="frontmatter-value"/></include>
     </context>
     <context id="quote-marker" style-ref="quote-marker" class="carve-quote"><match>^[ \t]*&gt;+[ \t]?</match></context>
     <context id="table-cell-marker" style-ref="table-divider" class="carve-table-marker">
@@ -104,7 +121,7 @@
     <context id="carve">
       <include>
         <context ref="h1"/><context ref="h2"/><context ref="h3"/><context ref="h4"/><context ref="h5"/><context ref="h6"/>
-        <context ref="frontmatter"/><context ref="quote-marker"/><context ref="table-row"/><context ref="thematic-break"/>
+        <context ref="frontmatter-yaml"/><context ref="frontmatter-toml"/><context ref="frontmatter-json"/><context ref="frontmatter"/><context ref="quote-marker"/><context ref="table-row"/><context ref="thematic-break"/>
         <context ref="definition-term"/><context ref="definition-marker"/><context ref="diff-block"/><context ref="fence-diff"/><context ref="fence-carve"/><context ref="fence-js"/><context ref="fence-typescript"/><context ref="fence-php"/><context ref="fence-python"/><context ref="fence-rust"/><context ref="fence-sh"/><context ref="fence-json"/><context ref="fence-yaml"/><context ref="fence-html"/><context ref="fence-xml"/><context ref="fence-css"/><context ref="fence-sql"/><context ref="fence-markdown"/><context ref="fence-c"/><context ref="fence-cpp"/><context ref="fence-go"/><context ref="fence-java"/><context ref="fence-ruby"/><context ref="fence-toml"/><context ref="fence"/><context ref="inline-code"/>
         <context ref="list"/><context ref="container"/><context ref="markup"/><context ref="link"/><context ref="symbol"/><context ref="comment"/>
       </include>

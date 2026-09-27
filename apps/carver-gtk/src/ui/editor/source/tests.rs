@@ -198,6 +198,29 @@ fn syntax_grammar_should_define_each_heading_level() -> Result<(), Box<dyn std::
 }
 
 #[test]
+fn syntax_grammar_should_embed_known_frontmatter_formats() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let syntax_dir = install_syntax_assets(directory.path())?;
+    let grammar = fs::read_to_string(syntax_dir.join("carve.lang"))?;
+
+    // Source mode highlights a known frontmatter block with the format's real grammar, matching
+    // the document-properties raw editor.
+    for (context, language) in [
+        ("frontmatter-yaml", "yaml:yaml"),
+        ("frontmatter-toml", "toml:toml"),
+        ("frontmatter-json", "json:json"),
+    ] {
+        assert!(grammar.contains(&format!("id=\"{context}\"")), "{context}");
+        assert!(
+            grammar.contains(&format!("ref=\"{language}\"")),
+            "{language}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn syntax_grammar_should_keep_bundled_style_scheme_ids() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let syntax_dir = install_syntax_assets(directory.path())?;

@@ -50,6 +50,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         AppModel::new(&config),
         crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
             .with_editor(refs)
+            .with_source_syntax_dir(syntax)
             .with_dispatcher(dispatcher.clone()),
         Some(config_path.clone()),
     );

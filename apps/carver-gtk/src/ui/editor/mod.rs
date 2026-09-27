@@ -30,6 +30,7 @@ use crate::mvu::{
 mod clipboard;
 mod find;
 pub(crate) mod focus;
+mod frontmatter_source;
 mod html;
 mod media_preview;
 #[cfg(test)]

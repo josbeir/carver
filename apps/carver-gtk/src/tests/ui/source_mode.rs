@@ -272,10 +272,51 @@ pub(super) fn highlighting_should_mark_carve_constructs(fixture: &WindowFixture)
         source_buffer
             .iter_has_context_class(&source.buffer().iter_at_offset(0), "carve-frontmatter")
     );
+    // A known format embeds its real grammar, so Carve's generic key/value classes are replaced
+    // by the format's own contexts.
     assert!(
         source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(0), "carve-frontmatter-yaml")
+    );
+    assert!(
+        source_buffer
+            .iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-frontmatter-line")
+    );
+    assert!(
+        !source_buffer
             .iter_has_context_class(&source.buffer().iter_at_offset(4), "carve-frontmatter-key")
     );
+    for (text, format_class, inner_offset, inner_class) in [
+        (
+            "---toml\n# note\nkey = 1\n---\n\n# Body",
+            "carve-frontmatter-toml",
+            8,
+            "comment",
+        ),
+        (
+            "---json\n{\n  \"key\": 1\n}\n---\n\n# Body",
+            "carve-frontmatter-json",
+            13,
+            "string",
+        ),
+    ] {
+        source.buffer().set_text(text);
+        source_buffer.ensure_highlight(&source.buffer().start_iter(), &source.buffer().end_iter());
+        let opener = source.buffer().iter_at_offset(0);
+        assert!(
+            source_buffer.iter_has_context_class(&opener, "carve-frontmatter"),
+            "{text}"
+        );
+        assert!(
+            source_buffer.iter_has_context_class(&opener, format_class),
+            "{text}"
+        );
+        let inner = source.buffer().iter_at_offset(inner_offset);
+        assert!(
+            source_buffer.iter_has_context_class(&inner, inner_class),
+            "{text}"
+        );
+    }
     source.buffer().set_text("Before\n\n---\n\n# After");
     let divider_offset = 8;
     let heading_offset = 13;

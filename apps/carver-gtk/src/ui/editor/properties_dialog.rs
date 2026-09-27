@@ -16,6 +16,7 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::*;
+use sourceview5::prelude::*;
 
 use crate::mvu::{
     AppDispatcher, AppMsg, EditorMsg, EditorPropertiesRequest, FrontmatterEdit, PreferencesMsg,
@@ -880,6 +881,7 @@ pub(crate) fn show(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     request: &EditorPropertiesRequest,
+    syntax_dir: Option<&std::path::Path>,
 ) {
     let dialog = adw::Dialog::builder()
         .title(gettext("Document Properties"))
@@ -921,12 +923,12 @@ pub(crate) fn show(
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
-        let view = gtk::TextView::new();
-        view.set_widget_name("document-properties-raw");
-        view.set_wrap_mode(gtk::WrapMode::WordChar);
-        view.set_monospace(true);
-        view.buffer()
-            .set_text(request.raw.as_deref().unwrap_or_default());
+        let (view, buffer) = raw_frontmatter_view(
+            format,
+            syntax_dir,
+            request.raw.as_deref().unwrap_or_default(),
+        );
+        follow_color_scheme(&dialog, &buffer, syntax_dir);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_min_content_height(220);
@@ -993,9 +995,64 @@ pub(crate) fn show(
     dialog.present(Some(parent));
 }
 
+/// Builds the raw frontmatter source view.
+///
+/// The block is highlighted with the grammar for its declared format (YAML, TOML, or JSON) and the
+/// Carve style scheme matching the app color scheme, and is inset from the card edges.
+fn raw_frontmatter_view(
+    format: FrontmatterFormat,
+    syntax_dir: Option<&std::path::Path>,
+    content: &str,
+) -> (sourceview5::View, sourceview5::Buffer) {
+    let buffer = super::frontmatter_source::source_buffer(
+        format,
+        syntax_dir,
+        adw::StyleManager::default().is_dark(),
+    );
+    buffer.set_text(content);
+    let view = sourceview5::View::with_buffer(&buffer);
+    view.set_widget_name("document-properties-raw");
+    view.set_wrap_mode(gtk::WrapMode::WordChar);
+    view.set_monospace(true);
+    // Keep the highlighted text clear of the card edges and the scrollbar.
+    view.set_top_margin(12);
+    view.set_bottom_margin(12);
+    view.set_left_margin(12);
+    view.set_right_margin(12);
+    (view, buffer)
+}
+
+/// Keeps the raw frontmatter highlight in step with the application color scheme.
+///
+/// The scheme is re-derived from the installed assets on every dark/light change and the handler
+/// is released when the dialog closes.
+fn follow_color_scheme(
+    dialog: &adw::Dialog,
+    buffer: &sourceview5::Buffer,
+    syntax_dir: Option<&std::path::Path>,
+) {
+    let Some(syntax_dir) = syntax_dir.map(std::path::Path::to_path_buf) else {
+        return;
+    };
+    let buffer = buffer.clone();
+    let handler = adw::StyleManager::default().connect_dark_notify(move |manager| {
+        if let Ok(scheme) = super::source::frontmatter_style_scheme(&syntax_dir, manager.is_dark())
+        {
+            buffer.set_style_scheme(Some(&scheme));
+        }
+    });
+    // `connect_closed` takes an `Fn`, so release the handler at most once through shared state.
+    let handler = Rc::new(RefCell::new(Some(handler)));
+    dialog.connect_closed(move |_| {
+        if let Some(handler) = handler.borrow_mut().take() {
+            adw::StyleManager::default().disconnect(handler);
+        }
+    });
+}
+
 /// What the per-note dialog reads when saving.
 enum SaveSource {
-    Raw(gtk::TextView),
+    Raw(sourceview5::View),
     Fields { rows: Rows, drafts: Drafts },
 }
 
