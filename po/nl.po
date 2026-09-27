@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 10:37+0200\n"
+"POT-Creation-Date: 2026-09-27 11:57+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -95,7 +95,7 @@ msgid "Back"
 msgstr "Terug"
 
 #: apps/carver-gtk/src/ui/add.rs:150
-#: apps/carver-gtk/src/ui/bases/actions.rs:716
+#: apps/carver-gtk/src/ui/bases/actions.rs:718
 msgid "Create"
 msgstr "Aanmaken"
 
@@ -133,8 +133,8 @@ msgid "Load more rows"
 msgstr "Meer rijen laden"
 
 #: apps/carver-gtk/src/ui/bases.rs:238
-#: apps/carver-gtk/src/ui/bases/actions.rs:736
-#: apps/carver-gtk/src/ui/bases/actions.rs:739
+#: apps/carver-gtk/src/ui/bases/actions.rs:738
+#: apps/carver-gtk/src/ui/bases/actions.rs:741
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
 msgid "Name"
@@ -160,7 +160,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen blijven ongewijzigd."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
-#: apps/carver-gtk/src/ui/bases/actions.rs:713
+#: apps/carver-gtk/src/ui/bases/actions.rs:715
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
@@ -245,118 +245,118 @@ msgstr "Operator"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:383
 #: apps/carver-gtk/src/ui/bases/actions.rs:389
-#: apps/carver-gtk/src/ui/bases/actions.rs:540
+#: apps/carver-gtk/src/ui/bases/actions.rs:542
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:537
 msgid "Field"
 msgstr "Veld"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:432
+#: apps/carver-gtk/src/ui/bases/actions.rs:433
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
 msgid "Value"
 msgstr "Waarde"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:474
+#: apps/carver-gtk/src/ui/bases/actions.rs:476
 msgid "Direction"
 msgstr "Richting"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:476
-#: apps/carver-gtk/src/ui/bases/actions.rs:483
-#: apps/carver-gtk/src/ui/bases/actions.rs:490
+#: apps/carver-gtk/src/ui/bases/actions.rs:478
+#: apps/carver-gtk/src/ui/bases/actions.rs:485
+#: apps/carver-gtk/src/ui/bases/actions.rs:492
 msgid "Ascending"
 msgstr "Oplopend"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:477
-#: apps/carver-gtk/src/ui/bases/actions.rs:485
-#: apps/carver-gtk/src/ui/bases/actions.rs:492
+#: apps/carver-gtk/src/ui/bases/actions.rs:479
+#: apps/carver-gtk/src/ui/bases/actions.rs:487
+#: apps/carver-gtk/src/ui/bases/actions.rs:494
 msgid "Descending"
 msgstr "Aflopend"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:543
+#: apps/carver-gtk/src/ui/bases/actions.rs:545
 msgid "Move field up"
 msgstr "Veld omhoog verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:545
+#: apps/carver-gtk/src/ui/bases/actions.rs:547
 msgid "Move field down"
 msgstr "Veld omlaag verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:573
 #: apps/carver-gtk/src/ui/bases/actions.rs:575
+#: apps/carver-gtk/src/ui/bases/actions.rs:577
 msgid "Remove field"
 msgstr "Veld verwijderen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:698
+#: apps/carver-gtk/src/ui/bases/actions.rs:700
 msgid "New Base"
 msgstr "Nieuwe basis"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:700
+#: apps/carver-gtk/src/ui/bases/actions.rs:702
 msgid "Configure Base"
 msgstr "Basis configureren"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:718
+#: apps/carver-gtk/src/ui/bases/actions.rs:720
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 msgid "Save"
 msgstr "Opslaan"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:748
+#: apps/carver-gtk/src/ui/bases/actions.rs:750
 msgid "Visible fields"
 msgstr "Zichtbare velden"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:750
+#: apps/carver-gtk/src/ui/bases/actions.rs:752
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Kies de kolommen die in deze basis worden weergegeven. Naam is altijd inbegrepen."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:759
+#: apps/carver-gtk/src/ui/bases/actions.rs:761
 msgid "Add field"
 msgstr "Veld toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:810
+#: apps/carver-gtk/src/ui/bases/actions.rs:812
 msgid "Filters"
 msgstr "Filters"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:812
+#: apps/carver-gtk/src/ui/bases/actions.rs:814
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "Gebruik de pijlen om de prioriteit van regels in te stellen of verwijder een regel die je niet meer nodig hebt."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:817
+#: apps/carver-gtk/src/ui/bases/actions.rs:819
 #, fuzzy
 msgid "Matching"
 msgstr "Zoeken…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:820
+#: apps/carver-gtk/src/ui/bases/actions.rs:822
 msgid "Match all filters"
 msgstr "Aan alle filters voldoen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:821
+#: apps/carver-gtk/src/ui/bases/actions.rs:823
 msgid "Match any filter"
 msgstr "Aan een van de filters voldoen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:834
+#: apps/carver-gtk/src/ui/bases/actions.rs:836
 msgid "Sort"
 msgstr "Sorteren"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:835
+#: apps/carver-gtk/src/ui/bases/actions.rs:837
 msgid "Sort rules are applied from top to bottom."
 msgstr "Sorteerregels worden van boven naar beneden toegepast."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:872
-#: apps/carver-gtk/src/ui/bases/actions.rs:900
+#: apps/carver-gtk/src/ui/bases/actions.rs:874
+#: apps/carver-gtk/src/ui/bases/actions.rs:902
 msgid "filter"
 msgstr "filter"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:883
+#: apps/carver-gtk/src/ui/bases/actions.rs:885
 msgid "Add filter"
 msgstr "Filter toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:922
-#: apps/carver-gtk/src/ui/bases/actions.rs:946
+#: apps/carver-gtk/src/ui/bases/actions.rs:924
+#: apps/carver-gtk/src/ui/bases/actions.rs:948
 msgid "sort rule"
 msgstr "sorteerregel"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:933
+#: apps/carver-gtk/src/ui/bases/actions.rs:935
 msgid "Add sort rule"
 msgstr "Sorteerregel toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1029
+#: apps/carver-gtk/src/ui/bases/actions.rs:1031
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"

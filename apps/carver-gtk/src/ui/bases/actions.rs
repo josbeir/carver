@@ -404,6 +404,7 @@ fn filter_row(
     let initial_field = initial.map_or_else(|| BaseColumn::Name, |filter| filter.field.clone());
     let expander = adw::ExpanderRow::new();
     expander.set_widget_name(&format!("base-filter-rule-{id}"));
+    expander.set_use_markup(false);
     let expander_for_title = expander.clone();
     let catalog_for_title = catalog.clone();
     let field = FieldPicker::new(
@@ -456,6 +457,7 @@ fn sort_row(
     let initial_field = initial.map_or_else(|| BaseColumn::Updated, |sort| sort.field.clone());
     let expander = adw::ExpanderRow::new();
     expander.set_widget_name(&format!("base-sort-rule-{id}"));
+    expander.set_use_markup(false);
     let expander_for_title = expander.clone();
     let catalog_for_title = catalog.clone();
     let field = FieldPicker::new(
