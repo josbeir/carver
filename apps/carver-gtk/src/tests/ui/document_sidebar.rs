@@ -529,9 +529,13 @@ fn assert_rich_focus_should_not_escape_mode_switch(
         widget_as::<adw::ViewStack>(root, "editor-mode-stack").ok_or("editor mode stack")?;
     editor_stack.set_visible_child_name("source");
     // Drain the queued navigation first: its native completion must not hand focus
-    // back to the now-hidden rich editor.
+    // back to the now-hidden rich editor. Give the switch a moment to settle, since
+    // the editor only drops focus once the web surface processes the change.
     assert_web_script_should_be_true(&rich, "true");
-    assert!(!widget_is_window_focus(rich.upcast_ref()));
+    assert!(
+        run_main_context_until(|| !widget_is_window_focus(rich.upcast_ref())),
+        "rich editor should release window focus after switching to source"
+    );
     assert!(run_main_context_until(|| source.is_mapped()));
     source.grab_focus();
     if let Some(window) = source.root() {

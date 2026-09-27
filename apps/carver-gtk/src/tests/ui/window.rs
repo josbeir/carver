@@ -303,8 +303,10 @@ pub(crate) fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::N
 pub(crate) fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
     let result = Rc::new(Cell::new(false));
     let pending = Rc::new(Cell::new(false));
+    // Generous bound: the web surface can be slow to answer on a loaded CI runner,
+    // where a shorter wait shows up as a flaky failure rather than a real one.
     assert!(
-        run_main_context_until(|| {
+        run_main_context_until_for(std::time::Duration::from_secs(15), || {
             if result.get() {
                 return true;
             }

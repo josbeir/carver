@@ -256,6 +256,13 @@ pub(super) fn capture_docs_screenshots() -> TestResult {
     };
     std::fs::create_dir_all(&directory)?;
 
+    // The headless compositor reports no physical size, so GTK derives a tiny
+    // DPI (xft-dpi is -1) and WebKit renders the embedded editor at a fraction
+    // of its size. Pin the standard 96 DPI before the window is built.
+    if let Some(settings) = gtk::Settings::default() {
+        settings.set_property("gtk-xft-dpi", 96 * 1024);
+    }
+
     let showcase = std::cell::RefCell::new(None);
     let fixture = window_fixture_seeded(
         "io.github.josbeir.Carver.Screenshots",
@@ -264,8 +271,10 @@ pub(super) fn capture_docs_screenshots() -> TestResult {
             Ok(())
         },
         // Screenshots should show the application's default document font, not
-        // the deterministic font the interaction suite configures.
-        |_| {},
+        // the deterministic font the interaction suite configures. Pinning the
+        // desktop default keeps the capture identical whatever the machine's
+        // font settings are.
+        |config| config.editor.document_font = Some("Adwaita Sans 12".to_owned()),
     )?;
     let showcase = showcase.into_inner().ok_or("showcase")?;
     capture_scenes(&fixture, &directory, &showcase)
