@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 10:06+0200\n"
+"POT-Creation-Date: 2026-09-27 12:08+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -95,7 +95,7 @@ msgid "Back"
 msgstr "Indietro"
 
 #: apps/carver-gtk/src/ui/add.rs:150
-#: apps/carver-gtk/src/ui/bases/actions.rs:886
+#: apps/carver-gtk/src/ui/bases/actions.rs:720
 msgid "Create"
 msgstr "Crea"
 
@@ -133,7 +133,8 @@ msgid "Load more rows"
 msgstr "Carica altre righe"
 
 #: apps/carver-gtk/src/ui/bases.rs:238
-#: apps/carver-gtk/src/ui/bases/actions.rs:661
+#: apps/carver-gtk/src/ui/bases/actions.rs:740
+#: apps/carver-gtk/src/ui/bases/actions.rs:743
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
 msgid "Name"
@@ -159,6 +160,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "Verrà eliminata solo questa base. Le tue note e le loro proprietà non saranno modificate."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
+#: apps/carver-gtk/src/ui/bases/actions.rs:717
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
@@ -174,173 +176,192 @@ msgstr "Verrà eliminata solo questa base. Le tue note e le loro proprietà non 
 msgid "Cancel"
 msgstr "Annulla"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:170
+#: apps/carver-gtk/src/ui/bases/actions.rs:187
 #, rust-format
 msgid "Move {noun} up"
 msgstr "Sposta {noun} su"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:174
+#: apps/carver-gtk/src/ui/bases/actions.rs:191
 #, rust-format
 msgid "Move {noun} down"
 msgstr "Sposta {noun} giù"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:178
+#: apps/carver-gtk/src/ui/bases/actions.rs:195
 #, rust-format
 msgid "Remove {noun}"
 msgstr "Rimuovi {noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:249
+#: apps/carver-gtk/src/ui/bases/actions.rs:268
 msgid "is"
 msgstr "è"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:250
+#: apps/carver-gtk/src/ui/bases/actions.rs:269
 msgid "is not"
 msgstr "non è"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:251
+#: apps/carver-gtk/src/ui/bases/actions.rs:270
 msgid "contains"
 msgstr "contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:252
+#: apps/carver-gtk/src/ui/bases/actions.rs:271
 msgid "starts with"
 msgstr "inizia con"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:253
+#: apps/carver-gtk/src/ui/bases/actions.rs:272
 msgid ">"
 msgstr ">"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:254
+#: apps/carver-gtk/src/ui/bases/actions.rs:273
 msgid "<"
 msgstr "<"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:255
+#: apps/carver-gtk/src/ui/bases/actions.rs:274
 msgid "≥"
 msgstr "≥"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:256
+#: apps/carver-gtk/src/ui/bases/actions.rs:275
 msgid "≤"
 msgstr "≤"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:257
+#: apps/carver-gtk/src/ui/bases/actions.rs:276
 msgid "is present"
 msgstr "è presente"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:258
+#: apps/carver-gtk/src/ui/bases/actions.rs:277
 msgid "is missing"
 msgstr "manca"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:259
+#: apps/carver-gtk/src/ui/bases/actions.rs:278
 msgid "list contains"
 msgstr "la lista contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:260
+#: apps/carver-gtk/src/ui/bases/actions.rs:279
 msgid "list does not contain"
 msgstr "la lista non contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:410
-msgid "Ascending"
-msgstr "Crescente"
+#: apps/carver-gtk/src/ui/bases/actions.rs:302
+msgid "Operator"
+msgstr "Operatore"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:411
-msgid "Descending"
-msgstr "Decrescente"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:474
+#: apps/carver-gtk/src/ui/bases/actions.rs:384
+#: apps/carver-gtk/src/ui/bases/actions.rs:390
+#: apps/carver-gtk/src/ui/bases/actions.rs:544
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:537
 msgid "Field"
 msgstr "Campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:482
+#: apps/carver-gtk/src/ui/bases/actions.rs:434
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
+msgid "Value"
+msgstr "Valore"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:478
+msgid "Direction"
+msgstr "Direzione"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:480
+#: apps/carver-gtk/src/ui/bases/actions.rs:487
+#: apps/carver-gtk/src/ui/bases/actions.rs:494
+msgid "Ascending"
+msgstr "Crescente"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:481
+#: apps/carver-gtk/src/ui/bases/actions.rs:489
+#: apps/carver-gtk/src/ui/bases/actions.rs:496
+msgid "Descending"
+msgstr "Decrescente"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:547
 msgid "Move field up"
 msgstr "Sposta campo su"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:484
+#: apps/carver-gtk/src/ui/bases/actions.rs:549
 msgid "Move field down"
 msgstr "Sposta campo giù"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:510
-#: apps/carver-gtk/src/ui/bases/actions.rs:512
+#: apps/carver-gtk/src/ui/bases/actions.rs:577
+#: apps/carver-gtk/src/ui/bases/actions.rs:579
 msgid "Remove field"
 msgstr "Rimuovi campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:634
+#: apps/carver-gtk/src/ui/bases/actions.rs:702
 msgid "New Base"
 msgstr "Nuova base"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:636
+#: apps/carver-gtk/src/ui/bases/actions.rs:704
 msgid "Configure Base"
 msgstr "Configura base"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:658
-msgid "Base name"
-msgstr "Nome base"
+#: apps/carver-gtk/src/ui/bases/actions.rs:722
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
+msgid "Save"
+msgstr "Salva"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:678
-msgid "Add field"
-msgstr "Aggiungi campo"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:705
-msgid "Choose the columns shown in this Base. Name is always included."
-msgstr "Scegli le colonne mostrate in questa base. Il nome è sempre incluso."
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:710
+#: apps/carver-gtk/src/ui/bases/actions.rs:752
 msgid "Visible fields"
 msgstr "Campi visibili"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:720
+#: apps/carver-gtk/src/ui/bases/actions.rs:754
+msgid "Choose the columns shown in this Base. Name is always included."
+msgstr "Scegli le colonne mostrate in questa base. Il nome è sempre incluso."
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:763
+msgid "Add field"
+msgstr "Aggiungi campo"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:814
+msgid "Filters"
+msgstr "Filtri"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:816
+msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
+msgstr "Usa le frecce per impostare la priorità delle regole, o rimuovi una regola che non ti serve più."
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:821
+#, fuzzy
+msgid "Matching"
+msgstr "Ricerca in corso…"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:824
 msgid "Match all filters"
 msgstr "Corrispondi a tutti i filtri"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:721
+#: apps/carver-gtk/src/ui/bases/actions.rs:825
 msgid "Match any filter"
 msgstr "Corrispondi a qualsiasi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:727
+#: apps/carver-gtk/src/ui/bases/actions.rs:838
+msgid "Sort"
+msgstr "Ordina"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:839
+msgid "Sort rules are applied from top to bottom."
+msgstr "Le regole di ordinamento vengono applicate dall'alto verso il basso."
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:876
+#: apps/carver-gtk/src/ui/bases/actions.rs:904
+msgid "filter"
+msgstr "filtro"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:887
 msgid "Add filter"
 msgstr "Aggiungi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:729
+#: apps/carver-gtk/src/ui/bases/actions.rs:926
+#: apps/carver-gtk/src/ui/bases/actions.rs:950
+msgid "sort rule"
+msgstr "regola di ordinamento"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:937
 msgid "Add sort rule"
 msgstr "Aggiungi regola di ordinamento"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:733
-#: apps/carver-gtk/src/ui/bases/actions.rs:985
+#: apps/carver-gtk/src/ui/bases/actions.rs:1033
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "Corrisponde a {count} nota"
 msgstr[1] "Corrisponde a {count} note"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:780
-#: apps/carver-gtk/src/ui/bases/actions.rs:820
-msgid "filter"
-msgstr "filtro"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:790
-msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
-msgstr "Usa le frecce per impostare la priorità delle regole, o rimuovi una regola che non ti serve più."
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:797
-msgid "Filters"
-msgstr "Filtri"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:839
-#: apps/carver-gtk/src/ui/bases/actions.rs:873
-msgid "sort rule"
-msgstr "regola di ordinamento"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:849
-msgid "Sort rules are applied from top to bottom."
-msgstr "Le regole di ordinamento vengono applicate dall'alto verso il basso."
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:854
-msgid "Sort"
-msgstr "Ordina"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:888
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
-msgid "Save"
-msgstr "Salva"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:162
 msgid "Search fields"
@@ -1380,10 +1401,6 @@ msgstr "Le nuove note usano la data e l’ora correnti"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1303
 msgid "Options"
 msgstr "Opzioni"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
-msgid "Value"
-msgstr "Valore"
 
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1320
 msgid "Comma-separated values offered as a dropdown."

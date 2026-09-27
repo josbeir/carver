@@ -65,22 +65,22 @@ pub(crate) fn render_delete(
 
 struct FilterWidgets {
     id: u64,
-    row: gtk::Box,
+    row: adw::ExpanderRow,
     field: FieldPicker,
-    operator: gtk::DropDown,
-    value: gtk::Entry,
+    operator: adw::ComboRow,
+    value: adw::EntryRow,
 }
 
 struct SortWidgets {
     id: u64,
-    row: gtk::Box,
+    row: adw::ExpanderRow,
     field: FieldPicker,
-    direction: gtk::DropDown,
+    direction: adw::ComboRow,
 }
 
 trait RuleWidgets {
     fn id(&self) -> u64;
-    fn row(&self) -> &gtk::Box;
+    fn row(&self) -> &adw::ExpanderRow;
 }
 
 impl RuleWidgets for FilterWidgets {
@@ -88,7 +88,7 @@ impl RuleWidgets for FilterWidgets {
         self.id
     }
 
-    fn row(&self) -> &gtk::Box {
+    fn row(&self) -> &adw::ExpanderRow {
         &self.row
     }
 }
@@ -98,23 +98,31 @@ impl RuleWidgets for SortWidgets {
         self.id
     }
 
-    fn row(&self) -> &gtk::Box {
+    fn row(&self) -> &adw::ExpanderRow {
         &self.row
     }
 }
 
-fn rebuild_rule_rows<T: RuleWidgets>(container: &gtk::Box, rows: &[T]) {
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
+/// Rebuilds the rule expanders inside a preferences group, preserving order.
+fn rebuild_rule_rows<T: RuleWidgets>(
+    group: &adw::PreferencesGroup,
+    rendered: &Rc<RefCell<Vec<adw::ExpanderRow>>>,
+    rows: &[T],
+) {
+    for widget in rendered.borrow().iter() {
+        group.remove(widget);
     }
+    rendered.borrow_mut().clear();
     for rule in rows {
-        container.append(rule.row());
+        group.add(rule.row());
+        rendered.borrow_mut().push(rule.row().clone());
     }
 }
 
 fn reorder_rule<T: RuleWidgets>(
     rows: &Rc<RefCell<Vec<T>>>,
-    container: &gtk::Box,
+    group: &adw::PreferencesGroup,
+    rendered: &Rc<RefCell<Vec<adw::ExpanderRow>>>,
     id: u64,
     offset: isize,
 ) {
@@ -133,10 +141,15 @@ fn reorder_rule<T: RuleWidgets>(
         };
         rows.swap(index, target);
     }
-    rebuild_rule_rows(container, &rows.borrow());
+    rebuild_rule_rows(group, rendered, &rows.borrow());
 }
 
-fn remove_rule<T: RuleWidgets>(rows: &Rc<RefCell<Vec<T>>>, container: &gtk::Box, id: u64) {
+fn remove_rule<T: RuleWidgets>(
+    rows: &Rc<RefCell<Vec<T>>>,
+    group: &adw::PreferencesGroup,
+    rendered: &Rc<RefCell<Vec<adw::ExpanderRow>>>,
+    id: u64,
+) {
     let removed = {
         let mut rows = rows.borrow_mut();
         rows.iter()
@@ -144,7 +157,7 @@ fn remove_rule<T: RuleWidgets>(rows: &Rc<RefCell<Vec<T>>>, container: &gtk::Box,
             .map(|index| rows.remove(index))
     };
     if removed.is_some() {
-        rebuild_rule_rows(container, &rows.borrow());
+        rebuild_rule_rows(group, rendered, &rows.borrow());
     }
 }
 
@@ -155,16 +168,20 @@ fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
     button
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one helper wires the reorder and remove controls for both rule kinds"
+)]
 fn append_rule_controls<T: RuleWidgets + 'static>(
-    row: &gtk::Box,
+    row: &adw::ExpanderRow,
     noun: &'static str,
     noun_label: &str,
     id: u64,
-    container: &gtk::Box,
+    group: &adw::PreferencesGroup,
     rows: &Rc<RefCell<Vec<T>>>,
+    rendered: &Rc<RefCell<Vec<adw::ExpanderRow>>>,
     refresh_preview: Option<&Rc<dyn Fn()>>,
 ) {
-    let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     let up = rule_button(
         "go-up-symbolic",
         &tr_fmt!(gettext("Move {noun} up"), noun = noun_label),
@@ -183,10 +200,11 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     remove.set_widget_name(&format!("base-rule-{prefix}-remove-{id}"));
     {
         let rows = Rc::clone(rows);
-        let container = container.clone();
+        let group = group.clone();
+        let rendered = Rc::clone(rendered);
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         up.connect_clicked(move |_| {
-            reorder_rule(&rows, &container, id, -1);
+            reorder_rule(&rows, &group, &rendered, id, -1);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
@@ -195,10 +213,11 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     }
     {
         let rows = Rc::clone(rows);
-        let container = container.clone();
+        let group = group.clone();
+        let rendered = Rc::clone(rendered);
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         down.connect_clicked(move |_| {
-            reorder_rule(&rows, &container, id, 1);
+            reorder_rule(&rows, &group, &rendered, id, 1);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
@@ -207,20 +226,20 @@ fn append_rule_controls<T: RuleWidgets + 'static>(
     }
     {
         let rows = Rc::clone(rows);
-        let container = container.clone();
+        let group = group.clone();
+        let rendered = Rc::clone(rendered);
         let refresh_preview = refresh_preview.map(Rc::downgrade);
         remove.connect_clicked(move |_| {
-            remove_rule(&rows, &container, id);
+            remove_rule(&rows, &group, &rendered, id);
             if let Some(refresh_preview) = refresh_preview.as_ref().and_then(std::rc::Weak::upgrade)
             {
                 refresh_preview();
             }
         });
     }
-    controls.append(&up);
-    controls.append(&down);
-    controls.append(&remove);
-    row.append(&controls);
+    row.add_suffix(&up);
+    row.add_suffix(&down);
+    row.add_suffix(&remove);
 }
 
 fn allocate_rule_id(counter: &Cell<u64>) -> u64 {
@@ -268,21 +287,28 @@ fn operator_index(operator: BaseFilterOperator) -> u32 {
         .map_or(0, |index| u32::try_from(index).unwrap_or(0))
 }
 
-fn operator_drop_down(initial: Option<BaseFilterOperator>) -> gtk::DropDown {
+fn operator_model() -> gtk::StringList {
     let labels: Vec<String> = FILTER_OPERATORS
         .iter()
         .map(|op| operator_label(*op))
         .collect();
     let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
-    let drop_down = gtk::DropDown::from_strings(&labels);
-    drop_down.set_selected(operator_index(
-        initial.unwrap_or(BaseFilterOperator::Equals),
-    ));
-    drop_down
+    gtk::StringList::new(&labels)
 }
 
-fn selected_filter_mode(drop_down: &gtk::DropDown) -> BaseFilterMode {
-    if drop_down.selected() == 1 {
+fn operator_combo(initial: Option<BaseFilterOperator>, id: u64) -> adw::ComboRow {
+    let combo = adw::ComboRow::new();
+    combo.set_widget_name(&format!("base-rule-filter-operator-{id}"));
+    combo.set_title(&gettext("Operator"));
+    combo.set_model(Some(&operator_model()));
+    combo.set_selected(operator_index(
+        initial.unwrap_or(BaseFilterOperator::Equals),
+    ));
+    combo
+}
+
+fn selected_filter_mode(combo: &adw::ComboRow) -> BaseFilterMode {
+    if combo.selected() == 1 {
         BaseFilterMode::Any
     } else {
         BaseFilterMode::All
@@ -335,9 +361,9 @@ fn connect_filter_preview(widgets: &FilterWidgets, refresh_preview: &Rc<dyn Fn()
     });
 }
 
-fn selected_operator(drop_down: &gtk::DropDown) -> BaseFilterOperator {
+fn selected_operator(combo: &adw::ComboRow) -> BaseFilterOperator {
     FILTER_OPERATORS
-        .get(drop_down.selected() as usize)
+        .get(combo.selected() as usize)
         .copied()
         .unwrap_or(BaseFilterOperator::Equals)
 }
@@ -350,40 +376,73 @@ fn value_from_text(text: &str) -> Option<serde_json::Value> {
     Some(serde_json::from_str(text).unwrap_or_else(|_| serde_json::Value::String(text.to_owned())))
 }
 
+fn catalog_field_label(catalog: &FieldCatalog, field: &BaseColumn) -> String {
+    catalog
+        .options()
+        .into_iter()
+        .find(|option| &option.field == field)
+        .map_or_else(|| gettext("Field"), |option| option.label)
+}
+
+/// Builds the "Field" expander row whose picker button selects the rule's column.
+fn field_picker_row(field: &FieldPicker) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_title(&gettext("Field"));
+    row.set_use_markup(false);
+    let button = field.button.clone();
+    button.add_css_class("flat");
+    row.add_suffix(&button);
+    row.set_activatable_widget(Some(&button));
+    row
+}
+
 fn filter_row(
     catalog: &FieldCatalog,
     initial: Option<&BaseFilter>,
     id: u64,
     on_selected: impl Fn(BaseColumn) + 'static,
-) -> (gtk::Box, FilterWidgets) {
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    row.set_hexpand(true);
+) -> (adw::ExpanderRow, FilterWidgets) {
     let initial_field = initial.map_or_else(|| BaseColumn::Name, |filter| filter.field.clone());
+    let expander = adw::ExpanderRow::new();
+    expander.set_widget_name(&format!("base-filter-rule-{id}"));
+    expander.set_use_markup(false);
+    let expander_for_title = expander.clone();
+    let catalog_for_title = catalog.clone();
     let field = FieldPicker::new(
         catalog,
         &initial_field,
         &format!("base-rule-filter-field-{id}"),
         false,
         None,
-        on_selected,
+        move |field| {
+            expander_for_title.set_title(&catalog_field_label(&catalog_for_title, &field));
+            on_selected(field);
+        },
     );
-    let operator = operator_drop_down(initial.map(|filter| filter.operator));
-    let value = gtk::Entry::new();
-    value.set_hexpand(true);
+    expander.set_title(&catalog_field_label(catalog, &initial_field));
+    expander.add_row(&field_picker_row(&field));
+    let operator = operator_combo(initial.map(|filter| filter.operator), id);
+    expander.set_subtitle(&operator_label(
+        initial.map_or(BaseFilterOperator::Equals, |filter| filter.operator),
+    ));
+    let expander_for_subtitle = expander.clone();
+    operator.connect_selected_notify(move |combo| {
+        expander_for_subtitle.set_subtitle(&operator_label(selected_operator(combo)));
+    });
+    expander.add_row(&operator);
+    let value = adw::EntryRow::new();
+    value.set_title(&gettext("Value"));
     if let Some(filter) = initial
         && let Some(value_json) = &filter.value
     {
-        let text = filter_value_text(value_json);
-        value.set_text(&text);
+        value.set_text(&filter_value_text(value_json));
     }
-    row.append(&field.button);
-    row.append(&operator);
-    row.append(&value);
+    expander.add_row(&value);
     (
-        row.clone(),
+        expander.clone(),
         FilterWidgets {
             id,
-            row: row.clone(),
+            row: expander,
             field,
             operator,
             value,
@@ -395,31 +454,54 @@ fn sort_row(
     catalog: &FieldCatalog,
     initial: Option<&BaseSort>,
     id: u64,
-) -> (gtk::Box, SortWidgets) {
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+) -> (adw::ExpanderRow, SortWidgets) {
     let initial_field = initial.map_or_else(|| BaseColumn::Updated, |sort| sort.field.clone());
+    let expander = adw::ExpanderRow::new();
+    expander.set_widget_name(&format!("base-sort-rule-{id}"));
+    expander.set_use_markup(false);
+    let expander_for_title = expander.clone();
+    let catalog_for_title = catalog.clone();
     let field = FieldPicker::new(
         catalog,
         &initial_field,
         &format!("base-rule-sort-field-{id}"),
         false,
         None,
-        |_| {},
+        move |field| {
+            expander_for_title.set_title(&catalog_field_label(&catalog_for_title, &field));
+        },
     );
-    let direction = gtk::DropDown::from_strings(&[
+    expander.set_title(&catalog_field_label(catalog, &initial_field));
+    expander.add_row(&field_picker_row(&field));
+    let direction = adw::ComboRow::new();
+    direction.set_widget_name(&format!("base-rule-sort-direction-{id}"));
+    direction.set_title(&gettext("Direction"));
+    direction.set_model(Some(&gtk::StringList::new(&[
         gettext("Ascending").as_str(),
         gettext("Descending").as_str(),
-    ]);
+    ])));
     let ascending =
         initial.is_some_and(|sort| matches!(sort.direction, BaseSortDirection::Ascending));
     direction.set_selected(u32::from(!ascending));
-    row.append(&field.button);
-    row.append(&direction);
+    expander.set_subtitle(&if ascending {
+        gettext("Ascending")
+    } else {
+        gettext("Descending")
+    });
+    let expander_for_subtitle = expander.clone();
+    direction.connect_selected_notify(move |combo| {
+        expander_for_subtitle.set_subtitle(&if combo.selected() == 0 {
+            gettext("Ascending")
+        } else {
+            gettext("Descending")
+        });
+    });
+    expander.add_row(&direction);
     (
-        row.clone(),
+        expander.clone(),
         SortWidgets {
             id,
-            row,
+            row: expander,
             field,
             direction,
         },
@@ -439,46 +521,29 @@ fn visible_columns(definition: &BaseDefinition) -> Vec<BaseColumn> {
 }
 
 fn rebuild_visible_columns(
-    container: &gtk::Box,
+    group: &adw::PreferencesGroup,
+    rendered: &Rc<RefCell<Vec<adw::ActionRow>>>,
     selected: &Rc<RefCell<Vec<BaseColumn>>>,
     catalog: &FieldCatalog,
 ) {
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
+    for row in rendered.borrow().iter() {
+        group.remove(row);
     }
+    rendered.borrow_mut().clear();
     let fields = selected.borrow().clone();
+    let mut new_rows = Vec::with_capacity(fields.len());
     for (index, field) in fields.into_iter().enumerate() {
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let row = adw::ActionRow::new();
         row.set_widget_name(&format!("base-visible-field-{index}"));
-        row.add_css_class("card");
-        row.set_margin_start(4);
-        row.set_margin_end(4);
-        row.set_margin_top(3);
-        row.set_margin_bottom(3);
-        row.set_valign(gtk::Align::Center);
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        content.set_hexpand(true);
-        content.set_margin_start(10);
-        content.set_margin_end(10);
-        content.set_margin_top(7);
-        content.set_margin_bottom(7);
-        let labels = gtk::Box::new(gtk::Orientation::Vertical, 1);
-        labels.set_hexpand(true);
-        let label = gtk::Label::new(Some(&field_label(&field)));
-        label.set_xalign(0.0);
-        labels.append(&label);
+        row.set_use_markup(false);
+        row.set_title(&field_label(&field));
         let metadata = catalog
             .options()
             .into_iter()
             .find(|option| option.field == field)
             .map_or_else(|| gettext("Field"), |option| option.metadata);
-        let metadata_label = gtk::Label::new(Some(&metadata));
-        metadata_label.set_xalign(0.0);
-        metadata_label.add_css_class("dim-label");
-        labels.append(&metadata_label);
-        content.append(&labels);
+        row.set_subtitle(&metadata);
         if !matches!(field, BaseColumn::Name) {
-            let controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
             let move_up = rule_button("go-up-symbolic", &gettext("Move field up"));
             move_up.set_widget_name(&format!("base-visible-field-move-up-{index}"));
             let move_down = rule_button("go-down-symbolic", &gettext("Move field down"));
@@ -486,22 +551,24 @@ fn rebuild_visible_columns(
             {
                 let field = field.clone();
                 let selected = Rc::clone(selected);
-                let container = container.clone();
+                let group = group.clone();
+                let rendered = Rc::clone(rendered);
                 let catalog = catalog.clone();
                 move_up.connect_clicked(move |_| {
                     if move_visible_column_by_offset(&mut selected.borrow_mut(), &field, -1) {
-                        rebuild_visible_columns(&container, &selected, &catalog);
+                        rebuild_visible_columns(&group, &rendered, &selected, &catalog);
                     }
                 });
             }
             {
                 let field = field.clone();
                 let selected = Rc::clone(selected);
-                let container = container.clone();
+                let group = group.clone();
+                let rendered = Rc::clone(rendered);
                 let catalog = catalog.clone();
                 move_down.connect_clicked(move |_| {
                     if move_visible_column_by_offset(&mut selected.borrow_mut(), &field, 1) {
-                        rebuild_visible_columns(&container, &selected, &catalog);
+                        rebuild_visible_columns(&group, &rendered, &selected, &catalog);
                     }
                 });
             }
@@ -511,22 +578,23 @@ fn rebuild_visible_columns(
             remove.add_css_class("flat");
             remove.update_property(&[gtk::accessible::Property::Label(&gettext("Remove field"))]);
             let selected = Rc::clone(selected);
-            let container = container.clone();
+            let group = group.clone();
+            let rendered = Rc::clone(rendered);
             let catalog = catalog.clone();
             remove.connect_clicked(move |_| {
                 selected
                     .borrow_mut()
                     .retain(|candidate| candidate != &field);
-                rebuild_visible_columns(&container, &selected, &catalog);
+                rebuild_visible_columns(&group, &rendered, &selected, &catalog);
             });
-            controls.append(&move_up);
-            controls.append(&move_down);
-            controls.append(&remove);
-            content.append(&controls);
+            row.add_suffix(&move_up);
+            row.add_suffix(&move_down);
+            row.add_suffix(&remove);
         }
-        row.append(&content);
-        container.append(&row);
+        group.add(&row);
+        new_rows.push(row);
     }
+    *rendered.borrow_mut() = new_rows;
 }
 
 /// Moves a non-Name visible column relative to its current position.
@@ -635,6 +703,7 @@ fn show_base_configuration_dialog(
         } else {
             gettext("Configure Base")
         })
+        .content_width(560)
         .follows_content_size(true)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
@@ -643,46 +712,71 @@ fn show_base_configuration_dialog(
         let _ =
             dismiss_dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
     });
-    let toolbar = adw::ToolbarView::new();
-    toolbar.set_hexpand(true);
-    toolbar.add_top_bar(&adw::HeaderBar::new());
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 16);
-    content.set_valign(gtk::Align::Start);
-    content.set_margin_start(24);
-    content.set_margin_end(24);
-    content.set_margin_top(20);
-    content.set_margin_bottom(20);
 
-    let name = gtk::Entry::builder()
-        .text(&definition.name)
-        .placeholder_text(gettext("Base name"))
-        .build();
+    let header = adw::HeaderBar::new();
+    let cancel = gtk::Button::with_label(&gettext("Cancel"));
+    cancel.set_widget_name("base-configuration-cancel");
+    let save = gtk::Button::with_label(&if matches!(mode, BaseConfigurationMode::Create) {
+        gettext("Create")
+    } else {
+        gettext("Save")
+    });
+    save.set_widget_name("base-configuration-save");
+    save.add_css_class("suggested-action");
+    save.set_sensitive(!definition.name.trim().is_empty());
+    header.pack_start(&cancel);
+    header.pack_end(&save);
+    let cancel_dialog = dialog.clone();
+    cancel.connect_clicked(move |_| {
+        let _ = cancel_dialog.close();
+    });
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+
+    let page = adw::PreferencesPage::new();
+    page.set_width_request(560);
+
+    let name_group = adw::PreferencesGroup::new();
+    name_group.set_title(&gettext("Name"));
+    let name = adw::EntryRow::new();
     name.set_widget_name("base-configuration-name");
-    content.append(&section_label(&gettext("Name")));
-    content.append(&name);
+    name.set_title(&gettext("Name"));
+    name.set_text(&definition.name);
+    name_group.add(&name);
+    page.add(&name_group);
 
     let catalog = FieldCatalog::new(definition, property_descriptors);
     let selected_columns = Rc::new(RefCell::new(visible_columns(definition)));
-    let columns_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    columns_box.set_widget_name("base-visible-fields-list");
-    rebuild_visible_columns(&columns_box, &selected_columns, &catalog);
-    let visible_content = section_content();
-    let visible_section = {
+    let visible_group = adw::PreferencesGroup::new();
+    visible_group.set_widget_name("base-visible-fields-section");
+    visible_group.set_title(&gettext("Visible fields"));
+    visible_group.set_description(Some(&gettext(
+        "Choose the columns shown in this Base. Name is always included.",
+    )));
+    let rendered_columns: Rc<RefCell<Vec<adw::ActionRow>>> = Rc::new(RefCell::new(Vec::new()));
+    rebuild_visible_columns(
+        &visible_group,
+        &rendered_columns,
+        &selected_columns,
+        &catalog,
+    );
+    let add_field_label = gettext("Add field");
+    {
         let selected_columns = Rc::clone(&selected_columns);
-        let columns_box_for_callback = columns_box.clone();
+        let rendered_columns = Rc::clone(&rendered_columns);
+        let visible_group_for_callback = visible_group.clone();
         let catalog = catalog.clone();
         let catalog_for_callback = catalog.clone();
         let selected_for_marker = Rc::clone(&selected_columns);
         let is_selected: Rc<dyn Fn(&BaseColumn) -> bool> =
             Rc::new(move |field: &BaseColumn| selected_for_marker.borrow().contains(field));
-        let add_field_label = gettext("Add field");
         let add_picker = FieldPicker::new_with_selection(
             &catalog,
             &BaseColumn::Name,
             "base-add-visible-field-picker",
             FieldPickerOptions {
                 keep_open: true,
-                button_label: Some(add_field_label.as_str()),
+                button_label: None,
                 button_icon_name: Some("list-add-symbolic"),
             },
             &is_selected,
@@ -692,7 +786,8 @@ fn show_base_configuration_dialog(
                     columns.push(field);
                     drop(columns);
                     rebuild_visible_columns(
-                        &columns_box_for_callback,
+                        &visible_group_for_callback,
+                        &rendered_columns,
                         &selected_columns,
                         &catalog_for_callback,
                     );
@@ -700,51 +795,52 @@ fn show_base_configuration_dialog(
             },
         );
         add_picker.button.set_widget_name("base-add-visible-field");
-        style_section_action(&add_picker.button, &add_field_label);
-        visible_content.append(&description_label(&gettext(
-            "Choose the columns shown in this Base. Name is always included.",
-        )));
-        visible_content.append(&columns_box);
-        visible_content.append(&add_picker.button);
-        let visible_section = collapsible_section(
-            &gettext("Visible fields"),
-            &visible_content,
-            true,
-            "base-visible-fields-section",
-        );
-        content.append(&visible_section);
-        visible_section
-    };
+        add_picker.button.add_css_class("flat");
+        add_picker
+            .button
+            .update_property(&[gtk::accessible::Property::Label(&add_field_label)]);
+        let add_row = adw::ActionRow::new();
+        add_row.set_title(&add_field_label);
+        add_row.add_prefix(&add_picker.button);
+        add_row.set_activatable_widget(Some(&add_picker.button));
+        let visible_actions = adw::PreferencesGroup::new();
+        visible_actions.add(&add_row);
+        page.add(&visible_group);
+        page.add(&visible_actions);
+    }
 
-    let filter_mode = gtk::DropDown::from_strings(&[
+    let filters_group = adw::PreferencesGroup::new();
+    filters_group.set_widget_name("base-filters-section");
+    filters_group.set_title(&gettext("Filters"));
+    filters_group.set_description(Some(&gettext(
+        "Use the arrows to set rule priority, or remove a rule you no longer need.",
+    )));
+    let filter_mode = adw::ComboRow::new();
+    filter_mode.set_widget_name("base-filter-mode");
+    filter_mode.set_use_markup(false);
+    filter_mode.set_title(&gettext("Matching"));
+    filter_mode.set_subtitle(&preview_count_text(definition.row_count));
+    filter_mode.set_model(Some(&gtk::StringList::new(&[
         gettext("Match all filters").as_str(),
         gettext("Match any filter").as_str(),
-    ]);
+    ])));
     filter_mode.set_selected(u32::from(matches!(
         definition.filter_mode,
         BaseFilterMode::Any
     )));
-    let add_filter = section_action(&gettext("Add filter"));
-    add_filter.set_widget_name("base-add-filter");
-    let add_sort = section_action(&gettext("Add sort rule"));
-    add_sort.set_widget_name("base-add-sort");
-    let preview = gtk::Label::new(Some(&tr_fmt!(
-        ngettext(
-            "Currently matches {count} note",
-            "Currently matches {count} notes",
-            u32::try_from(definition.row_count).unwrap_or(u32::MAX),
-        ),
-        count = definition.row_count
-    )));
-    preview.set_xalign(0.0);
-    preview.add_css_class("dim-label");
-    preview.set_widget_name("base-configuration-preview");
-    let filter_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    filters_group.add(&filter_mode);
+    let rendered_filters: Rc<RefCell<Vec<adw::ExpanderRow>>> = Rc::new(RefCell::new(Vec::new()));
     let filter_widgets: Rc<RefCell<Vec<FilterWidgets>>> = Rc::new(RefCell::new(Vec::new()));
-    let sort_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
-    let sort_widgets: Rc<RefCell<Vec<SortWidgets>>> = Rc::new(RefCell::new(Vec::new()));
     let next_filter_id = Rc::new(Cell::new(definition.filters.len() as u64));
+
+    let sorts_group = adw::PreferencesGroup::new();
+    sorts_group.set_widget_name("base-sort-section");
+    sorts_group.set_title(&gettext("Sort"));
+    sorts_group.set_description(Some(&gettext("Sort rules are applied from top to bottom.")));
+    let rendered_sorts: Rc<RefCell<Vec<adw::ExpanderRow>>> = Rc::new(RefCell::new(Vec::new()));
+    let sort_widgets: Rc<RefCell<Vec<SortWidgets>>> = Rc::new(RefCell::new(Vec::new()));
     let next_sort_id = Rc::new(Cell::new(definition.sorts.len() as u64));
+
     let refresh_preview: Rc<dyn Fn()> = {
         let dispatcher = dispatcher.clone();
         let filter_mode = filter_mode.clone();
@@ -779,35 +875,23 @@ fn show_base_configuration_dialog(
             "filter",
             &gettext("filter"),
             id,
-            &filter_box,
+            &filters_group,
             &filter_widgets,
+            &rendered_filters,
             Some(&refresh_preview),
         );
-        filter_box.append(&row);
     }
-    let filter_content = section_content();
-    filter_content.append(&description_label(&gettext(
-        "Use the arrows to set rule priority, or remove a rule you no longer need.",
-    )));
-    filter_content.append(&filter_mode);
-    filter_content.append(&preview);
-    filter_content.append(&filter_box);
-    filter_content.append(&add_filter);
-    let filters_section = collapsible_section(
-        &gettext("Filters"),
-        &filter_content,
-        !definition.filters.is_empty(),
-        "base-filters-section",
-    );
-    content.append(&filters_section);
+    rebuild_rule_rows(&filters_group, &rendered_filters, &filter_widgets.borrow());
+    page.add(&filters_group);
     {
+        let add_filter = action_button_row("base-add-filter", &gettext("Add filter"));
         let catalog = catalog.clone();
-        let filter_box = filter_box.clone();
+        let filters_group = filters_group.clone();
+        let rendered_filters = Rc::clone(&rendered_filters);
         let filter_widgets = Rc::clone(&filter_widgets);
         let next_filter_id = Rc::clone(&next_filter_id);
         let refresh_preview = Rc::clone(&refresh_preview);
-        let filters_section = filters_section.clone();
-        add_filter.connect_clicked(move |_| {
+        add_filter.connect_activated(move |_| {
             let id = allocate_rule_id(&next_filter_id);
             let refresh_preview_for_field = Rc::clone(&refresh_preview);
             let (row, widgets) =
@@ -819,14 +903,17 @@ fn show_base_configuration_dialog(
                 "filter",
                 &gettext("filter"),
                 id,
-                &filter_box,
+                &filters_group,
                 &filter_widgets,
+                &rendered_filters,
                 Some(&refresh_preview),
             );
-            rebuild_rule_rows(&filter_box, &filter_widgets.borrow());
-            filters_section.set_expanded(true);
+            rebuild_rule_rows(&filters_group, &rendered_filters, &filter_widgets.borrow());
             refresh_preview();
         });
+        let filters_actions = adw::PreferencesGroup::new();
+        filters_actions.add(&add_filter);
+        page.add(&filters_actions);
     }
 
     for (index, sort) in definition.sorts.iter().enumerate() {
@@ -838,32 +925,22 @@ fn show_base_configuration_dialog(
             "sort rule",
             &gettext("sort rule"),
             id,
-            &sort_box,
+            &sorts_group,
             &sort_widgets,
+            &rendered_sorts,
             None,
         );
-        sort_box.append(&row);
     }
-    let sort_content = section_content();
-    sort_content.append(&description_label(&gettext(
-        "Sort rules are applied from top to bottom.",
-    )));
-    sort_content.append(&sort_box);
-    sort_content.append(&add_sort);
-    let sort_section = collapsible_section(
-        &gettext("Sort"),
-        &sort_content,
-        !definition.sorts.is_empty(),
-        "base-sort-section",
-    );
-    content.append(&sort_section);
+    rebuild_rule_rows(&sorts_group, &rendered_sorts, &sort_widgets.borrow());
+    page.add(&sorts_group);
     {
+        let add_sort = action_button_row("base-add-sort", &gettext("Add sort rule"));
         let catalog = catalog.clone();
-        let sort_box = sort_box.clone();
+        let sorts_group = sorts_group.clone();
+        let rendered_sorts = Rc::clone(&rendered_sorts);
         let sort_widgets = Rc::clone(&sort_widgets);
         let next_sort_id = Rc::clone(&next_sort_id);
-        let sort_section = sort_section.clone();
-        add_sort.connect_clicked(move |_| {
+        add_sort.connect_activated(move |_| {
             let id = allocate_rule_id(&next_sort_id);
             let (row, widgets) = sort_row(&catalog, None, id);
             sort_widgets.borrow_mut().push(widgets);
@@ -872,57 +949,25 @@ fn show_base_configuration_dialog(
                 "sort rule",
                 &gettext("sort rule"),
                 id,
-                &sort_box,
+                &sorts_group,
                 &sort_widgets,
+                &rendered_sorts,
                 None,
             );
-            rebuild_rule_rows(&sort_box, &sort_widgets.borrow());
-            sort_section.set_expanded(true);
+            rebuild_rule_rows(&sorts_group, &rendered_sorts, &sort_widgets.borrow());
         });
+        let sorts_actions = adw::PreferencesGroup::new();
+        sorts_actions.add(&add_sort);
+        page.add(&sorts_actions);
     }
     refresh_preview();
 
-    let save = gtk::Button::with_label(&if matches!(mode, BaseConfigurationMode::Create) {
-        gettext("Create")
-    } else {
-        gettext("Save")
-    });
-    save.set_widget_name("base-configuration-save");
-    save.add_css_class("suggested-action");
-    save.set_sensitive(!definition.name.trim().is_empty());
     {
         let save = save.clone();
         name.connect_changed(move |entry| save.set_sensitive(!entry.text().trim().is_empty()));
     }
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-    scroll.set_hexpand(true);
-    // Keep the controls comfortably wide, but let the dialog follow the
-    // form's natural height. Libadwaita bounds it to the parent window, at
-    // which point this viewport scrolls instead of imposing a fixed height.
-    scroll.set_propagate_natural_height(true);
-    scroll.set_propagate_natural_width(true);
-    scroll.set_min_content_width(720);
-    scroll.set_child(Some(&content));
-    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    footer.set_widget_name("base-configuration-footer");
-    footer.set_margin_start(24);
-    footer.set_margin_end(24);
-    footer.set_margin_top(12);
-    footer.set_margin_bottom(16);
-    footer.append(&save);
-    let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    root.set_hexpand(true);
-    root.set_width_request(720);
-    root.append(&scroll);
-    root.append(&footer);
-    toolbar.set_content(Some(&root));
+    toolbar.set_content(Some(&page));
     dialog.set_child(Some(&toolbar));
-    synchronize_dialog_size(
-        &dialog,
-        &toolbar,
-        &[&visible_section, &filters_section, &sort_section],
-    );
 
     let dispatcher = dispatcher.clone();
     let name_for_save = name.clone();
@@ -976,18 +1021,21 @@ pub(crate) fn render_preview(dialog: &adw::Dialog, count: usize) {
     let Some(root) = dialog.child() else {
         return;
     };
-    let Some(label) = find_widget(&root, "base-configuration-preview").and_downcast::<gtk::Label>()
-    else {
+    let Some(row) = find_widget(&root, "base-filter-mode").and_downcast::<adw::ComboRow>() else {
         return;
     };
-    label.set_text(&tr_fmt!(
+    row.set_subtitle(&preview_count_text(count));
+}
+
+fn preview_count_text(count: usize) -> String {
+    tr_fmt!(
         ngettext(
             "Currently matches {count} note",
             "Currently matches {count} notes",
             u32::try_from(count).unwrap_or(u32::MAX),
         ),
         count = count
-    ));
+    )
 }
 
 fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
@@ -1014,87 +1062,12 @@ pub(crate) fn finish_configuration(dialog: &adw::Dialog, success: bool) {
     }
 }
 
-fn section_label(text: &str) -> gtk::Label {
-    let label = gtk::Label::new(Some(text));
-    label.set_xalign(0.0);
-    label.add_css_class("heading");
-    label
-}
-
-fn section_content() -> gtk::Box {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    content.set_hexpand(true);
-    content.set_margin_start(4);
-    content.set_margin_end(4);
-    content.set_margin_top(8);
-    content.set_margin_bottom(4);
-    content
-}
-
-fn collapsible_section(
-    title: &str,
-    child: &gtk::Box,
-    initial_expanded: bool,
-    widget_name: &str,
-) -> gtk::Expander {
-    let expander = gtk::Expander::new(None);
-    expander.set_widget_name(widget_name);
-    expander.set_hexpand(true);
-    expander.set_resize_toplevel(true);
-    expander.set_label_widget(Some(&section_label(title)));
-    expander.set_child(Some(child));
-    expander.set_expanded(initial_expanded);
-    expander.update_property(&[gtk::accessible::Property::Label(title)]);
-    expander
-}
-
-fn synchronize_dialog_size(
-    dialog: &adw::Dialog,
-    toolbar: &adw::ToolbarView,
-    sections: &[&gtk::Expander],
-) {
-    for section in sections {
-        let dialog = dialog.clone();
-        let toolbar = toolbar.clone();
-        section.connect_expanded_notify(move |_| {
-            let (minimum_width, _, _, _) = toolbar.measure(gtk::Orientation::Horizontal, -1);
-            let (_, natural_height, _, _) = toolbar.measure(
-                gtk::Orientation::Vertical,
-                dialog.content_width().max(minimum_width),
-            );
-            // GtkExpander's built-in toplevel resize only handles GtkWindow.
-            // Set the measured height here so the AdwDialog floating sheet also
-            // contracts when a section is collapsed.
-            dialog.set_follows_content_size(false);
-            dialog.set_content_height(natural_height);
-        });
-    }
-}
-
-fn section_action(label: &str) -> gtk::Button {
-    let button = gtk::Button::new();
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    content.append(&gtk::Image::from_icon_name("list-add-symbolic"));
-    content.append(&gtk::Label::new(Some(label)));
-    button.set_child(Some(&content));
-    style_section_action(&button, label);
-    button
-}
-
-fn style_section_action(button: &gtk::Button, accessible_label: &str) {
-    button.set_size_request(-1, 32);
-    button.set_halign(gtk::Align::Start);
-    button.set_valign(gtk::Align::Center);
-    button.set_tooltip_text(Some(accessible_label));
-    button.update_property(&[gtk::accessible::Property::Label(accessible_label)]);
-}
-
-fn description_label(text: &str) -> gtk::Label {
-    let label = gtk::Label::new(Some(text));
-    label.set_xalign(0.0);
-    label.set_wrap(true);
-    label.add_css_class("dim-label");
-    label
+fn action_button_row(name: &str, title: &str) -> adw::ButtonRow {
+    let row = adw::ButtonRow::new();
+    row.set_title(title);
+    row.set_start_icon_name(Some("list-add-symbolic"));
+    row.set_widget_name(name);
+    row
 }
 
 fn filter_value_text(value: &serde_json::Value) -> String {
