@@ -9,6 +9,8 @@ interface Props {
   loading?: 'eager' | 'lazy';
   /** Responsive sizes hint for the rendered layout. */
   sizes?: string;
+  /** Depth under the capture; the hero prefers a flat, shadowless image. */
+  shadow?: 'none' | 'soft';
   class?: string;
 }
 
@@ -16,6 +18,7 @@ const {
   shot,
   loading = 'lazy',
   sizes = '(min-width: 1024px) 720px, 100vw',
+  shadow = 'soft',
   class: className = '',
 } = Astro.props;
 
@@ -24,10 +27,13 @@ const widths = [640, 960, 1280, 1600, 2048, 2560];
 // AVIF/WebP artifacts read as softness.
 const quality = 84;
 // The captures already carry the window's rounded, anti-aliased corners, so the
-// images are shown unframed and a drop-shadow follows their real silhouette. A
-// figure background would otherwise show as a wedge under those corners.
-const imageClass =
-  'block h-auto w-full drop-shadow-2xl dark:drop-shadow-[0_26px_34px_rgba(0,0,0,0.62)]';
+// images are shown unframed. A drop-shadow follows that real silhouette; a
+// figure background would otherwise show as a wedge beneath the corners.
+const shadows = {
+  none: '',
+  soft: 'drop-shadow-[0_4px_12px_rgba(0,0,0,0.10)] dark:drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]',
+} as const;
+const imageClass = `block h-auto w-full ${shadows[shadow]}`;
 ---
 
 <figure class={className}>

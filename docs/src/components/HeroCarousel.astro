@@ -35,7 +35,12 @@ const ordered = shots.filter(Boolean);
         aria-label={`${index + 1} of ${ordered.length}`}
         data-carousel-slide
       >
-        <ThemedScreenshot shot={shot} loading={index === 0 ? 'eager' : 'lazy'} sizes={sizes} />
+        <ThemedScreenshot
+          shot={shot}
+          loading={index === 0 ? 'eager' : 'lazy'}
+          sizes={sizes}
+          shadow="none"
+        />
       </div>
     ))}
   </div>
