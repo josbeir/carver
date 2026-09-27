@@ -31,6 +31,9 @@ pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
 pub(crate) const TOGGLE_FAVORITE_ACTION: &str = "win.toggle-favorite";
 pub(crate) const KEYBOARD_SHORTCUTS_ACTION: &str = "win.keyboard-shortcuts";
 
+/// Canonical URL of the Carve markup cheat sheet, linked from the About dialog.
+const CARVE_CHEATSHEET_URL: &str = "https://markup-carve.github.io/carve/cheatsheet";
+
 #[derive(Clone)]
 struct Shortcut {
     title: String,
@@ -1291,6 +1294,7 @@ fn show_about_window(parent: &adw::ApplicationWindow) -> adw::AboutDialog {
         .issue_url("https://github.com/josbeir/carver/issues")
         .license_type(gtk::License::MitX11)
         .build();
+    about.add_link(&gettext("Carve cheat sheet"), CARVE_CHEATSHEET_URL);
     about.present(Some(parent));
     about
 }

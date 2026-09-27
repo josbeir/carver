@@ -15,6 +15,10 @@ pub(super) fn about_and_agent_setup_should_expose_shared_metadata(
         about_dialog.issue_url(),
         "https://github.com/josbeir/carver/issues"
     );
+    assert_eq!(
+        about_link_uri(about_dialog.upcast_ref(), "Carve cheat sheet").as_deref(),
+        Some("https://markup-carve.github.io/carve/cheatsheet")
+    );
     assert!(window.lookup_action("connect-agent").is_some());
     assert!(window.lookup_action("toggle-favorite").is_some());
     let agent_setup = crate::ui::dialogs::show_agent_setup_dialog_for_test(&window);
@@ -59,6 +63,26 @@ pub(super) fn about_and_agent_setup_should_expose_shared_metadata(
         ))
     );
     Ok(())
+}
+
+/// Returns the URI of the About dialog link row titled `title`, if present.
+fn about_link_uri(root: &gtk::Widget, title: &str) -> Option<String> {
+    if let Ok(row) = root.clone().downcast::<adw::PreferencesRow>()
+        && row.title().as_str() == title
+    {
+        let uri = row.property::<String>("uri");
+        if !uri.is_empty() {
+            return Some(uri);
+        }
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(uri) = about_link_uri(&widget, title) {
+            return Some(uri);
+        }
+        child = widget.next_sibling();
+    }
+    None
 }
 
 /// Category names are user data, so `&` must render literally instead of as Pango markup.
