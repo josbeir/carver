@@ -244,26 +244,6 @@ textview text {
   margin: 6px 4px;
 }
 
-#editor-mode-switcher {
-  background: @headerbar_bg_color;
-  border: 1px solid alpha(currentColor, 0.14);
-  border-radius: 10px;
-  box-shadow: 0 1px 3px alpha(black, 0.16);
-  padding: 2px;
-}
-
-#editor-mode-switcher button {
-  background: @headerbar_bg_color;
-  font-size: 0.9em;
-  min-height: 28px;
-  padding: 0 8px;
-}
-
-#editor-mode-switcher button:checked {
-  background: @accent_bg_color;
-  color: @accent_fg_color;
-}
-
 #formatting-toolbar-bar {
   border-top: 1px solid alpha(currentColor, 0.12);
 }

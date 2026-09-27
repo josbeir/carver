@@ -605,8 +605,6 @@ pub(crate) fn build_editor(
     split_toggle.set_tooltip_text(Some(&gettext("Show rendered preview")));
     split_toggle.set_sensitive(false);
     let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    mode_controls.set_widget_name("editor-mode-switcher");
-    mode_controls.add_css_class("editor-mode-switcher");
     mode_controls.set_size_request(0, -1);
     mode_controls.set_halign(gtk::Align::Center);
     mode_controls.append(&mode_group);
