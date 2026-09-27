@@ -57,8 +57,8 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         dialog.width()
     );
     capture_dialog(&dialog, "chooser")?;
-    let pages = widget_as::<gtk::Stack>(root, "add-pages").ok_or("pages")?;
-    assert_eq!(pages.visible_child_name().as_deref(), Some("choose"));
+    let navigation = widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("pages")?;
+    assert_eq!(navigation.visible_page_tag().as_deref(), Some("choose"));
     widget_as::<gtk::Button>(root, "add-category-choice")
         .ok_or("category choice")?
         .emit_clicked();
@@ -90,8 +90,9 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
     let root = dialog.upcast_ref();
-    let pages = widget_as::<gtk::Stack>(root, "add-pages").ok_or("fresh pages")?;
-    assert_eq!(pages.visible_child_name().as_deref(), Some("choose"));
+    let navigation =
+        widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("fresh pages")?;
+    assert_eq!(navigation.visible_page_tag().as_deref(), Some("choose"));
     widget_as::<gtk::Button>(root, "add-base-choice")
         .ok_or("base choice")?
         .emit_clicked();
@@ -189,19 +190,17 @@ pub(super) fn add_dialog_should_resize_for_the_active_form() -> TestResult {
     let dialog = window.visible_dialog().ok_or("dialog")?;
     assert!(dialog.follows_content_size());
     let root = dialog.upcast_ref();
-    let pages = widget_as::<gtk::Stack>(root, "add-pages").ok_or("pages")?;
-    assert!(!pages.is_hhomogeneous());
-    assert!(!pages.is_vhomogeneous());
+    let navigation = widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("pages")?;
+    assert!(!navigation.is_hhomogeneous());
+    assert!(!navigation.is_vhomogeneous());
     assert!(run_main_context_until(|| dialog.height() > 250));
     capture_dialog(&dialog, "chooser-desktop")?;
     widget_as::<gtk::Button>(root, "add-category-choice")
         .ok_or("category choice")?
         .emit_clicked();
     let content = dialog.child().ok_or("dialog content")?;
-    assert!(run_main_context_until(
-        || !pages.is_transition_running() && content.height() > 300
-    ));
-    let scroll = pages
+    assert!(run_main_context_until(|| content.height() > 300));
+    let scroll = navigation
         .parent()
         .and_then(|parent| parent.parent())
         .and_downcast::<gtk::ScrolledWindow>()

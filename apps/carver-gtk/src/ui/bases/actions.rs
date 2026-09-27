@@ -63,27 +63,19 @@ pub(crate) fn render_delete(
     button.insert_action_group("base", Some(&group));
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 struct FilterWidgets {
     id: u64,
     row: gtk::Box,
     field: FieldPicker,
-    operator: gtk::ComboBoxText,
+    operator: gtk::DropDown,
     value: gtk::Entry,
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 struct SortWidgets {
     id: u64,
     row: gtk::Box,
     field: FieldPicker,
-    direction: gtk::ComboBoxText,
+    direction: gtk::DropDown,
 }
 
 trait RuleWidgets {
@@ -237,12 +229,60 @@ fn allocate_rule_id(counter: &Cell<u64>) -> u64 {
     id
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
-fn selected_filter_mode(combo: &gtk::ComboBoxText) -> BaseFilterMode {
-    if combo.active_id().as_deref() == Some("any") {
+const FILTER_OPERATORS: [BaseFilterOperator; 12] = [
+    BaseFilterOperator::Equals,
+    BaseFilterOperator::NotEquals,
+    BaseFilterOperator::Contains,
+    BaseFilterOperator::StartsWith,
+    BaseFilterOperator::GreaterThan,
+    BaseFilterOperator::LessThan,
+    BaseFilterOperator::GreaterOrEqual,
+    BaseFilterOperator::LessOrEqual,
+    BaseFilterOperator::IsPresent,
+    BaseFilterOperator::IsMissing,
+    BaseFilterOperator::ListContains,
+    BaseFilterOperator::ListNotContains,
+];
+
+fn operator_label(operator: BaseFilterOperator) -> String {
+    match operator {
+        BaseFilterOperator::Equals => gettext("is"),
+        BaseFilterOperator::NotEquals => gettext("is not"),
+        BaseFilterOperator::Contains => gettext("contains"),
+        BaseFilterOperator::StartsWith => gettext("starts with"),
+        BaseFilterOperator::GreaterThan => gettext(">"),
+        BaseFilterOperator::LessThan => gettext("<"),
+        BaseFilterOperator::GreaterOrEqual => gettext("≥"),
+        BaseFilterOperator::LessOrEqual => gettext("≤"),
+        BaseFilterOperator::IsPresent => gettext("is present"),
+        BaseFilterOperator::IsMissing => gettext("is missing"),
+        BaseFilterOperator::ListContains => gettext("list contains"),
+        BaseFilterOperator::ListNotContains => gettext("list does not contain"),
+    }
+}
+
+fn operator_index(operator: BaseFilterOperator) -> u32 {
+    FILTER_OPERATORS
+        .iter()
+        .position(|candidate| *candidate == operator)
+        .map_or(0, |index| u32::try_from(index).unwrap_or(0))
+}
+
+fn operator_drop_down(initial: Option<BaseFilterOperator>) -> gtk::DropDown {
+    let labels: Vec<String> = FILTER_OPERATORS
+        .iter()
+        .map(|op| operator_label(*op))
+        .collect();
+    let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let drop_down = gtk::DropDown::from_strings(&labels);
+    drop_down.set_selected(operator_index(
+        initial.unwrap_or(BaseFilterOperator::Equals),
+    ));
+    drop_down
+}
+
+fn selected_filter_mode(drop_down: &gtk::DropDown) -> BaseFilterMode {
+    if drop_down.selected() == 1 {
         BaseFilterMode::Any
     } else {
         BaseFilterMode::All
@@ -266,16 +306,12 @@ fn selected_filters(widgets: &[FilterWidgets]) -> Vec<BaseFilter> {
         .collect()
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 fn selected_sorts(widgets: &[SortWidgets]) -> Vec<BaseSort> {
     widgets
         .iter()
         .map(|widgets| BaseSort {
             field: widgets.field.selected(),
-            direction: if widgets.direction.active_id().as_deref() == Some("ascending") {
+            direction: if widgets.direction.selected() == 0 {
                 BaseSortDirection::Ascending
             } else {
                 BaseSortDirection::Descending
@@ -284,13 +320,9 @@ fn selected_sorts(widgets: &[SortWidgets]) -> Vec<BaseSort> {
         .collect()
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 fn connect_filter_preview(widgets: &FilterWidgets, refresh_preview: &Rc<dyn Fn()>) {
     let operator_refresh = Rc::downgrade(refresh_preview);
-    widgets.operator.connect_changed(move |_| {
+    widgets.operator.connect_selected_notify(move |_| {
         if let Some(refresh_preview) = operator_refresh.upgrade() {
             refresh_preview();
         }
@@ -303,65 +335,11 @@ fn connect_filter_preview(widgets: &FilterWidgets, refresh_preview: &Rc<dyn Fn()
     });
 }
 
-fn operator_id(operator: BaseFilterOperator) -> &'static str {
-    match operator {
-        BaseFilterOperator::Equals => "equals",
-        BaseFilterOperator::NotEquals => "not-equals",
-        BaseFilterOperator::Contains => "contains",
-        BaseFilterOperator::StartsWith => "starts-with",
-        BaseFilterOperator::GreaterThan => "greater-than",
-        BaseFilterOperator::LessThan => "less-than",
-        BaseFilterOperator::GreaterOrEqual => "greater-or-equal",
-        BaseFilterOperator::LessOrEqual => "less-or-equal",
-        BaseFilterOperator::IsPresent => "present",
-        BaseFilterOperator::IsMissing => "missing",
-        BaseFilterOperator::ListContains => "list-contains",
-        BaseFilterOperator::ListNotContains => "list-not-contains",
-    }
-}
-
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
-fn selected_operator(combo: &gtk::ComboBoxText) -> BaseFilterOperator {
-    match combo.active_id().as_deref() {
-        Some("not-equals") => BaseFilterOperator::NotEquals,
-        Some("contains") => BaseFilterOperator::Contains,
-        Some("starts-with") => BaseFilterOperator::StartsWith,
-        Some("greater-than") => BaseFilterOperator::GreaterThan,
-        Some("less-than") => BaseFilterOperator::LessThan,
-        Some("greater-or-equal") => BaseFilterOperator::GreaterOrEqual,
-        Some("less-or-equal") => BaseFilterOperator::LessOrEqual,
-        Some("present") => BaseFilterOperator::IsPresent,
-        Some("missing") => BaseFilterOperator::IsMissing,
-        Some("list-contains") => BaseFilterOperator::ListContains,
-        Some("list-not-contains") => BaseFilterOperator::ListNotContains,
-        _ => BaseFilterOperator::Equals,
-    }
-}
-
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
-fn add_operator_options(combo: &gtk::ComboBoxText) {
-    for (id, label) in [
-        ("equals", gettext("is")),
-        ("not-equals", gettext("is not")),
-        ("contains", gettext("contains")),
-        ("starts-with", gettext("starts with")),
-        ("greater-than", gettext(">")),
-        ("less-than", gettext("<")),
-        ("greater-or-equal", gettext("≥")),
-        ("less-or-equal", gettext("≤")),
-        ("present", gettext("is present")),
-        ("missing", gettext("is missing")),
-        ("list-contains", gettext("list contains")),
-        ("list-not-contains", gettext("list does not contain")),
-    ] {
-        combo.append(Some(id), &label);
-    }
+fn selected_operator(drop_down: &gtk::DropDown) -> BaseFilterOperator {
+    FILTER_OPERATORS
+        .get(drop_down.selected() as usize)
+        .copied()
+        .unwrap_or(BaseFilterOperator::Equals)
 }
 
 fn value_from_text(text: &str) -> Option<serde_json::Value> {
@@ -372,10 +350,6 @@ fn value_from_text(text: &str) -> Option<serde_json::Value> {
     Some(serde_json::from_str(text).unwrap_or_else(|_| serde_json::Value::String(text.to_owned())))
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 fn filter_row(
     catalog: &FieldCatalog,
     initial: Option<&BaseFilter>,
@@ -393,18 +367,14 @@ fn filter_row(
         None,
         on_selected,
     );
-    let operator = gtk::ComboBoxText::new();
-    add_operator_options(&operator);
+    let operator = operator_drop_down(initial.map(|filter| filter.operator));
     let value = gtk::Entry::new();
     value.set_hexpand(true);
-    if let Some(filter) = initial {
-        operator.set_active_id(Some(operator_id(filter.operator)));
-        if let Some(value_json) = &filter.value {
-            let text = filter_value_text(value_json);
-            value.set_text(&text);
-        }
-    } else {
-        operator.set_active_id(Some("equals"));
+    if let Some(filter) = initial
+        && let Some(value_json) = &filter.value
+    {
+        let text = filter_value_text(value_json);
+        value.set_text(&text);
     }
     row.append(&field.button);
     row.append(&operator);
@@ -421,10 +391,6 @@ fn filter_row(
     )
 }
 
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 fn sort_row(
     catalog: &FieldCatalog,
     initial: Option<&BaseSort>,
@@ -440,20 +406,13 @@ fn sort_row(
         None,
         |_| {},
     );
-    let direction = gtk::ComboBoxText::new();
-    direction.append(Some("ascending"), &gettext("Ascending"));
-    direction.append(Some("descending"), &gettext("Descending"));
-    if let Some(sort) = initial {
-        direction.set_active_id(Some(
-            if matches!(sort.direction, BaseSortDirection::Ascending) {
-                "ascending"
-            } else {
-                "descending"
-            },
-        ));
-    } else {
-        direction.set_active_id(Some("descending"));
-    }
+    let direction = gtk::DropDown::from_strings(&[
+        gettext("Ascending").as_str(),
+        gettext("Descending").as_str(),
+    ]);
+    let ascending =
+        initial.is_some_and(|sort| matches!(sort.direction, BaseSortDirection::Ascending));
+    direction.set_selected(u32::from(!ascending));
     row.append(&field.button);
     row.append(&direction);
     (
@@ -662,10 +621,6 @@ pub(crate) fn show_new_configuration_dialog(
     clippy::too_many_lines,
     reason = "Base configuration form is kept together for modal state"
 )]
-#[expect(
-    deprecated,
-    reason = "ComboBoxText remains supported by the minimum GTK runtime"
-)]
 fn show_base_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
@@ -761,16 +716,14 @@ fn show_base_configuration_dialog(
         visible_section
     };
 
-    let filter_mode = gtk::ComboBoxText::new();
-    filter_mode.append(Some("all"), &gettext("Match all filters"));
-    filter_mode.append(Some("any"), &gettext("Match any filter"));
-    filter_mode.set_active_id(Some(
-        if matches!(definition.filter_mode, BaseFilterMode::Any) {
-            "any"
-        } else {
-            "all"
-        },
-    ));
+    let filter_mode = gtk::DropDown::from_strings(&[
+        gettext("Match all filters").as_str(),
+        gettext("Match any filter").as_str(),
+    ]);
+    filter_mode.set_selected(u32::from(matches!(
+        definition.filter_mode,
+        BaseFilterMode::Any
+    )));
     let add_filter = section_action(&gettext("Add filter"));
     add_filter.set_widget_name("base-add-filter");
     let add_sort = section_action(&gettext("Add sort rule"));
@@ -807,7 +760,7 @@ fn show_base_configuration_dialog(
     };
     {
         let refresh_preview = Rc::downgrade(&refresh_preview);
-        filter_mode.connect_changed(move |_| {
+        filter_mode.connect_selected_notify(move |_| {
             if let Some(refresh_preview) = refresh_preview.upgrade() {
                 refresh_preview();
             }
