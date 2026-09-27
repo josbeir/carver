@@ -3,14 +3,17 @@ name: Docs site
 on:
   push:
     branches: [main]
-    # Only rebuild when the site or this workflow changes.
+    # Rebuild when the site, the workflow, or the version source changes. The
+    # install instructions read the version from the workspace Cargo.toml.
     paths:
       - 'docs/**'
+      - 'Cargo.toml'
       - '.github/workflows/pages.yml'
   pull_request:
     # Validate the site on pull requests, but do not deploy.
     paths:
       - 'docs/**'
+      - 'Cargo.toml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
