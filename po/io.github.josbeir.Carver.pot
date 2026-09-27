@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 12:49+0200\n"
+"POT-Creation-Date: 2026-09-27 13:20+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -146,8 +146,8 @@ msgstr ""
 #: apps/carver-gtk/src/ui/editor/mod.rs:1657
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
-#: apps/carver-gtk/src/ui/formatting.rs:96
-#: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:100
+#: apps/carver-gtk/src/ui/formatting.rs:430 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr ""
@@ -384,7 +384,7 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
-#: apps/carver-gtk/src/ui/formatting.rs:342
+#: apps/carver-gtk/src/ui/formatting.rs:420
 msgid "Text"
 msgstr ""
 
@@ -1124,7 +1124,7 @@ msgid "Add files…"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:47
-#: apps/carver-gtk/src/ui/formatting.rs:167
+#: apps/carver-gtk/src/ui/formatting.rs:171
 msgid "Add files"
 msgstr ""
 
@@ -1461,55 +1461,55 @@ msgstr ""
 msgid "Insert link"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:467
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:473
 msgid "Carve AST context"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:479
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:485
 msgid "More formatting"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:626
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:633
 msgid "Text style"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:631
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:638
 msgid "Normal text"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:632
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:639
 msgid "Heading 1"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:633
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:640
 msgid "Heading 2"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:634
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:641
 msgid "Heading 3"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:635
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:642
 msgid "Heading 4"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:636
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:643
 msgid "Heading 5"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:637
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:644
 msgid "Heading 6"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:671
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:678
 msgid "Insert or resize image"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:674
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:681
 msgid "Insert image…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:682
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:689
 msgid "Original size"
 msgstr ""
 
@@ -1523,7 +1523,7 @@ msgid "Could not read pasted image"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:335
+#: apps/carver-gtk/src/ui/formatting.rs:413
 msgid "Link text"
 msgstr ""
 
@@ -1533,58 +1533,59 @@ msgid "Text"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:344
+#: apps/carver-gtk/src/ui/formatting.rs:422
 msgid "Address"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:347
+#: apps/carver-gtk/src/ui/formatting.rs:425
 msgid "Insert Link"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs:533
-#: apps/carver-gtk/src/ui/formatting.rs:97
-#: apps/carver-gtk/src/ui/formatting.rs:353
+#: apps/carver-gtk/src/ui/formatting.rs:101
+#: apps/carver-gtk/src/ui/formatting.rs:431
 msgid "Insert"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:38
+#: apps/carver-gtk/src/ui/formatting.rs:42
 msgid "Insert Image"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:86
+#: apps/carver-gtk/src/ui/formatting.rs:90
 msgid "Description (optional)"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:92
 msgid "Image description"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:90
+#: apps/carver-gtk/src/ui/formatting.rs:94
 msgid "Used as alternative text when the image cannot be displayed."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:109
+#: apps/carver-gtk/src/ui/formatting.rs:113
 msgid "Unsupported image format"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:236
-msgid "Insert table"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/formatting.rs:247
-#: apps/carver-gtk/src/ui/formatting.rs:295
+#: apps/carver-gtk/src/ui/formatting.rs:271
+#: apps/carver-gtk/src/ui/formatting.rs:333
+#: apps/carver-gtk/src/ui/formatting.rs:359
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/formatting.rs:265
-msgid "Header row"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/formatting.rs:279
+#: apps/carver-gtk/src/ui/formatting.rs:302
 #, rust-format
 msgid "{rows} rows × {columns} columns"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/formatting.rs:322
+msgid "Insert table"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/formatting.rs:344
+msgid "Header row"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
