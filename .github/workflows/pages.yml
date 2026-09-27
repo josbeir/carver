@@ -47,12 +47,14 @@ jobs:
       - name: Check
         run: npm run check
       - name: Configure Pages
-        if: github.event_name != 'pull_request'
+        # Publish only from main: a manual dispatch on a branch must not replace
+        # the live site with that branch's build.
+        if: github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v5
       - name: Build
         run: npm run build
       - name: Upload artifact
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dist
@@ -60,7 +62,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

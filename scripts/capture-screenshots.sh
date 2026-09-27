@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Capture the docs site's application screenshots.
 #
-# Runs the opt-in `capture_docs_screenshots` test under the same isolated Weston
-# harness the display-backed test suite uses, writing 2x light/dark PNGs into
-# docs/src/assets/screenshots. Review the output and commit it by hand.
+# The capture lives in the display-backed test orchestrator as an opt-in step, so
+# this runs the ignored suite the same way the CI harness does and sets
+# CARVER_SCREENSHOT_DIR to switch the capture on. It writes 2x light/dark PNGs
+# into docs/src/assets/screenshots; review the output and commit it by hand.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +15,7 @@ export CARVER_SCREENSHOT_DIR="$output_dir"
 echo "Capturing Carver screenshots into $output_dir"
 
 "$repo_root/scripts/with-weston.sh" cargo test -p carver-gtk --locked -- \
-  --include-ignored --test-threads=1 capture_docs_screenshots
+  --include-ignored --test-threads=1 mvu_window_should_keep_sidebar
 
 echo
 echo "Captured:"

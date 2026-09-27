@@ -184,5 +184,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     rich_mode::short_rich_document_should_not_scroll_the_writing_surface(&fixture)?;
     library::browser_search_should_show_and_clear_empty_state(&fixture, &note)?;
     note_flow::note_should_delete_restore_and_favorite_from_shortcuts(&fixture, &note)?;
+    // No-op unless CARVER_SCREENSHOT_DIR is set; keeps one GTK entry point.
+    screenshots::capture_docs_screenshots()?;
     Ok(())
 }

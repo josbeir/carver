@@ -1,9 +1,9 @@
 //! Opt-in capture of the application views used as screenshots on the docs site.
 //!
-//! This is a developer tool, not an interaction scenario: it only runs when
-//! `CARVER_SCREENSHOT_DIR` is set, and returns immediately otherwise, so the
-//! normal display-backed suite and CI (which run the ignored tests without that
-//! variable) are unaffected. Drive it through `scripts/capture-screenshots.sh`.
+//! This is a developer tool rather than an interaction scenario: it is called
+//! from the display-backed orchestrator (so the suite keeps a single GTK entry
+//! point) but does nothing unless `CARVER_SCREENSHOT_DIR` is set. Run it through
+//! `scripts/capture-screenshots.sh`, which sets that variable.
 //!
 //! Each view is captured in both themes at 2x with `gtk::WidgetPaintable`, so
 //! the output is deterministic in size, theme, and content.
@@ -246,17 +246,14 @@ const FOCUS_NOTE: &str = "---\nstatus: Done\n---\n\n\
     detail that felt important for no clear reason, since those are usually the ones that grow \
     into something later.\n";
 
-#[test]
-#[ignore = "captures docs screenshots; set CARVER_SCREENSHOT_DIR and run under a display"]
-fn capture_docs_screenshots() -> TestResult {
+/// Captures the docs screenshots when `CARVER_SCREENSHOT_DIR` is set, and does
+/// nothing otherwise, so the ignored suite and CI stay unaffected.
+///
+/// Runs at the end of the orchestrator, which owns GTK initialisation.
+pub(super) fn capture_docs_screenshots() -> TestResult {
     let Some(directory) = std::env::var_os("CARVER_SCREENSHOT_DIR").map(PathBuf::from) else {
         return Ok(());
     };
-
-    gtk::disable_portals();
-    glib::set_application_name("Carver screenshots");
-    gtk::init()?;
-    crate::app::load_styles();
     std::fs::create_dir_all(&directory)?;
 
     let showcase = std::cell::RefCell::new(None);
