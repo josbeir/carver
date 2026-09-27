@@ -5,6 +5,7 @@ export type {
   LinkCommand,
   SelectionState,
   TableCommand,
+  TableSelection,
 } from './protocol.generated';
 
 export interface WebKitMessageHandler {

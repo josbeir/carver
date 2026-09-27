@@ -10,7 +10,11 @@ import {
 } from '@tiptap/extension-table';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 
-import { resizeSelectedTable, tableSize } from '../src/editor/table-resize';
+import {
+  resizeSelectedTable,
+  selectedTableSize,
+  tableSize,
+} from '../src/editor/table-resize';
 
 function stateWithTable(rows, columns, header = true) {
   const schema = getSchema([
@@ -50,6 +54,37 @@ describe('table resizing', () => {
   it('clamps table picker dimensions to its visible grid', () => {
     expect(tableSize(20, 0)).toEqual({ rows: 4, columns: 3 });
     expect(tableSize(-3, '5')).toEqual({ rows: 1, columns: 5 });
+  });
+
+  it('reports the geometry and header of the enclosing table', () => {
+    expect(selectedTableSize(stateWithTable(3, 4, true))).toEqual({
+      rows: 3,
+      columns: 4,
+      header: true,
+    });
+  });
+
+  it('reports a body-only table as headerless', () => {
+    expect(selectedTableSize(stateWithTable(2, 2, false))).toEqual({
+      rows: 2,
+      columns: 2,
+      header: false,
+    });
+  });
+
+  it('reports no table selection outside a table', () => {
+    const schema = getSchema([
+      StarterKit,
+      Table,
+      TableRow,
+      TableHeader,
+      TableCell,
+    ]);
+    const document = schema.topNodeType.create(null, [
+      schema.nodes.paragraph.createAndFill(),
+    ]);
+    const state = EditorState.create({ schema, doc: document });
+    expect(selectedTableSize(state)).toBeNull();
   });
 
   it('does nothing when the current selection is outside a table', () => {

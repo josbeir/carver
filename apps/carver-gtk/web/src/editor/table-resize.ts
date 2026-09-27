@@ -1,3 +1,4 @@
+import type { EditorState } from '@tiptap/pm/state';
 import {
   addColumn,
   addRow,
@@ -6,6 +7,8 @@ import {
   selectedRect,
 } from '@tiptap/pm/tables';
 
+import type { TableSelection } from './protocol';
+
 const MAX_ROWS = 4;
 const MAX_COLUMNS = 6;
 
@@ -13,6 +16,22 @@ export function tableSize(rows, columns) {
   return {
     rows: Math.max(1, Math.min(MAX_ROWS, Number(rows) || 3)),
     columns: Math.max(1, Math.min(MAX_COLUMNS, Number(columns) || 3)),
+  };
+}
+
+/**
+ * Reports the geometry of the table enclosing the selection so the host's size
+ * picker reflects the live structure. Returns null when the selection is not
+ * inside a table, where `selectedRect` would otherwise throw.
+ */
+export function selectedTableSize(state: EditorState): TableSelection | null {
+  const rect = selectedTableRect(state);
+  if (!rect) return null;
+  const firstCell = rect.table.firstChild?.firstChild;
+  return {
+    rows: rect.map.height,
+    columns: rect.map.width,
+    header: firstCell?.type.name === 'tableHeader',
   };
 }
 

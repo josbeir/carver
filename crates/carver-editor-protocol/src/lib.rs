@@ -20,6 +20,21 @@ pub struct TableCommand {
     pub header: bool,
 }
 
+/// Geometry of the table enclosing the current selection.
+///
+/// The host uses this to reflect the live table structure in its native size
+/// picker instead of guessing from the last inserted dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct TableSelection {
+    /// Total number of rows, including the optional header row.
+    pub rows: u8,
+    /// Number of columns.
+    pub columns: u8,
+    /// Whether the first row is a header.
+    pub header: bool,
+}
+
 /// A labelled link to insert over the current selection.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -97,6 +112,9 @@ pub struct SelectionState {
     /// Media at the current selection, if any.
     #[serde(default)]
     pub media: Option<MediaSelection>,
+    /// Table enclosing the current selection, if any.
+    #[serde(default)]
+    pub table: Option<TableSelection>,
 }
 
 /// Events emitted by an editing surface.
@@ -164,7 +182,9 @@ pub enum EditorEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{EditorCommand, EditorEvent, LinkCommand, SelectionState, TableCommand};
+    use super::{
+        EditorCommand, EditorEvent, LinkCommand, SelectionState, TableCommand, TableSelection,
+    };
 
     #[test]
     fn commands_round_trip_through_the_host_protocol() {
@@ -202,6 +222,11 @@ mod tests {
                 navigation_epoch: 0,
                 image_width: None,
                 media: None,
+                table: Some(TableSelection {
+                    rows: 2,
+                    columns: 3,
+                    header: true,
+                }),
             },
         };
         let encoded = serde_json::to_string(&event).unwrap_or_default();

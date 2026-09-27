@@ -27,7 +27,11 @@ import type {
   TableCommand,
   WebKitMessageHandler,
 } from './protocol';
-import { resizeSelectedTable, tableSize } from './table-resize';
+import {
+  resizeSelectedTable,
+  selectedTableSize,
+  tableSize,
+} from './table-resize';
 
 // Tiptap extends this API at runtime as extensions are registered. Keep that
 // dynamic boundary inside the controller; protocol and helper modules remain
@@ -486,6 +490,7 @@ export class EditorController implements RichEditorApi {
         navigation_epoch: this.navigationEpoch,
         image_width: image ? this.imageWidth() : null,
         media: selectedMedia(editor.state),
+        table: active('table') ? selectedTableSize(editor.state) : null,
       },
     });
   }

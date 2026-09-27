@@ -122,6 +122,10 @@ export interface SelectionState {
    * Content revision within this projection's load session.
    */
   revision: number;
+  /**
+   * Table enclosing the current selection, if any.
+   */
+  table: TableSelection | null;
 }
 /**
  * One media occurrence in an editor projection.
@@ -135,6 +139,26 @@ export interface MediaSelection {
    * Authored image source or attachment destination.
    */
   path: string;
+}
+/**
+ * Geometry of the table enclosing the current selection.
+ *
+ * The host uses this to reflect the live table structure in its native size
+ * picker instead of guessing from the last inserted dimensions.
+ */
+export interface TableSelection {
+  /**
+   * Number of columns.
+   */
+  columns: number;
+  /**
+   * Whether the first row is a header.
+   */
+  header: boolean;
+  /**
+   * Total number of rows, including the optional header row.
+   */
+  rows: number;
 }
 
 /**

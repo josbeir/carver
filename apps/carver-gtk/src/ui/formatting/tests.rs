@@ -22,6 +22,7 @@ use crate::ui::tests::{
     support::{TestResult, run_main_context_until, widget_as},
     ui::{document_sidebar, interactions::find_alert},
 };
+use carver_editor_protocol::TableSelection;
 
 pub(crate) fn image_description_should_import_only_after_confirmation() -> TestResult {
     let fixture = document_sidebar::fixture()?;
@@ -97,4 +98,53 @@ pub(crate) fn image_description_should_import_only_after_confirmation() -> TestR
     );
     fixture.window.close();
     Ok(())
+}
+
+fn cell_is_selected(picker: &TablePicker, row: u8, column: u8) -> bool {
+    picker
+        .cells
+        .borrow()
+        .iter()
+        .find(|(cell_row, cell_column, _)| *cell_row == row && *cell_column == column)
+        .is_some_and(|(_, _, cell)| cell.has_css_class("selected"))
+}
+
+/// The picker must mirror the live table and drop a stale hover when reopened.
+pub(crate) fn table_picker_should_reflect_live_table_and_reset() {
+    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let picker = append_table_picker(&toolbar, "table-picker-test", |_, _, _| {});
+    assert_eq!(picker.widget().widget_name(), "table-picker-test");
+    assert_eq!(picker.dimensions.text(), "1 × 1");
+    assert!(picker.header_row.is_active());
+    assert!(cell_is_selected(&picker, 1, 1));
+    assert!(!cell_is_selected(&picker, 2, 1));
+
+    picker.set_table(Some(TableSelection {
+        rows: 3,
+        columns: 4,
+        header: false,
+    }));
+    assert_eq!(picker.dimensions.text(), "3 × 4");
+    assert!(!picker.header_row.is_active());
+    assert!(cell_is_selected(&picker, 1, 1));
+    assert!(cell_is_selected(&picker, 3, 4));
+    assert!(!cell_is_selected(&picker, 4, 4));
+    assert!(!cell_is_selected(&picker, 3, 5));
+
+    // Simulate a hover left behind after the popover closed; closing must
+    // restore the live table instead of presenting the stale highlight.
+    for (_, _, cell) in picker.cells.borrow().iter() {
+        cell.remove_css_class("selected");
+    }
+    assert!(!cell_is_selected(&picker, 3, 4));
+    if let Some(popover) = picker.widget().popover() {
+        popover.emit_by_name::<()>("closed", &[]);
+    }
+    assert!(cell_is_selected(&picker, 3, 4));
+
+    picker.set_table(None);
+    assert_eq!(picker.dimensions.text(), "1 × 1");
+    assert!(picker.header_row.is_active());
+    assert!(cell_is_selected(&picker, 1, 1));
+    assert!(!cell_is_selected(&picker, 2, 1));
 }

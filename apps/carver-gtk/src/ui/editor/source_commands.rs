@@ -24,7 +24,7 @@ pub(crate) fn toolbar_state_from_context(context: Option<SourceContext>) -> Tool
             SourceNodeKind::OrderedList => state.activate(ToolbarCommand::OrderedList),
             SourceNodeKind::ListItem { task: true } => state.activate(ToolbarCommand::TaskList),
             SourceNodeKind::CodeBlock => state.activate(ToolbarCommand::CodeBlock),
-            SourceNodeKind::Table => state.set_table(true),
+            SourceNodeKind::Table => state.set_in_table(true),
             SourceNodeKind::Image { width } => state.set_image_width(*width),
             SourceNodeKind::Link => state.activate(ToolbarCommand::Link),
             SourceNodeKind::Bold => state.activate(ToolbarCommand::Bold),

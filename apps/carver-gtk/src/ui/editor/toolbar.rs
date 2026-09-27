@@ -8,7 +8,7 @@ use std::{
 
 use carver_config::EditorMode;
 use carver_domain::source_analysis::SourceContext;
-use carver_editor_protocol::{EditorCommand, SelectionState, TableCommand};
+use carver_editor_protocol::{EditorCommand, SelectionState, TableCommand, TableSelection};
 use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -80,6 +80,7 @@ pub(crate) struct ToolbarState {
     active: BTreeSet<ToolbarCommand>,
     heading: u8,
     in_table: bool,
+    table: Option<TableSelection>,
     image: ImageState,
 }
 
@@ -100,8 +101,12 @@ impl ToolbarState {
         self.heading = heading;
     }
 
-    pub(crate) fn set_table(&mut self, in_table: bool) {
+    pub(crate) fn set_in_table(&mut self, in_table: bool) {
         self.in_table = in_table;
+    }
+
+    pub(crate) fn set_table_dimensions(&mut self, table: Option<TableSelection>) {
+        self.table = table;
     }
 
     pub(crate) fn set_image_width(&mut self, image_width: Option<u8>) {
@@ -137,7 +142,8 @@ impl ToolbarState {
             }
         }
         state.set_heading(selection.heading);
-        state.set_table(selection.active.iter().any(|name| name == "table"));
+        state.set_in_table(selection.active.iter().any(|name| name == "table"));
+        state.set_table_dimensions(selection.table);
         if selection.active.iter().any(|name| name == "image") {
             state.set_image_width(
                 selection
@@ -413,7 +419,7 @@ pub(crate) struct Toolbar {
     router: CommandRouter,
     command_buttons: Vec<(ToolbarCommand, gtk::ToggleButton)>,
     headings: Vec<HeadingControl>,
-    tables: Vec<gtk::MenuButton>,
+    tables: Vec<formatting::TablePicker>,
     images: Vec<ImageControl>,
     source_path: gtk::Label,
     source_context: Rc<RefCell<Option<SourceContext>>>,
@@ -590,7 +596,8 @@ impl Toolbar {
             }
         }
         for table in &self.tables {
-            set_context_active(table, state.in_table);
+            set_context_active(table.widget(), state.in_table);
+            table.set_table(state.in_table.then_some(state.table).flatten());
         }
         for (image, choices) in &self.images {
             set_context_active(image, state.image != ImageState::None);
@@ -650,7 +657,7 @@ fn append_heading_menu(
     (menu, active_choices)
 }
 
-fn append_table_menu(toolbar: &gtk::Box, router: &CommandRouter) -> gtk::MenuButton {
+fn append_table_menu(toolbar: &gtk::Box, router: &CommandRouter) -> formatting::TablePicker {
     let router = router.clone();
     formatting::append_table_picker(
         toolbar,
@@ -736,10 +743,35 @@ fn set_context_active(menu: &gtk::MenuButton, active: bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ToolbarCommand, source_command};
+    use carver_editor_protocol::{SelectionState, TableSelection};
+
+    use super::{ToolbarCommand, ToolbarState, source_command};
 
     #[test]
     fn source_command_should_reject_commands_that_require_native_input() {
         assert!(source_command(ToolbarCommand::Link).is_none());
+    }
+
+    #[test]
+    fn rich_table_selection_should_expose_live_dimensions() {
+        let selection = SelectionState {
+            active: vec![String::from("table")],
+            table: Some(TableSelection {
+                rows: 3,
+                columns: 4,
+                header: false,
+            }),
+            ..SelectionState::default()
+        };
+        let state = ToolbarState::from_rich(&selection);
+        assert!(state.in_table);
+        assert_eq!(
+            state.table,
+            Some(TableSelection {
+                rows: 3,
+                columns: 4,
+                header: false,
+            })
+        );
     }
 }

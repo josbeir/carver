@@ -3,12 +3,16 @@
 use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
+use carver_editor_protocol::TableSelection;
 use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
 use super::editor::{focus::EditorFocusRestorer, source_commands};
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarget, SourceCommand};
+
+/// Shared indexed cells making up the table-size hover grid.
+type TablePickerCells = Rc<RefCell<Vec<(u8, u8, gtk::Button)>>>;
 
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///
@@ -224,12 +228,94 @@ fn attachment_extension(name: &str) -> String {
         .map_or_else(|| String::from("bin"), str::to_ascii_lowercase)
 }
 
+/// A hoverable table-size picker that reflects the current table structure.
+#[derive(Clone)]
+pub(crate) struct TablePicker {
+    menu: gtk::MenuButton,
+    dimensions: gtk::Label,
+    header_row: gtk::Switch,
+    cells: TablePickerCells,
+    current: Rc<RefCell<Option<TableSelection>>>,
+}
+
+impl TablePicker {
+    /// Returns the menu button that anchors the picker in a toolbar.
+    pub(crate) fn widget(&self) -> &gtk::MenuButton {
+        &self.menu
+    }
+
+    /// Reflects the table enclosing the selection, or resets to insertion defaults.
+    ///
+    /// Repeated calls with the same geometry are ignored so an open popover keeps
+    /// the hover highlight the user is holding.
+    pub(crate) fn set_table(&self, table: Option<TableSelection>) {
+        if *self.current.borrow() == table {
+            return;
+        }
+        self.current.replace(table);
+        render_table_picker(&self.dimensions, &self.header_row, &self.cells, table);
+    }
+}
+
+/// Applies a table geometry to the picker's label, header switch, and cells.
+fn render_table_picker(
+    dimensions: &gtk::Label,
+    header_row: &gtk::Switch,
+    cells: &TablePickerCells,
+    table: Option<TableSelection>,
+) {
+    let (rows, columns, header) = table.map_or((1, 1, true), |table| {
+        (table.rows, table.columns, table.header)
+    });
+    dimensions.set_text(&tr_fmt!(
+        gettext("{rows} × {columns}"),
+        rows = rows,
+        columns = columns
+    ));
+    header_row.set_active(header);
+    for (cell_row, cell_column, cell) in cells.borrow().iter() {
+        if *cell_row <= rows && *cell_column <= columns {
+            cell.add_css_class("selected");
+        } else {
+            cell.remove_css_class("selected");
+        }
+    }
+}
+
+/// Builds the 4×6 hover grid and returns it with its indexed picker cells.
+fn build_table_size_grid() -> (gtk::Grid, TablePickerCells) {
+    let grid = gtk::Grid::new();
+    // Keep the picker intentional at every popover width: the cells share the
+    // available width instead of leaving a detached grid in the middle.
+    grid.set_halign(gtk::Align::Fill);
+    grid.set_hexpand(true);
+    grid.set_column_homogeneous(true);
+    grid.set_row_spacing(4);
+    grid.set_column_spacing(4);
+    let cells = Rc::new(RefCell::new(Vec::new()));
+    for row in 1_u8..=4 {
+        for column in 1_u8..=6 {
+            let cell = gtk::Button::new();
+            cell.add_css_class("table-size-cell");
+            cell.set_hexpand(true);
+            cell.set_tooltip_text(Some(&tr_fmt!(
+                gettext("{rows} rows × {columns} columns"),
+                rows = row,
+                columns = column
+            )));
+            grid.attach(&cell, i32::from(column - 1), i32::from(row - 1), 1, 1);
+            cells.borrow_mut().push((row, column, cell));
+        }
+    }
+    (grid, cells)
+}
+
 /// Appends the shared hoverable table-size picker used by both editing modes.
 pub(crate) fn append_table_picker(
     toolbar: &gtk::Box,
     name: &str,
     on_insert: impl Fn(u8, u8, bool) + 'static,
-) -> gtk::MenuButton {
+) -> TablePicker {
     let menu = gtk::MenuButton::new();
     menu.set_widget_name(name);
     menu.set_icon_name("view-grid-symbolic");
@@ -250,14 +336,7 @@ pub(crate) fn append_table_picker(
     )));
     dimensions.set_halign(gtk::Align::Center);
     content.append(&dimensions);
-    let grid = gtk::Grid::new();
-    // Keep the picker intentional at every popover width: the cells share the
-    // available width instead of leaving a detached grid in the middle.
-    grid.set_halign(gtk::Align::Fill);
-    grid.set_hexpand(true);
-    grid.set_column_homogeneous(true);
-    grid.set_row_spacing(4);
-    grid.set_column_spacing(4);
+    let (grid, cells) = build_table_size_grid();
     content.append(&grid);
     let header_row = gtk::Switch::new();
     header_row.set_active(true);
@@ -268,22 +347,7 @@ pub(crate) fn append_table_picker(
 
     let popover = gtk::Popover::new();
     popover.set_child(Some(&content));
-    let cells = Rc::new(RefCell::new(Vec::new()));
     let on_insert: Rc<dyn Fn(u8, u8, bool)> = Rc::new(on_insert);
-    for row in 1..=4 {
-        for column in 1..=6 {
-            let cell = gtk::Button::new();
-            cell.add_css_class("table-size-cell");
-            cell.set_hexpand(true);
-            cell.set_tooltip_text(Some(&tr_fmt!(
-                gettext("{rows} rows × {columns} columns"),
-                rows = row,
-                columns = column
-            )));
-            grid.attach(&cell, column - 1, row - 1, 1, 1);
-            cells.borrow_mut().push((row, column, cell));
-        }
-    }
     for (row, column, cell) in cells.borrow().iter() {
         let dimensions = dimensions.clone();
         let cells_for_motion = Rc::clone(&cells);
@@ -312,16 +376,30 @@ pub(crate) fn append_table_picker(
         let row = row.to_owned();
         let column = column.to_owned();
         cell.connect_clicked(move |_| {
-            let (Ok(row), Ok(column)) = (u8::try_from(row), u8::try_from(column)) else {
-                return;
-            };
             on_insert(row, column, header_row.is_active());
             popover.popdown();
         });
     }
     menu.set_popover(Some(&popover));
+    render_table_picker(&dimensions, &header_row, &cells, None);
+    let picker = TablePicker {
+        menu: menu.clone(),
+        dimensions,
+        header_row,
+        cells,
+        current: Rc::new(RefCell::new(None)),
+    };
+    // Reset to the live geometry on close so a hover left behind by an earlier
+    // interaction never masquerades as the current table when reopened.
+    let current = Rc::clone(&picker.current);
+    let dimensions = picker.dimensions.clone();
+    let header_row = picker.header_row.clone();
+    let cells = Rc::clone(&picker.cells);
+    popover.connect_closed(move |_| {
+        render_table_picker(&dimensions, &header_row, &cells, *current.borrow());
+    });
     toolbar.append(&menu);
-    menu
+    picker
 }
 
 pub(crate) fn show_source_link_dialog(
