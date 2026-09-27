@@ -7,6 +7,11 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/pages.yml'
+  pull_request:
+    # Validate the site on pull requests, but do not deploy.
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 # Allow the workflow to publish to GitHub Pages.
@@ -17,7 +22,7 @@ permissions:
 
 # One Pages deployment at a time; never cancel a run that is already publishing.
 concurrency:
-  group: pages
+  group: docs-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -39,10 +44,12 @@ jobs:
       - name: Check
         run: npm run check
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
       - name: Build
         run: npm run build
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dist
@@ -50,6 +57,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
