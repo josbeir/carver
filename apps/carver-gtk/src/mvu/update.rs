@@ -31,7 +31,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
             import_note_effect(model, format, source)
         }
         AppMsg::Navigation(NavigationMsg::ImportFailed(message)) => {
-            model.notice = Some(UiError::new(message));
+            model.set_notice(UiError::new(message));
             Vec::new()
         }
         AppMsg::Navigation(NavigationMsg::ShowTrash) => {
@@ -167,7 +167,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
         } => {
             let name = name.trim().to_owned();
             if name.is_empty() {
-                model.notice = Some(UiError::new("Base names cannot be empty."));
+                model.set_notice(UiError::new("Base names cannot be empty."));
                 Vec::new()
             } else {
                 if model.bases.saving_configuration {
@@ -234,7 +234,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
         } => {
             let name = name.trim().to_owned();
             if name.is_empty() {
-                model.notice = Some(UiError::new("Base names cannot be empty."));
+                model.set_notice(UiError::new("Base names cannot be empty."));
                 Vec::new()
             } else {
                 if model.bases.saving_configuration {
@@ -737,7 +737,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 .as_mut()
                 .is_some_and(|document| document.source_changed(source));
             if changed {
-                model.notice = None;
+                model.clear_notice();
                 return schedule_preview(model).into_iter().collect();
             }
             Vec::new()
@@ -985,7 +985,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             match result {
                 Ok(path) => vec![Effect::ShowMediaPreview { session, path }],
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -996,7 +996,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 .as_ref()
                 .is_some_and(|document| document.session == session)
             {
-                model.notice = Some(UiError::new(
+                model.set_notice(UiError::new(
                     "Could not open this file. Install an application that can view it.",
                 ));
             }
@@ -1114,7 +1114,7 @@ fn update_source_command(
     if !document.source_changed(edit.source().to_owned()) {
         return Vec::new();
     }
-    model.notice = None;
+    model.clear_notice();
     let mut effects = [schedule_preview(model), schedule_editor_save(model)]
         .into_iter()
         .flatten()
@@ -1204,7 +1204,7 @@ fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
     let source = model.config.document_properties.default_source();
     category_id.map_or_else(
         || {
-            model.notice = Some(UiError::new("No category is available for the new note."));
+            model.set_notice(UiError::new("No category is available for the new note."));
             Vec::new()
         },
         |category_id| {
@@ -1301,7 +1301,7 @@ fn apply_frontmatter_effect(
         .editor
         .as_ref()
         .map(|document| document.source.clone());
-    model.notice = None;
+    model.clear_notice();
     let mut effects: Vec<Effect> = schedule_preview(model).into_iter().collect();
     effects.extend(schedule_editor_save(model));
     if changed && let Some(source) = source {
@@ -1327,7 +1327,7 @@ fn import_note_effect(
         });
     category_id.map_or_else(
         || {
-            model.notice = Some(UiError::new(
+            model.set_notice(UiError::new(
                 "No category is available for the imported note.",
             ));
             Vec::new()
@@ -1392,16 +1392,16 @@ fn complete_copy_request(
     model.editor_copy_request = None;
     match (scope, omitted_images) {
         (super::EditorCopyScope::Note, 0) => {
-            model.notice = Some(UiError::new("Note copied"));
+            model.set_notice(UiError::new("Note copied"));
         }
         (super::EditorCopyScope::Note, omitted) => {
-            model.notice = Some(UiError::new(format!(
+            model.set_notice(UiError::new(format!(
                 "Note copied; {omitted} images were omitted."
             )));
         }
         (super::EditorCopyScope::Selection, 0) => {}
         (super::EditorCopyScope::Selection, omitted) => {
-            model.notice = Some(UiError::new(format!(
+            model.set_notice(UiError::new(format!(
                 "Selection copied; {omitted} images were omitted."
             )));
         }
@@ -1465,7 +1465,7 @@ fn fail_copy_request(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
         super::EditorCopyScope::Note => "Could not copy the note.",
         super::EditorCopyScope::Selection => "Could not copy the selection.",
     };
-    model.notice = Some(UiError::new(message));
+    model.set_notice(UiError::new(message));
     Vec::new()
 }
 
@@ -1568,7 +1568,7 @@ fn complete_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
         return Vec::new();
     }
     model.editor_pdf_export_request = None;
-    model.notice = Some(UiError::new("Note exported as PDF"));
+    model.set_notice(UiError::new("Note exported as PDF"));
     Vec::new()
 }
 
@@ -1581,7 +1581,7 @@ fn fail_pdf_export(model: &mut AppModel, request_id: u64) -> Vec<Effect> {
         return Vec::new();
     }
     model.editor_pdf_export_request = None;
-    model.notice = Some(UiError::new("Could not export the note as PDF."));
+    model.set_notice(UiError::new("Could not export the note as PDF."));
     Vec::new()
 }
 
@@ -1713,7 +1713,7 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         vec![effect]
     } else {
         model.finish_action(key);
-        model.notice = Some(UiError::new("Category names cannot be empty."));
+        model.set_notice(UiError::new("Category names cannot be empty."));
         Vec::new()
     }
 }
@@ -1779,7 +1779,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             match result {
                 Ok(request) => vec![Effect::ShowDocumentProperties { request }],
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -1814,7 +1814,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     }]
                 }
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -1839,7 +1839,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     }]
                 }
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -1858,7 +1858,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             match result {
                 Ok(count) => vec![Effect::UpdateBaseConfigurationPreview { count, dialog_id }],
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -1885,7 +1885,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     {
                         model.selected_category = None;
                     }
-                    model.notice = None;
+                    model.clear_notice();
                     let mut effects = reload_after_local_mutation(model);
                     if matches!(action, ActionKey::TrashCategory(_)) {
                         effects.push(Effect::EnsureDefaultCategory);
@@ -1893,7 +1893,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     effects
                 }
                 Err(error) => {
-                    model.notice = Some(error);
+                    model.set_notice(error);
                     Vec::new()
                 }
             }
@@ -1942,11 +1942,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         }
         LibraryReply::TrashMutationFinished { result } => match result {
             Ok(_) => {
-                model.notice = None;
+                model.clear_notice();
                 reload_after_local_mutation(model)
             }
             Err(error) => {
-                model.notice = Some(error);
+                model.set_notice(error);
                 Vec::new()
             }
         },
@@ -1967,11 +1967,11 @@ fn update_base_deleted(
         return Vec::new();
     }
     if let Err(error) = result {
-        model.notice = Some(error);
+        model.set_notice(error);
         return Vec::new();
     }
     clear_missing_base_selection(model, base_id);
-    model.notice = None;
+    model.clear_notice();
     reload_bases(model).into_iter().collect()
 }
 
@@ -2084,7 +2084,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
             PendingBaseConfiguration::Existing(_) => Vec::new(),
         },
         super::LoadState::Failed(error) => {
-            model.notice = Some(error.clone());
+            model.set_notice(error.clone());
             Vec::new()
         }
         super::LoadState::Idle | super::LoadState::Loading(_) => {
@@ -2168,14 +2168,14 @@ fn update_base_created(
         .collect();
     match result {
         Ok(base) => {
-            model.notice = None;
+            model.clear_notice();
             let mut effects = completion;
             effects.extend(reload_bases(model));
             effects.extend(update_bases(model, BasesMsg::Open(base.id)));
             effects
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             completion
         }
     }
@@ -2194,7 +2194,7 @@ fn update_base_updated(
         .collect();
     match result {
         Ok(base) => {
-            model.notice = None;
+            model.clear_notice();
             let mut effects = completion;
             effects.extend(reload_bases(model));
             if model.route == super::Route::Base && model.bases.selected == Some(base.id) {
@@ -2203,7 +2203,7 @@ fn update_base_updated(
             effects
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             completion
         }
     }
@@ -2217,7 +2217,7 @@ fn update_favorite_changed(
     model.finish_action(action);
     match result {
         Ok(note) => {
-            model.notice = None;
+            model.clear_notice();
             let (rebased_save, pending_favorite, close_requested) = if let Some(document) = model
                 .editor
                 .as_mut()
@@ -2283,7 +2283,7 @@ fn update_favorite_changed(
                 document.favorite_mutation_in_flight = false;
                 document.pending_favorite = None;
             }
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2325,7 +2325,7 @@ fn update_editor_asset_stored(
             .collect()
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2425,7 +2425,7 @@ fn update_editor_loaded(
             }
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2464,7 +2464,7 @@ fn update_editor_export_prepared(
         }
         Err(error) => {
             model.editor_export_progress = None;
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2485,8 +2485,8 @@ fn update_editor_export_written(
     model.editor_export_warning_request = None;
     model.editor_export_progress = None;
     match result {
-        Ok(()) => model.notice = Some(UiError::new("Note exported")),
-        Err(error) => model.notice = Some(error),
+        Ok(()) => model.set_notice(UiError::new("Note exported")),
+        Err(error) => model.set_notice(error),
     }
     Vec::new()
 }
@@ -2511,7 +2511,7 @@ fn update_created_note(
             effects
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2519,7 +2519,7 @@ fn update_created_note(
 
 fn update_config_persisted(model: &mut AppModel, result: Result<(), UiError>) -> Vec<Effect> {
     if let Err(error) = result {
-        model.notice = Some(error);
+        model.set_notice(error);
     }
     Vec::new()
 }
@@ -2543,7 +2543,7 @@ fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) ->
             effects
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     }
@@ -2732,7 +2732,7 @@ fn update_editor_save(
         }
     };
     if let Some(notice) = move_notice {
-        model.notice = Some(notice);
+        model.set_notice(notice);
     }
     let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
         set_editor_favorite(model, is_favorite)
@@ -2927,7 +2927,7 @@ fn update_library_revision(
             }
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             Vec::new()
         }
     };
@@ -2998,7 +2998,7 @@ fn update_editor_refresh(
         Ok(note) => note,
         Err(error) => {
             model.editor_refresh_retry = Some(session);
-            model.notice = Some(error);
+            model.set_notice(error);
             return Vec::new();
         }
     };
@@ -3204,12 +3204,12 @@ fn update_base_cell_edited(
             }
             if let Some(error) = move_error {
                 // Content saved but the move failed; the grid reloads and the user is told.
-                model.notice = Some(error);
+                model.set_notice(error);
             }
             effects
         }
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             // A failed edit left the always-visible control showing a value that was not
             // persisted; reload so it reflects the stored row again.
             match (model.route, model.bases.selected) {
@@ -3343,7 +3343,7 @@ fn complete_file_import(
     let files = match result {
         Ok(files) => files,
         Err(error) => {
-            model.notice = Some(error);
+            model.set_notice(error);
             return Vec::new();
         }
     };

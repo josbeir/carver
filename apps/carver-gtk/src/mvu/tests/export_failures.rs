@@ -185,6 +185,36 @@ fn pdf_failure_should_preserve_source_and_report_the_matching_error() {
 }
 
 #[test]
+fn repeated_identical_notices_should_advance_the_revision() {
+    let mut model = editor();
+    let initial = model.notice_revision;
+
+    for attempt in 1..=2 {
+        let _ = update(&mut model, AppMsg::Editor(EditorMsg::PrintRequested));
+        let request = model
+            .editor_pdf_export_request
+            .clone()
+            .unwrap_or_else(|| panic!("fixture request should exist"));
+        let _ = update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::PdfExportFailed {
+                request_id: request.request_id,
+            }),
+        );
+        assert_eq!(
+            model.notice_revision,
+            initial + attempt,
+            "each notice must advance the revision so a repeated message is surfaced"
+        );
+    }
+
+    assert_eq!(
+        model.notice,
+        Some(UiError::new("Could not export the note as PDF."))
+    );
+}
+
+#[test]
 fn copy_failure_should_reject_stale_ids_and_report_note_failure() {
     let mut model = editor();
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::CopyRequested));
