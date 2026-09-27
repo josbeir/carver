@@ -18,6 +18,16 @@ pub(super) fn assert_pdf_page_setup() -> TestResult {
     Ok(())
 }
 
+/// The file printer is registered under a localized name, so export must resolve it by
+/// capability rather than the English "Print to File" string.
+#[cfg(target_os = "linux")]
+pub(super) fn assert_print_to_file_printer_resolves() -> TestResult {
+    if crate::ui::editor::print_to_file_printer_name().is_none() {
+        return Err("GTK file print backend printer should be discoverable".into());
+    }
+    Ok(())
+}
+
 pub(super) fn assert_native_print_dialog_cancels_without_invalid_window(
     parent: &gtk::Window,
 ) -> TestResult {

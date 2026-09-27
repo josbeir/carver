@@ -1728,7 +1728,9 @@ pub(crate) fn export_rendered_snapshot(
             return;
         }
         let settings = gtk::PrintSettings::new();
-        settings.set(gtk::PRINT_SETTINGS_PRINTER, Some("Print to File"));
+        let printer_name =
+            print_to_file_printer_name().unwrap_or_else(|| String::from("Print to File"));
+        settings.set(gtk::PRINT_SETTINGS_PRINTER, Some(printer_name.as_str()));
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI, Some(&target_uri));
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
         operation.set_print_settings(&settings);
@@ -1766,6 +1768,40 @@ pub(crate) fn export_rendered_snapshot(
         operation.print();
     });
     load_preview(&preview, &source, allow_remote_images, html_profile);
+}
+
+/// Returns the GTK file print backend's printer name for print-to-PDF export.
+///
+/// GTK registers its file backend under a localized display name (`_("Print to File")`), so
+/// selecting it by the English name fails on every non-English system: `WebKit` then reports
+/// "printer not found" and no PDF is written. Enumerate the available printers and return the
+/// virtual one, which is the file backend. `gtk4-rs` exposes no printer-backend handle, so the
+/// `is-virtual` flag is the reliable discriminator. Returns `None` when no virtual printer is
+/// available, leaving the caller to keep the previous English-name behavior.
+#[cfg(target_os = "linux")]
+pub(crate) fn print_to_file_printer_name() -> Option<String> {
+    let name = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let name_for_enumeration = std::sync::Arc::clone(&name);
+    gtk::enumerate_printers(
+        move |printer| {
+            if printer.is_virtual() {
+                if let Ok(mut slot) = name_for_enumeration.lock() {
+                    *slot = Some(printer.name().to_string());
+                }
+                true
+            } else {
+                false
+            }
+        },
+        true,
+    );
+    name.lock().ok().and_then(|slot| slot.clone())
+}
+
+/// Non-Linux builds cannot enumerate GTK printers, so they keep the English backend name.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn print_to_file_printer_name() -> Option<String> {
+    None
 }
 
 pub(crate) fn pdf_page_setup() -> gtk::PageSetup {

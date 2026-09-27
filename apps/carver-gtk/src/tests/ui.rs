@@ -69,6 +69,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::rich_changes_should_be_ignored_while_another_mode_is_active()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
+    #[cfg(target_os = "linux")]
+    assert_print_to_file_printer_resolves()?;
     shell::assert_sidebar_reload_preserves_rows()?;
     bases::assert_base_reload_preserves_buttons()?;
     bases::assert_base_loading_delay()?;
