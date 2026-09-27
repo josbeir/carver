@@ -316,8 +316,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .visible_dialog()
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
-    assert!(dialog.follows_content_size());
-    assert!(dialog.content_width() >= 560);
+    assert_eq!(dialog.content_width(), 640);
+    let content = dialog.child().ok_or("configuration content")?;
+    assert!(run_main_context_until(|| content.height() > 200));
     assert!(
         widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
             .is_some()

@@ -1018,8 +1018,7 @@ fn show_base_configuration_dialog(
         } else {
             gettext("Configure Base")
         })
-        .content_width(560)
-        .follows_content_size(true)
+        .content_width(640)
         .build();
     dialog.set_widget_name("base-configuration-dialog");
     let dismiss_dispatcher = dispatcher.clone();
@@ -1028,14 +1027,7 @@ fn show_base_configuration_dialog(
             dismiss_dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
     });
     let header = adw::HeaderBar::new();
-    let cancel = gtk::Button::with_label(&gettext("Cancel"));
-    cancel.set_widget_name("base-configuration-cancel");
-    header.pack_start(&cancel);
     header.pack_end(&form.save);
-    let cancel_dialog = dialog.clone();
-    cancel.connect_clicked(move |_| {
-        let _ = cancel_dialog.close();
-    });
     let busy_dialog = dialog.clone();
     form.save
         .connect_clicked(move |_| busy_dialog.set_can_close(false));
