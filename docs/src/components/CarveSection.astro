@@ -1,0 +1,45 @@
+---
+const carveUrl = 'https://markup-carve.github.io/carve/';
+---
+
+<section id="carve" class="scroll-mt-24 border-t border-base-300/60 py-20 sm:py-24">
+  <div class="mx-auto max-w-6xl px-4">
+    <div class="mx-auto max-w-3xl text-center">
+      <p class="mb-3 text-base font-semibold uppercase tracking-wider text-primary">The format</p>
+      <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        Notes you can read in any editor
+      </h2>
+      <p class="mt-5 text-xl/9 text-base-content/75">
+        Carver stores every note as canonical <strong>Carve</strong> source: a plain-text markup
+        format from the Carve project. Your writing stays readable, diffable, and yours, while the
+        app keeps the rendered view in step with it.
+      </p>
+      <p class="mt-4 text-lg/8 text-base-content/70">
+        Carve is a format in its own right rather than a Carver invention, with its own project,
+        grammar, and documentation.
+      </p>
+
+      <a class="btn btn-ghost mt-7 gap-2" href={carveUrl}>
+        Learn about Carve
+        <svg
+          class="size-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14" />
+          <path d="m13 6 6 6-6 6" />
+        </svg>
+      </a>
+
+      <p class="mt-9 text-base/7 text-base-content/55">
+        Markdown-friendly when you need it: import a <code>.md</code> file, paste it as Markdown, or
+        export back out to share with other tools.
+      </p>
+    </div>
+  </div>
+</section>
