@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 12:39+0200\n"
+"POT-Creation-Date: 2026-09-27 12:49+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -99,7 +99,7 @@ msgstr "No hay notas coincidentes"
 msgid "Notes that match this Base will appear here."
 msgstr "Las notas que coincidan con esta base aparecerán aquí."
 
-#: apps/carver-gtk/src/ui/bases.rs:113 apps/carver-gtk/src/view/mod.rs:328
+#: apps/carver-gtk/src/ui/bases.rs:113 apps/carver-gtk/src/view/mod.rs:338
 msgid "Load more rows"
 msgstr "Cargar más filas"
 
@@ -107,7 +107,7 @@ msgstr "Cargar más filas"
 #: apps/carver-gtk/src/ui/bases/actions.rs:728
 #: apps/carver-gtk/src/ui/bases/actions.rs:731
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1335
 msgid "Name"
 msgstr "Nombre"
 
@@ -136,13 +136,13 @@ msgstr "Solo se eliminará esta base. Tus notas y sus propiedades no cambiarán.
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
 #: apps/carver-gtk/src/ui/dialogs.rs:1669
 #: apps/carver-gtk/src/ui/dialogs.rs:1857
-#: apps/carver-gtk/src/ui/editor/mod.rs:1566
-#: apps/carver-gtk/src/ui/editor/mod.rs:1656
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
+#: apps/carver-gtk/src/ui/editor/mod.rs:1567
+#: apps/carver-gtk/src/ui/editor/mod.rs:1657
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
-#: apps/carver-gtk/src/view/mod.rs:562
+#: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -221,7 +221,7 @@ msgid "Field"
 msgstr "Campo"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:439
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1367
 msgid "Value"
 msgstr "Valor"
 
@@ -314,7 +314,7 @@ msgid "Add sort rule"
 msgstr "Añadir regla de ordenación"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:956
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:896
 msgid "Save"
 msgstr "Guardar"
 
@@ -377,23 +377,23 @@ msgid "Custom field"
 msgstr "Campo personalizado"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:101
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
 #: apps/carver-gtk/src/ui/formatting.rs:342
 msgid "Text"
 msgstr "Texto"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:580
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:103
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:104
 msgid "Number"
 msgstr "Número"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:581
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:104
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:105
 msgid "Boolean"
 msgstr "Booleano"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:582
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:105
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:106
 msgid "List"
 msgstr "Lista"
 
@@ -438,12 +438,12 @@ msgstr "Buscar notas"
 msgid "Search notes (Ctrl+F)"
 msgstr "Buscar notas (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:685
+#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:700
 msgid "No notes yet"
 msgstr "Aún no hay notas"
 
 #: apps/carver-gtk/src/ui/browser.rs:376 apps/carver-gtk/src/ui/browser.rs:474
-#: apps/carver-gtk/src/view/mod.rs:687
+#: apps/carver-gtk/src/view/mod.rs:702
 msgid "Create a note to get started."
 msgstr "Crea una nota para empezar."
 
@@ -472,7 +472,7 @@ msgid "Note actions"
 msgstr "Acciones de la nota"
 
 #: apps/carver-gtk/src/ui/browser.rs:729
-#: apps/carver-gtk/src/ui/editor/mod.rs:127
+#: apps/carver-gtk/src/ui/editor/mod.rs:128
 msgid "Remove from Favorites"
 msgstr "Quitar de Favoritos"
 
@@ -485,12 +485,12 @@ msgid "Move…"
 msgstr "Mover…"
 
 #: apps/carver-gtk/src/ui/browser.rs:773
-#: apps/carver-gtk/src/ui/editor/mod.rs:1397
+#: apps/carver-gtk/src/ui/editor/mod.rs:1398
 msgid "Export note…"
 msgstr "Exportar nota…"
 
 #: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1858
-#: apps/carver-gtk/src/ui/editor/mod.rs:1404
+#: apps/carver-gtk/src/ui/editor/mod.rs:1405
 msgid "Move to Trash"
 msgstr "Mover a la papelera"
 
@@ -560,8 +560,8 @@ msgid "Toggle favorite"
 msgstr "Alternar favorito"
 
 #: apps/carver-gtk/src/ui/dialogs.rs:87
-#: apps/carver-gtk/src/ui/editor/mod.rs:1558
-#: apps/carver-gtk/src/ui/editor/mod.rs:1621
+#: apps/carver-gtk/src/ui/editor/mod.rs:1559
+#: apps/carver-gtk/src/ui/editor/mod.rs:1622
 msgid "Export note"
 msgstr "Exportar nota"
 
@@ -753,8 +753,8 @@ msgid "Seed each new note with the default properties below."
 msgstr "Rellenar cada nota nueva con las propiedades predeterminadas siguientes."
 
 #: apps/carver-gtk/src/ui/dialogs.rs:658
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1012
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1023
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1069
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1080
 msgid "Default properties"
 msgstr "Propiedades predeterminadas"
 
@@ -1148,7 +1148,7 @@ msgid "Hide document sidebar"
 msgstr "Ocultar la barra lateral del documento"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:120
-#: apps/carver-gtk/src/ui/editor/mod.rs:594
+#: apps/carver-gtk/src/ui/editor/mod.rs:595
 msgid "Show document sidebar"
 msgstr "Mostrar la barra lateral del documento"
 
@@ -1188,107 +1188,107 @@ msgid_plural "{count} matches"
 msgstr[0] "{count} coincidencia"
 msgstr[1] "{count} coincidencias"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:129
-#: apps/carver-gtk/src/ui/editor/mod.rs:589
-#: apps/carver-gtk/src/ui/editor/mod.rs:1351
+#: apps/carver-gtk/src/ui/editor/mod.rs:130
+#: apps/carver-gtk/src/ui/editor/mod.rs:590
+#: apps/carver-gtk/src/ui/editor/mod.rs:1352
 msgid "Add to Favorites"
 msgstr "Añadir a Favoritos"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:605
-#: apps/carver-gtk/src/ui/editor/mod.rs:1356
+#: apps/carver-gtk/src/ui/editor/mod.rs:606
+#: apps/carver-gtk/src/ui/editor/mod.rs:1357
 msgid "Show rendered preview"
 msgstr "Mostrar la vista previa representada"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:710
-#: apps/carver-gtk/src/ui/editor/mod.rs:712
+#: apps/carver-gtk/src/ui/editor/mod.rs:711
+#: apps/carver-gtk/src/ui/editor/mod.rs:713
 msgid "Document properties"
 msgstr "Propiedades del documento"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1045
+#: apps/carver-gtk/src/ui/editor/mod.rs:1046
 msgctxt "editor mode"
 msgid "Edit"
 msgstr "Editar"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1051
+#: apps/carver-gtk/src/ui/editor/mod.rs:1052
 msgctxt "editor mode"
 msgid "Source"
 msgstr "Fuente"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1057
+#: apps/carver-gtk/src/ui/editor/mod.rs:1058
 msgctxt "editor mode"
 msgid "Preview"
 msgstr "Vista previa"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1345
+#: apps/carver-gtk/src/ui/editor/mod.rs:1346
 msgid "Note options"
 msgstr "Opciones de la nota"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1383
+#: apps/carver-gtk/src/ui/editor/mod.rs:1384
 msgid "Copy note"
 msgstr "Copiar nota"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1385
+#: apps/carver-gtk/src/ui/editor/mod.rs:1386
 msgid "Paste as Markdown"
 msgstr "Pegar como Markdown"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1394
+#: apps/carver-gtk/src/ui/editor/mod.rs:1395
 msgid "Document properties…"
 msgstr "Propiedades del documento…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1398
+#: apps/carver-gtk/src/ui/editor/mod.rs:1399
 msgid "Print…"
 msgstr "Imprimir…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1535
+#: apps/carver-gtk/src/ui/editor/mod.rs:1536
 msgctxt "export dialog"
 msgid "Format"
 msgstr "Formato"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1541
+#: apps/carver-gtk/src/ui/editor/mod.rs:1542
 msgid "Include managed files"
 msgstr "Incluir archivos gestionados"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1543
+#: apps/carver-gtk/src/ui/editor/mod.rs:1544
 msgid "Create a portable ZIP archive with the document and its files."
 msgstr "Crea un archivo ZIP portátil con el documento y sus archivos."
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1560
+#: apps/carver-gtk/src/ui/editor/mod.rs:1561
 msgid "Export the current note, including any unsaved edits."
 msgstr "Exporta la nota actual, incluidos los cambios sin guardar."
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1567
+#: apps/carver-gtk/src/ui/editor/mod.rs:1568
 msgid "Export…"
 msgstr "Exportar…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1598
+#: apps/carver-gtk/src/ui/editor/mod.rs:1599
 msgid "Carve documents"
 msgstr "Documentos Carve"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1599
+#: apps/carver-gtk/src/ui/editor/mod.rs:1600
 msgid "Markdown documents"
 msgstr "Documentos Markdown"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1600
+#: apps/carver-gtk/src/ui/editor/mod.rs:1601
 msgid "HTML documents"
 msgstr "Documentos HTML"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1601
+#: apps/carver-gtk/src/ui/editor/mod.rs:1602
 msgid "PDF documents"
 msgstr "Documentos PDF"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1602
+#: apps/carver-gtk/src/ui/editor/mod.rs:1603
 msgid "Portable ZIP archives"
 msgstr "Archivos ZIP portátiles"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1622
+#: apps/carver-gtk/src/ui/editor/mod.rs:1623
 msgid "Export"
 msgstr "Exportar"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1648
+#: apps/carver-gtk/src/ui/editor/mod.rs:1649
 msgid "Export may lose content"
 msgstr "La exportación puede perder contenido"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1650
+#: apps/carver-gtk/src/ui/editor/mod.rs:1651
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1299,7 +1299,7 @@ msgstr ""
 "\n"
 "¿Exportar de todos modos?"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1657
+#: apps/carver-gtk/src/ui/editor/mod.rs:1658
 msgid "Export anyway"
 msgstr "Exportar de todos modos"
 
@@ -1307,93 +1307,93 @@ msgstr "Exportar de todos modos"
 msgid "Could not open the link in your default browser."
 msgstr "No se pudo abrir el enlace en tu navegador predeterminado."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:103
 msgid "Long text"
 msgstr "Texto largo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:106
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:107
 msgid "Date"
 msgstr "Fecha"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:107
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:108
 msgid "Date & time"
 msgstr "Fecha y hora"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:181
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:182
 msgid "Clear"
 msgstr "Borrar"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:186
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:187
 msgid "Done"
 msgstr "Hecho"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:208
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:209
 msgid "Not set"
 msgstr "Sin definir"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:749
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:750
 msgid "Not managed by this dialog"
 msgstr "No gestionado por este diálogo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:885
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:887
 msgid "Document Properties"
 msgstr "Propiedades del documento"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:923
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:925
 msgid "Raw frontmatter"
 msgstr "Frontmatter sin formato"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:936
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:938
 msgid "Content"
 msgstr "Contenido"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:946
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:948
 msgid "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences."
 msgstr "Las propiedades de esta nota se guardan en su frontmatter. Configura las propiedades predeterminadas de las notas nuevas en Preferencias."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:955
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1028
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:957
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1085
 msgid "Add property"
 msgstr "Añadir propiedad"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1025
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1082
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "Estas propiedades se ofrecen en cada diálogo de propiedades del documento y rellenan las notas nuevas cuando está activado."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1284
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1341
 msgid "Type"
 msgstr "Tipo"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1292
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1349
 msgid "New notes use today's date"
 msgstr "Las notas nuevas usan la fecha de hoy"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1294
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1351
 msgid "New notes use the current date and time"
 msgstr "Las notas nuevas usan la fecha y hora actuales"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1303
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1360
 msgid "Options"
 msgstr "Opciones"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1320
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1377
 msgid "Comma-separated values offered as a dropdown."
 msgstr "Valores separados por comas que se ofrecen como lista desplegable."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1331
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1388
 msgid "Allow multiple values"
 msgstr "Permitir varios valores"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1356
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1413
 msgid "New property"
 msgstr "Nueva propiedad"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1420
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1422
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1477
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1479
 msgid "Remove property"
 msgstr "Eliminar propiedad"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1640
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1697
 msgid "Title"
 msgstr "Título"
 
@@ -1619,11 +1619,11 @@ msgstr "Restaurar notas y categorías"
 msgid "Empty Trash"
 msgstr "Vaciar la papelera"
 
-#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:788
+#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:803
 msgid "Trash is empty"
 msgstr "La papelera está vacía"
 
-#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:790
+#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:805
 msgid "Deleted notes and categories can be restored here."
 msgstr "Las notas y categorías eliminadas se pueden restaurar aquí."
 
@@ -1635,136 +1635,136 @@ msgstr "¿Vaciar la papelera?"
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
 msgstr "Todas las notas, categorías e imágenes sin referencia que están en la papelera se eliminarán de forma permanente."
 
-#: apps/carver-gtk/src/view/mod.rs:263
+#: apps/carver-gtk/src/view/mod.rs:273
 msgid "Couldn’t load base"
 msgstr "No se pudo cargar la base"
 
-#: apps/carver-gtk/src/view/mod.rs:275
+#: apps/carver-gtk/src/view/mod.rs:285
 msgid "Loading base…"
 msgstr "Cargando la base…"
 
-#: apps/carver-gtk/src/view/mod.rs:276
+#: apps/carver-gtk/src/view/mod.rs:286
 msgid "Loading its definition."
 msgstr "Cargando su definición."
 
-#: apps/carver-gtk/src/view/mod.rs:291
+#: apps/carver-gtk/src/view/mod.rs:301
 msgid "Couldn’t load rows"
 msgstr "No se pudieron cargar las filas"
 
-#: apps/carver-gtk/src/view/mod.rs:305
+#: apps/carver-gtk/src/view/mod.rs:315
 msgid "Loading rows…"
 msgstr "Cargando filas…"
 
-#: apps/carver-gtk/src/view/mod.rs:306
+#: apps/carver-gtk/src/view/mod.rs:316
 msgid "Refreshing this base."
 msgstr "Actualizando esta base."
 
-#: apps/carver-gtk/src/view/mod.rs:324
+#: apps/carver-gtk/src/view/mod.rs:334
 msgid "Loading more rows…"
 msgstr "Cargando más filas…"
 
-#: apps/carver-gtk/src/view/mod.rs:326
+#: apps/carver-gtk/src/view/mod.rs:336
 msgid "Retry loading rows"
 msgstr "Reintentar cargar las filas"
 
-#: apps/carver-gtk/src/view/mod.rs:534
+#: apps/carver-gtk/src/view/mod.rs:549
 msgid "This note was deleted elsewhere. Your open text is preserved."
 msgstr "Esta nota se eliminó en otro lugar. Tu texto abierto se ha conservado."
 
-#: apps/carver-gtk/src/view/mod.rs:536
+#: apps/carver-gtk/src/view/mod.rs:551
 msgid "This note changed elsewhere. Your unsaved edits are preserved."
 msgstr "Esta nota cambió en otro lugar. Tus cambios sin guardar se han conservado."
 
-#: apps/carver-gtk/src/view/mod.rs:539
+#: apps/carver-gtk/src/view/mod.rs:554
 msgid "Close Note…"
 msgstr "Cerrar nota…"
 
-#: apps/carver-gtk/src/view/mod.rs:541
+#: apps/carver-gtk/src/view/mod.rs:556
 msgid "Reload…"
 msgstr "Recargar…"
 
-#: apps/carver-gtk/src/view/mod.rs:550
+#: apps/carver-gtk/src/view/mod.rs:565
 msgid "Close deleted note?"
 msgstr "¿Cerrar la nota eliminada?"
 
-#: apps/carver-gtk/src/view/mod.rs:552
+#: apps/carver-gtk/src/view/mod.rs:567
 msgid "Reload note?"
 msgstr "¿Recargar la nota?"
 
-#: apps/carver-gtk/src/view/mod.rs:555
+#: apps/carver-gtk/src/view/mod.rs:570
 msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
 msgstr "Al cerrar se descarta tu borrador local y se abre la papelera, donde puedes restaurar la nota guardada. Cancela para conservar o exportar antes tu borrador."
 
-#: apps/carver-gtk/src/view/mod.rs:557
+#: apps/carver-gtk/src/view/mod.rs:572
 msgid "Reloading replaces your unsaved edits with the latest saved note."
 msgstr "Al recargar se reemplazan tus cambios sin guardar por la última versión guardada de la nota."
 
-#: apps/carver-gtk/src/view/mod.rs:564
+#: apps/carver-gtk/src/view/mod.rs:579
 msgid "Discard Draft and Open Trash"
 msgstr "Descartar borrador y abrir la papelera"
 
-#: apps/carver-gtk/src/view/mod.rs:566
+#: apps/carver-gtk/src/view/mod.rs:581
 msgid "Discard Edits and Reload"
 msgstr "Descartar cambios y recargar"
 
-#: apps/carver-gtk/src/view/mod.rs:798
+#: apps/carver-gtk/src/view/mod.rs:813
 msgctxt "Trash section"
 msgid "Categories"
 msgstr "Categorías"
 
-#: apps/carver-gtk/src/view/mod.rs:804
+#: apps/carver-gtk/src/view/mod.rs:819
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "Notas"
 
-#: apps/carver-gtk/src/view/mod.rs:854
+#: apps/carver-gtk/src/view/mod.rs:869
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "No se pudo guardar la nota: {error}"
 
-#: apps/carver-gtk/src/view/mod.rs:857
+#: apps/carver-gtk/src/view/mod.rs:872
 msgid "Retry"
 msgstr "Reintentar"
 
-#: apps/carver-gtk/src/view/mod.rs:873
+#: apps/carver-gtk/src/view/mod.rs:888
 msgid "Moved note"
 msgstr "Nota movida"
 
-#: apps/carver-gtk/src/view/mod.rs:874 apps/carver-gtk/src/view/mod.rs:889
+#: apps/carver-gtk/src/view/mod.rs:889 apps/carver-gtk/src/view/mod.rs:904
 msgid "Undo"
 msgstr "Deshacer"
 
-#: apps/carver-gtk/src/view/mod.rs:888
+#: apps/carver-gtk/src/view/mod.rs:903
 msgid "Moved note to Trash"
 msgstr "Nota movida a la papelera"
 
-#: apps/carver-gtk/src/view/mod.rs:1019
+#: apps/carver-gtk/src/view/mod.rs:1034
 msgid "Loading more notes…"
 msgstr "Cargando más notas…"
 
-#: apps/carver-gtk/src/view/mod.rs:1021
+#: apps/carver-gtk/src/view/mod.rs:1036
 msgid "Retry loading notes"
 msgstr "Reintentar cargar las notas"
 
-#: apps/carver-gtk/src/view/mod.rs:1023
+#: apps/carver-gtk/src/view/mod.rs:1038
 msgid "Load more notes"
 msgstr "Cargar más notas"
 
-#: apps/carver-gtk/src/view/mod.rs:1053 apps/carver-gtk/src/view/mod.rs:1064
+#: apps/carver-gtk/src/view/mod.rs:1068 apps/carver-gtk/src/view/mod.rs:1079
 msgid "Loading…"
 msgstr "Cargando…"
 
-#: apps/carver-gtk/src/view/mod.rs:1055 apps/carver-gtk/src/view/mod.rs:1065
+#: apps/carver-gtk/src/view/mod.rs:1070 apps/carver-gtk/src/view/mod.rs:1080
 msgid "Could not load content"
 msgstr "No se pudo cargar el contenido"
 
-#: apps/carver-gtk/src/view/mod.rs:1093
+#: apps/carver-gtk/src/view/mod.rs:1108
 #, rust-format
 msgid "{count} recoverable note"
 msgid_plural "{count} recoverable notes"
 msgstr[0] "{count} nota recuperable"
 msgstr[1] "{count} notas recuperables"
 
-#: apps/carver-gtk/src/view/mod.rs:1130 apps/carver-gtk/src/view/mod.rs:1131
+#: apps/carver-gtk/src/view/mod.rs:1145 apps/carver-gtk/src/view/mod.rs:1146
 msgid "Restore"
 msgstr "Restaurar"
