@@ -321,6 +321,8 @@ pub enum Effect {
         defaults: Vec<DocumentProperty>,
         /// Format used when the dialog creates a new frontmatter block.
         format: carver_domain::FrontmatterFormat,
+        /// Active categories offered as the note's category.
+        categories: Vec<super::CategoryChoice>,
     },
     /// Persist a document-properties edit under a Base row's revision.
     SaveBaseProperties {
@@ -332,6 +334,8 @@ pub enum Effect {
         revision: Revision,
         /// Parsed or raw frontmatter edit produced by the dialog.
         edit: FrontmatterEdit,
+        /// Destination category when the note should be moved, if changed.
+        category: Option<CategoryId>,
     },
     /// Load one note, set a frontmatter property, and persist it under its revision.
     EditBaseCell {

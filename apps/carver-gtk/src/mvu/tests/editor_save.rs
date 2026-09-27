@@ -53,6 +53,7 @@ fn source_change_while_saving_should_start_one_follow_up_save() {
                 note_id,
                 expected_revision: Revision(5),
                 source: "Final source".to_owned(),
+                move_to: None,
             },
         }]
     );

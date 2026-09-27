@@ -310,18 +310,21 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
             let request_id = model.next_request_id();
             model.bases.base_properties_request = Some(request_id);
+            let categories = active_category_choices(model);
             vec![Effect::LoadBaseProperties {
                 request_id,
                 note_id,
                 revision,
                 defaults: model.config.document_properties.entries.clone(),
                 format: model.config.document_properties.format,
+                categories,
             }]
         }
         BasesMsg::ApplyProperties {
             note_id,
             revision,
             edit,
+            category,
         } => {
             if model.route != super::Route::Base || model.bases.selected.is_none() {
                 return Vec::new();
@@ -338,6 +341,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                 note_id,
                 revision,
                 edit,
+                category,
             }]
         }
         BasesMsg::Delete(base_id) => {
@@ -739,9 +743,11 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::PropertiesDialogRequested => open_properties_effect(model),
-        EditorMsg::ApplyFrontmatter { session, edit } => {
-            apply_frontmatter_effect(model, session, edit)
-        }
+        EditorMsg::ApplyFrontmatter {
+            session,
+            edit,
+            category,
+        } => apply_frontmatter_effect(model, session, edit, category),
         EditorMsg::ApplySourceCommand { command, selection } => {
             update_source_command(model, command, selection)
         }
@@ -1082,7 +1088,16 @@ fn update_editor_load(
     {
         return Vec::new();
     }
-    open_editor(model, note_id, revision, false, source);
+    // The test-only load path has no library note; a fresh id simply leaves the category row
+    // unselected until a real load replaces it.
+    open_editor(
+        model,
+        note_id,
+        carver_sdk::CategoryId::new(),
+        revision,
+        false,
+        source,
+    );
     Vec::new()
 }
 
@@ -1216,14 +1231,31 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
             heading_title: carver_domain::derive_content(&document.source).heading_title,
             defaults: model.config.document_properties.entries.clone(),
             default_format: model.config.document_properties.format,
+            category_id: Some(document.category_id),
+            categories: active_category_choices(model),
         },
     }]
+}
+
+/// Returns the active categories offered by the document-properties dialog.
+fn active_category_choices(model: &AppModel) -> Vec<super::CategoryChoice> {
+    match &model.sidebar.state {
+        super::LoadState::Ready(summaries) => summaries
+            .iter()
+            .map(|summary| super::CategoryChoice {
+                id: summary.category.id,
+                name: summary.category.name.clone(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn apply_frontmatter_effect(
     model: &mut AppModel,
     session: super::EditorSessionId,
     edit: super::FrontmatterEdit,
+    category: Option<carver_sdk::CategoryId>,
 ) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
@@ -1248,7 +1280,21 @@ fn apply_frontmatter_effect(
         .editor
         .as_mut()
         .is_some_and(|document| document.source_changed(updated));
-    if !changed {
+    // A category change is applied by the next save, so mark the document dirty when it is the
+    // only change (content autosave is otherwise a no-op).
+    let category_changed = category.is_some_and(|category| {
+        model.editor.as_mut().is_some_and(|document| {
+            if document.category_id == category {
+                return false;
+            }
+            document.pending_category = Some(category);
+            if matches!(document.save_state, super::EditorSaveState::Clean) {
+                document.save_state = super::EditorSaveState::Dirty;
+            }
+            true
+        })
+    });
+    if !changed && !category_changed {
         return Vec::new();
     }
     let source = model
@@ -1258,7 +1304,7 @@ fn apply_frontmatter_effect(
     model.notice = None;
     let mut effects: Vec<Effect> = schedule_preview(model).into_iter().collect();
     effects.extend(schedule_editor_save(model));
-    if let Some(source) = source {
+    if changed && let Some(source) = source {
         // The rich projection caches the old frontmatter atom; reload it so the next rich edit
         // serializes the new block instead of reverting the change.
         effects.push(Effect::ReloadRichEditor { session, source });
@@ -1299,6 +1345,7 @@ fn import_note_effect(
 fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
+    category_id: carver_sdk::CategoryId,
     revision: carver_sdk::Revision,
     is_favorite: bool,
     source: String,
@@ -1307,6 +1354,7 @@ fn open_editor(
     let mut document = super::EditorDocument::new(
         session,
         note_id,
+        category_id,
         revision,
         is_favorite,
         source.clone(),
@@ -1717,8 +1765,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             result,
         } => update_base_rows_appended(model, request_id, base_id, result),
         LibraryReply::BaseCellEdited {
-            request_id, result, ..
-        } => update_base_cell_edited(model, request_id, result),
+            request_id,
+            moved,
+            result,
+            ..
+        } => update_base_cell_edited(model, request_id, moved, result),
         LibraryReply::BasePropertiesLoaded { request_id, result } => {
             if model.bases.base_properties_request != Some(request_id) {
                 return Vec::new();
@@ -2355,7 +2406,14 @@ fn update_editor_loaded(
     }
     match result {
         Ok(note) => {
-            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(
+                model,
+                note.id,
+                note.category_id,
+                note.revision,
+                note.is_favorite,
+                note.source,
+            );
             model.route = super::Route::Editor;
             if export_after_load {
                 request_editor_export_dialog(model)
@@ -2436,7 +2494,14 @@ fn update_created_note(
 ) -> Vec<Effect> {
     match result {
         Ok(note) => {
-            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(
+                model,
+                note.id,
+                note.category_id,
+                note.revision,
+                note.is_favorite,
+                note.source,
+            );
             model.route = super::Route::Editor;
             let mut effects = vec![Effect::FocusEditor { session }];
             effects.extend(reload_after_local_mutation(model));
@@ -2615,6 +2680,9 @@ fn update_editor_save(
         }
         match result {
             Ok(revision) => {
+                if let Some(category) = request.move_to {
+                    document.category_id = category;
+                }
                 document.revision = revision;
                 if document.source == request.source {
                     document.save_state = super::EditorSaveState::Clean;
@@ -2632,10 +2700,13 @@ fn update_editor_save(
                 }
             }
             Err(error) if document.source == request.source => {
+                // Keep the requested move so a retry still applies it.
+                document.pending_category = document.pending_category.or(request.move_to);
                 document.save_state = super::EditorSaveState::Failed(error);
                 return Vec::new();
             }
             Err(_) => {
+                document.pending_category = document.pending_category.or(request.move_to);
                 document.save_state = super::EditorSaveState::Dirty;
                 return document
                     .begin_save()
@@ -2865,6 +2936,7 @@ fn refresh_open_editor(model: &mut AppModel, discard_local: bool) -> Option<Effe
             note_id: document.note_id,
             expected_revision: document.revision,
             source: document.source.clone(),
+            move_to: document.pending_category,
         },
         discard_local,
     })
@@ -3043,6 +3115,7 @@ fn commit_base_cell_edit(
 fn update_base_cell_edited(
     model: &mut AppModel,
     request_id: super::RequestId,
+    moved: bool,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
     let Some(position) = model
@@ -3055,12 +3128,18 @@ fn update_base_cell_edited(
     };
     model.bases.cell_edits.remove(position);
     match result {
-        Ok(_) => match (model.route, model.bases.selected) {
-            (super::Route::Base, Some(base_id)) => {
-                reload_base_rows(model, base_id).into_iter().collect()
+        Ok(_) => {
+            let mut effects: Vec<Effect> = match (model.route, model.bases.selected) {
+                (super::Route::Base, Some(base_id)) => {
+                    reload_base_rows(model, base_id).into_iter().collect()
+                }
+                _ => Vec::new(),
+            };
+            if moved {
+                effects.extend(reload_sidebar(model));
             }
-            _ => Vec::new(),
-        },
+            effects
+        }
         Err(error) => {
             model.notice = Some(error);
             Vec::new()

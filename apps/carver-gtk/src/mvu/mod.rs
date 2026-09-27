@@ -12,12 +12,13 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    ActionKey, AppModel, BaseCellEdit, BasesModel, BrowserModel, DocumentPreferences,
-    EditorCopyRequest, EditorCopyScope, EditorDocument, EditorExportDialogRequest,
-    EditorExportProgress, EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview,
-    EditorPropertiesRequest, EditorSaveRequest, EditorSaveState, EditorSessionId, FrontmatterEdit,
-    LoadState, MediaFile, MoveUndo, Preferences, PropertiesSave, RequestId, Resource, Route,
-    SidebarSelection, SourceEditorPreferences, TimerId, UiError,
+    ActionKey, AppModel, BaseCellEdit, BasesModel, BrowserModel, CategoryChoice,
+    DocumentPreferences, EditorCopyRequest, EditorCopyScope, EditorDocument,
+    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
+    EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest, EditorSaveRequest,
+    EditorSaveState, EditorSessionId, FrontmatterEdit, LoadState, MediaFile, MoveUndo, Preferences,
+    PropertiesSave, RequestId, Resource, Route, SidebarSelection, SourceEditorPreferences, TimerId,
+    UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,

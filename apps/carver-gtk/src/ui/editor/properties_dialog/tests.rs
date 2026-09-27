@@ -18,6 +18,8 @@ fn request(
         heading_title: None,
         defaults,
         default_format: FrontmatterFormat::Yaml,
+        category_id: None,
+        categories: Vec::new(),
     }
 }
 

@@ -689,6 +689,33 @@ pub(crate) fn show(
                 .any(|field| !is_editable_value(&field.value))
     });
 
+    // Category leads the dialog because it is the note's top-level place, not frontmatter. It is
+    // offered whenever the caller can persist a move.
+    let category_control = request.category_id.and_then(|current| {
+        (!request.categories.is_empty()).then(|| {
+            let group = adw::PreferencesGroup::new();
+            group.set_title(&gettext("Category"));
+            let combo = adw::ComboRow::new();
+            combo.set_title(&gettext("Category"));
+            combo.set_widget_name("document-properties-category");
+            let names: Vec<&str> = request
+                .categories
+                .iter()
+                .map(|category| category.name.as_str())
+                .collect();
+            combo.set_model(Some(&gtk::StringList::new(&names)));
+            let selected = request
+                .categories
+                .iter()
+                .position(|category| category.id == current)
+                .unwrap_or(0);
+            combo.set_selected(u32::try_from(selected).unwrap_or(0));
+            group.add(&combo);
+            page.add(&group);
+            (combo, request.categories.clone(), current)
+        })
+    });
+
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
@@ -754,16 +781,25 @@ pub(crate) fn show(
                 FrontmatterEdit::Parsed(build_document(format, &drafts.borrow()))
             }
         };
+        let category = category_control
+            .as_ref()
+            .and_then(|(combo, categories, current)| {
+                let selected = categories.get(combo.selected() as usize)?.id;
+                (selected != *current).then_some(selected)
+            });
         let _ = dialog_for_save.close();
         let message = match save_target {
-            PropertiesSave::Editor { session } => {
-                AppMsg::Editor(EditorMsg::ApplyFrontmatter { session, edit })
-            }
+            PropertiesSave::Editor { session } => AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+                session,
+                edit,
+                category,
+            }),
             PropertiesSave::Base { note_id, revision } => {
                 AppMsg::Bases(BasesMsg::ApplyProperties {
                     note_id,
                     revision,
                     edit,
+                    category,
                 })
             }
         };

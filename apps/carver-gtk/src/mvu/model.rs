@@ -381,6 +381,8 @@ pub struct EditorSaveRequest {
     pub expected_revision: Revision,
     /// Canonical Carve source captured for this save.
     pub source: String,
+    /// Destination category when the note should also move, applied after the content save.
+    pub move_to: Option<CategoryId>,
 }
 
 /// A persisted change that must be resolved before saving the local draft.
@@ -401,6 +403,10 @@ pub struct EditorDocument {
     pub note_id: NoteId,
     /// Last persisted revision of the note.
     pub revision: Revision,
+    /// Category the note currently belongs to.
+    pub category_id: CategoryId,
+    /// Category to move the note to on the next save, when the dialog changed it.
+    pub pending_category: Option<CategoryId>,
     /// Whether this note appears in the Favorites carousel.
     pub is_favorite: bool,
     /// Canonical Carve source shared by the source and rich projections.
@@ -522,6 +528,15 @@ pub struct EditorPdfExportRequest {
     pub print_dialog: bool,
 }
 
+/// An active category offered for a note's category in the properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CategoryChoice {
+    /// Category identity.
+    pub id: CategoryId,
+    /// Category display name.
+    pub name: String,
+}
+
 /// Where a document-properties dialog writes its edit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PropertiesSave {
@@ -556,6 +571,10 @@ pub struct EditorPropertiesRequest {
     pub defaults: Vec<carver_config::DocumentProperty>,
     /// Format used when the dialog creates a new frontmatter block.
     pub default_format: carver_domain::FrontmatterFormat,
+    /// The note's current category, or `None` to hide the category row.
+    pub category_id: Option<CategoryId>,
+    /// Active categories offered when the category row is shown.
+    pub categories: Vec<CategoryChoice>,
 }
 
 /// A frontmatter edit produced by the native document-properties dialog.
@@ -576,6 +595,7 @@ impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,
         note_id: NoteId,
+        category_id: CategoryId,
         revision: Revision,
         is_favorite: bool,
         source: String,
@@ -586,6 +606,8 @@ impl EditorDocument {
             session,
             note_id,
             revision,
+            category_id,
+            pending_category: None,
             is_favorite,
             source,
             mode,
@@ -623,6 +645,8 @@ impl EditorDocument {
     pub(super) fn accept_external_note(&mut self, note: &carver_sdk::Note) {
         self.source_changed(note.source.clone());
         self.revision = note.revision;
+        self.category_id = note.category_id;
+        self.pending_category = None;
         self.is_favorite = note.is_favorite;
         self.save_state = EditorSaveState::Clean;
         self.external_change = None;
@@ -650,6 +674,7 @@ impl EditorDocument {
             note_id: self.note_id,
             expected_revision: self.revision,
             source: self.source.clone(),
+            move_to: self.pending_category.take(),
         };
         self.save_state = EditorSaveState::Saving(request.clone());
         Some(request)

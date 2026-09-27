@@ -1083,6 +1083,7 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
             request_id,
             note_id,
             path: "/status".to_owned(),
+            moved: false,
             result: Ok(Revision(5)),
         }),
     );
@@ -1116,6 +1117,7 @@ fn a_failed_cell_edit_should_keep_a_notice_without_reloading() {
             request_id,
             note_id,
             path: "/status".to_owned(),
+            moved: false,
             result: Err(UiError::new("conflict")),
         }),
     );
@@ -1136,6 +1138,7 @@ fn a_stale_cell_edit_reply_should_be_ignored() {
             request_id: RequestId(404),
             note_id: NoteId::new(),
             path: "/status".to_owned(),
+            moved: false,
             result: Ok(Revision(5)),
         }),
     );
@@ -1181,6 +1184,8 @@ fn editing_base_properties_should_open_the_dialog_without_leaving_the_base() {
         heading_title: None,
         defaults: Vec::new(),
         default_format: carver_domain::FrontmatterFormat::Yaml,
+        category_id: None,
+        categories: Vec::new(),
     };
     let effects = update(
         &mut model,
@@ -1210,6 +1215,7 @@ fn applying_base_properties_should_save_and_reload_the_base() {
                 format: carver_domain::FrontmatterFormat::Yaml,
                 content: "a: b".to_owned(),
             },
+            category: None,
         }),
     );
     let request_id = match effects.as_slice() {
@@ -1224,6 +1230,7 @@ fn applying_base_properties_should_save_and_reload_the_base() {
             request_id,
             note_id,
             path: String::new(),
+            moved: false,
             result: Ok(Revision(3)),
         }),
     );
@@ -1232,4 +1239,56 @@ fn applying_base_properties_should_save_and_reload_the_base() {
         effects.as_slice(),
         [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
     ));
+}
+
+#[test]
+fn a_moved_base_property_edit_should_reload_the_sidebar() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+            category: Some(carver_sdk::CategoryId::new()),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::SaveBaseProperties {
+                request_id,
+                category,
+                ..
+            },
+        ] => {
+            assert!(category.is_some());
+            *request_id
+        }
+        _ => panic!("applying properties should save once"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            moved: true,
+            result: Ok(Revision(3)),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadSidebar { .. }))
+    );
 }

@@ -348,13 +348,16 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 revision,
                 defaults,
                 format,
-            } => self.load_base_properties(request_id, note_id, revision, defaults, format),
+                categories,
+            } => self
+                .load_base_properties(request_id, note_id, revision, defaults, format, categories),
             Effect::SaveBaseProperties {
                 request_id,
                 note_id,
                 revision,
                 edit,
-            } => self.save_base_properties(request_id, note_id, revision, edit),
+                category,
+            } => self.save_base_properties(request_id, note_id, revision, edit, category),
             Effect::StoreEditorAsset {
                 session,
                 note_id,
@@ -976,15 +979,26 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = client
+            // Save content first, then move, so the reply carries the final revision and the two
+            // changes apply to one consistent note.
+            let result = match client
                 .save_note_async(
                     request.note_id,
                     request.expected_revision,
                     request.source.clone(),
                 )
                 .await
-                .map(|note| note.revision)
-                .map_err(display_error);
+            {
+                Ok(saved) => match request.move_to {
+                    Some(category) => client
+                        .move_note_async(request.note_id, category)
+                        .await
+                        .map(|note| note.revision)
+                        .map_err(display_error),
+                    None => Ok(saved.revision),
+                },
+                Err(error) => Err(display_error(error)),
+            };
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
                 result,
@@ -1023,6 +1037,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 request_id,
                 note_id,
                 path,
+                moved: false,
                 result,
             }));
         });
@@ -1036,6 +1051,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         revision: carver_sdk::Revision,
         defaults: Vec<carver_config::DocumentProperty>,
         format: carver_domain::FrontmatterFormat,
+        categories: Vec<super::CategoryChoice>,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
@@ -1049,6 +1065,8 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     heading_title: carver_domain::derive_content(&note.source).heading_title,
                     defaults,
                     default_format: format,
+                    category_id: Some(note.category_id),
+                    categories,
                 }),
                 Ok(None) => Err(display_error("note is no longer available")),
                 Err(error) => Err(display_error(error)),
@@ -1067,12 +1085,14 @@ impl<B: LibraryBackend> AppRuntime<B> {
         note_id: carver_sdk::NoteId,
         revision: carver_sdk::Revision,
         edit: super::FrontmatterEdit,
+        category: Option<carver_sdk::CategoryId>,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = match client.note_async(note_id).await {
+            let (moved, result) = match client.note_async(note_id).await {
                 Ok(Some(note)) => {
+                    let move_needed = category.is_some_and(|category| category != note.category_id);
                     let updated = match edit {
                         super::FrontmatterEdit::Parsed(document) => {
                             carver_domain::replace_frontmatter(&note.source, Some(&document))
@@ -1081,22 +1101,39 @@ impl<B: LibraryBackend> AppRuntime<B> {
                             carver_domain::replace_frontmatter_raw(&note.source, format, &content),
                         ),
                     };
+                    // Save the content first under the row revision, then move, so both apply to
+                    // one consistent note and the reply carries the final revision.
                     match updated {
-                        Ok(source) => client
-                            .save_note_async(note_id, revision, source)
-                            .await
-                            .map(|note| note.revision)
-                            .map_err(display_error),
-                        Err(error) => Err(display_error(error)),
+                        Ok(source) => {
+                            let saved = client
+                                .save_note_async(note_id, revision, source)
+                                .await
+                                .map_err(display_error);
+                            match saved {
+                                Ok(_) if move_needed => {
+                                    let category = category.unwrap_or(note.category_id);
+                                    let result = client
+                                        .move_note_async(note_id, category)
+                                        .await
+                                        .map(|note| note.revision)
+                                        .map_err(display_error);
+                                    (true, result)
+                                }
+                                Ok(saved) => (false, Ok(saved.revision)),
+                                Err(error) => (false, Err(error)),
+                            }
+                        }
+                        Err(error) => (false, Err(display_error(error))),
                     }
                 }
-                Ok(None) => Err(display_error("note is no longer available")),
-                Err(error) => Err(display_error(error)),
+                Ok(None) => (false, Err(display_error("note is no longer available"))),
+                Err(error) => (false, Err(display_error(error))),
             };
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
                 request_id,
                 note_id,
                 path: String::new(),
+                moved,
                 result,
             }));
         });

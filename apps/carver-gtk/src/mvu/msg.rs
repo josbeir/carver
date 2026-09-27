@@ -174,6 +174,8 @@ pub enum BasesMsg {
         revision: Revision,
         /// Parsed or raw frontmatter edit produced by the dialog.
         edit: FrontmatterEdit,
+        /// Destination category when the note should be moved, if changed.
+        category: Option<CategoryId>,
     },
 }
 
@@ -345,6 +347,8 @@ pub enum EditorMsg {
         session: EditorSessionId,
         /// Structured or raw edit produced by the dialog.
         edit: FrontmatterEdit,
+        /// Destination category when the note should also move, if changed.
+        category: Option<CategoryId>,
     },
     /// Apply a pure source-formatting command to the canonical editor snapshot.
     ApplySourceCommand {
@@ -727,6 +731,8 @@ pub enum LibraryReply {
         note_id: NoteId,
         /// JSON Pointer path of the edited property.
         path: String,
+        /// Whether the edit also moved the note to another category.
+        moved: bool,
         /// Persisted revision or a displayable failure.
         result: Result<Revision, UiError>,
     },

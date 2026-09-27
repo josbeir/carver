@@ -513,6 +513,7 @@ pub(crate) fn runtime_should_edit_base_properties_without_leaving_the_base()
     let category = client.create_category("Notes")?;
     let created = client.create_note(category.id)?;
     let note = client.save_note(created.id, created.revision, "# Note\n\nBody")?;
+    let destination = client.create_category("Archive")?;
 
     let mut model = AppModel::new(&Config::default());
     model.route = crate::mvu::Route::Base;
@@ -543,13 +544,12 @@ pub(crate) fn runtime_should_edit_base_properties_without_leaving_the_base()
             format: carver_domain::FrontmatterFormat::Yaml,
             content: "author: Ada".to_owned(),
         },
+        category: Some(destination.id),
     }));
     assert!(crate::ui::tests::support::run_main_context_until(|| {
-        client
-            .note(note.id)
-            .ok()
-            .flatten()
-            .is_some_and(|note| note.source.contains("author: Ada"))
+        client.note(note.id).ok().flatten().is_some_and(|note| {
+            note.source.contains("author: Ada") && note.category_id == destination.id
+        })
     }));
     assert_eq!(runtime.model().route, crate::mvu::Route::Base);
     Ok(())

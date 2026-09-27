@@ -1425,3 +1425,106 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
     window.close();
     Ok(())
 }
+
+/// The Base properties dialog moves a note to the chosen category without leaving the Base.
+pub(super) fn base_properties_should_set_the_category() -> TestResult {
+    let (_temp, client) = test_state()?;
+    let source = client.create_category("Notes")?;
+    let destination = client.create_category("Archive")?;
+    let created = client.create_note(source.id)?;
+    let note = client.save_note(created.id, created.revision, "# Note\n")?;
+
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Notes".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let note_id = note.id;
+    let row = carver_sdk::BaseRow {
+        note_id,
+        revision: note.revision,
+        name: "Note".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({}),
+    };
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &dispatcher,
+    );
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(definition.id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+    model.bases.rows.state = LoadState::Ready(vec![row.clone()]);
+    model.sidebar.state = LoadState::Ready(vec![
+        carver_sdk::CategorySummary {
+            category: source,
+            note_count: 1,
+        },
+        carver_sdk::CategorySummary {
+            category: destination.clone(),
+            note_count: 0,
+        },
+    ]);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+
+    let properties =
+        widget_as::<gtk::Button>(&base_widget, "base-row-properties").ok_or("properties button")?;
+    assert!(run_main_context_until(|| properties.is_mapped()));
+    properties.emit_clicked();
+    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
+    let dialog = window.visible_dialog().ok_or("properties dialog")?;
+    let dialog: gtk::Widget = dialog.upcast();
+    let combo =
+        widget_as::<adw::ComboRow>(&dialog, "document-properties-category").ok_or("category")?;
+    assert_eq!(combo.model().map(|model| model.n_items()), Some(2));
+    assert_eq!(combo.selected(), 0);
+    combo.set_selected(1);
+    widget_as::<gtk::Button>(&dialog, "document-properties-save")
+        .ok_or("save button")?
+        .emit_clicked();
+
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || {
+            client
+                .note(note_id)
+                .ok()
+                .flatten()
+                .is_some_and(|note| note.category_id == destination.id)
+        }
+    ));
+    assert_eq!(runtime.model().route, Route::Base);
+    window.close();
+    Ok(())
+}
