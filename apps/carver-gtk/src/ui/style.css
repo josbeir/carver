@@ -325,9 +325,23 @@ popover button:checked {
   min-width: 20px;
   opacity: 0.65;
 }
-/* The grid is the pane surface itself, not a card floating inside it. */
+/* The grid is the pane surface itself, not a card floating inside it. Keep a top divider between
+   the column header and the window header, and a bottom divider under the last row. */
 .bases-grid {
   font-size: 0.9em;
+  border-top: 1px solid alpha(currentColor, 0.12);
+}
+
+.bases-grid row:last-child {
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+/* The title cell is a flat button around the value label; strip its padding so the text lines up
+   with the other columns instead of adding button chrome. */
+.bases-grid button.bases-name-link {
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 .sidebar-add-panel { padding: 8px 18px 18px; }

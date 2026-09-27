@@ -710,6 +710,9 @@ fn build_display_cell(
             label.add_css_class("link");
             let open = gtk::Button::new();
             open.add_css_class("flat");
+            // Drop the button's own padding so the label's margins set the cell inset, matching
+            // the bare-label columns instead of adding button chrome on top of them.
+            open.add_css_class("bases-name-link");
             open.set_widget_name("cell-open-note");
             open.set_child(Some(&label));
             open.set_hexpand(true);
