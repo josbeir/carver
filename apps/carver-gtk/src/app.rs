@@ -1,6 +1,10 @@
 //! Application bootstrap and top-level window composition.
 
-use std::{cell::Cell, path::Path, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    path::Path,
+    rc::Rc,
+};
 
 use adw::prelude::*;
 use carver_config::{AppPaths, Config, load, save};
@@ -131,7 +135,8 @@ fn build_window(
     split_view.set_show_content(true);
     split_view.set_collapsed(config.window.sidebar_collapsed);
     let compact_navigation = Rc::new(Cell::new(false));
-    let sidebar = build_sidebar(&dispatcher, &split_view);
+    let add_dialog: crate::ui::add::AddDialogSlot = Rc::new(RefCell::new(None));
+    let sidebar = build_sidebar(&dispatcher, &split_view, Rc::clone(&add_dialog));
     let content = build_content(
         &dispatcher,
         config,
@@ -158,6 +163,7 @@ fn build_window(
     let view = ViewRefs::new(content.route_stack, browser_status, trash_status)
         .with_browser(content.browser)
         .with_base(content.base)
+        .with_add_dialog(Rc::clone(&add_dialog))
         .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
         .with_editor(content.editor)
         .with_trash(

@@ -3,8 +3,11 @@ use super::*;
 
 pub(super) fn assert_sidebar_reload_preserves_rows() -> TestResult {
     let split_view = adw::NavigationSplitView::new();
-    let sidebar =
-        crate::ui::sidebar::build_sidebar(&crate::mvu::AppDispatcher::default(), &split_view);
+    let sidebar = crate::ui::sidebar::build_sidebar(
+        &crate::mvu::AppDispatcher::default(),
+        &split_view,
+        Rc::new(std::cell::RefCell::new(None)),
+    );
     let sidebar_for_render = sidebar.clone();
     let render_count = Rc::new(Cell::new(0));
     let render_count_for_renderer = Rc::clone(&render_count);
@@ -253,6 +256,7 @@ pub(super) fn sidebar_count_badge_should_cap_large_counts() -> TestResult {
     let sidebar = crate::ui::sidebar::build_sidebar(
         &crate::mvu::AppDispatcher::default(),
         &adw::NavigationSplitView::new(),
+        Rc::new(std::cell::RefCell::new(None)),
     );
     let category_id = carver_sdk::CategoryId::new();
     let mut model = crate::mvu::AppModel::new(&Config::default());

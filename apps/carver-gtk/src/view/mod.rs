@@ -82,6 +82,7 @@ pub struct ViewRefs {
     browser_empty_new_note_button: Option<gtk::Button>,
     browser_status: adw::StatusPage,
     base: Option<crate::ui::bases::BaseViewRefs>,
+    add_dialog: Option<crate::ui::add::AddDialogSlot>,
     trash_list: Option<gtk::ListBox>,
     trash_pages: Option<gtk::Stack>,
     empty_trash_button: Option<gtk::Button>,
@@ -124,6 +125,7 @@ impl ViewRefs {
             browser_empty_new_note_button: None,
             browser_status,
             base: None,
+            add_dialog: None,
             trash_list: None,
             trash_pages: None,
             empty_trash_button: None,
@@ -191,6 +193,13 @@ impl ViewRefs {
     #[must_use]
     pub(crate) fn with_base(mut self, base: crate::ui::bases::BaseViewRefs) -> Self {
         self.base = Some(base);
+        self
+    }
+
+    /// Adds the shared Add dialog slot so Base creation can mount into its tab.
+    #[must_use]
+    pub(crate) fn with_add_dialog(mut self, add_dialog: crate::ui::add::AddDialogSlot) -> Self {
+        self.add_dialog = Some(add_dialog);
         self
     }
 
@@ -337,6 +346,32 @@ impl ViewRefs {
             descriptors,
         } = &effect
         {
+            if let Some(host) = self
+                .add_dialog
+                .as_ref()
+                .and_then(|slot| slot.borrow().clone())
+                && let Some(dispatcher) = &self.dispatcher
+            {
+                let definition = crate::ui::bases::actions::new_base_definition();
+                let form = crate::ui::bases::actions::build_base_configuration_form(
+                    dispatcher,
+                    *dialog_id,
+                    &definition,
+                    descriptors,
+                    crate::ui::bases::actions::BaseConfigurationMode::Create,
+                );
+                while let Some(child) = host.base_slot.first_child() {
+                    host.base_slot.remove(&child);
+                }
+                host.base_slot.append(&form.page);
+                host.base_footer.append(&form.save);
+                form.name.grab_focus();
+                host.base_dialog_id.set(Some(*dialog_id));
+                host.base_ready.set(true);
+                host.form.replace(Some(form));
+                host.sync_height();
+                return;
+            }
             if let Some(dispatcher) = &self.dispatcher {
                 use adw::prelude::*;
                 if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
@@ -380,6 +415,20 @@ impl ViewRefs {
             return;
         }
         if let Effect::FinishBaseConfiguration { success } = effect {
+            if let Some(host) = self
+                .add_dialog
+                .as_ref()
+                .and_then(|slot| slot.borrow().clone())
+                && host.base_ready.get()
+            {
+                if let Some(form) = host.form.borrow().as_ref() {
+                    form.set_busy(false);
+                }
+                if success {
+                    host.dialog.close();
+                }
+                return;
+            }
             if let Some(refs) = &self.base {
                 let dialog = if success {
                     refs.configuration.take().map(|(_, dialog)| dialog)
@@ -396,14 +445,25 @@ impl ViewRefs {
             return;
         }
         if let Effect::UpdateBaseConfigurationPreview { dialog_id, count } = effect {
+            if let Some(host) = self
+                .add_dialog
+                .as_ref()
+                .and_then(|slot| slot.borrow().clone())
+                && host.base_dialog_id.get() == Some(dialog_id)
+                && let Some(form) = host.form.borrow().as_ref()
+            {
+                crate::ui::bases::actions::render_preview(form.page.upcast_ref(), count);
+                return;
+            }
             if let Some(dialog) = self
                 .base
                 .as_ref()
                 .and_then(|refs| refs.configuration.borrow().clone())
                 .filter(|(current_dialog_id, _)| current_dialog_id == &dialog_id)
                 .map(|(_, dialog)| dialog)
+                && let Some(root) = dialog.child()
             {
-                crate::ui::bases::actions::render_preview(&dialog, count);
+                crate::ui::bases::actions::render_preview(&root, count);
             }
             return;
         }

@@ -16,7 +16,11 @@ pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestRe
     let base = glib::MainContext::default()
         .block_on(client.create_base_async("Projects".to_owned(), Vec::new()))?;
     let dispatcher = AppDispatcher::default();
-    let sidebar = crate::ui::sidebar::build_sidebar(&dispatcher, &adw::NavigationSplitView::new());
+    let sidebar = crate::ui::sidebar::build_sidebar(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        std::rc::Rc::new(std::cell::RefCell::new(None)),
+    );
     let sidebar_for_view = sidebar.clone();
     let mut model = AppModel::new(&carver_config::Config::default());
     model.sidebar.state = LoadState::Ready(Vec::new());
@@ -638,6 +642,7 @@ pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
     let sidebar = crate::ui::sidebar::build_sidebar(
         &crate::mvu::AppDispatcher::default(),
         &adw::NavigationSplitView::new(),
+        std::rc::Rc::new(std::cell::RefCell::new(None)),
     );
     let base = carver_sdk::BaseDefinition {
         id: carver_sdk::BaseId::new(),
