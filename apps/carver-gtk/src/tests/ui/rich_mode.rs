@@ -261,5 +261,7 @@ pub(super) fn rich_table_selection_should_update_the_picker(fixture: &WindowFixt
         let (label, selected, enabled) = table_picker_highlight(&root);
         label == "5 × 3" && selected == 12 && !enabled
     }));
+    // Leave the shared editor in Source mode for the scenarios that follow.
+    editor_stack.set_visible_child_name("source");
     Ok(())
 }
