@@ -55,15 +55,6 @@ const carveSample = `# Weekly review
 | Mon | Writing |
 | Tue | Reviews |`;
 
-const configureCommands = [
-  'carver-mcp configure claude-code',
-  'carver-mcp configure codex',
-  'carver-mcp configure copilot',
-  'carver-mcp configure vscode',
-  'carver-mcp configure opencode',
-  'carver-mcp configure generic',
-].join('\n');
-
 export const featureAreas: FeatureArea[] = [
   {
     id: 'editor',
@@ -157,7 +148,6 @@ export const featureAreas: FeatureArea[] = [
       { name: 'Copilot', logo: copilot },
       { name: 'OpenCode', logo: opencode },
     ],
-    code: { label: 'Connect your preferred assistant', code: configureCommands },
     shot: shots.agent,
   },
   {
