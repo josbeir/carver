@@ -330,19 +330,25 @@ fn append_actions_column(grid: &gtk::ColumnView, dispatcher: &AppDispatcher) {
 
 fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
     let incoming: Vec<_> = rows.iter().map(|row| (row.note_id, row.revision)).collect();
-    let mut rendered = refs.rendered_rows.borrow_mut();
-    let appends_existing_rows = rows.len() >= rendered.len()
-        && incoming
-            .get(..rendered.len())
-            .is_some_and(|prefix| prefix == rendered.as_slice());
-    if !appends_existing_rows {
-        refs.rows.remove_all();
-        rendered.clear();
-    }
-    for row in &rows[rendered.len()..] {
+    // Release the rendered-row borrow before touching the list store: binding a newly appended
+    // row can synchronously dispatch a commit that re-renders the grid.
+    let pending: Vec<BaseRow> = {
+        let mut rendered = refs.rendered_rows.borrow_mut();
+        let appends_existing_rows = rows.len() >= rendered.len()
+            && incoming
+                .get(..rendered.len())
+                .is_some_and(|prefix| prefix == rendered.as_slice());
+        if !appends_existing_rows {
+            refs.rows.remove_all();
+            rendered.clear();
+        }
+        let pending = rows[rendered.len()..].to_vec();
+        *rendered = incoming;
+        pending
+    };
+    for row in &pending {
         refs.rows.append(&glib::BoxedAnyObject::new(row.clone()));
     }
-    *rendered = incoming;
 }
 
 fn append_column(
@@ -357,6 +363,9 @@ fn append_column(
     let editor_for_setup = editor;
     let editor_for_bind = editor_for_setup.clone();
     let dispatcher_for_setup = dispatcher.clone();
+    // Suppresses selection/toggle commits while a cell is being projected during bind.
+    let syncing = Rc::new(std::cell::Cell::new(false));
+    let syncing_for_setup = Rc::clone(&syncing);
     factory.connect_setup(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -367,6 +376,7 @@ fn append_column(
                 item,
                 &column_for_setup,
                 &dispatcher_for_setup,
+                &syncing_for_setup,
             )));
             return;
         }
@@ -381,6 +391,7 @@ fn append_column(
                 &column_for_setup,
                 options,
                 &dispatcher_for_setup,
+                &syncing_for_setup,
             )));
             return;
         }
@@ -417,6 +428,7 @@ fn append_column(
         item.set_child(Some(&cell));
     });
     let column_for_bind = column.clone();
+    let syncing_for_bind = Rc::clone(&syncing);
     factory.connect_bind(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -424,8 +436,12 @@ fn append_column(
         let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
             return;
         };
-        let row = object.borrow::<BaseRow>();
-        bind_cell(item, &row, &column_for_bind, editor_for_bind.as_ref());
+        syncing_for_bind.set(true);
+        {
+            let row = object.borrow::<BaseRow>();
+            bind_cell(item, &row, &column_for_bind, editor_for_bind.as_ref());
+        }
+        syncing_for_bind.set(false);
     });
     let is_name = matches!(column, BaseColumn::Name);
     let column_view = gtk::ColumnViewColumn::new(Some(title), Some(factory));
@@ -475,12 +491,17 @@ fn boolean_cell_for(
     item: &gtk::ListItem,
     column: &BaseColumn,
     dispatcher: &AppDispatcher,
+    syncing: &Rc<std::cell::Cell<bool>>,
 ) -> gtk::Switch {
     let switch = build_boolean_cell(false, "cell-boolean");
     let weak_item = item.downgrade();
     let column = column.clone();
     let dispatcher = dispatcher.clone();
+    let syncing = Rc::clone(syncing);
     switch.connect_state_set(move |_, active| {
+        if syncing.get() {
+            return glib::Propagation::Proceed;
+        }
         let Some(item) = weak_item.upgrade() else {
             return glib::Propagation::Proceed;
         };
@@ -507,13 +528,18 @@ fn select_cell_for(
     column: &BaseColumn,
     options: &[String],
     dispatcher: &AppDispatcher,
+    syncing: &Rc<std::cell::Cell<bool>>,
 ) -> gtk::DropDown {
     let dropdown = build_select_cell(&FrontmatterValue::Null, options, "cell-select");
     let weak_item = item.downgrade();
     let column = column.clone();
     let options = options.to_vec();
     let dispatcher = dispatcher.clone();
+    let syncing = Rc::clone(syncing);
     dropdown.connect_selected_notify(move |dropdown| {
+        if syncing.get() {
+            return;
+        }
         let Some(item) = weak_item.upgrade() else {
             return;
         };
