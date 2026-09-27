@@ -1,0 +1,186 @@
+---
+import type { Shot } from '../data/screenshots';
+import ThemedScreenshot from './ThemedScreenshot.astro';
+
+interface Props {
+  /** Slides, shown in order; each keeps its light/dark pair. */
+  shots: Shot[];
+}
+
+const { shots } = Astro.props;
+
+const ordered = shots.filter(Boolean);
+---
+
+<div class="relative" data-carousel>
+  {/*
+    Native scroll-snap track: swipeable and momentum-scrolled with no JavaScript.
+    The script below adds autoplay, dots, and arrows on top.
+  */}
+  <div
+    class="carousel-track flex snap-x snap-mandatory overflow-x-auto"
+    data-carousel-track
+    tabindex="0"
+    role="group"
+    aria-roledescription="carousel"
+    aria-label="Carver screenshots"
+  >
+    {ordered.map((shot, index) => (
+      <div
+        class="w-full shrink-0 snap-center"
+        role="group"
+        aria-roledescription="slide"
+        aria-label={`${index + 1} of ${ordered.length}`}
+        data-carousel-slide
+      >
+        <ThemedScreenshot
+          shot={shot}
+          loading={index === 0 ? 'eager' : 'lazy'}
+          sizes="(min-width: 1152px) 1104px, 100vw"
+        />
+      </div>
+    ))}
+  </div>
+
+  {/* Controls are revealed only once the script can drive them. */}
+  <div class="mt-5 flex items-center justify-center gap-3" data-carousel-controls hidden>
+    <button
+      type="button"
+      class="btn btn-ghost btn-circle btn-sm text-lg"
+      data-carousel-previous
+      aria-label="Previous screenshot"
+    >
+      ‹
+    </button>
+    <div class="flex items-center gap-2">
+      {ordered.map((_, index) => (
+        <button
+          type="button"
+          class="size-2.5 rounded-full bg-base-content/25 transition-colors aria-[current=true]:bg-primary"
+          data-carousel-dot
+          data-index={index}
+          aria-label={`Show screenshot ${index + 1}`}
+          aria-current={index === 0 ? 'true' : 'false'}
+        />
+      ))}
+    </div>
+    <button
+      type="button"
+      class="btn btn-ghost btn-circle btn-sm text-lg"
+      data-carousel-next
+      aria-label="Next screenshot"
+    >
+      ›
+    </button>
+  </div>
+</div>
+
+<script>
+  const AUTOPLAY_INTERVAL = 5200;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  for (const carousel of document.querySelectorAll<HTMLElement>('[data-carousel]')) {
+    const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
+    const slides = [...carousel.querySelectorAll('[data-carousel-slide]')];
+    const controls = carousel.querySelector<HTMLElement>('[data-carousel-controls]');
+    const dots = [...carousel.querySelectorAll<HTMLElement>('[data-carousel-dot]')];
+    if (!track || slides.length < 2) continue;
+
+    controls?.removeAttribute('hidden');
+
+    let index = 0;
+    let timer: number | null = null;
+    let paused = false;
+    let stopped = false;
+
+    const paintDots = () => {
+      dots.forEach((dot, i) => dot.setAttribute('aria-current', i === index ? 'true' : 'false'));
+    };
+
+    const goTo = (next: number, animate = true) => {
+      index = (next + slides.length) % slides.length;
+      track.scrollTo({
+        left: index * track.clientWidth,
+        behavior: animate && !reducedMotion.matches ? 'smooth' : 'auto',
+      });
+      paintDots();
+    };
+
+    const stop = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const start = () => {
+      if (timer !== null || paused || stopped || reducedMotion.matches) return;
+      timer = window.setInterval(() => goTo(index + 1), AUTOPLAY_INTERVAL);
+    };
+
+    // Keep the dots in step when the track is scrolled or swiped directly.
+    let frame = 0;
+    track.addEventListener(
+      'scroll',
+      () => {
+        window.cancelAnimationFrame(frame);
+        frame = window.requestAnimationFrame(() => {
+          const nearest = Math.round(track.scrollLeft / track.clientWidth);
+          if (nearest !== index) {
+            index = nearest;
+            paintDots();
+          }
+        });
+      },
+      { passive: true },
+    );
+
+    // Manual use should win: pause on hover/focus and stop for good once driven.
+    const drive = (target: number) => {
+      stopped = true;
+      stop();
+      goTo(target);
+    };
+    dots.forEach((dot) => dot.addEventListener('click', () => drive(Number(dot.dataset.index))));
+    carousel
+      .querySelector('[data-carousel-next]')
+      ?.addEventListener('click', () => drive(index + 1));
+    carousel
+      .querySelector('[data-carousel-previous]')
+      ?.addEventListener('click', () => drive(index - 1));
+    for (const type of ['pointerdown', 'touchstart', 'wheel'] as const) {
+      track.addEventListener(
+        type,
+        () => {
+          stopped = true;
+          stop();
+        },
+        { passive: true },
+      );
+    }
+
+    carousel.addEventListener('pointerenter', () => {
+      paused = true;
+      stop();
+    });
+    carousel.addEventListener('pointerleave', () => {
+      paused = false;
+      start();
+    });
+    carousel.addEventListener('focusin', () => {
+      paused = true;
+      stop();
+    });
+    carousel.addEventListener('focusout', () => {
+      paused = false;
+      start();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stop();
+      else start();
+    });
+
+    paintDots();
+    start();
+  }
+</script>

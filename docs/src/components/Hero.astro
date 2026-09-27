@@ -1,13 +1,13 @@
 ---
 import type { Shot } from '../data/screenshots';
 import { base } from '../utils/base';
-import ThemedScreenshot from './ThemedScreenshot.astro';
+import HeroCarousel from './HeroCarousel.astro';
 
 interface Props {
-  shot?: Shot;
+  shots: Shot[];
 }
 
-const { shot } = Astro.props;
+const { shots } = Astro.props;
 
 const repo = 'https://github.com/josbeir/carver';
 ---
@@ -47,9 +47,9 @@ const repo = 'https://github.com/josbeir/carver';
       </div>
     </div>
 
-    {shot && (
+    {shots.length > 0 && (
       <div class="mt-14 sm:mt-16">
-        <ThemedScreenshot shot={shot} loading="eager" sizes="(min-width: 1152px) 1104px, 100vw" />
+        <HeroCarousel shots={shots} />
       </div>
     )}
   </div>

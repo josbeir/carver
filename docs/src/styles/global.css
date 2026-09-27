@@ -108,6 +108,15 @@
       transparent 70%
     );
   }
+
+  /* The carousel scrolls natively; hide its scrollbar in favour of the dots. */
+  .carousel-track {
+    scrollbar-width: none;
+  }
+
+  .carousel-track::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer base {

@@ -2,8 +2,13 @@
 import FeatureShowcase from '../components/FeatureShowcase.astro';
 import Hero from '../components/Hero.astro';
 import InstallBlock from '../components/InstallBlock.astro';
-import { shots } from '../data/screenshots';
+import { shots, type Shot, type ShotName } from '../data/screenshots';
 import BaseLayout from '../layouts/BaseLayout.astro';
+
+const heroOrder: ShotName[] = ['editor', 'source', 'bases', 'agent', 'library', 'settings'];
+const heroShots = heroOrder
+  .map((name) => shots[name])
+  .filter((shot): shot is Shot => Boolean(shot));
 
 const title = 'Carver — A little space for big ideas';
 const description =
@@ -26,7 +31,7 @@ const guarantees = [
 ---
 
 <BaseLayout title={title} description={description}>
-  <Hero shot={shots.editor} />
+  <Hero shots={heroShots} />
   <FeatureShowcase />
 
   <section id="why" class="scroll-mt-24 border-t border-base-300/60 py-20 sm:py-24">
