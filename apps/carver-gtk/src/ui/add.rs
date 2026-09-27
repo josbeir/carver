@@ -43,14 +43,19 @@ pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
 fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWindow {
     let navigation = adw::NavigationView::new();
     navigation.set_widget_name("add-navigation");
-    navigation.set_hhomogeneous(false);
-    navigation.set_vhomogeneous(false);
+    navigation.set_hhomogeneous(true);
+    navigation.set_vhomogeneous(true);
+    // The chooser is shorter than the category form; center it in the shared page
+    // size so the dialog does not resize when the two pages swap.
+    let chooser_frame = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let chooser = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    chooser.set_valign(gtk::Align::Center);
+    chooser_frame.append(&chooser);
     let heading = gtk::Label::new(Some(&gettext("What would you like to add?")));
     heading.add_css_class("heading");
     heading.set_wrap(true);
     chooser.append(&heading);
-    let chooser_page = adw::NavigationPage::with_tag(&chooser, &gettext("Add"), "choose");
+    let chooser_page = adw::NavigationPage::with_tag(&chooser_frame, &gettext("Add"), "choose");
     navigation.add(&chooser_page);
     let category = category_form("", CategoryAppearance::default());
     let submitted = Rc::new(Cell::new(false));
@@ -129,13 +134,13 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
 }
 
 fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button, gtk::Button) {
-    let page = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 10);
     page.set_widget_name(&format!("add-{name}-page"));
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name(&format!("add-{name}-back"));
     back.set_tooltip_text(Some(&gettext("Back")));
     back.add_css_class("flat");
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     header.append(&back);
     let title = gtk::Label::new(Some(title));
     title.add_css_class("heading");

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 09:57+0200\n"
+"POT-Creation-Date: 2026-09-27 10:06+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -50,51 +50,51 @@ msgid "Notes"
 msgstr "笔记"
 
 #: apps/carver-gtk/src/ui/add.rs:14 apps/carver-gtk/src/ui/add.rs:17
-#: apps/carver-gtk/src/ui/add.rs:24 apps/carver-gtk/src/ui/add.rs:53
+#: apps/carver-gtk/src/ui/add.rs:24 apps/carver-gtk/src/ui/add.rs:58
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:447
 msgid "Add"
 msgstr "添加"
 
-#: apps/carver-gtk/src/ui/add.rs:49
+#: apps/carver-gtk/src/ui/add.rs:54
 msgid "What would you like to add?"
 msgstr "您想添加什么？"
 
-#: apps/carver-gtk/src/ui/add.rs:59
+#: apps/carver-gtk/src/ui/add.rs:64
 msgctxt "add dialog"
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/add.rs:61
+#: apps/carver-gtk/src/ui/add.rs:66
 msgid "Keep related notes together in one place."
 msgstr "将相关的笔记集中在一处。"
 
-#: apps/carver-gtk/src/ui/add.rs:62
+#: apps/carver-gtk/src/ui/add.rs:67
 msgid "Examples: Work, Personal, Research"
 msgstr "示例：工作、个人、研究"
 
-#: apps/carver-gtk/src/ui/add.rs:66 apps/carver-gtk/src/ui/add.rs:68
+#: apps/carver-gtk/src/ui/add.rs:71 apps/carver-gtk/src/ui/add.rs:73
 #: apps/carver-gtk/src/ui/dialogs.rs:1745
 msgid "New Category"
 msgstr "新建分类"
 
-#: apps/carver-gtk/src/ui/add.rs:104
+#: apps/carver-gtk/src/ui/add.rs:109
 msgctxt "add dialog"
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/add.rs:107
+#: apps/carver-gtk/src/ui/add.rs:112
 msgid "Build a custom view of your notes with chosen fields, a query, and a sort order."
 msgstr "使用所选字段、查询和排序规则，为笔记构建自定义视图。"
 
-#: apps/carver-gtk/src/ui/add.rs:109
+#: apps/carver-gtk/src/ui/add.rs:114
 msgid "Examples: Project tracker, Reading list"
 msgstr "示例：项目跟踪、阅读清单"
 
-#: apps/carver-gtk/src/ui/add.rs:136
+#: apps/carver-gtk/src/ui/add.rs:141
 msgid "Back"
 msgstr "返回"
 
-#: apps/carver-gtk/src/ui/add.rs:145
+#: apps/carver-gtk/src/ui/add.rs:150
 #: apps/carver-gtk/src/ui/bases/actions.rs:886
 msgid "Create"
 msgstr "创建"

@@ -177,7 +177,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     Ok(())
 }
 
-pub(super) fn add_dialog_should_resize_for_the_active_form() -> TestResult {
+pub(super) fn add_dialog_should_balance_page_sizes() -> TestResult {
     let window = adw::Window::new();
     window.set_default_size(1120, 900);
     let button = crate::ui::add::button(&AppDispatcher::default());
@@ -191,15 +191,22 @@ pub(super) fn add_dialog_should_resize_for_the_active_form() -> TestResult {
     assert!(dialog.follows_content_size());
     let root = dialog.upcast_ref();
     let navigation = widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("pages")?;
-    assert!(!navigation.is_hhomogeneous());
-    assert!(!navigation.is_vhomogeneous());
+    assert!(navigation.is_hhomogeneous());
+    assert!(navigation.is_vhomogeneous());
     assert!(run_main_context_until(|| dialog.height() > 250));
+    let chooser_height = dialog.height();
     capture_dialog(&dialog, "chooser-desktop")?;
     widget_as::<gtk::Button>(root, "add-category-choice")
         .ok_or("category choice")?
         .emit_clicked();
-    let content = dialog.child().ok_or("dialog content")?;
-    assert!(run_main_context_until(|| content.height() > 300));
+    assert!(run_main_context_until(|| {
+        navigation.visible_page_tag().as_deref() == Some("category")
+    }));
+    let category_height = dialog.height();
+    assert!(
+        (category_height - chooser_height).abs() <= 80,
+        "the chooser and category form should stay close in size: {chooser_height} -> {category_height}"
+    );
     let scroll = navigation
         .parent()
         .and_then(|parent| parent.parent())

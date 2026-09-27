@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 09:57+0200\n"
+"POT-Creation-Date: 2026-09-27 10:06+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -50,51 +50,51 @@ msgid "Notes"
 msgstr "Notizen"
 
 #: apps/carver-gtk/src/ui/add.rs:14 apps/carver-gtk/src/ui/add.rs:17
-#: apps/carver-gtk/src/ui/add.rs:24 apps/carver-gtk/src/ui/add.rs:53
+#: apps/carver-gtk/src/ui/add.rs:24 apps/carver-gtk/src/ui/add.rs:58
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:447
 msgid "Add"
 msgstr "Hinzufügen"
 
-#: apps/carver-gtk/src/ui/add.rs:49
+#: apps/carver-gtk/src/ui/add.rs:54
 msgid "What would you like to add?"
 msgstr "Was möchtest du hinzufügen?"
 
-#: apps/carver-gtk/src/ui/add.rs:59
+#: apps/carver-gtk/src/ui/add.rs:64
 msgctxt "add dialog"
 msgid "Category"
 msgstr "Kategorie"
 
-#: apps/carver-gtk/src/ui/add.rs:61
+#: apps/carver-gtk/src/ui/add.rs:66
 msgid "Keep related notes together in one place."
 msgstr "Halte zusammengehörige Notizen an einem Ort zusammen."
 
-#: apps/carver-gtk/src/ui/add.rs:62
+#: apps/carver-gtk/src/ui/add.rs:67
 msgid "Examples: Work, Personal, Research"
 msgstr "Beispiele: Arbeit, Persönlich, Recherche"
 
-#: apps/carver-gtk/src/ui/add.rs:66 apps/carver-gtk/src/ui/add.rs:68
+#: apps/carver-gtk/src/ui/add.rs:71 apps/carver-gtk/src/ui/add.rs:73
 #: apps/carver-gtk/src/ui/dialogs.rs:1745
 msgid "New Category"
 msgstr "Neue Kategorie"
 
-#: apps/carver-gtk/src/ui/add.rs:104
+#: apps/carver-gtk/src/ui/add.rs:109
 msgctxt "add dialog"
 msgid "Base"
 msgstr "Basis"
 
-#: apps/carver-gtk/src/ui/add.rs:107
+#: apps/carver-gtk/src/ui/add.rs:112
 msgid "Build a custom view of your notes with chosen fields, a query, and a sort order."
 msgstr "Erstelle eine individuelle Ansicht deiner Notizen mit ausgewählten Feldern, einer Abfrage und einer Sortierreihenfolge."
 
-#: apps/carver-gtk/src/ui/add.rs:109
+#: apps/carver-gtk/src/ui/add.rs:114
 msgid "Examples: Project tracker, Reading list"
 msgstr "Beispiele: Projekt-Tracker, Leseliste"
 
-#: apps/carver-gtk/src/ui/add.rs:136
+#: apps/carver-gtk/src/ui/add.rs:141
 msgid "Back"
 msgstr "Zurück"
 
-#: apps/carver-gtk/src/ui/add.rs:145
+#: apps/carver-gtk/src/ui/add.rs:150
 #: apps/carver-gtk/src/ui/bases/actions.rs:886
 msgid "Create"
 msgstr "Erstellen"

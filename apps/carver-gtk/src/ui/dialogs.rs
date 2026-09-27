@@ -1368,7 +1368,7 @@ pub(crate) fn category_form(
     initial_name: &str,
     initial_appearance: CategoryAppearance,
 ) -> CategoryForm {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
     content.set_widget_name("category-dialog-content");
     let entry = adw::EntryRow::new();
     entry.set_widget_name("category-name-entry");
@@ -1441,13 +1441,13 @@ fn category_appearance_picker(
     Rc<std::cell::Cell<CategoryIcon>>,
     Rc<std::cell::Cell<CategoryColor>>,
 ) {
-    let picker = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let picker = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let icon_label = gtk::Label::new(Some(&pgettext("category appearance", "Icon")));
     icon_label.set_xalign(0.0);
     icon_label.add_css_class("heading");
     picker.append(&icon_label);
     let icons = gtk::FlowBox::new();
-    icons.set_max_children_per_line(3);
+    icons.set_max_children_per_line(5);
     icons.set_selection_mode(gtk::SelectionMode::None);
     icons.set_column_spacing(6);
     icons.set_row_spacing(6);
@@ -1476,7 +1476,7 @@ fn category_appearance_picker(
     color_label.add_css_class("heading");
     picker.append(&color_label);
     let colors = gtk::FlowBox::new();
-    colors.set_max_children_per_line(3);
+    colors.set_max_children_per_line(4);
     colors.set_selection_mode(gtk::SelectionMode::None);
     colors.set_column_spacing(6);
     colors.set_row_spacing(6);
