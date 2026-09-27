@@ -4,6 +4,26 @@ use crate::mvu::{AppMsg, EditorMsg, PreferencesMsg};
 use libadwaita::prelude::*;
 use sourceview5::prelude::*;
 
+/// Returns the preorder position of the first widget named `name`, for asserting row order.
+fn widget_order(root: &gtk::Widget, name: &str) -> Option<usize> {
+    fn walk(widget: &gtk::Widget, name: &str, order: &mut usize) -> Option<usize> {
+        if widget.widget_name() == name {
+            return Some(*order);
+        }
+        *order += 1;
+        let mut child = widget.first_child();
+        while let Some(current) = child {
+            if let Some(found) = walk(&current, name, order) {
+                return Some(found);
+            }
+            child = current.next_sibling();
+        }
+        None
+    }
+    let mut order = 0;
+    walk(root, name, &mut order)
+}
+
 pub(super) fn document_properties_button_should_follow_mode_and_setting() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     let category = fixture.client.create_category("Properties")?;
@@ -500,11 +520,65 @@ pub(super) fn ad_hoc_date_property_should_reopen_as_date() -> TestResult {
         Some(5),
         "an ISO date should reopen as the Date field type"
     );
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    // The picker stays on the collapsed row, so a date is picked without expanding it.
+    let row = widget_as::<adw::ExpanderRow>(root, "document-property-row-1").ok_or("date row")?;
     assert!(
-        widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker").is_some(),
-        "an inferred date should render the calendar picker"
+        !row.is_expanded(),
+        "the custom date row should start collapsed"
+    );
+    assert!(
+        run_main_context_until(|| picker.is_mapped()),
+        "the calendar picker should be visible while the row is collapsed"
+    );
+    assert!(
+        widget_as::<adw::EntryRow>(root, "document-property-key-1")
+            .is_some_and(|key| !key.is_mapped()),
+        "the expander content should stay hidden while collapsed"
+    );
+    // The remove button stays the last suffix, after the compact picker.
+    assert!(
+        widget_order(root, "document-property-remove-1")
+            > widget_order(root, "document-property-value-1-picker"),
+        "the remove button should follow the calendar picker"
     );
     dialog.close();
+    fixture.window.close();
+    Ok(())
+}
+
+/// Picking a day from the collapsed custom date picker persists it on save.
+pub(super) fn ad_hoc_collapsed_date_picker_should_save_the_picked_value() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nmydate: 2026-09-16\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    // Open the picker from the collapsed suffix, choose another day, and save.
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    picker.popup();
+    let calendar =
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
+    calendar.set_day(20);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("2026-09-20"), "source: {source}");
     fixture.window.close();
     Ok(())
 }
@@ -1035,7 +1109,29 @@ pub(super) fn ad_hoc_boolean_property_should_toggle_and_save() -> TestResult {
     let root = dialog.upcast_ref();
 
     let toggle =
-        widget_as::<adw::SwitchRow>(root, "document-property-value-1").ok_or("boolean row")?;
+        widget_as::<gtk::Switch>(root, "document-property-value-1").ok_or("boolean switch")?;
+    // The switch stays on the collapsed row, so the value is edited without expanding it.
+    let row =
+        widget_as::<adw::ExpanderRow>(root, "document-property-row-1").ok_or("boolean row")?;
+    assert!(
+        !row.is_expanded(),
+        "the custom boolean row should start collapsed"
+    );
+    assert!(
+        run_main_context_until(|| toggle.is_mapped()),
+        "the boolean switch should be visible while the row is collapsed"
+    );
+    assert!(
+        widget_as::<adw::EntryRow>(root, "document-property-key-1")
+            .is_some_and(|key| !key.is_mapped()),
+        "the expander content should stay hidden while collapsed"
+    );
+    // The remove button stays the last suffix, after the compact switch.
+    assert!(
+        widget_order(root, "document-property-remove-1")
+            > widget_order(root, "document-property-value-1"),
+        "the remove button should follow the boolean switch"
+    );
     assert!(toggle.is_active());
     toggle.set_active(false);
     widget_as::<gtk::Button>(root, "document-properties-save")

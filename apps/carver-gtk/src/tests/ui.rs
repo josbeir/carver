@@ -84,6 +84,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::date_default_should_render_a_picker_and_disable_invalid_values()?;
     properties::date_time_default_settings_should_persist_the_field_type()?;
     properties::ad_hoc_date_property_should_reopen_as_date()?;
+    properties::ad_hoc_collapsed_date_picker_should_save_the_picked_value()?;
     properties::changing_a_property_type_should_keep_the_row_expanded()?;
     properties::date_picker_should_offer_clear_and_done_controls()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
