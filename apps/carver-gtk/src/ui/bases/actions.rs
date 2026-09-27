@@ -668,11 +668,14 @@ pub(crate) fn show_configuration_dialog(
 }
 
 /// The starter definition used when creating a Base.
+///
+/// Only the implicit Title column is shown initially; Category, Updated, and any property are
+/// added later through the visible-fields picker.
 pub(crate) fn new_base_definition() -> BaseDefinition {
     BaseDefinition::defaults(
         carver_sdk::BaseId::new(),
         String::new(),
-        vec![BaseColumn::Category, BaseColumn::Updated],
+        Vec::new(),
         carver_sdk::Revision(0),
     )
 }
