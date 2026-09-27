@@ -249,7 +249,8 @@ impl TablePicker {
     /// Repeated calls with the same geometry are ignored so an open popover keeps
     /// the hover highlight the user is holding.
     pub(crate) fn set_table(&self, table: Option<TableSelection>) {
-        if *self.current.borrow() == table {
+        let current = *self.current.borrow();
+        if current == table {
             return;
         }
         self.current.replace(table);
@@ -274,7 +275,7 @@ fn render_table_picker(
     ));
     header_row.set_active(header);
     for (cell_row, cell_column, cell) in cells.borrow().iter() {
-        if *cell_row <= rows && *cell_column <= columns {
+        if u32::from(*cell_row) <= rows && u32::from(*cell_column) <= columns {
             cell.add_css_class("selected");
         } else {
             cell.remove_css_class("selected");
@@ -396,7 +397,11 @@ pub(crate) fn append_table_picker(
     let header_row = picker.header_row.clone();
     let cells = Rc::clone(&picker.cells);
     popover.connect_closed(move |_| {
-        render_table_picker(&dimensions, &header_row, &cells, *current.borrow());
+        // Copy the geometry out first: the temporary `Ref` from `borrow()` would
+        // otherwise stay live across the GTK setters below, where a re-entrant
+        // property notification could try to borrow the picker again.
+        let table = *current.borrow();
+        render_table_picker(&dimensions, &header_row, &cells, table);
     });
     toolbar.append(&menu);
     picker

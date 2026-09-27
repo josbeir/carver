@@ -28,9 +28,13 @@ pub struct TableCommand {
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TableSelection {
     /// Total number of rows, including the optional header row.
-    pub rows: u8,
+    ///
+    /// Kept wider than the `u8` insert command: a table can grow past 255 rows
+    /// through ordinary row insertion, and an out-of-range value would make the
+    /// whole selection event fail to deserialize.
+    pub rows: u32,
     /// Number of columns.
-    pub columns: u8,
+    pub columns: u32,
     /// Whether the first row is a header.
     pub header: bool,
 }

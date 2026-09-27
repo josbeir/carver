@@ -157,6 +157,10 @@ export interface TableSelection {
   header: boolean;
   /**
    * Total number of rows, including the optional header row.
+   *
+   * Kept wider than the `u8` insert command: a table can grow past 255 rows
+   * through ordinary row insertion, and an out-of-range value would make the
+   * whole selection event fail to deserialize.
    */
   rows: number;
 }

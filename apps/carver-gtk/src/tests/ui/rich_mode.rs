@@ -181,3 +181,70 @@ pub(super) fn short_rich_document_should_not_scroll_the_writing_surface(
     }
     Ok(())
 }
+
+/// Returns the picker's dimension label and the number of highlighted cells.
+fn table_picker_highlight(root: &gtk::Widget) -> (String, usize) {
+    let Some(menu) = widget_as::<gtk::MenuButton>(root, "format-table-button") else {
+        return (String::new(), 0);
+    };
+    let Some(content) = menu.popover().and_then(|popover| popover.child()) else {
+        return (String::new(), 0);
+    };
+    let label = content
+        .first_child()
+        .and_downcast::<gtk::Label>()
+        .map(|label| label.text().to_string())
+        .unwrap_or_default();
+    let Some(grid) = content
+        .first_child()
+        .and_then(|dimensions| dimensions.next_sibling())
+        .and_downcast::<gtk::Grid>()
+    else {
+        return (label, 0);
+    };
+    let mut selected = 0;
+    let mut child = grid.first_child();
+    while let Some(widget) = child {
+        if widget.has_css_class("selected") {
+            selected += 1;
+        }
+        child = widget.next_sibling();
+    }
+    (label, selected)
+}
+
+pub(super) fn rich_table_selection_should_update_the_picker(fixture: &WindowFixture) -> TestResult {
+    let root = fixture.root()?;
+    let source = fixture.source()?;
+    let editor_stack = fixture.editor_mode_stack()?;
+    editor_stack.set_visible_child_name("source");
+    source
+        .buffer()
+        .set_text("|= a |= b |= c |\n| d | e | f |\n");
+    editor_stack.set_visible_child_name("rich");
+    let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "document.querySelectorAll('.ProseMirror table th, .ProseMirror table td').length === 6",
+    );
+    // Drive the cursor into a real cell so the WebKit bridge publishes the
+    // enclosing table to the native toolbar through the normal selection path.
+    assert_web_script_should_be_true(
+        &rich,
+        "(() => { const editor = window.carverEditor?.editor; if (!editor) return false; let pos = null; editor.state.doc.descendants((node, position) => { if (pos === null && (node.type.name === 'tableCell' || node.type.name === 'tableHeader')) pos = position + 1; }); return pos !== null && editor.commands.setTextSelection(pos); })()",
+    );
+    assert!(run_main_context_until(|| {
+        let (label, selected) = table_picker_highlight(&root);
+        label == "2 × 3" && selected == 6
+    }));
+    // Growing the table through the editor must be reflected on the next update.
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor?.editor?.chain().focus().addRowAfter().run() === true",
+    );
+    assert!(run_main_context_until(|| {
+        let (label, selected) = table_picker_highlight(&root);
+        label == "3 × 3" && selected == 9
+    }));
+    Ok(())
+}

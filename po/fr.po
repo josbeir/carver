@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 13:20+0200\n"
+"POT-Creation-Date: 2026-09-27 13:27+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -141,7 +141,7 @@ msgstr "Seule cette base sera supprimée. Vos notes et leurs propriétés ne ser
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:100
-#: apps/carver-gtk/src/ui/formatting.rs:430 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:435 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr "Annuler"
@@ -378,7 +378,7 @@ msgstr "Champ personnalisé"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
-#: apps/carver-gtk/src/ui/formatting.rs:420
+#: apps/carver-gtk/src/ui/formatting.rs:425
 msgid "Text"
 msgstr "Texte"
 
@@ -1511,7 +1511,7 @@ msgid "Could not read pasted image"
 msgstr "Impossible de lire l'image collée"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:413
+#: apps/carver-gtk/src/ui/formatting.rs:418
 msgid "Link text"
 msgstr "Texte du lien"
 
@@ -1521,18 +1521,18 @@ msgid "Text"
 msgstr "Texte"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:422
+#: apps/carver-gtk/src/ui/formatting.rs:427
 msgid "Address"
 msgstr "Adresse"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:425
+#: apps/carver-gtk/src/ui/formatting.rs:430
 msgid "Insert Link"
 msgstr "Insérer un lien"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:533
 #: apps/carver-gtk/src/ui/formatting.rs:101
-#: apps/carver-gtk/src/ui/formatting.rs:431
+#: apps/carver-gtk/src/ui/formatting.rs:436
 msgid "Insert"
 msgstr "Insérer"
 
@@ -1556,23 +1556,23 @@ msgstr "Utilisée comme texte alternatif lorsque l'image ne peut pas être affic
 msgid "Unsupported image format"
 msgstr "Format d'image non pris en charge"
 
-#: apps/carver-gtk/src/ui/formatting.rs:271
-#: apps/carver-gtk/src/ui/formatting.rs:333
-#: apps/carver-gtk/src/ui/formatting.rs:359
+#: apps/carver-gtk/src/ui/formatting.rs:272
+#: apps/carver-gtk/src/ui/formatting.rs:334
+#: apps/carver-gtk/src/ui/formatting.rs:360
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
 
-#: apps/carver-gtk/src/ui/formatting.rs:302
+#: apps/carver-gtk/src/ui/formatting.rs:303
 #, rust-format
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} lignes × {columns} colonnes"
 
-#: apps/carver-gtk/src/ui/formatting.rs:322
+#: apps/carver-gtk/src/ui/formatting.rs:323
 msgid "Insert table"
 msgstr "Insérer un tableau"
 
-#: apps/carver-gtk/src/ui/formatting.rs:344
+#: apps/carver-gtk/src/ui/formatting.rs:345
 msgid "Header row"
 msgstr "Ligne d’en-tête"
 

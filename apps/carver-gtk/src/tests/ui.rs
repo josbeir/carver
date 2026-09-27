@@ -145,6 +145,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     editor_shell::source_editor_should_configure_language_and_gutter(&fixture, &note)?;
     editor_shell::responsive_editor_should_switch_compact_and_desktop_toolbars(&fixture)?;
     editor_shell::editor_options_should_adapt_to_layout(&fixture)?;
+    rich_mode::rich_table_selection_should_update_the_picker(&fixture)?;
     export::export_dialogs_should_validate_and_print(&fixture, &note)?;
     find::find_bar_and_shortcuts_should_navigate_matches(&fixture, &note)?;
     source_mode::formatting_controls_should_edit_carve(&fixture, &note)?;
