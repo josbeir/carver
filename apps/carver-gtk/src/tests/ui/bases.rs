@@ -2024,3 +2024,125 @@ pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
     window.close();
     Ok(())
 }
+
+/// Confirming an unset date-time picker commits the displayed default instead of dropping it.
+pub(super) fn base_grid_date_picker_should_commit_an_unset_datetime() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\nstatus: ready\n---\n\n# Task\n",
+        "/at",
+        serde_json::json!({}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/at".to_owned()),
+            kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::DateTime,
+            example: Some("2026-09-27T00:00:00Z".to_owned()),
+        },
+    )?;
+
+    let picker =
+        widget_as::<gtk::MenuButton>(&fixture.base_widget, "cell-date-picker").ok_or("picker")?;
+    assert!(run_main_context_until(|| picker.is_mapped()));
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
+    // Close without moving the calendar or spinner: the displayed date must still persist, because
+    // the property was absent and the picker shows a selection.
+    widget_as::<gtk::Popover>(&fixture.base_widget, "cell-date-popover")
+        .ok_or("popover")?
+        .popdown();
+
+    let now = glib::DateTime::now_local()?;
+    let expected = format!(
+        "{:04}-{:02}-{:02}",
+        now.year(),
+        now.month(),
+        now.day_of_month()
+    );
+    assert!(
+        run_main_context_until_for(std::time::Duration::from_secs(5), || fixture
+            .client
+            .note(fixture.note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.source.contains(&expected))),
+        "an unset date-time should commit the displayed value when confirmed"
+    );
+
+    fixture.window.close();
+    Ok(())
+}
+
+/// Clearing an unset date-time picker keeps the property absent.
+pub(super) fn base_grid_cleared_unset_datetime_should_not_commit() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\nstatus: ready\n---\n\n# Task\n",
+        "/at",
+        serde_json::json!({}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/at".to_owned()),
+            kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::DateTime,
+            example: Some("2026-09-27T00:00:00Z".to_owned()),
+        },
+    )?;
+
+    let picker =
+        widget_as::<gtk::MenuButton>(&fixture.base_widget, "cell-date-picker").ok_or("picker")?;
+    assert!(run_main_context_until(|| picker.is_mapped()));
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
+    widget_as::<gtk::Button>(&fixture.base_widget, "cell-date-clear")
+        .ok_or("clear")?
+        .emit_clicked();
+    widget_as::<gtk::Popover>(&fixture.base_widget, "cell-date-popover")
+        .ok_or("popover")?
+        .popdown();
+    // Give any commit a chance to reach storage; a cleared picker must not write the displayed day.
+    let _ = run_main_context_until_for(std::time::Duration::from_millis(300), || false);
+    assert!(
+        fixture
+            .client
+            .note(fixture.note_id)?
+            .is_some_and(|note| !note.source.contains("at:")),
+        "clearing an unset date-time must leave the property absent"
+    );
+
+    fixture.window.close();
+    Ok(())
+}
+
+/// Clear submits the removal immediately, without a separate Done press.
+pub(super) fn base_grid_date_picker_clear_should_commit_immediately() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\nat: 2026-09-01T00:00:00Z\n---\n\n# Task\n",
+        "/at",
+        serde_json::json!({"at": "2026-09-01T00:00:00Z"}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/at".to_owned()),
+            kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::DateTime,
+            example: Some("2026-09-01T00:00:00Z".to_owned()),
+        },
+    )?;
+
+    let picker =
+        widget_as::<gtk::MenuButton>(&fixture.base_widget, "cell-date-picker").ok_or("picker")?;
+    assert!(run_main_context_until(|| picker.is_mapped()));
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
+    // Clear alone must submit; do not press Done or close the popover by hand.
+    widget_as::<gtk::Button>(&fixture.base_widget, "cell-date-clear")
+        .ok_or("clear")?
+        .emit_clicked();
+    assert!(
+        run_main_context_until_for(std::time::Duration::from_secs(5), || fixture
+            .client
+            .note(fixture.note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| !note.source.contains("at:"))),
+        "pressing Clear should remove the property without pressing Done"
+    );
+
+    fixture.window.close();
+    Ok(())
+}

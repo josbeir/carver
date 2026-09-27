@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 19:46+0200\n"
+"POT-Creation-Date: 2026-09-27 19:56+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -103,21 +103,21 @@ msgstr "Les notes qui correspondent à cette base apparaîtront ici."
 msgid "Load more rows"
 msgstr "Charger plus de lignes"
 
-#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:806
+#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:814
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:622
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:711
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1548
 msgid "Title"
 msgstr "Titre"
 
-#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:808
+#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:816
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:623
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:751
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:753
 msgid "Category"
 msgstr "Catégorie"
 
-#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:809
+#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:817
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:624
 msgid "Updated"
 msgstr "Modifiée"
@@ -126,7 +126,7 @@ msgstr "Modifiée"
 msgid "Edit document properties"
 msgstr "Modifier les propriétés du document"
 
-#: apps/carver-gtk/src/ui/bases.rs:746
+#: apps/carver-gtk/src/ui/bases.rs:754
 msgid "Edit title"
 msgstr "Modifier le titre"
 
@@ -356,12 +356,12 @@ msgid "Not set"
 msgstr "Non défini"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:421
-#: apps/carver-gtk/src/ui/property.rs:399
+#: apps/carver-gtk/src/ui/property.rs:408
 msgid "Clear"
 msgstr "Effacer"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:429
-#: apps/carver-gtk/src/ui/property.rs:404
+#: apps/carver-gtk/src/ui/property.rs:413
 msgid "Done"
 msgstr "Terminé"
 

@@ -674,6 +674,12 @@ fn date_cell_for(
             picker.set_frontmatter(&cell_seed(&row, &column));
         });
     }
+    // Clear submits immediately: dismiss the popover so the close handler removes the property,
+    // rather than making the user press Clear and then Done.
+    {
+        let popover = picker.popover().clone();
+        picker.connect_cleared(move || popover.popdown());
+    }
     // Commit a changed value when the calendar closes.
     {
         let picker = picker.clone();
@@ -691,7 +697,9 @@ fn date_cell_for(
             };
             let row = object.borrow::<BaseRow>();
             let current = cell_seed(&row, &column);
-            let value = picker.value().map(serde_json::Value::String);
+            // An unset cell still shows a calendar selection, so confirming the picker commits
+            // what is displayed even when the user did not move the calendar.
+            let value = picker.commit_value().map(serde_json::Value::String);
             if value != seed_value(&editor, &current) {
                 let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
                     note_id: row.note_id,
