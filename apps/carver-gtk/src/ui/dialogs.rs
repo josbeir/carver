@@ -505,25 +505,19 @@ fn show_preferences_dialog(
     let dialog = adw::PreferencesDialog::new();
     dialog.set_search_enabled(true);
 
-    let group = adw::PreferencesGroup::new();
-    group.set_title(&gettext("Editing"));
-
-    let remote_images = adw::SwitchRow::new();
-    remote_images.set_widget_name("remote-images-setting");
-    remote_images.set_title(&gettext("Load remote images automatically"));
-    remote_images.set_subtitle(&gettext(
-        "Download images referenced by notes when they are displayed.",
-    ));
-    remote_images.set_active(config.images.load_remote_automatically);
-    group.add(&remote_images);
+    let controls_group = adw::PreferencesGroup::new();
+    controls_group.set_title(&gettext("Editor controls"));
     let formatting_toolbar = preference_switch_row(
         "formatting-toolbar-setting",
         &gettext("Show formatting toolbar"),
         &gettext("Show formatting controls at the bottom of the editor."),
         config.editor.show_formatting_toolbar,
     );
-    group.add(&formatting_toolbar);
+    controls_group.add(&formatting_toolbar);
+    controls_group.add(&document_properties_floating_row(dispatcher, config));
 
+    let previews_group = adw::PreferencesGroup::new();
+    previews_group.set_title(&gettext("Previews and exports"));
     let enhancements = preference_switch_row(
         "enhanced-carve-rendering-setting",
         &gettext("Enable enhanced Carve rendering"),
@@ -532,20 +526,28 @@ fn show_preferences_dialog(
         ),
         config.editor.enhanced_carve_rendering,
     );
-    group.add(&enhancements);
+    previews_group.add(&enhancements);
     let dispatcher_for_enhancements = dispatcher.clone();
     enhancements.connect_active_notify(move |row| {
         let _ = dispatcher_for_enhancements.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetEnhancedCarveRendering(row.is_active()),
         ));
     });
+    let remote_images = preference_switch_row(
+        "remote-images-setting",
+        &gettext("Load remote images automatically"),
+        &gettext("Download images referenced by notes when they are displayed."),
+        config.images.load_remote_automatically,
+    );
+    previews_group.add(&remote_images);
 
     let document_group = document_preferences_group(parent, dispatcher, config);
     let source_group = source_editor_preferences_group(parent, dispatcher, config);
     let properties_group = document_properties_group(parent, dispatcher, config);
 
     let editor_page = preferences_page("editor", &gettext("Editor"), "document-edit-symbolic");
-    editor_page.add(&group);
+    editor_page.add(&controls_group);
+    editor_page.add(&previews_group);
     dialog.add(&editor_page);
 
     let appearance_page = preferences_page(
@@ -554,15 +556,8 @@ fn show_preferences_dialog(
         "preferences-desktop-appearance-symbolic",
     );
     appearance_page.add(&document_group);
+    appearance_page.add(&source_group);
     dialog.add(&appearance_page);
-
-    let source_page = preferences_page(
-        "source",
-        &pgettext("preferences page", "Source"),
-        "utilities-terminal-symbolic",
-    );
-    source_page.add(&source_group);
-    dialog.add(&source_page);
 
     let properties_page = preferences_page(
         "properties",
@@ -658,14 +653,6 @@ fn document_properties_group(
     );
     group.add(&enabled);
 
-    let floating = preference_switch_row(
-        "document-properties-floating-button",
-        &gettext("Show floating properties button"),
-        &gettext("Show a button over the editor to edit document properties."),
-        config.document_properties.floating_button,
-    );
-    group.add(&floating);
-
     let defaults = adw::ActionRow::new();
     defaults.set_widget_name("document-properties-row");
     defaults.set_title(&gettext("Default properties"));
@@ -679,12 +666,6 @@ fn document_properties_group(
     enabled.connect_active_notify(move |row| {
         let _ = enabled_dispatcher.dispatch(AppMsg::Preferences(
             PreferencesMsg::SetDocumentPropertiesEnabled(row.is_active()),
-        ));
-    });
-    let floating_dispatcher = dispatcher.clone();
-    floating.connect_active_notify(move |row| {
-        let _ = floating_dispatcher.dispatch(AppMsg::Preferences(
-            PreferencesMsg::SetDocumentPropertiesFloatingButton(row.is_active()),
         ));
     });
 
@@ -722,6 +703,29 @@ fn document_properties_group(
         );
     });
     group
+}
+
+/// Builds the editor-overlay toggle for the document properties panel.
+///
+/// The control lives on the Editor page because it configures editor chrome,
+/// while the Properties page keeps the new-note defaults it belongs to.
+fn document_properties_floating_row(
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::SwitchRow {
+    let floating = preference_switch_row(
+        "document-properties-floating-button",
+        &gettext("Show floating properties button"),
+        &gettext("Show a button over the editor to edit document properties."),
+        config.document_properties.floating_button,
+    );
+    let floating_dispatcher = dispatcher.clone();
+    floating.connect_active_notify(move |row| {
+        let _ = floating_dispatcher.dispatch(AppMsg::Preferences(
+            PreferencesMsg::SetDocumentPropertiesFloatingButton(row.is_active()),
+        ));
+    });
+    floating
 }
 
 fn document_property_count(count: usize) -> String {
@@ -1033,7 +1037,7 @@ fn source_editor_preferences_group(
     config: &carver_config::Config,
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    group.set_title(&gettext("Source editor"));
+    group.set_title(&pgettext("preferences group", "Source"));
     let (source_font, font_value, reset_font) = source_font_rows(config);
     group.add(&source_font);
     group.add(&reset_font);
