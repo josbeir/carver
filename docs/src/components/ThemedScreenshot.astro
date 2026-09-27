@@ -9,8 +9,8 @@ interface Props {
   loading?: 'eager' | 'lazy';
   /** Responsive sizes hint for the rendered layout. */
   sizes?: string;
-  /** Depth under the capture; the hero prefers a flat, shadowless image. */
-  shadow?: 'none' | 'soft';
+  /** Depth under the capture; the hero prefers a lighter shadow than panels. */
+  shadow?: 'none' | 'subtle' | 'soft';
   class?: string;
 }
 
@@ -31,6 +31,8 @@ const quality = 84;
 // figure background would otherwise show as a wedge beneath the corners.
 const shadows = {
   none: '',
+  subtle:
+    'drop-shadow-[0_3px_10px_rgba(0,0,0,0.07)] dark:drop-shadow-[0_3px_10px_rgba(0,0,0,0.35)]',
   soft: 'drop-shadow-[0_4px_12px_rgba(0,0,0,0.10)] dark:drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]',
 } as const;
 const imageClass = `block h-auto w-full ${shadows[shadow]}`;
