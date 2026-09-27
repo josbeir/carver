@@ -761,6 +761,14 @@ mod tests {
     }
 
     #[test]
+    fn editor_stylesheet_should_contain_the_writing_surface_margins() {
+        // Without a block formatting context the final block's bottom margin
+        // escapes `.ProseMirror`, making the document 1rem taller than the
+        // viewport so `WebKit` scrolls even an empty note.
+        assert!(EDITOR_STYLESHEET.contains(".ProseMirror{display:flow-root;"));
+    }
+
+    #[test]
     fn document_appearance_should_transfer_font_spacing_and_measure_to_webkit() {
         let appearance = document_appearance(&DocumentPreferences {
             font: Some("Cantarell Bold Italic 14".to_owned()),

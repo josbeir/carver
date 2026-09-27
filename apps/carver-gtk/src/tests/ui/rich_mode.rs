@@ -160,3 +160,24 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
     assert_rich_selection_copy_should_publish_portable_content(&source, &editor_stack, &rich)?;
     Ok(())
 }
+
+pub(super) fn short_rich_document_should_not_scroll_the_writing_surface(
+    fixture: &WindowFixture,
+) -> TestResult {
+    let root = fixture.root()?;
+    let source = fixture.source()?;
+    let editor_stack = fixture.editor_mode_stack()?;
+    let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
+    // The final block's trailing margin must stay inside `.ProseMirror`, so a
+    // short or empty document never grows past the `WebKit` viewport.
+    for document in ["", "# Title\n\nA short body."] {
+        editor_stack.set_visible_child_name("source");
+        source.buffer().set_text(document);
+        editor_stack.set_visible_child_name("rich");
+        assert_web_script_should_be_true(
+            &rich,
+            "(() => { const surface = document.querySelector('.ProseMirror'); if (!surface || window.innerHeight === 0) return false; return document.documentElement.scrollHeight <= window.innerHeight; })()",
+        );
+    }
+    Ok(())
+}

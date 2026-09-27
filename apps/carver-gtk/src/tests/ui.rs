@@ -151,6 +151,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     source_mode::highlighting_should_mark_carve_blocks(&fixture)?;
     source_mode::rendered_preview_and_split_should_track_source(&fixture)?;
     rich_mode::rich_editor_should_round_trip_and_preserve_media(&fixture)?;
+    rich_mode::short_rich_document_should_not_scroll_the_writing_surface(&fixture)?;
     library::browser_search_should_show_and_clear_empty_state(&fixture, &note)?;
     note_flow::note_should_delete_restore_and_favorite_from_shortcuts(&fixture, &note)?;
     Ok(())
