@@ -1,6 +1,6 @@
 //! Side effects requested by the pure reducer.
 
-use carver_config::Config;
+use carver_config::{Config, DocumentProperty};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     BaseColumn, BaseFilter, BaseFilterMode, BaseId, BaseSort, CategoryAppearance, CategoryId,
@@ -36,6 +36,8 @@ pub enum Effect {
         definition: carver_sdk::BaseDefinition,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
+        /// Configured default properties always offered as fields.
+        default_properties: Vec<DocumentProperty>,
     },
     /// Present the shared Base configuration dialog in create mode.
     ShowNewBaseConfiguration {
@@ -43,6 +45,8 @@ pub enum Effect {
         dialog_id: RequestId,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
+        /// Configured default properties always offered as fields.
+        default_properties: Vec<DocumentProperty>,
     },
     /// Count rows matching draft Base filters without loading their projections.
     PreviewBaseRowCount {

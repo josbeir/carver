@@ -1692,11 +1692,13 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
+                    let default_properties = model.config.document_properties.entries.clone();
                     present_base_configuration_dialog(model, request_id);
                     vec![Effect::ShowBaseConfiguration {
                         dialog_id: request_id,
                         definition,
                         descriptors,
+                        default_properties,
                     }]
                 }
                 Err(error) => {
@@ -1716,10 +1718,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
+                    let default_properties = model.config.document_properties.entries.clone();
                     present_base_configuration_dialog(model, request_id);
                     vec![Effect::ShowNewBaseConfiguration {
                         dialog_id: request_id,
                         descriptors,
+                        default_properties,
                     }]
                 }
                 Err(error) => {
@@ -1938,6 +1942,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
     let Some(request_id) = request_id else {
         return Vec::new();
     };
+    let default_properties = model.config.document_properties.entries.clone();
     match &model.bases.property_descriptors.state {
         super::LoadState::Ready(descriptors) => match target {
             PendingBaseConfiguration::New => {
@@ -1946,6 +1951,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
                 vec![Effect::ShowNewBaseConfiguration {
                     dialog_id: request_id,
                     descriptors,
+                    default_properties,
                 }]
             }
             PendingBaseConfiguration::Existing(definition)
@@ -1958,6 +1964,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
                     dialog_id: request_id,
                     definition,
                     descriptors,
+                    default_properties,
                 }]
             }
             PendingBaseConfiguration::Existing(_) => Vec::new(),

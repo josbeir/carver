@@ -78,15 +78,7 @@ fn markup_escape(text: &str) -> String {
 }
 
 fn type_label(field_type: DocumentPropertyType) -> String {
-    match field_type {
-        DocumentPropertyType::Text => gettext("Text"),
-        DocumentPropertyType::LongText => gettext("Long text"),
-        DocumentPropertyType::Number => gettext("Number"),
-        DocumentPropertyType::Boolean => gettext("Boolean"),
-        DocumentPropertyType::List => gettext("List"),
-        DocumentPropertyType::Date => gettext("Date"),
-        DocumentPropertyType::DateTime => gettext("Date & time"),
-    }
+    crate::ui::property::property_type_label(field_type)
 }
 
 fn type_model() -> gtk::StringList {

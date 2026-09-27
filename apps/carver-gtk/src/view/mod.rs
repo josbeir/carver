@@ -354,6 +354,7 @@ impl ViewRefs {
         if let Effect::ShowNewBaseConfiguration {
             dialog_id,
             descriptors,
+            default_properties,
         } = &effect
         {
             if let Some(host) = self
@@ -368,6 +369,7 @@ impl ViewRefs {
                     *dialog_id,
                     &definition,
                     descriptors,
+                    default_properties,
                     crate::ui::bases::actions::BaseConfigurationMode::Create,
                 );
                 while let Some(child) = host.base_slot.first_child() {
@@ -390,6 +392,7 @@ impl ViewRefs {
                         dispatcher,
                         *dialog_id,
                         descriptors,
+                        default_properties,
                     );
                     if let Some(refs) = &self.base {
                         refs.configuration.replace(Some((*dialog_id, dialog, form)));
@@ -402,6 +405,7 @@ impl ViewRefs {
             dialog_id,
             definition,
             descriptors,
+            default_properties,
         } = &effect
         {
             if let (Some(refs), Some(dispatcher)) = (&self.base, &self.dispatcher) {
@@ -423,6 +427,7 @@ impl ViewRefs {
                         *dialog_id,
                         definition,
                         descriptors,
+                        default_properties,
                     );
                     refs.configuration.replace(Some((*dialog_id, dialog, form)));
                 }

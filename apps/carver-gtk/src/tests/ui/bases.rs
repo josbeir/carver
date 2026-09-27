@@ -520,6 +520,7 @@ pub(super) fn base_field_picker_should_add_a_valid_custom_path() -> TestResult {
         RequestId(1),
         &definition,
         &[],
+        &[],
     );
     assert!(run_main_context_until(|| dialog.is_mapped()));
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")

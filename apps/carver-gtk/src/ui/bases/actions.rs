@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId};
+use carver_config::DocumentProperty;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
     BaseSortDirection,
@@ -650,6 +651,7 @@ pub(crate) fn show_configuration_dialog(
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
+    default_properties: &[DocumentProperty],
 ) -> (adw::Dialog, BaseConfigurationForm) {
     show_base_configuration_dialog(
         parent,
@@ -657,6 +659,7 @@ pub(crate) fn show_configuration_dialog(
         dialog_id,
         definition,
         property_descriptors,
+        default_properties,
         BaseConfigurationMode::Update {
             base_id: definition.id,
             revision: definition.revision,
@@ -680,6 +683,7 @@ pub(crate) fn show_new_configuration_dialog(
     dispatcher: &AppDispatcher,
     dialog_id: RequestId,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
+    default_properties: &[DocumentProperty],
 ) -> (adw::Dialog, BaseConfigurationForm) {
     let definition = new_base_definition();
     show_base_configuration_dialog(
@@ -688,6 +692,7 @@ pub(crate) fn show_new_configuration_dialog(
         dialog_id,
         &definition,
         property_descriptors,
+        default_properties,
         BaseConfigurationMode::Create,
     )
 }
@@ -720,6 +725,7 @@ pub(crate) fn build_base_configuration_form(
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
+    default_properties: &[DocumentProperty],
     mode: BaseConfigurationMode,
 ) -> BaseConfigurationForm {
     let page = adw::PreferencesPage::new();
@@ -733,7 +739,7 @@ pub(crate) fn build_base_configuration_form(
     name_group.add(&name);
     page.add(&name_group);
 
-    let catalog = FieldCatalog::new(definition, property_descriptors);
+    let catalog = FieldCatalog::new(definition, property_descriptors, default_properties);
     let selected_columns = Rc::new(RefCell::new(visible_columns(definition)));
     let visible_group = adw::PreferencesGroup::new();
     visible_group.set_widget_name("base-visible-fields-section");
@@ -1006,6 +1012,7 @@ fn show_base_configuration_dialog(
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
+    default_properties: &[DocumentProperty],
     mode: BaseConfigurationMode,
 ) -> (adw::Dialog, BaseConfigurationForm) {
     let form = build_base_configuration_form(
@@ -1013,6 +1020,7 @@ fn show_base_configuration_dialog(
         dialog_id,
         definition,
         property_descriptors,
+        default_properties,
         mode,
     );
     let dialog = adw::Dialog::builder()
