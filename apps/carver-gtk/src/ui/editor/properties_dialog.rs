@@ -100,6 +100,10 @@ enum ValueWidget {
     },
     Boolean(adw::SwitchRow),
     DateTime(DateTimePicker),
+    /// An always-visible switch for a collapsed custom boolean property.
+    CompactBoolean(gtk::Switch),
+    /// An always-visible picker for a collapsed custom date or date-time property.
+    CompactDateTime(crate::ui::property::DatePicker),
     Hint(gtk::Label),
 }
 
@@ -142,12 +146,7 @@ impl DateTimePicker {
     }
 
     fn frontmatter_preserving(&self, previous: &FrontmatterValue) -> FrontmatterValue {
-        let current = self.picker.value();
-        if current.as_deref() == Some(frontmatter_text(previous).as_str()) {
-            previous.clone()
-        } else {
-            self.picker.frontmatter()
-        }
+        self.picker.frontmatter_preserving(previous)
     }
 }
 
@@ -204,6 +203,26 @@ impl ValueWidget {
         }
     }
 
+    /// Builds the compact control shown on a collapsed custom property, when its type has one.
+    ///
+    /// A boolean and a date are edited directly from the collapsed row, matching the Base grid, so
+    /// the value is not hidden behind the expander. Other types keep their in-expander editor.
+    fn compact(choice: DocumentPropertyType, value: &FrontmatterValue, name: &str) -> Option<Self> {
+        match choice {
+            DocumentPropertyType::Boolean => {
+                let switch = gtk::Switch::new();
+                switch.set_widget_name(name);
+                switch.set_active(matches!(value, FrontmatterValue::Boolean(true)));
+                switch.set_valign(gtk::Align::Center);
+                Some(Self::CompactBoolean(switch))
+            }
+            DocumentPropertyType::Date | DocumentPropertyType::DateTime => Some(
+                Self::CompactDateTime(crate::ui::property::DatePicker::new(choice, value, name)),
+            ),
+            _ => None,
+        }
+    }
+
     /// Builds a non-editable hint row (date or date-time defaults in Settings).
     fn hint(text: &str, name: &str) -> Self {
         let label = gtk::Label::new(Some(text));
@@ -223,6 +242,8 @@ impl ValueWidget {
             Self::Long { row, .. } => row.clone().upcast(),
             Self::Boolean(row) => row.clone().upcast(),
             Self::DateTime(picker) => picker.row.clone().upcast(),
+            Self::CompactBoolean(switch) => switch.clone().upcast(),
+            Self::CompactDateTime(picker) => picker.button().clone().upcast(),
             Self::Hint(label) => label.clone().upcast(),
         }
     }
@@ -233,7 +254,8 @@ impl ValueWidget {
             Self::Long { row, .. } => row.add_suffix(widget),
             Self::Boolean(row) => row.add_suffix(widget),
             Self::DateTime(picker) => picker.row.add_suffix(widget),
-            Self::Hint(_) => {}
+            // The compact controls already sit in a row suffix, so they take no inner suffix.
+            Self::CompactBoolean(_) | Self::CompactDateTime(_) | Self::Hint(_) => {}
         }
     }
 
@@ -251,6 +273,8 @@ impl ValueWidget {
                 }
             }
             Self::DateTime(picker) => picker.frontmatter(),
+            Self::CompactBoolean(switch) => FrontmatterValue::Boolean(switch.is_active()),
+            Self::CompactDateTime(picker) => picker.frontmatter(),
             Self::Hint(_) => FrontmatterValue::Null,
         }
     }
@@ -292,6 +316,8 @@ impl ValueWidget {
                 }
             }
             Self::DateTime(picker) => picker.frontmatter_preserving(previous),
+            Self::CompactBoolean(switch) => FrontmatterValue::Boolean(switch.is_active()),
+            Self::CompactDateTime(picker) => picker.frontmatter_preserving(previous),
             Self::Hint(_) => previous.clone(),
         }
     }
@@ -310,7 +336,30 @@ impl ValueWidget {
                 let callback = Rc::clone(callback);
                 row.connect_active_notify(move |_| callback());
             }
+            Self::CompactBoolean(switch) => {
+                let callback = Rc::clone(callback);
+                switch.connect_active_notify(move |_| callback());
+            }
+            Self::CompactDateTime(picker) => {
+                let callback = Rc::clone(callback);
+                picker.connect_changed(move || callback());
+            }
             Self::DateTime(_) | Self::Hint(_) => {}
+        }
+    }
+
+    /// Applies the property's title as the accessible label for a compact control.
+    fn update_accessible_title(&self, title: &str) {
+        match self {
+            Self::CompactBoolean(switch) => {
+                switch.update_property(&[gtk::accessible::Property::Label(title)]);
+            }
+            Self::CompactDateTime(picker) => {
+                picker
+                    .button()
+                    .update_property(&[gtk::accessible::Property::Label(title)]);
+            }
+            _ => {}
         }
     }
 }
@@ -1158,7 +1207,16 @@ fn build_expander_row(
     kind.set_selected(type_index(draft.choice));
     kind.set_widget_name(&format!("document-property-kind-{index}"));
 
-    let value = if mode == RowMode::Defaults && draft.choice.is_date() {
+    // A custom boolean or date property keeps its editor on the collapsed row, so toggling or
+    // picking a date does not require expanding it. Other types keep their in-expander editor.
+    let compact = if mode == RowMode::Note {
+        ValueWidget::compact(draft.choice, &draft.value, &value_name(index))
+    } else {
+        None
+    };
+    let value = if let Some(compact) = &compact {
+        compact.clone()
+    } else if mode == RowMode::Defaults && draft.choice.is_date() {
         ValueWidget::hint(
             &if draft.choice == DocumentPropertyType::Date {
                 gettext("New notes use today's date")
@@ -1185,7 +1243,11 @@ fn build_expander_row(
 
     expander.add_row(&key);
     expander.add_row(&kind);
-    expander.add_row(&value.widget());
+    if compact.is_some() {
+        expander.add_suffix(&value.widget());
+    } else {
+        expander.add_row(&value.widget());
+    }
 
     if mode == RowMode::Defaults && draft.choice == DocumentPropertyType::List {
         let hint = gtk::Label::new(Some(&gettext(
@@ -1231,6 +1293,7 @@ fn build_expander_row(
             };
             expander.set_title(&markup_escape(&title));
             expander.set_subtitle(&row_subtitle(choice, &value.frontmatter(choice)));
+            value.update_accessible_title(&title);
         })
     };
     refresh();

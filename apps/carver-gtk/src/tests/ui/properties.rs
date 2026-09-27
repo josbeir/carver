@@ -500,9 +500,22 @@ pub(super) fn ad_hoc_date_property_should_reopen_as_date() -> TestResult {
         Some(5),
         "an ISO date should reopen as the Date field type"
     );
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    // The picker stays on the collapsed row, so a date is picked without expanding it.
+    let row = widget_as::<adw::ExpanderRow>(root, "document-property-row-1").ok_or("date row")?;
     assert!(
-        widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker").is_some(),
-        "an inferred date should render the calendar picker"
+        !row.is_expanded(),
+        "the custom date row should start collapsed"
+    );
+    assert!(
+        run_main_context_until(|| picker.is_mapped()),
+        "the calendar picker should be visible while the row is collapsed"
+    );
+    assert!(
+        widget_as::<adw::EntryRow>(root, "document-property-key-1")
+            .is_some_and(|key| !key.is_mapped()),
+        "the expander content should stay hidden while collapsed"
     );
     dialog.close();
     fixture.window.close();
@@ -1035,7 +1048,23 @@ pub(super) fn ad_hoc_boolean_property_should_toggle_and_save() -> TestResult {
     let root = dialog.upcast_ref();
 
     let toggle =
-        widget_as::<adw::SwitchRow>(root, "document-property-value-1").ok_or("boolean row")?;
+        widget_as::<gtk::Switch>(root, "document-property-value-1").ok_or("boolean switch")?;
+    // The switch stays on the collapsed row, so the value is edited without expanding it.
+    let row =
+        widget_as::<adw::ExpanderRow>(root, "document-property-row-1").ok_or("boolean row")?;
+    assert!(
+        !row.is_expanded(),
+        "the custom boolean row should start collapsed"
+    );
+    assert!(
+        run_main_context_until(|| toggle.is_mapped()),
+        "the boolean switch should be visible while the row is collapsed"
+    );
+    assert!(
+        widget_as::<adw::EntryRow>(root, "document-property-key-1")
+            .is_some_and(|key| !key.is_mapped()),
+        "the expander content should stay hidden while collapsed"
+    );
     assert!(toggle.is_active());
     toggle.set_active(false);
     widget_as::<gtk::Button>(root, "document-properties-save")

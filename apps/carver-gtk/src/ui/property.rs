@@ -514,6 +514,20 @@ impl DatePicker {
             .map_or(FrontmatterValue::Null, FrontmatterValue::Text)
     }
 
+    /// Reads the value while keeping an unchanged typed value intact.
+    ///
+    /// The picker normalizes an ISO value, so re-reading an untouched picker could change the
+    /// offset spelling of a date-time; when the picker still holds the rendered original, the
+    /// parsed value is returned unchanged.
+    pub(crate) fn frontmatter_preserving(&self, previous: &FrontmatterValue) -> FrontmatterValue {
+        let current = self.value();
+        if current.as_deref() == Some(frontmatter_text(previous).as_str()) {
+            previous.clone()
+        } else {
+            self.frontmatter()
+        }
+    }
+
     /// Returns whether the picker edits a date without a time.
     pub(crate) fn is_date_only(&self) -> bool {
         self.date_only
