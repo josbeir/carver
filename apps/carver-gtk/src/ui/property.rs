@@ -365,8 +365,12 @@ pub(crate) struct DatePicker {
     field_type: PropertyType,
     state: Rc<RefCell<Option<String>>>,
     on_changed: ChangeCallback,
+    /// Callback invoked when the user presses Clear, so a caller can submit the removal.
+    on_cleared: ChangeCallback,
     /// Set while programmatically reseeding, so widget signals do not write back mid-apply.
     applying: Rc<Cell<bool>>,
+    /// Whether the user explicitly cleared the value; an empty picker stays empty on commit.
+    cleared: Rc<Cell<bool>>,
     date_only: bool,
 }
 
@@ -415,7 +419,9 @@ impl DatePicker {
 
         let state = Rc::new(RefCell::new(picker_value(field_type, value)));
         let on_changed: ChangeCallback = Rc::new(RefCell::new(None));
+        let on_cleared: ChangeCallback = Rc::new(RefCell::new(None));
         let applying = Rc::new(Cell::new(false));
+        let cleared = Rc::new(Cell::new(false));
         apply_picker_state(field_type, &state, &calendar, &time);
 
         let update: Rc<dyn Fn()> = {
@@ -424,10 +430,13 @@ impl DatePicker {
             let state = Rc::clone(&state);
             let on_changed = Rc::clone(&on_changed);
             let applying = Rc::clone(&applying);
+            let cleared = Rc::clone(&cleared);
             Rc::new(move || {
                 if applying.get() {
                     return;
                 }
+                // A calendar or time interaction replaces any pending clear.
+                cleared.set(false);
                 *state.borrow_mut() = read_picker(field_type, &calendar, &time);
                 if let Some(callback) = on_changed.borrow().as_ref() {
                     callback();
@@ -445,9 +454,15 @@ impl DatePicker {
         {
             let state = Rc::clone(&state);
             let on_changed = Rc::clone(&on_changed);
+            let on_cleared = Rc::clone(&on_cleared);
+            let cleared = Rc::clone(&cleared);
             clear.connect_clicked(move |_| {
+                cleared.set(true);
                 *state.borrow_mut() = None;
                 if let Some(callback) = on_changed.borrow().as_ref() {
+                    callback();
+                }
+                if let Some(callback) = on_cleared.borrow().as_ref() {
                     callback();
                 }
             });
@@ -465,7 +480,9 @@ impl DatePicker {
             field_type,
             state,
             on_changed,
+            on_cleared,
             applying,
+            cleared,
             date_only,
         }
     }
@@ -485,11 +502,19 @@ impl DatePicker {
         *self.on_changed.borrow_mut() = Some(Rc::new(callback));
     }
 
+    /// Registers a callback invoked when the user presses Clear.
+    ///
+    /// A grid cell uses this to submit the removal immediately instead of waiting for Done.
+    pub(crate) fn connect_cleared(&self, callback: impl Fn() + 'static) {
+        *self.on_cleared.borrow_mut() = Some(Rc::new(callback));
+    }
+
     /// Reseeds the picker from a frontmatter value and repaints its calendar and time controls.
     ///
     /// Used by a grid cell that opens the picker for a different row each time.
     pub(crate) fn set_frontmatter(&self, value: &FrontmatterValue) {
         self.applying.set(true);
+        self.cleared.set(false);
         *self.state.borrow_mut() = picker_value(self.field_type, value);
         apply_picker_state(self.field_type, &self.state, &self.calendar, &self.time);
         self.applying.set(false);
@@ -500,8 +525,22 @@ impl DatePicker {
         self.state.borrow().clone()
     }
 
+    /// Returns the value to commit when the picker closes.
+    ///
+    /// An unset picker still displays a calendar selection, so confirming it without touching the
+    /// controls commits the displayed date instead of dropping the input. A picker the user
+    /// explicitly cleared stays empty.
+    pub(crate) fn commit_value(&self) -> Option<String> {
+        if self.cleared.get() {
+            return None;
+        }
+        self.value()
+            .or_else(|| read_picker(self.field_type, &self.calendar, &self.time))
+    }
+
     /// Sets the current value and notifies, when a callback is registered.
     pub(crate) fn set_value(&self, value: Option<&str>) {
+        self.cleared.set(false);
         *self.state.borrow_mut() = value.map(ToOwned::to_owned);
         if let Some(callback) = self.on_changed.borrow().as_ref() {
             callback();

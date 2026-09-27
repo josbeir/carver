@@ -136,6 +136,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_properties_should_set_the_category()?;
     bases::base_grid_date_should_expose_a_picker_icon()?;
     bases::base_grid_date_picker_should_commit_on_close()?;
+    bases::base_grid_date_picker_should_commit_an_unset_datetime()?;
+    bases::base_grid_cleared_unset_datetime_should_not_commit()?;
+    bases::base_grid_date_picker_clear_should_commit_immediately()?;
     icons::bundled_icons_should_be_discoverable()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
