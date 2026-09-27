@@ -170,6 +170,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     editor_shell::editor_options_should_adapt_to_layout(&fixture)?;
     rich_mode::rich_table_selection_should_update_the_picker(&fixture)?;
     export::export_dialogs_should_validate_and_print(&fixture, &note)?;
+    #[cfg(target_os = "linux")]
+    assert_native_print_dialog_should_print_to_file(
+        &fixture.window.clone().upcast::<gtk::Window>(),
+    )?;
     find::find_bar_and_shortcuts_should_navigate_matches(&fixture, &note)?;
     source_mode::formatting_controls_should_edit_carve(&fixture, &note)?;
     source_mode::highlighting_should_mark_carve_constructs(&fixture)?;
