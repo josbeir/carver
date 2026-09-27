@@ -390,6 +390,26 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     );
     capture_theme_pair(fixture, directory, "library")?;
 
+    // Browser search over the seeded notes.
+    let search_bar = widget_as::<gtk::SearchBar>(&root, "note-search-bar").ok_or("search bar")?;
+    let search_entry =
+        widget_as::<gtk::SearchEntry>(&root, "note-search-entry").ok_or("search entry")?;
+    let search_toggle =
+        widget_as::<gtk::ToggleButton>(&root, "note-search-toggle").ok_or("search toggle")?;
+    search_toggle.set_active(true);
+    search_entry.set_text("notes");
+    assert!(run_main_context_until(|| search_bar.is_search_mode()));
+    assert!(
+        run_main_context_until(|| note_list.model().is_some_and(|model| model.n_items() > 0)),
+        "search results: {}",
+        note_list.model().map_or(0, |model| model.n_items())
+    );
+    let _ = run_main_context_until_for(Duration::from_millis(300), || false);
+    capture_theme_pair(fixture, directory, "search")?;
+    search_entry.set_text("");
+    search_toggle.set_active(false);
+    let _ = run_main_context_until_for(Duration::from_millis(200), || false);
+
     // Rich editor: open the review note and wait for the web surface.
     assert!(activate_browser_note(&note_list, showcase.review));
     assert!(run_main_context_until(|| route_stack

@@ -8,6 +8,8 @@ import editorDark from '../assets/screenshots/editor-dark.png';
 import editorLight from '../assets/screenshots/editor-light.png';
 import libraryDark from '../assets/screenshots/library-dark.png';
 import libraryLight from '../assets/screenshots/library-light.png';
+import searchDark from '../assets/screenshots/search-dark.png';
+import searchLight from '../assets/screenshots/search-light.png';
 import settingsDark from '../assets/screenshots/settings-dark.png';
 import settingsLight from '../assets/screenshots/settings-light.png';
 import sourceDark from '../assets/screenshots/source-dark.png';
@@ -30,7 +32,7 @@ export interface Shot {
  * renders once both variants exist, so a feature panel never shows an empty
  * slot while a capture is still pending.
  */
-export type ShotName = 'editor' | 'source' | 'bases' | 'agent' | 'library' | 'settings';
+export type ShotName = 'editor' | 'source' | 'bases' | 'agent' | 'library' | 'search' | 'settings';
 
 export const shots: Partial<Record<ShotName, Shot>> = {
   editor: {
@@ -57,6 +59,11 @@ export const shots: Partial<Record<ShotName, Shot>> = {
     alt: 'Categories, recent notes, and the recoverable Trash',
     light: libraryLight,
     dark: libraryDark,
+  },
+  search: {
+    alt: 'Searching the library and filtering the note list',
+    light: searchLight,
+    dark: searchDark,
   },
   settings: {
     alt: "Carver's preferences",

@@ -68,11 +68,11 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Quick notes, long drafts, and everything between.',
     icon: 'pen',
     summary:
-      'Start with a few words and see where they take you. Add headings, checklists, links, and tables to give your ideas shape as you go.',
+      'Write in a rich editor with headings, checklists, links, and tables, all backed by canonical Carve source you can read at any time.',
     points: [
       'Keep your hands on the keyboard with familiar formatting shortcuts.',
-      'Paste images into your notes and resize them to fit your story.',
-      'Switch between writing, source editing, and preview as you work.',
+      'Pasted images are kept as managed files beside your notes, never inside the database.',
+      'Switch between writing, source, and preview without losing your place.',
     ],
     shot: shots.editor,
   },
@@ -83,10 +83,10 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Prefer plain text? Make yourself at home.',
     icon: 'code',
     summary:
-      'For those who enjoy writing in plain text, Carver offers a source editor using Carve markup. See your words and their formatted preview side by side.',
+      'Prefer plain text? Edit the canonical .crv source in an editor with syntax highlighting, breadcrumbs, and line numbers, beside a live preview.',
     points: [
-      'Move between the rich editor and source view without losing your work.',
-      'Bring in existing Carve or Markdown notes and keep writing.',
+      'The rich editor, the source view, and every export share one Carve document.',
+      'Import Carve or Markdown and keep a single format in your library.',
     ],
     code: { label: 'week.crv', code: carveSample },
     shot: shots.source,
@@ -98,10 +98,10 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Bring related ideas into one view.',
     icon: 'table',
     summary:
-      'Turn a collection of notes into an overview you can work with. Saved views, called Bases, let you arrange notes by their properties to keep projects and plans in sight.',
+      'Saved views called Bases arrange notes by their frontmatter properties. Choose columns, filter and sort, and keep a project in view without moving anything.',
     points: [
-      'Choose the columns that matter, then filter and sort to narrow your focus.',
-      'Explore your notes together without moving or duplicating them.',
+      'Properties are typed — text, number, boolean, list, or date — so each cell gets the right control.',
+      'A Base is a view over your library, not a copy of it.',
     ],
     shot: shots.bases,
   },
@@ -112,11 +112,11 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Give your assistant useful context.',
     icon: 'sparkles',
     summary:
-      'Connect a compatible AI assistant so it can find and read your notes. Bring your research and project context into the conversation without copying it all by hand.',
+      'Connect a compatible assistant through a local MCP server, so it can find and read your notes by opening the same library as the app.',
     points: [
-      'Optional to set up, with read-only access by default. You decide whether to enable changes.',
-      'Works with tools such as Claude Code, Codex, GitHub Copilot, and OpenCode.',
-      'Your connected assistant may send note content to its AI provider as part of a conversation.',
+      'Read-only by default; enable reversible note changes with a single flag.',
+      'Works with Claude Code, Codex, GitHub Copilot, VS Code, OpenCode, or any stdio MCP client.',
+      'Local by design: no listener, no telemetry, and no raw database or image access.',
     ],
     clients: [
       { name: 'Claude Code', logo: anthropic },
@@ -134,10 +134,10 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Keep your notes easy to come back to.',
     icon: 'folder',
     summary:
-      'Gather notes into categories that make sense to you, from work projects to weekend plans. Recently opened notes help you pick up where you left off.',
+      'Keep notes in categories that carry their own icon and colour, and pick up where you left off with recently opened notes.',
     points: [
-      'Give categories their own icons and colours so they are easy to spot.',
-      'Changed your mind? Undo a deletion or restore a note from Trash.',
+      'Deleting a note is reversible: undo it, or restore it from Trash later.',
+      'Your library is a local database, so it is quick to search and easy to back up.',
     ],
     shot: shots.library,
   },
@@ -148,11 +148,12 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Less searching, more picking up where you left off.',
     icon: 'search',
     summary:
-      'Find that useful detail across your library or inside a longer note. When your writing is ready for its next stop, export it in a format that fits.',
+      'Search the whole library with full-text search, or find a phrase inside the note you have open.',
     points: [
-      'Search the words inside your notes, even when the title escapes you.',
-      'Export as Markdown, PDF, or Carve, or bundle notes and images in a portable archive.',
+      'Full-text search is handled by SQLite FTS5, so it stays quick as the library grows.',
+      'Export to Carve, Markdown, or PDF, or bundle notes and images into a portable archive.',
     ],
+    shot: shots.search,
   },
   {
     id: 'preferences',
