@@ -168,6 +168,8 @@ fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
     button.set_child(Some(&icon));
     button.set_tooltip_text(Some(tooltip));
     button.add_css_class("circular");
+    button.set_size_request(30, 30);
+    button.set_valign(gtk::Align::Center);
     button
 }
 

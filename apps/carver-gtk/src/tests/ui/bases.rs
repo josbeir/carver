@@ -319,6 +319,14 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert_eq!(dialog.content_width(), 640);
     let content = dialog.child().ok_or("configuration content")?;
     assert!(run_main_context_until(|| content.height() > 200));
+    let round = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-visible-field-move-up-1")
+        .ok_or("reorder button")?;
+    assert!(
+        run_main_context_until(|| round.width() > 0 && round.width() == round.height()),
+        "row controls should be circular, not stretched: {}x{}",
+        round.width(),
+        round.height()
+    );
     assert!(
         widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
             .is_some()
