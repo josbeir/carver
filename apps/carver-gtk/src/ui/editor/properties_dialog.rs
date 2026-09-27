@@ -922,18 +922,11 @@ pub(crate) fn show(
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
-        // Highlight the block with the grammar for its declared format (YAML, TOML, or JSON)
-        // and the Carve style scheme matching the app color scheme.
-        let buffer = super::frontmatter_source::source_buffer(
+        let view = raw_frontmatter_view(
             format,
             syntax_dir,
-            adw::StyleManager::default().is_dark(),
+            request.raw.as_deref().unwrap_or_default(),
         );
-        buffer.set_text(request.raw.as_deref().unwrap_or_default());
-        let view = sourceview5::View::with_buffer(&buffer);
-        view.set_widget_name("document-properties-raw");
-        view.set_wrap_mode(gtk::WrapMode::WordChar);
-        view.set_monospace(true);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_min_content_height(220);
@@ -998,6 +991,33 @@ pub(crate) fn show(
     });
 
     dialog.present(Some(parent));
+}
+
+/// Builds the raw frontmatter source view.
+///
+/// The block is highlighted with the grammar for its declared format (YAML, TOML, or JSON) and the
+/// Carve style scheme matching the app color scheme, and is inset from the card edges.
+fn raw_frontmatter_view(
+    format: FrontmatterFormat,
+    syntax_dir: Option<&std::path::Path>,
+    content: &str,
+) -> sourceview5::View {
+    let buffer = super::frontmatter_source::source_buffer(
+        format,
+        syntax_dir,
+        adw::StyleManager::default().is_dark(),
+    );
+    buffer.set_text(content);
+    let view = sourceview5::View::with_buffer(&buffer);
+    view.set_widget_name("document-properties-raw");
+    view.set_wrap_mode(gtk::WrapMode::WordChar);
+    view.set_monospace(true);
+    // Keep the highlighted text clear of the card edges and the scrollbar.
+    view.set_top_margin(12);
+    view.set_bottom_margin(12);
+    view.set_left_margin(12);
+    view.set_right_margin(12);
+    view
 }
 
 /// What the per-note dialog reads when saving.

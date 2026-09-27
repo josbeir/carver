@@ -1103,6 +1103,11 @@ pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult
         // which highlights the block with the grammar for its declared format.
         let view = widget_as::<sourceview5::View>(dialog.upcast_ref(), "document-properties-raw")
             .ok_or("raw source view")?;
+        assert_eq!(
+            view.left_margin(),
+            12,
+            "the raw view should inset its text: {source}"
+        );
         let buffer = view
             .buffer()
             .downcast::<sourceview5::Buffer>()
