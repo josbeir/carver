@@ -356,12 +356,12 @@ msgid "Not set"
 msgstr "Niet ingesteld"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:421
-#: apps/carver-gtk/src/ui/property.rs:403
+#: apps/carver-gtk/src/ui/property.rs:408
 msgid "Clear"
 msgstr "Wissen"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:429
-#: apps/carver-gtk/src/ui/property.rs:408
+#: apps/carver-gtk/src/ui/property.rs:413
 msgid "Done"
 msgstr "Gedaan"
 

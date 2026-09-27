@@ -283,8 +283,13 @@ fn step_button(name: &str, icon: &str, label: &str, on_click: impl Fn() + 'stati
     button
 }
 
+/// Invokes a registered callback without holding its `RefCell` borrow.
+///
+/// The callback may open a popover or emit GTK signals, so its shared slot must not stay borrowed
+/// for the duration of the call.
 fn notify_changed(on_changed: &ChangeCallback) {
-    if let Some(callback) = on_changed.borrow().as_ref() {
+    let callback = on_changed.borrow().clone();
+    if let Some(callback) = callback {
         callback();
     }
 }
@@ -438,9 +443,7 @@ impl DatePicker {
                 // A calendar or time interaction replaces any pending clear.
                 cleared.set(false);
                 *state.borrow_mut() = read_picker(field_type, &calendar, &time);
-                if let Some(callback) = on_changed.borrow().as_ref() {
-                    callback();
-                }
+                notify_changed(&on_changed);
             })
         };
         {
@@ -459,12 +462,10 @@ impl DatePicker {
             clear.connect_clicked(move |_| {
                 cleared.set(true);
                 *state.borrow_mut() = None;
-                if let Some(callback) = on_changed.borrow().as_ref() {
-                    callback();
-                }
-                if let Some(callback) = on_cleared.borrow().as_ref() {
-                    callback();
-                }
+                // The callbacks can open a popover or dispatch work, so invoke them without an
+                // outstanding borrow on the shared callback slots.
+                notify_changed(&on_changed);
+                notify_changed(&on_cleared);
             });
         }
         {
@@ -542,9 +543,7 @@ impl DatePicker {
     pub(crate) fn set_value(&self, value: Option<&str>) {
         self.cleared.set(false);
         *self.state.borrow_mut() = value.map(ToOwned::to_owned);
-        if let Some(callback) = self.on_changed.borrow().as_ref() {
-            callback();
-        }
+        notify_changed(&self.on_changed);
     }
 
     /// Returns the frontmatter value for the current picker state.
@@ -597,6 +596,9 @@ fn apply_picker_state(
     // `day-selected`, whose handler writes back to the same state.
     let iso = state.borrow().clone();
     let Some(iso) = iso.as_deref() else {
+        // An absent value must not leave a reused picker on the previous row's selection, or a
+        // confirmed unset cell would commit stale data. Reset to the fresh default: today, 00:00.
+        reset_to_today(calendar, spinner);
         return;
     };
     if field_type == PropertyType::Date {
@@ -620,6 +622,16 @@ fn apply_picker_state(
         u8::try_from(local.hour()).unwrap_or(0),
         u8::try_from(local.minute()).unwrap_or(0),
     );
+}
+
+/// Resets a calendar and time spinner to their fresh default: today at 00:00.
+fn reset_to_today(calendar: &gtk::Calendar, spinner: &TimeSpinner) {
+    if let Ok(now) = glib::DateTime::now_local() {
+        calendar.set_year(now.year());
+        calendar.set_month(now.month() - 1);
+        calendar.set_day(now.day_of_month());
+    }
+    spinner.set_time(0, 0);
 }
 
 /// Reads the picker's calendar and time into an ISO 8601 string.
