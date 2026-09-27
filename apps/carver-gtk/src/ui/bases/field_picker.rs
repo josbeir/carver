@@ -530,10 +530,13 @@ fn option_for_field(field: &BaseColumn, descriptor: Option<&PropertyDescriptor>)
                 } else {
                     property_type_label(descriptor.property_type)
                 };
-                descriptor.example.as_deref().map_or_else(
-                    || kind.clone(),
-                    |example| format!("{kind} · {}", truncate(example, 48)),
-                )
+                match descriptor.example.as_deref() {
+                    Some(example) => {
+                        let value = truncate(example, 48);
+                        tr_fmt!(gettext("{label} · {value}"), label = kind, value = value)
+                    }
+                    None => kind,
+                }
             },
         ),
     };
@@ -547,7 +550,12 @@ fn option_for_configured(field: &BaseColumn, property: &DocumentProperty) -> Fie
     let metadata = if matches!(property.field_type, carver_domain::PropertyType::List)
         && !options.is_empty()
     {
-        format!("{type_label} · {}", truncate(&options.join(", "), 48))
+        let value = truncate(&options.join(", "), 48);
+        tr_fmt!(
+            gettext("{label} · {value}"),
+            label = type_label,
+            value = value
+        )
     } else {
         type_label
     };

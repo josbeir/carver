@@ -282,17 +282,49 @@ pub(crate) fn build_select_cell(
     dropdown
 }
 
-/// Returns the option list including an authored value that is not one of the configured options.
+/// The labels an always-visible single-select cell offers.
+///
+/// The first entry is an explicit "not set" state so a missing value is not shown as the first
+/// real option, and an authored value outside the configured options is appended so it is not
+/// misrepresented.
 #[must_use]
-pub(crate) fn options_with_current(options: &[String], current: &FrontmatterValue) -> Vec<String> {
-    let mut options = options.to_vec();
+pub(crate) fn select_labels(options: &[String], current: &FrontmatterValue) -> Vec<String> {
+    let mut labels = Vec::with_capacity(options.len() + 2);
+    labels.push(gettext("Not set"));
+    labels.extend(options.iter().cloned());
     if let FrontmatterValue::Text(text) = current
         && !text.trim().is_empty()
-        && !options.iter().any(|option| option == text)
+        && !labels[1..].iter().any(|option| option == text)
     {
-        options.push(text.clone());
+        labels.push(text.clone());
     }
-    options
+    labels
+}
+
+/// Returns the dropdown index selecting `current`, or the unset entry when it is absent.
+#[must_use]
+pub(crate) fn select_index(labels: &[String], current: &FrontmatterValue) -> u32 {
+    match current {
+        FrontmatterValue::Text(text) if !text.trim().is_empty() => labels
+            .iter()
+            .position(|option| option == text)
+            .and_then(|index| u32::try_from(index).ok())
+            .unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// Returns the value a dropdown index represents; index 0 is the explicit unset entry.
+#[must_use]
+pub(crate) fn select_value(labels: &[String], index: u32) -> CellValue {
+    if index == 0 {
+        None
+    } else {
+        labels
+            .get(index as usize)
+            .cloned()
+            .map(serde_json::Value::String)
+    }
 }
 
 /// Opens the anchored editor popover for one cell.
@@ -695,6 +727,28 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn select_labels_should_represent_unset_and_out_of_option_values() {
+        let options = vec!["draft".to_owned(), "done".to_owned()];
+        let labels = select_labels(&options, &FrontmatterValue::Null);
+        assert_eq!(
+            labels,
+            vec![gettext("Not set"), "draft".to_owned(), "done".to_owned()]
+        );
+        assert_eq!(select_index(&labels, &FrontmatterValue::Null), 0);
+        assert_eq!(select_value(&labels, 0), None);
+        assert_eq!(select_value(&labels, 1), Some(serde_json::json!("draft")));
+
+        let present = FrontmatterValue::Text("done".to_owned());
+        assert_eq!(select_index(&labels, &present), 2);
+
+        // An authored value outside the configured options is appended, not dropped.
+        let outside = FrontmatterValue::Text("legacy".to_owned());
+        let extended = select_labels(&options, &outside);
+        assert_eq!(extended.last().map(String::as_str), Some("legacy"));
+        assert_eq!(select_index(&extended, &outside), 3);
     }
 
     #[test]

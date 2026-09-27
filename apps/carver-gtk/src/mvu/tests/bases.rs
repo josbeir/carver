@@ -1098,8 +1098,8 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
 }
 
 #[test]
-fn a_failed_cell_edit_should_keep_a_notice_without_reloading() {
-    let (mut model, _) = base_route_model();
+fn a_failed_cell_edit_should_reload_and_keep_a_notice() {
+    let (mut model, base_id) = base_route_model();
     let note_id = NoteId::new();
     let effects = update(
         &mut model,
@@ -1125,12 +1125,44 @@ fn a_failed_cell_edit_should_keep_a_notice_without_reloading() {
             move_error: None,
         }),
     );
-    assert!(effects.is_empty());
+    // The control had already changed visually, so the grid reloads the stored row.
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
     assert!(model.bases.cell_edits.is_empty());
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("conflict")
     );
+}
+
+#[test]
+fn a_second_edit_for_the_same_note_should_wait_for_the_first() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let first = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    assert!(matches!(first.as_slice(), [Effect::EditBaseCell { .. }]));
+    // A second edit for the same note would carry the pre-save revision and conflict.
+    let second = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/done".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!(true)),
+        }),
+    );
+    assert!(second.is_empty());
+    assert_eq!(model.bases.cell_edits.len(), 1);
 }
 
 #[test]

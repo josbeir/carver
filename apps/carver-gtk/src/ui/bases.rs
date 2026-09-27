@@ -15,8 +15,8 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use self::editing::{
-    CellEdit, CellEditor, build_boolean_cell, build_select_cell, options_with_current,
-    resolve_editor, seed_value, show_cell_editor,
+    CellEdit, CellEditor, build_boolean_cell, build_select_cell, resolve_editor, seed_value,
+    select_index, select_labels, select_value, show_cell_editor,
 };
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
 use crate::ui::property::{DatePicker, display_date};
@@ -599,17 +599,14 @@ fn select_cell_for(
         };
         let row = object.borrow::<BaseRow>();
         let current = cell_seed(&row, &column);
-        // Include an authored value outside the configured options so it is not misrepresented.
-        let effective = options_with_current(&options, &current);
-        let Some(option) = effective.get(dropdown.selected() as usize) else {
-            return;
-        };
-        if Some(option) != current_text(&current).as_ref() {
+        let labels = select_labels(&options, &current);
+        let value = select_value(&labels, dropdown.selected());
+        if value != select_value(&labels, select_index(&labels, &current)) {
             let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
                 note_id: row.note_id,
                 path: column_edit_path(&column),
                 revision: row.revision,
-                value: Some(serde_json::Value::String(option.clone())),
+                value,
             }));
         }
     });
@@ -624,20 +621,10 @@ fn bind_select_cell(
     options: &[String],
 ) {
     let current = cell_seed(row, column);
-    let effective = options_with_current(options, &current);
-    let labels: Vec<&str> = effective.iter().map(String::as_str).collect();
-    dropdown.set_model(Some(&gtk::StringList::new(&labels)));
-    let selected = current_text(&current)
-        .and_then(|text| effective.iter().position(|option| option == &text))
-        .unwrap_or(0);
-    dropdown.set_selected(u32::try_from(selected).unwrap_or(0));
-}
-
-fn current_text(value: &FrontmatterValue) -> Option<String> {
-    match value {
-        FrontmatterValue::Text(text) => Some(text.clone()),
-        _ => None,
-    }
+    let labels = select_labels(options, &current);
+    let strings: Vec<&str> = labels.iter().map(String::as_str).collect();
+    dropdown.set_model(Some(&gtk::StringList::new(&strings)));
+    dropdown.set_selected(select_index(&labels, &current));
 }
 
 /// Builds a date or date-time cell: its value plus a picker icon that opens the calendar directly.

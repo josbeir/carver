@@ -3120,6 +3120,16 @@ fn commit_base_cell_edit(
     if model.route != super::Route::Base || model.bases.selected.is_none() {
         return Vec::new();
     }
+    // Only one edit per note may be in flight: a second edit would carry the pre-save revision and
+    // conflict once the first bumps it, losing the second change.
+    if model
+        .bases
+        .cell_edits
+        .iter()
+        .any(|edit| edit.note_id == note_id)
+    {
+        return Vec::new();
+    }
     let request_id = model.next_request_id();
     model.bases.cell_edits.push(super::BaseCellEdit {
         note_id,
@@ -3173,7 +3183,14 @@ fn update_base_cell_edited(
         }
         Err(error) => {
             model.notice = Some(error);
-            Vec::new()
+            // A failed edit left the always-visible control showing a value that was not
+            // persisted; reload so it reflects the stored row again.
+            match (model.route, model.bases.selected) {
+                (super::Route::Base, Some(base_id)) => {
+                    reload_base_rows(model, base_id).into_iter().collect()
+                }
+                _ => Vec::new(),
+            }
         }
     }
 }

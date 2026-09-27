@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 17:00+0200\n"
+"POT-Creation-Date: 2026-09-27 17:14+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -103,22 +103,22 @@ msgstr "匹配此视图库的笔记将显示在此处。"
 msgid "Load more rows"
 msgstr "加载更多行"
 
-#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:804
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:614
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:703
+#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:791
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:622
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:711
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1484
 msgid "Title"
 msgstr "标题"
 
-#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:806
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:615
+#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:793
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:623
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:702
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:704
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:807
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:616
+#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:794
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:624
 msgid "Updated"
 msgstr "已更新"
 
@@ -126,7 +126,7 @@ msgstr "已更新"
 msgid "Edit document properties"
 msgstr "编辑文档属性"
 
-#: apps/carver-gtk/src/ui/bases.rs:748
+#: apps/carver-gtk/src/ui/bases.rs:735
 msgid "Edit title"
 msgstr "编辑标题"
 
@@ -140,7 +140,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:340
+#: apps/carver-gtk/src/ui/bases/editing.rs:372
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:471
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -226,7 +226,7 @@ msgstr "运算符"
 #: apps/carver-gtk/src/ui/bases/actions.rs:390
 #: apps/carver-gtk/src/ui/bases/actions.rs:396
 #: apps/carver-gtk/src/ui/bases/actions.rs:550
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:587
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:595
 msgid "Field"
 msgstr "字段"
 
@@ -348,12 +348,18 @@ msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "当前匹配 {count} 条笔记"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:335
+#: apps/carver-gtk/src/ui/bases/editing.rs:293
+#: apps/carver-gtk/src/ui/bases/editing.rs:738
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:130
+msgid "Not set"
+msgstr "未设置"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:367
 #: apps/carver-gtk/src/ui/property.rs:132
 msgid "Clear"
 msgstr "清除"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:343
+#: apps/carver-gtk/src/ui/bases/editing.rs:375
 #: apps/carver-gtk/src/ui/property.rs:137
 msgid "Done"
 msgstr "完成"
@@ -400,32 +406,38 @@ msgstr "内置字段"
 msgid "Custom field"
 msgstr "自定义字段"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:629
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:536
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:555
+#, rust-format
+msgid "{label} · {value}"
+msgstr "{label} · {value}"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:637
 #: apps/carver-gtk/src/ui/formatting.rs:440
 #: apps/carver-gtk/src/ui/property.rs:18
 msgid "Text"
 msgstr "文本"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:630
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:638
 #: apps/carver-gtk/src/ui/property.rs:20
 msgid "Number"
 msgstr "数字"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:631
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:639
 #: apps/carver-gtk/src/ui/property.rs:21
 msgid "Boolean"
 msgstr "布尔值"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:632
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:640
 #: apps/carver-gtk/src/ui/property.rs:22
 msgid "List"
 msgstr "列表"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:633
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:641
 msgid "Empty"
 msgstr "空"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:634
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:642
 msgid "Mixed"
 msgstr "混合"
 
@@ -1324,10 +1336,6 @@ msgstr "仍要导出"
 #: apps/carver-gtk/src/ui/editor/preview.rs:134
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:130
-msgid "Not set"
-msgstr "未设置"
 
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:510
 msgid "Not managed by this dialog"

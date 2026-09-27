@@ -1398,13 +1398,14 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
     window.set_content(Some(&routes));
     window.present();
 
-    // A single-select list is always visible as a dropdown, seeded from the row.
+    // A single-select list is always visible as a dropdown: an explicit "not set" entry plus the
+    // configured options. The authored `draft` value selects its option, not the first entry.
     let dropdown =
         widget_as::<gtk::DropDown>(&base_widget, "cell-select").ok_or("list dropdown")?;
     assert!(run_main_context_until(|| dropdown.is_mapped()));
-    assert_eq!(dropdown.model().map(|model| model.n_items()), Some(2));
-    assert_eq!(dropdown.selected(), 0);
-    dropdown.set_selected(1);
+    assert_eq!(dropdown.model().map(|model| model.n_items()), Some(3));
+    assert_eq!(dropdown.selected(), 1);
+    dropdown.set_selected(2);
 
     let saved: Rc<std::cell::RefCell<Option<String>>> = Rc::new(std::cell::RefCell::new(None));
     assert!(run_main_context_until_for(
