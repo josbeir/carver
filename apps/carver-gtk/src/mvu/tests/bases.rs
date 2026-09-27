@@ -171,6 +171,52 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
 }
 
 #[test]
+fn cancelling_a_new_base_configuration_should_drop_its_pending_request() {
+    // The descriptors are still loading, so the request is queued.
+    let mut model = AppModel::new(&Config::default());
+    let descriptor_request = RequestId(8);
+    model.bases.property_descriptors.state = LoadState::Loading(descriptor_request);
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
+    assert!(model.bases.configuration_request.is_some());
+    assert!(model.bases.pending_configuration.is_some());
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)).is_empty());
+    assert!(model.bases.configuration_request.is_none());
+    assert!(model.bases.pending_configuration.is_none());
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
+                request_id: descriptor_request,
+                result: Ok(Vec::new()),
+            }),
+        )
+        .is_empty(),
+        "a dismissed workflow must not present the dialog when descriptors arrive"
+    );
+
+    // A request that already prepared its rows is dropped as well.
+    let mut model = AppModel::new(&Config::default());
+    model.bases.property_descriptors.state = LoadState::Ready(Vec::new());
+    let effects = update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew));
+    let [Effect::PrepareNewBaseConfiguration { request_id }] = effects.as_slice() else {
+        panic!("new Base configuration should prepare its rows");
+    };
+    assert!(update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)).is_empty());
+    assert!(model.bases.configuration_request.is_none());
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
+                request_id: *request_id,
+                result: Ok(()),
+            }),
+        )
+        .is_empty(),
+        "a stale completion must not present a dismissed workflow"
+    );
+}
+
+#[test]
 fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
     let mut model = AppModel::new(&Config::default());
     let dialog_id = RequestId(99);

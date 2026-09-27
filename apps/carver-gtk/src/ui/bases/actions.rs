@@ -650,7 +650,7 @@ pub(crate) fn show_configuration_dialog(
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
-) -> adw::Dialog {
+) -> (adw::Dialog, BaseConfigurationForm) {
     show_base_configuration_dialog(
         parent,
         dispatcher,
@@ -680,7 +680,7 @@ pub(crate) fn show_new_configuration_dialog(
     dispatcher: &AppDispatcher,
     dialog_id: RequestId,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
-) -> adw::Dialog {
+) -> (adw::Dialog, BaseConfigurationForm) {
     let definition = new_base_definition();
     show_base_configuration_dialog(
         parent,
@@ -1007,7 +1007,7 @@ fn show_base_configuration_dialog(
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
     mode: BaseConfigurationMode,
-) -> adw::Dialog {
+) -> (adw::Dialog, BaseConfigurationForm) {
     let form = build_base_configuration_form(
         dispatcher,
         dialog_id,
@@ -1040,7 +1040,7 @@ fn show_base_configuration_dialog(
     dialog.set_child(Some(&toolbar));
     form.name.grab_focus();
     dialog.present(Some(parent));
-    dialog
+    (dialog, form)
 }
 
 /// Updates the matching-note count shown by an open configuration form.
@@ -1076,11 +1076,13 @@ fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
     None
 }
 
-pub(crate) fn finish_configuration(dialog: &adw::Dialog, success: bool) {
+pub(crate) fn finish_configuration(
+    form: &BaseConfigurationForm,
+    dialog: &adw::Dialog,
+    success: bool,
+) {
+    form.set_busy(false);
     dialog.set_can_close(true);
-    if let Some(child) = dialog.child() {
-        child.set_sensitive(true);
-    }
     if success {
         dialog.close();
     }

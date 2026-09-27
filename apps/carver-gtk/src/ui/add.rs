@@ -92,9 +92,17 @@ pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Bu
         let dispatcher_for_close = dispatcher.clone();
         dialog.connect_closed(move |_| {
             let host = slot_for_close.borrow_mut().take();
-            if let Some(dialog_id) = host.and_then(|host| host.base_dialog_id.get()) {
+            let Some(host) = host else {
+                return;
+            };
+            if let Some(dialog_id) = host.base_dialog_id.get() {
                 let _ = dispatcher_for_close
                     .dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
+            } else if host.base_requested.get() {
+                // The Base tab was still loading; drop its pending request so it
+                // cannot reappear as the standalone dialog.
+                let _ =
+                    dispatcher_for_close.dispatch(AppMsg::Bases(BasesMsg::CancelNewConfiguration));
             }
         });
         let weak_button = button.downgrade();
@@ -165,6 +173,12 @@ fn category_page(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> adw::Toolb
         let create = create.clone();
         category.entry.connect_changed(move |entry| {
             create.set_sensitive(!entry.text().trim().is_empty());
+        });
+    }
+    {
+        let create = create.clone();
+        category.entry.connect_entry_activated(move |_| {
+            create.emit_clicked();
         });
     }
     {

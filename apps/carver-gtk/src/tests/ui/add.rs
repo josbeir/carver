@@ -5,7 +5,9 @@ use std::{
 };
 
 use crate::mvu::{AppDispatcher, AppModel, AppRuntime};
-use crate::ui::tests::support::{TestResult, run_main_context_until, test_state, widget_as};
+use crate::ui::tests::support::{
+    TestResult, run_main_context_until, run_main_context_until_for, test_state, widget_as,
+};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
@@ -82,8 +84,8 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     widget_as::<gtk::ToggleButton>(root, "category-icon-book")
         .ok_or("book icon")?
         .set_active(true);
+    // Pressing Enter must create the category without touching the Create button.
     entry.emit_by_name::<()>("entry-activated", &[]);
-    create.emit_clicked();
     assert!(run_main_context_until(|| client
         .categories()
         .is_ok_and(|items| items.len() == 1)));
@@ -243,6 +245,49 @@ pub(super) fn add_dialog_should_balance_page_sizes() -> TestResult {
         content.height()
     );
     dialog.close();
+    window.close();
+    Ok(())
+}
+
+pub(super) fn add_dialog_should_cancel_base_setup_when_closed_while_loading() -> TestResult {
+    let (_temporary, client) = test_state()?;
+    let dispatcher = AppDispatcher::default();
+    let routes = gtk::Stack::new();
+    routes.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    let add_dialog: crate::ui::add::AddDialogSlot = Rc::new(RefCell::new(None));
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&carver_config::Config::default()),
+        crate::view::ViewRefs::new(
+            routes.clone(),
+            adw::StatusPage::new(),
+            adw::StatusPage::new(),
+        )
+        .with_dispatcher(dispatcher.clone())
+        .with_add_dialog(Rc::clone(&add_dialog)),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    let button = crate::ui::add::button(&dispatcher, Rc::clone(&add_dialog));
+    let window = adw::Window::new();
+    window.set_default_size(400, 900);
+    window.set_content(Some(&button));
+    window.present();
+    assert!(run_main_context_until(|| button.is_mapped()));
+    button.emit_clicked();
+    let dialog = window.visible_dialog().ok_or("dialog")?;
+    let stack = widget_as::<adw::ViewStack>(dialog.upcast_ref(), "add-stack").ok_or("tabs")?;
+    stack.set_visible_child_name("base");
+    // The descriptor load is still pending, so dismiss the workflow now.
+    dialog.close();
+    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+    assert!(runtime.model().bases.configuration_request.is_none());
+    // A late descriptor reply must not resurrect the standalone dialog.
+    let _ = run_main_context_until_for(std::time::Duration::from_millis(300), || false);
+    assert!(window.visible_dialog().is_none());
+    assert!(runtime.model().bases.configuration_dialog.is_none());
     window.close();
     Ok(())
 }

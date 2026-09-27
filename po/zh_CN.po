@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 11:26+0200\n"
+"POT-Creation-Date: 2026-09-27 11:54+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -55,68 +55,68 @@ msgstr "笔记"
 msgid "Add"
 msgstr "添加"
 
-#: apps/carver-gtk/src/ui/add.rs:122
+#: apps/carver-gtk/src/ui/add.rs:130
 msgctxt "add dialog"
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/add.rs:126
+#: apps/carver-gtk/src/ui/add.rs:134
 msgctxt "add dialog"
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/add.rs:160
-#: apps/carver-gtk/src/ui/bases/actions.rs:950
+#: apps/carver-gtk/src/ui/add.rs:168
+#: apps/carver-gtk/src/ui/bases/actions.rs:952
 msgid "Create"
 msgstr "创建"
 
-#: apps/carver-gtk/src/ui/bases.rs:61
+#: apps/carver-gtk/src/ui/bases.rs:67
 msgid "Search this Base"
 msgstr "搜索此视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:62
+#: apps/carver-gtk/src/ui/bases.rs:68
 msgid "Search this Base (Ctrl+F)"
 msgstr "搜索此视图库 (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases.rs:65
+#: apps/carver-gtk/src/ui/bases.rs:71
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:71
+#: apps/carver-gtk/src/ui/bases.rs:77
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
 msgid "Delete Base"
 msgstr "删除视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:74
+#: apps/carver-gtk/src/ui/bases.rs:80
 msgid "Configure"
 msgstr "配置"
 
-#: apps/carver-gtk/src/ui/bases.rs:103 apps/carver-gtk/src/ui/browser.rs:492
+#: apps/carver-gtk/src/ui/bases.rs:109 apps/carver-gtk/src/ui/browser.rs:492
 msgid "No matching notes"
 msgstr "没有匹配的笔记"
 
-#: apps/carver-gtk/src/ui/bases.rs:104
+#: apps/carver-gtk/src/ui/bases.rs:110
 msgid "Notes that match this Base will appear here."
 msgstr "匹配此视图库的笔记将显示在此处。"
 
-#: apps/carver-gtk/src/ui/bases.rs:107 apps/carver-gtk/src/view/mod.rs:328
+#: apps/carver-gtk/src/ui/bases.rs:113 apps/carver-gtk/src/view/mod.rs:328
 msgid "Load more rows"
 msgstr "加载更多行"
 
-#: apps/carver-gtk/src/ui/bases.rs:238
-#: apps/carver-gtk/src/ui/bases/actions.rs:724
-#: apps/carver-gtk/src/ui/bases/actions.rs:727
+#: apps/carver-gtk/src/ui/bases.rs:244
+#: apps/carver-gtk/src/ui/bases/actions.rs:726
+#: apps/carver-gtk/src/ui/bases/actions.rs:729
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
 msgid "Name"
 msgstr "名称"
 
-#: apps/carver-gtk/src/ui/bases.rs:249
+#: apps/carver-gtk/src/ui/bases.rs:255
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:565
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:258
+#: apps/carver-gtk/src/ui/bases.rs:264
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:566
 msgid "Updated"
 msgstr "已更新"
@@ -142,7 +142,7 @@ msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
-#: apps/carver-gtk/src/view/mod.rs:564
+#: apps/carver-gtk/src/view/mod.rs:562
 msgid "Cancel"
 msgstr "取消"
 
@@ -215,118 +215,118 @@ msgstr "运算符"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:388
 #: apps/carver-gtk/src/ui/bases/actions.rs:394
-#: apps/carver-gtk/src/ui/bases/actions.rs:545
+#: apps/carver-gtk/src/ui/bases/actions.rs:547
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:537
 msgid "Field"
 msgstr "字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:437
+#: apps/carver-gtk/src/ui/bases/actions.rs:438
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
 msgid "Value"
 msgstr "值"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:479
+#: apps/carver-gtk/src/ui/bases/actions.rs:481
 msgid "Direction"
 msgstr "方向"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:481
-#: apps/carver-gtk/src/ui/bases/actions.rs:488
-#: apps/carver-gtk/src/ui/bases/actions.rs:495
+#: apps/carver-gtk/src/ui/bases/actions.rs:483
+#: apps/carver-gtk/src/ui/bases/actions.rs:490
+#: apps/carver-gtk/src/ui/bases/actions.rs:497
 msgid "Ascending"
 msgstr "升序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:482
-#: apps/carver-gtk/src/ui/bases/actions.rs:490
-#: apps/carver-gtk/src/ui/bases/actions.rs:497
+#: apps/carver-gtk/src/ui/bases/actions.rs:484
+#: apps/carver-gtk/src/ui/bases/actions.rs:492
+#: apps/carver-gtk/src/ui/bases/actions.rs:499
 msgid "Descending"
 msgstr "降序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:548
+#: apps/carver-gtk/src/ui/bases/actions.rs:550
 msgid "Move field up"
 msgstr "字段上移"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:550
+#: apps/carver-gtk/src/ui/bases/actions.rs:552
 msgid "Move field down"
 msgstr "字段下移"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:576
 #: apps/carver-gtk/src/ui/bases/actions.rs:578
+#: apps/carver-gtk/src/ui/bases/actions.rs:580
 msgid "Remove field"
 msgstr "移除字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:736
+#: apps/carver-gtk/src/ui/bases/actions.rs:738
 msgid "Visible fields"
 msgstr "可见字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:738
+#: apps/carver-gtk/src/ui/bases/actions.rs:740
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "选择此视图库中显示的列。名称始终包含在内。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:747
+#: apps/carver-gtk/src/ui/bases/actions.rs:749
 msgid "Add field"
 msgstr "添加字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:798
+#: apps/carver-gtk/src/ui/bases/actions.rs:800
 msgid "Filters"
 msgstr "筛选"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:800
+#: apps/carver-gtk/src/ui/bases/actions.rs:802
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "使用箭头设置规则优先级，或移除不再需要的规则。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:805
+#: apps/carver-gtk/src/ui/bases/actions.rs:807
 #, fuzzy
 msgid "Matching"
 msgstr "正在搜索…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:808
+#: apps/carver-gtk/src/ui/bases/actions.rs:810
 msgid "Match all filters"
 msgstr "匹配所有筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:809
+#: apps/carver-gtk/src/ui/bases/actions.rs:811
 msgid "Match any filter"
 msgstr "匹配任一筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:822
+#: apps/carver-gtk/src/ui/bases/actions.rs:824
 msgid "Sort"
 msgstr "排序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:823
+#: apps/carver-gtk/src/ui/bases/actions.rs:825
 msgid "Sort rules are applied from top to bottom."
 msgstr "排序规则按从上到下的顺序应用。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:860
-#: apps/carver-gtk/src/ui/bases/actions.rs:888
+#: apps/carver-gtk/src/ui/bases/actions.rs:862
+#: apps/carver-gtk/src/ui/bases/actions.rs:890
 msgid "filter"
 msgstr "筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:871
+#: apps/carver-gtk/src/ui/bases/actions.rs:873
 msgid "Add filter"
 msgstr "添加筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:910
-#: apps/carver-gtk/src/ui/bases/actions.rs:934
+#: apps/carver-gtk/src/ui/bases/actions.rs:912
+#: apps/carver-gtk/src/ui/bases/actions.rs:936
 msgid "sort rule"
 msgstr "排序规则"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:921
+#: apps/carver-gtk/src/ui/bases/actions.rs:923
 msgid "Add sort rule"
 msgstr "添加排序规则"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:952
+#: apps/carver-gtk/src/ui/bases/actions.rs:954
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 msgid "Save"
 msgstr "保存"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1016
+#: apps/carver-gtk/src/ui/bases/actions.rs:1018
 msgid "New Base"
 msgstr "新建视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1018
+#: apps/carver-gtk/src/ui/bases/actions.rs:1020
 msgid "Configure Base"
 msgstr "配置视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1053
+#: apps/carver-gtk/src/ui/bases/actions.rs:1055
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
@@ -436,12 +436,12 @@ msgstr "搜索笔记"
 msgid "Search notes (Ctrl+F)"
 msgstr "搜索笔记 (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:687
+#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:685
 msgid "No notes yet"
 msgstr "还没有笔记"
 
 #: apps/carver-gtk/src/ui/browser.rs:376 apps/carver-gtk/src/ui/browser.rs:474
-#: apps/carver-gtk/src/view/mod.rs:689
+#: apps/carver-gtk/src/view/mod.rs:687
 msgid "Create a note to get started."
 msgstr "创建一篇笔记即可开始。"
 
@@ -1611,11 +1611,11 @@ msgstr "恢复笔记和分类"
 msgid "Empty Trash"
 msgstr "清空回收站"
 
-#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:790
+#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:788
 msgid "Trash is empty"
 msgstr "回收站为空"
 
-#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:792
+#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:790
 msgid "Deleted notes and categories can be restored here."
 msgstr "已删除的笔记和分类可在此恢复。"
 
@@ -1659,103 +1659,103 @@ msgstr "正在加载更多行…"
 msgid "Retry loading rows"
 msgstr "重试加载行"
 
-#: apps/carver-gtk/src/view/mod.rs:536
+#: apps/carver-gtk/src/view/mod.rs:534
 msgid "This note was deleted elsewhere. Your open text is preserved."
 msgstr "此笔记已在别处被删除。您打开的文本已保留。"
 
-#: apps/carver-gtk/src/view/mod.rs:538
+#: apps/carver-gtk/src/view/mod.rs:536
 msgid "This note changed elsewhere. Your unsaved edits are preserved."
 msgstr "此笔记已在别处更改。您未保存的编辑已保留。"
 
-#: apps/carver-gtk/src/view/mod.rs:541
+#: apps/carver-gtk/src/view/mod.rs:539
 msgid "Close Note…"
 msgstr "关闭笔记…"
 
-#: apps/carver-gtk/src/view/mod.rs:543
+#: apps/carver-gtk/src/view/mod.rs:541
 msgid "Reload…"
 msgstr "重新加载…"
 
-#: apps/carver-gtk/src/view/mod.rs:552
+#: apps/carver-gtk/src/view/mod.rs:550
 msgid "Close deleted note?"
 msgstr "关闭已删除的笔记？"
 
-#: apps/carver-gtk/src/view/mod.rs:554
+#: apps/carver-gtk/src/view/mod.rs:552
 msgid "Reload note?"
 msgstr "重新加载笔记？"
 
-#: apps/carver-gtk/src/view/mod.rs:557
+#: apps/carver-gtk/src/view/mod.rs:555
 msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
 msgstr "关闭将丢弃您的本地草稿并打开回收站，您可以在此恢复已保存的笔记。取消可先保留或导出草稿。"
 
-#: apps/carver-gtk/src/view/mod.rs:559
+#: apps/carver-gtk/src/view/mod.rs:557
 msgid "Reloading replaces your unsaved edits with the latest saved note."
 msgstr "重新加载会用最新保存的笔记替换您未保存的编辑。"
 
-#: apps/carver-gtk/src/view/mod.rs:566
+#: apps/carver-gtk/src/view/mod.rs:564
 msgid "Discard Draft and Open Trash"
 msgstr "丢弃草稿并打开回收站"
 
-#: apps/carver-gtk/src/view/mod.rs:568
+#: apps/carver-gtk/src/view/mod.rs:566
 msgid "Discard Edits and Reload"
 msgstr "丢弃编辑并重新加载"
 
-#: apps/carver-gtk/src/view/mod.rs:800
+#: apps/carver-gtk/src/view/mod.rs:798
 msgctxt "Trash section"
 msgid "Categories"
 msgstr "分类"
 
-#: apps/carver-gtk/src/view/mod.rs:806
+#: apps/carver-gtk/src/view/mod.rs:804
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:856
+#: apps/carver-gtk/src/view/mod.rs:854
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "无法保存笔记：{error}"
 
-#: apps/carver-gtk/src/view/mod.rs:859
+#: apps/carver-gtk/src/view/mod.rs:857
 msgid "Retry"
 msgstr "重试"
 
-#: apps/carver-gtk/src/view/mod.rs:875
+#: apps/carver-gtk/src/view/mod.rs:873
 msgid "Moved note"
 msgstr "已移动笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:876 apps/carver-gtk/src/view/mod.rs:891
+#: apps/carver-gtk/src/view/mod.rs:874 apps/carver-gtk/src/view/mod.rs:889
 msgid "Undo"
 msgstr "撤销"
 
-#: apps/carver-gtk/src/view/mod.rs:890
+#: apps/carver-gtk/src/view/mod.rs:888
 msgid "Moved note to Trash"
 msgstr "已将笔记移到回收站"
 
-#: apps/carver-gtk/src/view/mod.rs:1021
+#: apps/carver-gtk/src/view/mod.rs:1019
 msgid "Loading more notes…"
 msgstr "正在加载更多笔记…"
 
-#: apps/carver-gtk/src/view/mod.rs:1023
+#: apps/carver-gtk/src/view/mod.rs:1021
 msgid "Retry loading notes"
 msgstr "重试加载笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:1025
+#: apps/carver-gtk/src/view/mod.rs:1023
 msgid "Load more notes"
 msgstr "加载更多笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:1055 apps/carver-gtk/src/view/mod.rs:1066
+#: apps/carver-gtk/src/view/mod.rs:1053 apps/carver-gtk/src/view/mod.rs:1064
 msgid "Loading…"
 msgstr "正在加载…"
 
-#: apps/carver-gtk/src/view/mod.rs:1057 apps/carver-gtk/src/view/mod.rs:1067
+#: apps/carver-gtk/src/view/mod.rs:1055 apps/carver-gtk/src/view/mod.rs:1065
 msgid "Could not load content"
 msgstr "无法加载内容"
 
-#: apps/carver-gtk/src/view/mod.rs:1095
+#: apps/carver-gtk/src/view/mod.rs:1093
 #, rust-format
 msgid "{count} recoverable note"
 msgid_plural "{count} recoverable notes"
 msgstr[0] "{count} 条可恢复的笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:1132 apps/carver-gtk/src/view/mod.rs:1133
+#: apps/carver-gtk/src/view/mod.rs:1130 apps/carver-gtk/src/view/mod.rs:1131
 msgid "Restore"
 msgstr "恢复"

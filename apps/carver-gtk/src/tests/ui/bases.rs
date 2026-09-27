@@ -368,6 +368,18 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-sort-rule-up-1")
         .ok_or("move added sort rule up")?
         .emit_clicked();
+    assert!(
+        !widget_as::<adw::ExpanderRow>(dialog.upcast_ref(), "base-filter-rule-0")
+            .ok_or("filter rule")?
+            .uses_markup(),
+        "filter summaries carry user field labels and operators as plain text"
+    );
+    assert!(
+        !widget_as::<adw::ExpanderRow>(dialog.upcast_ref(), "base-sort-rule-1")
+            .ok_or("sort rule")?
+            .uses_markup(),
+        "sort summaries carry user field labels as plain text"
+    );
     add_field.emit_clicked();
     assert!(super::find_label(dialog.upcast_ref(), "Category").is_some());
     assert!(super::find_label(dialog.upcast_ref(), "priority").is_none());
@@ -473,11 +485,11 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(runtime.model().notice.is_some());
     assert!(failed_dialog.can_close());
     assert!(
-        failed_dialog
-            .child()
+        widget_as::<adw::EntryRow>(failed_dialog.upcast_ref(), "base-configuration-name")
             .ok_or("preserved draft")?
             .is_sensitive()
     );
+    assert!(save.is_sensitive());
     assert!(window.visible_dialog().is_some());
     failed_dialog.close();
     assert!(run_main_context_until(|| runtime
@@ -500,7 +512,7 @@ pub(super) fn base_field_picker_should_add_a_valid_custom_path() -> TestResult {
         vec![carver_sdk::BaseColumn::Category],
         carver_sdk::Revision(1),
     );
-    let dialog = crate::ui::bases::actions::show_configuration_dialog(
+    let (dialog, _form) = crate::ui::bases::actions::show_configuration_dialog(
         &gtk_parent,
         &AppDispatcher::default(),
         RequestId(1),

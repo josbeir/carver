@@ -375,14 +375,14 @@ impl ViewRefs {
             if let Some(dispatcher) = &self.dispatcher {
                 use adw::prelude::*;
                 if let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() {
-                    let dialog = crate::ui::bases::actions::show_new_configuration_dialog(
+                    let (dialog, form) = crate::ui::bases::actions::show_new_configuration_dialog(
                         &parent,
                         dispatcher,
                         *dialog_id,
                         descriptors,
                     );
                     if let Some(refs) = &self.base {
-                        refs.configuration.replace(Some((*dialog_id, dialog)));
+                        refs.configuration.replace(Some((*dialog_id, dialog, form)));
                     }
                 }
             }
@@ -397,19 +397,24 @@ impl ViewRefs {
             if let (Some(refs), Some(dispatcher)) = (&self.base, &self.dispatcher) {
                 use adw::prelude::*;
                 if let Some(parent) = refs.configure.root().and_downcast::<gtk::Window>() {
-                    let existing = refs.configuration.borrow().clone();
-                    if let Some((_, dialog)) = existing.filter(|(_, dialog)| dialog.is_mapped()) {
+                    let mapped = refs
+                        .configuration
+                        .borrow()
+                        .as_ref()
+                        .filter(|(_, dialog, _)| dialog.is_mapped())
+                        .map(|(_, dialog, _)| dialog.clone());
+                    if let Some(dialog) = mapped {
                         dialog.grab_focus();
                         return;
                     }
-                    let dialog = crate::ui::bases::actions::show_configuration_dialog(
+                    let (dialog, form) = crate::ui::bases::actions::show_configuration_dialog(
                         &parent,
                         dispatcher,
                         *dialog_id,
                         definition,
                         descriptors,
                     );
-                    refs.configuration.replace(Some((*dialog_id, dialog)));
+                    refs.configuration.replace(Some((*dialog_id, dialog, form)));
                 }
             }
             return;
@@ -430,16 +435,12 @@ impl ViewRefs {
                 return;
             }
             if let Some(refs) = &self.base {
-                let dialog = if success {
-                    refs.configuration.take().map(|(_, dialog)| dialog)
-                } else {
-                    refs.configuration
-                        .borrow()
-                        .clone()
-                        .map(|(_, dialog)| dialog)
-                };
-                if let Some(dialog) = dialog {
-                    crate::ui::bases::actions::finish_configuration(&dialog, success);
+                if success {
+                    if let Some((_, dialog, form)) = refs.configuration.take() {
+                        crate::ui::bases::actions::finish_configuration(&form, &dialog, true);
+                    }
+                } else if let Some((_, dialog, form)) = refs.configuration.borrow().as_ref() {
+                    crate::ui::bases::actions::finish_configuration(form, dialog, false);
                 }
             }
             return;
@@ -455,12 +456,9 @@ impl ViewRefs {
                 crate::ui::bases::actions::render_preview(form.page.upcast_ref(), count);
                 return;
             }
-            if let Some(dialog) = self
-                .base
-                .as_ref()
-                .and_then(|refs| refs.configuration.borrow().clone())
-                .filter(|(current_dialog_id, _)| current_dialog_id == &dialog_id)
-                .map(|(_, dialog)| dialog)
+            if let Some(refs) = &self.base
+                && let Some((current_dialog_id, dialog, _)) = refs.configuration.borrow().as_ref()
+                && current_dialog_id == &dialog_id
                 && let Some(root) = dialog.child()
             {
                 crate::ui::bases::actions::render_preview(&root, count);
