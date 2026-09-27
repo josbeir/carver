@@ -196,19 +196,26 @@ fn capture_scenes(
         .is_some_and(|model| model.n_items() >= 3)));
     capture_theme_pair(fixture, directory, "bases")?;
 
-    // Agent setup dialog.
+    // Return to the notes browser so dialogs sit over a familiar surface.
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    let _ = run_main_context_until_for(Duration::from_millis(300), || false);
+
+    // Agent setup dialog, captured with the window for context.
     let agent = crate::ui::dialogs::show_agent_setup_dialog_for_test(&window);
     assert!(run_main_context_until(|| window.visible_dialog().is_some()));
     settle();
-    capture_dialog_theme_pair(&agent, directory, "agent")?;
+    capture_theme_pair(fixture, directory, "agent")?;
     agent.close();
+    let _ = run_main_context_until_for(Duration::from_millis(100), || {
+        window.visible_dialog().is_none()
+    });
 
     // Preferences dialog.
     let preferences = fixture.preferences_dialog.clone();
     preferences.present(Some(&window));
     assert!(run_main_context_until(|| window.visible_dialog().is_some()));
     settle();
-    capture_dialog_theme_pair(&preferences, directory, "settings")?;
+    capture_theme_pair(fixture, directory, "settings")?;
     preferences.close();
 
     // Leave the app in the light theme.
@@ -223,21 +230,6 @@ fn capture_theme_pair(fixture: &WindowFixture, directory: &Path, name: &str) -> 
         apply_color_scheme(dark);
         settle();
         capture_widget(&window, &directory.join(format!("{name}-{suffix}.png")))?;
-    }
-    Ok(())
-}
-
-/// Captures a presented dialog's content in both themes.
-fn capture_dialog_theme_pair(
-    dialog: &adw::PreferencesDialog,
-    directory: &Path,
-    name: &str,
-) -> TestResult {
-    let content = dialog.child().ok_or("dialog content")?;
-    for (suffix, dark) in [("light", false), ("dark", true)] {
-        apply_color_scheme(dark);
-        settle();
-        capture_widget(&content, &directory.join(format!("{name}-{suffix}.png")))?;
     }
     Ok(())
 }

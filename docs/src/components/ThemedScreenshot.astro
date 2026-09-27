@@ -19,7 +19,10 @@ const {
   class: className = '',
 } = Astro.props;
 
-const widths = [640, 960, 1280, 1600];
+const widths = [640, 960, 1280, 1600, 2048, 2560];
+// Higher than the sharp defaults: screenshots carry lots of small text, where
+// AVIF/WebP artifacts read as softness.
+const quality = 84;
 ---
 
 <figure
@@ -36,6 +39,7 @@ const widths = [640, 960, 1280, 1600];
       formats={['avif', 'webp']}
       widths={widths}
       sizes={sizes}
+      quality={quality}
       alt={shot.alt}
       loading={loading}
       decoding="async"
@@ -48,6 +52,7 @@ const widths = [640, 960, 1280, 1600];
       formats={['avif', 'webp']}
       widths={widths}
       sizes={sizes}
+      quality={quality}
       alt={shot.alt}
       loading={loading}
       decoding="async"

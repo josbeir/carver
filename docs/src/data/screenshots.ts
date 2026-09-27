@@ -18,8 +18,6 @@ export interface Shot {
   alt: string;
   /** Optional caption; omit when the surrounding copy already describes it. */
   caption?: string;
-  /** Constrain a tall dialog capture so it does not dominate the panel. */
-  narrow?: boolean;
   light: ImageMetadata;
   dark: ImageMetadata;
 }
@@ -52,7 +50,6 @@ export const shots: Partial<Record<ShotName, Shot>> = {
   },
   agent: {
     alt: "Carver's connect-an-agent setup screen",
-    narrow: true,
     light: agentLight,
     dark: agentDark,
   },
@@ -63,7 +60,6 @@ export const shots: Partial<Record<ShotName, Shot>> = {
   },
   settings: {
     alt: "Carver's preferences",
-    narrow: true,
     light: settingsLight,
     dark: settingsDark,
   },
