@@ -162,7 +162,10 @@ fn remove_rule<T: RuleWidgets>(
 }
 
 fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::from_icon_name(icon_name);
+    let button = gtk::Button::new();
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(14);
+    button.set_child(Some(&icon));
     button.set_tooltip_text(Some(tooltip));
     button.add_css_class("flat");
     button
@@ -572,10 +575,8 @@ fn rebuild_visible_columns(
                     }
                 });
             }
-            let remove = gtk::Button::from_icon_name("list-remove-symbolic");
+            let remove = rule_button("list-remove-symbolic", &gettext("Remove field"));
             remove.set_widget_name(&format!("base-visible-field-remove-{index}"));
-            remove.set_tooltip_text(Some(&gettext("Remove field")));
-            remove.add_css_class("flat");
             remove.update_property(&[gtk::accessible::Property::Label(&gettext("Remove field"))]);
             let selected = Rc::clone(selected);
             let group = group.clone();
