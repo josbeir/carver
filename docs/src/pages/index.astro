@@ -1,10 +1,10 @@
 ---
+import CarveSection from '../components/CarveSection.astro';
 import FeatureShowcase from '../components/FeatureShowcase.astro';
 import Hero from '../components/Hero.astro';
 import InstallBlock from '../components/InstallBlock.astro';
 import { shots, type Shot, type ShotName } from '../data/screenshots';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import CarveSection from '../components/CarveSection.astro';
 
 const heroOrder: ShotName[] = ['editor', 'source', 'bases', 'agent', 'library', 'settings'];
 const heroShots = heroOrder
@@ -14,40 +14,11 @@ const heroShots = heroOrder
 const title = 'Carver — A little space for big ideas';
 const description =
   'Make room for your next idea. Carver brings writing, organizing, and finding your notes together in a calm desktop app. Free, open source, and yours to keep.';
-
-const guarantees = [
-  {
-    title: 'Your notes, your space',
-    body: 'Keep your notes and images on your own computer. Start writing without an account, work offline, and choose what you share.',
-  },
-  {
-    title: 'Feel at home from the first note',
-    body: 'A welcoming place for quick thoughts and longer drafts, with light and dark themes and handy shortcuts to help you stay in the flow.',
-  },
-  {
-    title: 'Free to use. Yours to keep.',
-    body: 'Carver is free and open source. Export your notes when you need them elsewhere, and keep your writing with you as your tools and habits change.',
-  },
-];
 ---
 
 <BaseLayout title={title} description={description} backdrop>
   <Hero shots={heroShots} />
   <FeatureShowcase />
   <CarveSection />
-
-  <section id="why" class="scroll-mt-24 border-t border-base-300/60 py-20 sm:py-24">
-    <div class="mx-auto max-w-6xl px-4">
-      <ul class="grid gap-10 sm:grid-cols-3">
-        {guarantees.map((item) => (
-          <li>
-            <h2 class="text-xl font-semibold">{item.title}</h2>
-            <p class="mt-3 text-base/7 text-base-content/70">{item.body}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
-
   <InstallBlock />
 </BaseLayout>
