@@ -95,3 +95,17 @@ The site is a project page, so `astro.config.mjs` sets `base: '/carver'` and all
 internal links go through `src/utils/base.ts`. To move to a custom domain, set
 `site` to the new origin, remove `base`, and add the `CNAME` file that GitHub
 Pages requires.
+
+## Brand assets and design history
+
+The Folded C icon is shared by the app and website. The canonical colour SVG is
+`apps/carver-gtk/resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg`;
+keep `docs/public/carver-icon.svg` identical when changing it. The app also ships
+a 16px symbolic variant. The website favicon uses the same simplified silhouette
+with light/dark colours. Regenerate the social preview with `npm run og` after
+changing the icon.
+
+The [identity comparison board](design/identity-exploration/index.html) and its
+[design notes](design/identity-exploration/README.md) preserve all three concepts,
+editable SVGs, size studies, and mockups. Open the board directly in a browser;
+it works offline and is not included in the published site.

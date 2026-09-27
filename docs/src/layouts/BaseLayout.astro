@@ -41,18 +41,18 @@ const ogImage = new URL(`${base}og.png`, Astro.site);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
 
-    <meta name="theme-color" content="#fdfcf7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0c1b18" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fffdf5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#142820" media="(prefers-color-scheme: dark)" />
 
     {/*
       Bunny Fonts (a privacy-friendly, drop-in Google Fonts mirror). Inter for
-      the interface, Caveat for the handwritten headline, JetBrains Mono for code.
+      the wordmark, headlines, and interface; JetBrains Mono for code.
     */}
     <link rel="preconnect" href="https://fonts.bunny.net" />
     <link rel="preconnect" href="https://fonts.bunny.net" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.bunny.net/css?family=caveat:600,700|inter:400,500,600,700|jetbrains-mono:400,500&display=swap"
+      href="https://fonts.bunny.net/css?family=inter:400,500,600,700|jetbrains-mono:400,500&display=swap"
     />
 
     {/*

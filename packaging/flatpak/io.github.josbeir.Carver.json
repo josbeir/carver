@@ -39,6 +39,7 @@
                 "install -Dm755 target/release/carver-mcp /app/bin/carver-mcp",
                 "bash scripts/compile-translations.sh /app/share",
                 "install -Dm644 apps/carver-gtk/resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg /app/share/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg",
+                "install -Dm644 apps/carver-gtk/resources/icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg /app/share/icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg",
                 "install -Dm644 LICENSE /app/share/licenses/io.github.josbeir.Carver/LICENSE"
             ],
             "sources": [

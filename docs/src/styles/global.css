@@ -6,29 +6,25 @@
     carver-dark --prefersdark;
 }
 
-/*
- * Carver light theme. Colors are derived from the application icon palette:
- * green (#42b883 -> #197d68), paper (#fff9df -> #f1d68a), coral (#e85d4a),
- * purple (#7d63d8), and deep teal (#0b3c37), expressed in OKLCH.
- */
+/* Folded C identity: GNOME greens, cream paper, and deep green ink. */
 @plugin "daisyui/theme" {
   name: 'carver';
   default: true;
   prefersdark: false;
   color-scheme: light;
 
-  --color-base-100: oklch(99% 0.007 97);
-  --color-base-200: oklch(96% 0.013 96);
-  --color-base-300: oklch(92% 0.02 95);
-  --color-base-content: oklch(26% 0.02 177);
-  --color-primary: oklch(53% 0.093 174);
-  --color-primary-content: oklch(98% 0.02 170);
-  --color-secondary: oklch(58.3% 0.172 290);
-  --color-secondary-content: oklch(98% 0.01 290);
-  --color-accent: oklch(65.4% 0.176 30);
-  --color-accent-content: oklch(98% 0.01 30);
-  --color-neutral: oklch(32.3% 0.051 185);
-  --color-neutral-content: oklch(97% 0.02 96);
+  --color-base-100: #fffdf5;
+  --color-base-200: #f7f4eb;
+  --color-base-300: #d8ddcf;
+  --color-base-content: #17352b;
+  --color-primary: #176443;
+  --color-primary-content: #fff8e7;
+  --color-secondary: #52675b;
+  --color-secondary-content: #fffdf5;
+  --color-accent: #ded4b8;
+  --color-accent-content: #17352b;
+  --color-neutral: #17352b;
+  --color-neutral-content: #fff8e7;
   --color-info: oklch(60% 0.11 230);
   --color-info-content: oklch(98% 0.01 230);
   --color-success: oklch(60% 0.12 155);
@@ -55,18 +51,18 @@
   prefersdark: true;
   color-scheme: dark;
 
-  --color-base-100: oklch(20.7% 0.022 180);
-  --color-base-200: oklch(17.5% 0.02 180);
-  --color-base-300: oklch(27% 0.028 180);
-  --color-base-content: oklch(94% 0.02 96);
-  --color-primary: oklch(70.3% 0.132 160);
-  --color-primary-content: oklch(20% 0.035 170);
-  --color-secondary: oklch(70% 0.15 290);
-  --color-secondary-content: oklch(20% 0.03 290);
-  --color-accent: oklch(72% 0.16 30);
-  --color-accent-content: oklch(20% 0.04 30);
-  --color-neutral: oklch(30% 0.03 185);
-  --color-neutral-content: oklch(94% 0.02 96);
+  --color-base-100: #142820;
+  --color-base-200: #102219;
+  --color-base-300: #355245;
+  --color-base-content: #fff8e7;
+  --color-primary: #8ff0a4;
+  --color-primary-content: #142820;
+  --color-secondary: #c7d7cd;
+  --color-secondary-content: #142820;
+  --color-accent: #ded4b8;
+  --color-accent-content: #142820;
+  --color-neutral: #355245;
+  --color-neutral-content: #fff8e7;
   --color-info: oklch(72% 0.1 230);
   --color-info-content: oklch(20% 0.03 230);
   --color-success: oklch(72% 0.13 155);
@@ -96,7 +92,6 @@
 @theme {
   --font-sans: 'Inter', 'Adwaita Sans', Cantarell, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Adwaita Mono', ui-monospace, 'SFMono-Regular', monospace;
-  --font-hand: 'Caveat', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
 }
 
 @layer components {

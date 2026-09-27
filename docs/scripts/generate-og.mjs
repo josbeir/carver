@@ -18,19 +18,19 @@ const background = `
 <svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b3c37"/>
-      <stop offset="1" stop-color="#081311"/>
+      <stop offset="0" stop-color="#142820"/>
+      <stop offset="1" stop-color="#142820"/>
     </linearGradient>
     <radialGradient id="glow" cx="0.12" cy="-0.05" r="0.9">
-      <stop offset="0" stop-color="#42b883" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#42b883" stop-opacity="0"/>
+      <stop offset="0" stop-color="#8ff0a4" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#8ff0a4" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)"/>
   <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
-  <text x="96" y="392" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="92" font-weight="700" fill="#fff9df">Carver</text>
-  <text x="100" y="452" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="34" fill="#fff9df" fill-opacity="0.78">A little space for big ideas</text>
-  <text x="100" y="524" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="24" letter-spacing="2" fill="#42b883" fill-opacity="0.9">WRITE · ORGANIZE · MAKE IT YOURS</text>
+  <text x="96" y="392" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="92" font-weight="600" fill="#fff8e7">Carver</text>
+  <text x="100" y="452" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="34" fill="#fff8e7" fill-opacity="0.78">A little space for big ideas</text>
+  <text x="100" y="524" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="24" letter-spacing="2" fill="#8ff0a4" fill-opacity="0.9">WRITE · ORGANIZE · MAKE IT YOURS</text>
 </svg>`;
 
 await access(iconPath);

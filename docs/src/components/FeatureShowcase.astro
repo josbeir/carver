@@ -36,9 +36,9 @@ const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
       CSS-only disclosure: the radios make the panel switch with no JavaScript,
       and hidden panels' images stay unloaded until first shown.
     */}
-    <div class="feature-tabs mt-14 grid items-start gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-10">
+    <div class="feature-tabs mt-14 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10">
       <div
-        class="rounded-2xl border border-base-300/70 bg-base-100 p-2 shadow-sm"
+        class="rounded-2xl border border-base-300/70 bg-base-100 p-1.5 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto"
         role="radiogroup"
         aria-label="Feature areas"
       >
@@ -51,24 +51,26 @@ const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
               checked={index === 0}
               class="peer sr-only"
             />
-            <span class="block rounded-xl p-3 transition-colors hover:bg-base-200/70 peer-checked:bg-primary/10 peer-checked:ring-1 peer-checked:ring-primary/40 peer-focus-visible:ring-2 peer-focus-visible:ring-primary">
-              <span class="flex items-center gap-3">
-                <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="size-5"
-                    aria-hidden="true"
-                    set:html={icons[area.icon]}
-                  />
-                </span>
-                <span class="text-lg font-semibold text-base-content">{area.label}</span>
+            <span class="flex items-start gap-2.5 rounded-xl p-2.5 transition-colors hover:bg-base-200/70 peer-checked:bg-primary/10 peer-checked:ring-1 peer-checked:ring-primary/40 peer-focus-visible:ring-2 peer-focus-visible:ring-primary">
+              <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="size-4"
+                  aria-hidden="true"
+                  set:html={icons[area.icon]}
+                />
               </span>
-              <span class="mt-1.5 block pl-12 text-sm/6 text-base-content/60">{area.teaser}</span>
+              <span class="min-w-0">
+                <span class="block text-base leading-snug font-medium text-base-content">
+                  {area.label}
+                </span>
+                <span class="mt-0.5 block text-sm/5 text-base-content/60">{area.teaser}</span>
+              </span>
             </span>
           </label>
         ))}

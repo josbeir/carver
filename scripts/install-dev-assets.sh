@@ -7,8 +7,9 @@ data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 desktop_dir="$data_home/applications"
 icon_theme_dir="$data_home/icons/hicolor"
 icon_dir="$icon_theme_dir/scalable/apps"
+symbolic_icon_dir="$icon_theme_dir/symbolic/apps"
 
-install -d "$desktop_dir" "$icon_dir"
+install -d "$desktop_dir" "$icon_dir" "$symbolic_icon_dir"
 # A previous development installer accidentally wrote a replacement Hicolor
 # index.  That masks the system theme and makes unrelated applications fall
 # back to generic icons. Remove only that known bad file and its cache.
@@ -31,6 +32,10 @@ done < "$project_root/apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
 install -m 644 \
   "$project_root/apps/carver-gtk/resources/icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg" \
   "$icon_dir/io.github.josbeir.Carver.svg"
+
+install -m 644 \
+  "$project_root/apps/carver-gtk/resources/icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg" \
+  "$symbolic_icon_dir/io.github.josbeir.Carver-symbolic.svg"
 
 if command -v update-desktop-database >/dev/null; then
   update-desktop-database "$desktop_dir"
