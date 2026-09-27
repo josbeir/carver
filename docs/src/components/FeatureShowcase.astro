@@ -83,7 +83,18 @@ const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
             <h3 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
               {area.title}
             </h3>
-            <p class="mt-4 text-lg/8 text-base-content/75">{area.summary}</p>
+
+            {area.shot && (
+              <div class="mt-6">
+                <ThemedScreenshot
+                  shot={area.shot}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  sizes="(min-width: 1024px) 720px, 100vw"
+                />
+              </div>
+            )}
+
+            <p class="mt-6 text-lg/8 text-base-content/75">{area.summary}</p>
 
             <ul class="mt-6 space-y-3">
               {area.points.map((point) => (
@@ -121,16 +132,6 @@ const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
             )}
 
             {area.code && <CodeBlock label={area.code.label} code={area.code.code} class="mt-7" />}
-
-            {area.shot && (
-              <div class="mt-8">
-                <ThemedScreenshot
-                  shot={area.shot}
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                  sizes="(min-width: 1024px) 720px, 100vw"
-                />
-              </div>
-            )}
           </div>
         ))}
       </div>
