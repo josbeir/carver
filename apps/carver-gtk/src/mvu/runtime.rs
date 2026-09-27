@@ -334,6 +334,27 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 self.schedule_preview(session, timer_id);
             }
             Effect::SaveNote { request } => self.save_note(request),
+            Effect::EditBaseCell {
+                request_id,
+                note_id,
+                revision,
+                format,
+                path,
+                value,
+            } => self.edit_base_cell(request_id, note_id, revision, format, path, value),
+            Effect::LoadBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                defaults,
+                format,
+            } => self.load_base_properties(request_id, note_id, revision, defaults, format),
+            Effect::SaveBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                edit,
+            } => self.save_base_properties(request_id, note_id, revision, edit),
             Effect::StoreEditorAsset {
                 session,
                 note_id,
@@ -966,6 +987,116 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one note, splices a frontmatter property, and persists it under its row revision.
+    fn edit_base_cell(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        format: carver_domain::FrontmatterFormat,
+        path: String,
+        value: Option<serde_json::Value>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.note_async(note_id).await {
+                Ok(Some(note)) => {
+                    match carver_domain::set_property(&note.source, format, &path, value) {
+                        Ok(source) => client
+                            .save_note_async(note_id, revision, source)
+                            .await
+                            .map(|note| note.revision)
+                            .map_err(display_error),
+                        Err(error) => Err(display_error(error)),
+                    }
+                }
+                Ok(None) => Err(display_error("note is no longer available")),
+                Err(error) => Err(display_error(error)),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
+                request_id,
+                note_id,
+                path,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one Base row's note and builds the document-properties dialog snapshot.
+    fn load_base_properties(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        defaults: Vec<carver_config::DocumentProperty>,
+        format: carver_domain::FrontmatterFormat,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.note_async(note_id).await {
+                Ok(Some(note)) => Ok(super::EditorPropertiesRequest {
+                    save: super::PropertiesSave::Base { note_id, revision },
+                    note_id,
+                    document: carver_domain::parse_frontmatter_document(&note.source),
+                    raw: carver_domain::frontmatter_raw(&note.source).map(|(_, content)| content),
+                    heading_title: carver_domain::derive_content(&note.source).heading_title,
+                    defaults,
+                    default_format: format,
+                }),
+                Ok(None) => Err(display_error("note is no longer available")),
+                Err(error) => Err(display_error(error)),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one Base row's note and persists a document-properties edit under its revision.
+    fn save_base_properties(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        edit: super::FrontmatterEdit,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.note_async(note_id).await {
+                Ok(Some(note)) => {
+                    let updated = match edit {
+                        super::FrontmatterEdit::Parsed(document) => {
+                            carver_domain::replace_frontmatter(&note.source, Some(&document))
+                        }
+                        super::FrontmatterEdit::Raw { format, content } => Ok(
+                            carver_domain::replace_frontmatter_raw(&note.source, format, &content),
+                        ),
+                    };
+                    match updated {
+                        Ok(source) => client
+                            .save_note_async(note_id, revision, source)
+                            .await
+                            .map(|note| note.revision)
+                            .map_err(display_error),
+                        Err(error) => Err(display_error(error)),
+                    }
+                }
+                Ok(None) => Err(display_error("note is no longer available")),
+                Err(error) => Err(display_error(error)),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
+                request_id,
+                note_id,
+                path: String::new(),
                 result,
             }));
         });

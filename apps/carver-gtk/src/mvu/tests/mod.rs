@@ -34,6 +34,7 @@ mod runtime;
 mod startup;
 
 pub(crate) use runtime::{
+    runtime_should_edit_base_properties_without_leaving_the_base,
     runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library,
     runtime_should_render_and_complete_each_initial_resource,
 };

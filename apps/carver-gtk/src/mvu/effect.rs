@@ -10,7 +10,7 @@ use carver_sdk::{
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
     EditorExportWarningRequest, EditorPdfExportRequest, EditorPropertiesRequest, EditorSaveRequest,
-    EditorSessionId, RequestId, SourceImageTarget, TimerId,
+    EditorSessionId, FrontmatterEdit, RequestId, SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
@@ -308,6 +308,45 @@ pub enum Effect {
     SaveNote {
         /// Session, revision, and source to persist.
         request: EditorSaveRequest,
+    },
+    /// Load one Base row's note so its document-properties dialog can open without leaving Base.
+    LoadBaseProperties {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+        /// Configured defaults always offered as value-only rows.
+        defaults: Vec<DocumentProperty>,
+        /// Format used when the dialog creates a new frontmatter block.
+        format: carver_domain::FrontmatterFormat,
+    },
+    /// Persist a document-properties edit under a Base row's revision.
+    SaveBaseProperties {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// Parsed or raw frontmatter edit produced by the dialog.
+        edit: FrontmatterEdit,
+    },
+    /// Load one note, set a frontmatter property, and persist it under its revision.
+    EditBaseCell {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose property is edited.
+        note_id: NoteId,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// Frontmatter format used when the note has no block yet.
+        format: carver_domain::FrontmatterFormat,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// New typed value, or `None` to clear the property.
+        value: Option<serde_json::Value>,
     },
     /// Prepare a non-PDF export from an immutable editor snapshot.
     PrepareEditorExport {

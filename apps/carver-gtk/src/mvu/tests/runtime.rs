@@ -496,3 +496,61 @@ fn assert_external_category_deletion(
     }));
     Ok(())
 }
+
+pub(crate) fn runtime_should_edit_base_properties_without_leaving_the_base()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let paths = AppPaths {
+        config_dir: temporary_directory.path().join("config"),
+        data_dir: temporary_directory.path().join("data"),
+        cache_dir: temporary_directory.path().join("cache"),
+    };
+    paths.ensure_exists()?;
+    let client = LibraryClient::spawn(SqliteLibrary::open(
+        &paths.database_file(),
+        &paths.assets_dir(),
+    )?)?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let note = client.save_note(created.id, created.revision, "# Note\n\nBody")?;
+
+    let mut model = AppModel::new(&Config::default());
+    model.route = crate::mvu::Route::Base;
+    model.bases.selected = Some(carver_sdk::BaseId::new());
+    let runtime = AppRuntime::new(
+        client.clone(),
+        model,
+        crate::view::ViewRefs::new(
+            gtk::Stack::new(),
+            libadwaita::StatusPage::new(),
+            libadwaita::StatusPage::new(),
+        ),
+    );
+
+    runtime.dispatch(AppMsg::Bases(BasesMsg::EditProperties {
+        note_id: note.id,
+        revision: note.revision,
+    }));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().bases.base_properties_request.is_none()
+    }));
+    assert_eq!(runtime.model().route, crate::mvu::Route::Base);
+
+    runtime.dispatch(AppMsg::Bases(BasesMsg::ApplyProperties {
+        note_id: note.id,
+        revision: note.revision,
+        edit: crate::mvu::FrontmatterEdit::Raw {
+            format: carver_domain::FrontmatterFormat::Yaml,
+            content: "author: Ada".to_owned(),
+        },
+    }));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        client
+            .note(note.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.source.contains("author: Ada"))
+    }));
+    assert_eq!(runtime.model().route, crate::mvu::Route::Base);
+    Ok(())
+}

@@ -9,7 +9,9 @@ fn request(
     defaults: Vec<DocumentProperty>,
 ) -> EditorPropertiesRequest {
     EditorPropertiesRequest {
-        session: crate::mvu::EditorSessionId(1),
+        save: crate::mvu::PropertiesSave::Editor {
+            session: crate::mvu::EditorSessionId(1),
+        },
         note_id: carver_sdk::NoteId::new(),
         document,
         raw: None,

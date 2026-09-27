@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 14:05+0200\n"
+"POT-Creation-Date: 2026-09-27 15:32+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -51,7 +51,7 @@ msgstr "Notities"
 
 #: apps/carver-gtk/src/ui/add.rs:60 apps/carver-gtk/src/ui/add.rs:63
 #: apps/carver-gtk/src/ui/add.rs:70
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:447
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:469
 msgid "Add"
 msgstr "Toevoegen"
 
@@ -66,342 +66,357 @@ msgid "Base"
 msgstr "Basis"
 
 #: apps/carver-gtk/src/ui/add.rs:168
-#: apps/carver-gtk/src/ui/bases/actions.rs:954
+#: apps/carver-gtk/src/ui/bases/actions.rs:960
 msgid "Create"
 msgstr "Aanmaken"
 
-#: apps/carver-gtk/src/ui/bases.rs:67
+#: apps/carver-gtk/src/ui/bases.rs:73
 msgid "Search this Base"
 msgstr "Deze basis doorzoeken"
 
-#: apps/carver-gtk/src/ui/bases.rs:68
+#: apps/carver-gtk/src/ui/bases.rs:74
 msgid "Search this Base (Ctrl+F)"
 msgstr "Deze basis doorzoeken (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases.rs:71
+#: apps/carver-gtk/src/ui/bases.rs:77
 msgid "Base"
 msgstr "Basis"
 
-#: apps/carver-gtk/src/ui/bases.rs:77
-#: apps/carver-gtk/src/ui/bases/actions.rs:52
+#: apps/carver-gtk/src/ui/bases.rs:83
+#: apps/carver-gtk/src/ui/bases/actions.rs:53
 msgid "Delete Base"
 msgstr "Basis verwijderen"
 
-#: apps/carver-gtk/src/ui/bases.rs:80
+#: apps/carver-gtk/src/ui/bases.rs:86
 msgid "Configure"
 msgstr "Configureren"
 
-#: apps/carver-gtk/src/ui/bases.rs:109 apps/carver-gtk/src/ui/browser.rs:492
+#: apps/carver-gtk/src/ui/bases.rs:115 apps/carver-gtk/src/ui/browser.rs:492
 msgid "No matching notes"
 msgstr "Geen overeenkomende notities"
 
-#: apps/carver-gtk/src/ui/bases.rs:110
+#: apps/carver-gtk/src/ui/bases.rs:116
 msgid "Notes that match this Base will appear here."
 msgstr "Notities die bij deze basis passen verschijnen hier."
 
-#: apps/carver-gtk/src/ui/bases.rs:113 apps/carver-gtk/src/view/mod.rs:338
+#: apps/carver-gtk/src/ui/bases.rs:119 apps/carver-gtk/src/view/mod.rs:349
 msgid "Load more rows"
 msgstr "Meer rijen laden"
 
-#: apps/carver-gtk/src/ui/bases.rs:244
-#: apps/carver-gtk/src/ui/bases/actions.rs:728
-#: apps/carver-gtk/src/ui/bases/actions.rs:731
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:564
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1335
+#: apps/carver-gtk/src/ui/bases.rs:264
+#: apps/carver-gtk/src/ui/bases/actions.rs:734
+#: apps/carver-gtk/src/ui/bases/actions.rs:737
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:610
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1113
 msgid "Name"
 msgstr "Naam"
 
-#: apps/carver-gtk/src/ui/bases.rs:255
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:565
+#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:559
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 msgid "Category"
 msgstr "Categorie"
 
-#: apps/carver-gtk/src/ui/bases.rs:264
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:566
+#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:560
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "Bijgewerkt"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:43
+#: apps/carver-gtk/src/ui/bases.rs:302
+msgid "Edit document properties"
+msgstr "Documenteigenschappen bewerken"
+
+#: apps/carver-gtk/src/ui/bases.rs:499
+msgid "Edit title"
+msgstr "Titel bewerken"
+
+#: apps/carver-gtk/src/ui/bases.rs:557
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1438
+msgid "Title"
+msgstr "Titel"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:44
 #, rust-format
 msgid "Delete “{name}”?"
 msgstr "“{name}” verwijderen?"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:45
+#: apps/carver-gtk/src/ui/bases/actions.rs:46
 msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
 msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen blijven ongewijzigd."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:51
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:446
+#: apps/carver-gtk/src/ui/bases/actions.rs:52
+#: apps/carver-gtk/src/ui/bases/editing.rs:260
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
 #: apps/carver-gtk/src/ui/dialogs.rs:1669
 #: apps/carver-gtk/src/ui/dialogs.rs:1857
 #: apps/carver-gtk/src/ui/editor/mod.rs:1567
 #: apps/carver-gtk/src/ui/editor/mod.rs:1657
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:663
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:107
 #: apps/carver-gtk/src/ui/formatting.rs:450 apps/carver-gtk/src/ui/trash.rs:88
-#: apps/carver-gtk/src/view/mod.rs:577
+#: apps/carver-gtk/src/view/mod.rs:593
 msgid "Cancel"
 msgstr "Annuleren"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:192
+#: apps/carver-gtk/src/ui/bases/actions.rs:193
 #, rust-format
 msgid "Move {noun} up"
 msgstr "{noun} omhoog verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:196
+#: apps/carver-gtk/src/ui/bases/actions.rs:197
 #, rust-format
 msgid "Move {noun} down"
 msgstr "{noun} omlaag verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:200
+#: apps/carver-gtk/src/ui/bases/actions.rs:201
 #, rust-format
 msgid "Remove {noun}"
 msgstr "{noun} verwijderen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:273
+#: apps/carver-gtk/src/ui/bases/actions.rs:274
 msgid "is"
 msgstr "is"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:274
+#: apps/carver-gtk/src/ui/bases/actions.rs:275
 msgid "is not"
 msgstr "is niet"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:275
+#: apps/carver-gtk/src/ui/bases/actions.rs:276
 msgid "contains"
 msgstr "bevat"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:276
+#: apps/carver-gtk/src/ui/bases/actions.rs:277
 msgid "starts with"
 msgstr "begint met"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:277
+#: apps/carver-gtk/src/ui/bases/actions.rs:278
 msgid ">"
 msgstr ">"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:278
+#: apps/carver-gtk/src/ui/bases/actions.rs:279
 msgid "<"
 msgstr "<"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:279
+#: apps/carver-gtk/src/ui/bases/actions.rs:280
 msgid "≥"
 msgstr "≥"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:280
+#: apps/carver-gtk/src/ui/bases/actions.rs:281
 msgid "≤"
 msgstr "≤"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:281
+#: apps/carver-gtk/src/ui/bases/actions.rs:282
 msgid "is present"
 msgstr "is aanwezig"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:282
+#: apps/carver-gtk/src/ui/bases/actions.rs:283
 msgid "is missing"
 msgstr "ontbreekt"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:283
+#: apps/carver-gtk/src/ui/bases/actions.rs:284
 msgid "list contains"
 msgstr "lijst bevat"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:284
+#: apps/carver-gtk/src/ui/bases/actions.rs:285
 msgid "list does not contain"
 msgstr "lijst bevat niet"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:307
+#: apps/carver-gtk/src/ui/bases/actions.rs:308
 msgid "Operator"
 msgstr "Operator"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:389
-#: apps/carver-gtk/src/ui/bases/actions.rs:395
-#: apps/carver-gtk/src/ui/bases/actions.rs:549
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:537
+#: apps/carver-gtk/src/ui/bases/actions.rs:390
+#: apps/carver-gtk/src/ui/bases/actions.rs:396
+#: apps/carver-gtk/src/ui/bases/actions.rs:550
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:583
 msgid "Field"
 msgstr "Veld"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:439
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1367
+#: apps/carver-gtk/src/ui/bases/actions.rs:440
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1145
 msgid "Value"
 msgstr "Waarde"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:483
+#: apps/carver-gtk/src/ui/bases/actions.rs:484
 msgid "Direction"
 msgstr "Richting"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:485
-#: apps/carver-gtk/src/ui/bases/actions.rs:492
-#: apps/carver-gtk/src/ui/bases/actions.rs:499
+#: apps/carver-gtk/src/ui/bases/actions.rs:486
+#: apps/carver-gtk/src/ui/bases/actions.rs:493
+#: apps/carver-gtk/src/ui/bases/actions.rs:500
 msgid "Ascending"
 msgstr "Oplopend"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:486
-#: apps/carver-gtk/src/ui/bases/actions.rs:494
-#: apps/carver-gtk/src/ui/bases/actions.rs:501
+#: apps/carver-gtk/src/ui/bases/actions.rs:487
+#: apps/carver-gtk/src/ui/bases/actions.rs:495
+#: apps/carver-gtk/src/ui/bases/actions.rs:502
 msgid "Descending"
 msgstr "Aflopend"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:552
+#: apps/carver-gtk/src/ui/bases/actions.rs:553
 msgid "Move field up"
 msgstr "Veld omhoog verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:554
+#: apps/carver-gtk/src/ui/bases/actions.rs:555
 msgid "Move field down"
 msgstr "Veld omlaag verplaatsen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:580
-#: apps/carver-gtk/src/ui/bases/actions.rs:582
+#: apps/carver-gtk/src/ui/bases/actions.rs:581
+#: apps/carver-gtk/src/ui/bases/actions.rs:583
 msgid "Remove field"
 msgstr "Veld verwijderen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:740
+#: apps/carver-gtk/src/ui/bases/actions.rs:746
 msgid "Visible fields"
 msgstr "Zichtbare velden"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:742
+#: apps/carver-gtk/src/ui/bases/actions.rs:748
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Kies de kolommen die in deze basis worden weergegeven. Naam is altijd inbegrepen."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:751
+#: apps/carver-gtk/src/ui/bases/actions.rs:757
 msgid "Add field"
 msgstr "Veld toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:802
+#: apps/carver-gtk/src/ui/bases/actions.rs:808
 msgid "Filters"
 msgstr "Filters"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:804
+#: apps/carver-gtk/src/ui/bases/actions.rs:810
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "Gebruik de pijlen om de prioriteit van regels in te stellen of verwijder een regel die je niet meer nodig hebt."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:809
+#: apps/carver-gtk/src/ui/bases/actions.rs:815
 #, fuzzy
 msgid "Matching"
 msgstr "Zoeken…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:812
+#: apps/carver-gtk/src/ui/bases/actions.rs:818
 msgid "Match all filters"
 msgstr "Aan alle filters voldoen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:813
+#: apps/carver-gtk/src/ui/bases/actions.rs:819
 msgid "Match any filter"
 msgstr "Aan een van de filters voldoen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:826
+#: apps/carver-gtk/src/ui/bases/actions.rs:832
 msgid "Sort"
 msgstr "Sorteren"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:827
+#: apps/carver-gtk/src/ui/bases/actions.rs:833
 msgid "Sort rules are applied from top to bottom."
 msgstr "Sorteerregels worden van boven naar beneden toegepast."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:864
-#: apps/carver-gtk/src/ui/bases/actions.rs:892
+#: apps/carver-gtk/src/ui/bases/actions.rs:870
+#: apps/carver-gtk/src/ui/bases/actions.rs:898
 msgid "filter"
 msgstr "filter"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:875
+#: apps/carver-gtk/src/ui/bases/actions.rs:881
 msgid "Add filter"
 msgstr "Filter toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:914
-#: apps/carver-gtk/src/ui/bases/actions.rs:938
+#: apps/carver-gtk/src/ui/bases/actions.rs:920
+#: apps/carver-gtk/src/ui/bases/actions.rs:944
 msgid "sort rule"
 msgstr "sorteerregel"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:925
+#: apps/carver-gtk/src/ui/bases/actions.rs:931
 msgid "Add sort rule"
 msgstr "Sorteerregel toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:956
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:896
+#: apps/carver-gtk/src/ui/bases/actions.rs:962
+#: apps/carver-gtk/src/ui/bases/editing.rs:262
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:665
 msgid "Save"
 msgstr "Opslaan"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1020
+#: apps/carver-gtk/src/ui/bases/actions.rs:1028
 msgid "New Base"
 msgstr "Nieuwe basis"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1022
+#: apps/carver-gtk/src/ui/bases/actions.rs:1030
 msgid "Configure Base"
 msgstr "Basis configureren"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1057
+#: apps/carver-gtk/src/ui/bases/actions.rs:1065
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "{count} notitie komt momenteel overeen"
 msgstr[1] "{count} notities komen momenteel overeen"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:162
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:184
 msgid "Search fields"
 msgstr "Velden zoeken"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:180
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:202
 msgid "Add custom field…"
 msgstr "Aangepast veld toevoegen…"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:322
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:344
 msgid "No matching fields"
 msgstr "Geen overeenkomende velden"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:331
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:353
 #, rust-format
 msgid "Type to search {count} more field"
 msgid_plural "Type to search {count} more fields"
 msgstr[0] "Typ om nog {count} veld te zoeken"
 msgstr[1] "Typ om nog {count} velden te zoeken"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:396
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:418
 msgid "Selected"
 msgstr "Geselecteerd"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:424
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:446
 msgid "Use a slash-prefixed JSON Pointer for nested fields."
 msgstr "Gebruik een JSON Pointer met een schuine streep vooraf voor geneste velden."
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:429
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:451
 msgid "Enter a valid path such as /project/status."
 msgstr "Voer een geldig pad in, zoals /project/status."
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:440
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:462
 msgid "Add custom field"
 msgstr "Aangepast veld toevoegen"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:497
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:518
 msgid "Built-in field"
 msgstr "Ingebouwd veld"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:499
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:520
 msgid "Custom field"
 msgstr "Aangepast veld"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:579
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:625
 #: apps/carver-gtk/src/ui/formatting.rs:440
+#: apps/carver-gtk/src/ui/property.rs:18
 msgid "Text"
 msgstr "Tekst"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:580
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:104
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:626
+#: apps/carver-gtk/src/ui/property.rs:20
 msgid "Number"
 msgstr "Getal"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:581
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:105
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:627
+#: apps/carver-gtk/src/ui/property.rs:21
 msgid "Boolean"
 msgstr "Booleaans"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:582
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:106
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:628
+#: apps/carver-gtk/src/ui/property.rs:22
 msgid "List"
 msgstr "Lijst"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:583
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:629
 msgid "Empty"
 msgstr "Leeg"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:584
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:630
 msgid "Mixed"
 msgstr "Gemengd"
 
@@ -438,12 +453,12 @@ msgstr "Notities zoeken"
 msgid "Search notes (Ctrl+F)"
 msgstr "Notities zoeken (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:700
+#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:716
 msgid "No notes yet"
 msgstr "Nog geen notities"
 
 #: apps/carver-gtk/src/ui/browser.rs:376 apps/carver-gtk/src/ui/browser.rs:474
-#: apps/carver-gtk/src/view/mod.rs:702
+#: apps/carver-gtk/src/view/mod.rs:718
 msgid "Create a note to get started."
 msgstr "Maak een notitie om te beginnen."
 
@@ -753,8 +768,8 @@ msgid "Seed each new note with the default properties below."
 msgstr "Vul elke nieuwe notitie met de onderstaande standaardeigenschappen."
 
 #: apps/carver-gtk/src/ui/dialogs.rs:658
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1069
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1080
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:847
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:858
 msgid "Default properties"
 msgstr "Standaardeigenschappen"
 
@@ -1307,95 +1322,71 @@ msgstr "Toch exporteren"
 msgid "Could not open the link in your default browser."
 msgstr "Kon de link niet openen in je standaardbrowser."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:103
-msgid "Long text"
-msgstr "Lange tekst"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:107
-msgid "Date"
-msgstr "Datum"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:108
-msgid "Date & time"
-msgstr "Datum en tijd"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:182
-msgid "Clear"
-msgstr "Wissen"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:187
-msgid "Done"
-msgstr "Gedaan"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:209
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:128
 msgid "Not set"
 msgstr "Niet ingesteld"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:750
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:510
 msgid "Not managed by this dialog"
 msgstr "Niet beheerd door dit venster"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:887
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:656
 msgid "Document Properties"
 msgstr "Documenteigenschappen"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:925
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:694
 msgid "Raw frontmatter"
 msgstr "Ruwe frontmatter"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:938
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:707
 msgid "Content"
 msgstr "Inhoud"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:948
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:717
 msgid "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences."
 msgstr "De eigenschappen van deze notitie worden in de frontmatter opgeslagen. Standaardeigenschappen voor nieuwe notities stel je in bij Voorkeuren."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:957
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1085
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:726
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:863
 msgid "Add property"
 msgstr "Eigenschap toevoegen"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1082
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:860
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "Deze eigenschappen worden in elk dialoogvenster voor documenteigenschappen aangeboden en vullen nieuwe notities wanneer dit is ingeschakeld."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1341
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1119
 msgid "Type"
 msgstr "Type"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1349
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1127
 msgid "New notes use today's date"
 msgstr "Nieuwe notities gebruiken de datum van vandaag"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1351
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1129
 msgid "New notes use the current date and time"
 msgstr "Nieuwe notities gebruiken de huidige datum en tijd"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1360
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1138
 msgid "Options"
 msgstr "Opties"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1377
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1155
 msgid "Comma-separated values offered as a dropdown."
 msgstr "Door komma's gescheiden waarden die als vervolgkeuzelijst worden aangeboden."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1388
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1166
 msgid "Allow multiple values"
 msgstr "Meerdere waarden toestaan"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1413
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1191
 msgid "New property"
 msgstr "Nieuwe eigenschap"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1477
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1479
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1255
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1257
 msgid "Remove property"
 msgstr "Eigenschap verwijderen"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1697
-msgid "Title"
-msgstr "Titel"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs:60
 msgid "Bold (Ctrl+B)"
@@ -1576,6 +1567,26 @@ msgstr "Tabel invoegen"
 msgid "Header row"
 msgstr "Koprij"
 
+#: apps/carver-gtk/src/ui/property.rs:19
+msgid "Long text"
+msgstr "Lange tekst"
+
+#: apps/carver-gtk/src/ui/property.rs:23
+msgid "Date"
+msgstr "Datum"
+
+#: apps/carver-gtk/src/ui/property.rs:24
+msgid "Date & time"
+msgstr "Datum en tijd"
+
+#: apps/carver-gtk/src/ui/property.rs:120
+msgid "Clear"
+msgstr "Wissen"
+
+#: apps/carver-gtk/src/ui/property.rs:125
+msgid "Done"
+msgstr "Gedaan"
+
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
 msgstr "Terug naar notities"
@@ -1620,11 +1631,11 @@ msgstr "Notities en categorieën herstellen"
 msgid "Empty Trash"
 msgstr "Prullenbak legen"
 
-#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:803
+#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:819
 msgid "Trash is empty"
 msgstr "Prullenbak is leeg"
 
-#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:805
+#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:821
 msgid "Deleted notes and categories can be restored here."
 msgstr "Verwijderde notities en categorieën kunnen hier worden hersteld."
 
@@ -1660,112 +1671,112 @@ msgstr "Rijen laden…"
 msgid "Refreshing this base."
 msgstr "Deze basis wordt vernieuwd."
 
-#: apps/carver-gtk/src/view/mod.rs:334
+#: apps/carver-gtk/src/view/mod.rs:345
 msgid "Loading more rows…"
 msgstr "Meer rijen laden…"
 
-#: apps/carver-gtk/src/view/mod.rs:336
+#: apps/carver-gtk/src/view/mod.rs:347
 msgid "Retry loading rows"
 msgstr "Rijen opnieuw laden"
 
-#: apps/carver-gtk/src/view/mod.rs:549
+#: apps/carver-gtk/src/view/mod.rs:565
 msgid "This note was deleted elsewhere. Your open text is preserved."
 msgstr "Deze notitie is elders verwijderd. Je open tekst blijft bewaard."
 
-#: apps/carver-gtk/src/view/mod.rs:551
+#: apps/carver-gtk/src/view/mod.rs:567
 msgid "This note changed elsewhere. Your unsaved edits are preserved."
 msgstr "Deze notitie is elders gewijzigd. Je niet-opgeslagen wijzigingen blijven bewaard."
 
-#: apps/carver-gtk/src/view/mod.rs:554
+#: apps/carver-gtk/src/view/mod.rs:570
 msgid "Close Note…"
 msgstr "Notitie sluiten…"
 
-#: apps/carver-gtk/src/view/mod.rs:556
+#: apps/carver-gtk/src/view/mod.rs:572
 msgid "Reload…"
 msgstr "Opnieuw laden…"
 
-#: apps/carver-gtk/src/view/mod.rs:565
+#: apps/carver-gtk/src/view/mod.rs:581
 msgid "Close deleted note?"
 msgstr "Verwijderde notitie sluiten?"
 
-#: apps/carver-gtk/src/view/mod.rs:567
+#: apps/carver-gtk/src/view/mod.rs:583
 msgid "Reload note?"
 msgstr "Notitie opnieuw laden?"
 
-#: apps/carver-gtk/src/view/mod.rs:570
+#: apps/carver-gtk/src/view/mod.rs:586
 msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
 msgstr "Sluiten gooit je lokale concept weg en opent de prullenbak, waar je de opgeslagen notitie kunt herstellen. Kies Annuleren om je concept eerst te bewaren of te exporteren."
 
-#: apps/carver-gtk/src/view/mod.rs:572
+#: apps/carver-gtk/src/view/mod.rs:588
 msgid "Reloading replaces your unsaved edits with the latest saved note."
 msgstr "Opnieuw laden vervangt je niet-opgeslagen wijzigingen door de laatst opgeslagen notitie."
 
-#: apps/carver-gtk/src/view/mod.rs:579
+#: apps/carver-gtk/src/view/mod.rs:595
 msgid "Discard Draft and Open Trash"
 msgstr "Concept weggooien en prullenbak openen"
 
-#: apps/carver-gtk/src/view/mod.rs:581
+#: apps/carver-gtk/src/view/mod.rs:597
 msgid "Discard Edits and Reload"
 msgstr "Wijzigingen weggooien en opnieuw laden"
 
-#: apps/carver-gtk/src/view/mod.rs:813
+#: apps/carver-gtk/src/view/mod.rs:829
 msgctxt "Trash section"
 msgid "Categories"
 msgstr "Categorieën"
 
-#: apps/carver-gtk/src/view/mod.rs:819
+#: apps/carver-gtk/src/view/mod.rs:835
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "Notities"
 
-#: apps/carver-gtk/src/view/mod.rs:869
+#: apps/carver-gtk/src/view/mod.rs:885
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "Kon notitie niet opslaan: {error}"
 
-#: apps/carver-gtk/src/view/mod.rs:872
+#: apps/carver-gtk/src/view/mod.rs:888
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
-#: apps/carver-gtk/src/view/mod.rs:888
+#: apps/carver-gtk/src/view/mod.rs:904
 msgid "Moved note"
 msgstr "Notitie verplaatst"
 
-#: apps/carver-gtk/src/view/mod.rs:889 apps/carver-gtk/src/view/mod.rs:904
+#: apps/carver-gtk/src/view/mod.rs:905 apps/carver-gtk/src/view/mod.rs:920
 msgid "Undo"
 msgstr "Ongedaan maken"
 
-#: apps/carver-gtk/src/view/mod.rs:903
+#: apps/carver-gtk/src/view/mod.rs:919
 msgid "Moved note to Trash"
 msgstr "Notitie naar prullenbak verplaatst"
 
-#: apps/carver-gtk/src/view/mod.rs:1034
+#: apps/carver-gtk/src/view/mod.rs:1050
 msgid "Loading more notes…"
 msgstr "Meer notities laden…"
 
-#: apps/carver-gtk/src/view/mod.rs:1036
+#: apps/carver-gtk/src/view/mod.rs:1052
 msgid "Retry loading notes"
 msgstr "Notities opnieuw laden"
 
-#: apps/carver-gtk/src/view/mod.rs:1038
+#: apps/carver-gtk/src/view/mod.rs:1054
 msgid "Load more notes"
 msgstr "Meer notities laden"
 
-#: apps/carver-gtk/src/view/mod.rs:1068 apps/carver-gtk/src/view/mod.rs:1079
+#: apps/carver-gtk/src/view/mod.rs:1084 apps/carver-gtk/src/view/mod.rs:1095
 msgid "Loading…"
 msgstr "Laden…"
 
-#: apps/carver-gtk/src/view/mod.rs:1070 apps/carver-gtk/src/view/mod.rs:1080
+#: apps/carver-gtk/src/view/mod.rs:1086 apps/carver-gtk/src/view/mod.rs:1096
 msgid "Could not load content"
 msgstr "Kon inhoud niet laden"
 
-#: apps/carver-gtk/src/view/mod.rs:1108
+#: apps/carver-gtk/src/view/mod.rs:1124
 #, rust-format
 msgid "{count} recoverable note"
 msgid_plural "{count} recoverable notes"
 msgstr[0] "{count} herstelbare notitie"
 msgstr[1] "{count} herstelbare notities"
 
-#: apps/carver-gtk/src/view/mod.rs:1145 apps/carver-gtk/src/view/mod.rs:1146
+#: apps/carver-gtk/src/view/mod.rs:1161 apps/carver-gtk/src/view/mod.rs:1162
 msgid "Restore"
 msgstr "Herstellen"

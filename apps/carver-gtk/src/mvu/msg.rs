@@ -148,6 +148,33 @@ pub enum BasesMsg {
     ConfigurationDismissed(RequestId),
     /// Request the next page for the visible Base.
     LoadMoreRows,
+    /// Commit one inline cell edit to a note's frontmatter.
+    CommitCellEdit {
+        /// Note whose property is edited.
+        note_id: NoteId,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// New typed value, or `None` to clear the property.
+        value: Option<serde_json::Value>,
+    },
+    /// Open the native document-properties dialog for one row without leaving the Base.
+    EditProperties {
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+    },
+    /// Persist a document-properties edit from the Base without leaving the Base.
+    ApplyProperties {
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+        /// Parsed or raw frontmatter edit produced by the dialog.
+        edit: FrontmatterEdit,
+    },
 }
 
 /// Messages that change the high-level visible surface.
@@ -691,6 +718,24 @@ pub enum LibraryReply {
         base_id: BaseId,
         /// Projected page or a displayable failure.
         result: Result<carver_sdk::Page<BaseRow>, UiError>,
+    },
+    /// One inline Base cell edit finished persisting.
+    BaseCellEdited {
+        /// Identity of the initiating edit.
+        request_id: RequestId,
+        /// Note whose property was edited.
+        note_id: NoteId,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// Persisted revision or a displayable failure.
+        result: Result<Revision, UiError>,
+    },
+    /// A Base row's note loaded so its document-properties dialog can open.
+    BasePropertiesLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Dialog snapshot or a displayable failure.
+        result: Result<super::EditorPropertiesRequest, UiError>,
     },
     /// A base creation completed.
     BaseCreated {

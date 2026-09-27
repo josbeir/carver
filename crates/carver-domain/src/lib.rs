@@ -28,7 +28,7 @@ pub use frontmatter::{
     FrontmatterDocument, FrontmatterError, FrontmatterField, FrontmatterFormat, FrontmatterValue,
     frontmatter_raw, frontmatter_source, frontmatter_source_with_format, is_reserved_key,
     parse_frontmatter_document, render_frontmatter_document, replace_frontmatter,
-    replace_frontmatter_raw,
+    replace_frontmatter_raw, set_property, set_title,
 };
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,

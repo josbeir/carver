@@ -9,7 +9,7 @@ use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
-use crate::ui::property::property_type_label;
+use crate::ui::property::{property_path, property_type_label};
 
 type PopulateFn = Rc<dyn Fn(&str)>;
 type PopulateSlot = Rc<RefCell<Option<PopulateFn>>>;
@@ -568,14 +568,6 @@ fn build_option(field: &BaseColumn, metadata: String) -> FieldOption {
         label,
         metadata,
     }
-}
-
-/// Builds a JSON Pointer path for a top-level configured property key.
-fn property_path(key: &str) -> PropertyPath {
-    PropertyPath(format!(
-        "/{}",
-        key.trim().replace('~', "~0").replace('/', "~1")
-    ))
 }
 
 fn update_accessibility_with_label(

@@ -283,6 +283,12 @@ pub enum FrontmatterError {
     /// The requested format could not serialize the fields.
     #[error("frontmatter could not be serialized: {0}")]
     Serialize(String),
+    /// The authored block could not be parsed into editable fields.
+    #[error("frontmatter is not editable as structured fields: {0}")]
+    Malformed(String),
+    /// The requested property path is not a valid JSON Pointer.
+    #[error("invalid property path: {0}")]
+    Path(String),
 }
 
 const RESERVED_KEYS: [&str; 1] = ["title"];
@@ -582,6 +588,158 @@ pub fn replace_frontmatter_raw(source: &str, format: FrontmatterFormat, content:
         }
         None if source.is_empty() => format!("{block}\n"),
         None => format!("{block}\n\n{}", source.trim_start_matches('\n')),
+    }
+}
+
+/// Sets or removes one property at a JSON Pointer path and re-renders the block.
+///
+/// The value is applied to the parsed field model and spliced with [`replace_frontmatter`], so
+/// untouched fields keep their authored spelling. Passing `None` removes the key; a nested object
+/// left empty by the removal is dropped too. A document without frontmatter gains a block in
+/// `format`.
+///
+/// # Errors
+///
+/// Returns [`FrontmatterError::Malformed`] when the authored block cannot be parsed into fields
+/// (including a complex or non-object block), [`FrontmatterError::Path`] when `pointer` is not a
+/// usable JSON Pointer or a parent segment is not an object, and [`FrontmatterError::Serialize`]
+/// when the re-rendered block cannot be serialized.
+pub fn set_property(
+    source: &str,
+    format: FrontmatterFormat,
+    pointer: &str,
+    value: Option<Value>,
+) -> Result<String, FrontmatterError> {
+    let mut document = match parse_frontmatter_document(source) {
+        Some(document) => {
+            if let Some(error) = &document.error {
+                return Err(FrontmatterError::Malformed(error.clone()));
+            }
+            document
+        }
+        None => FrontmatterDocument {
+            format,
+            fields: Vec::new(),
+            error: None,
+        },
+    };
+    let segments = pointer_segments(pointer)?;
+    let mut entries: Vec<(String, FrontmatterValue)> = document
+        .fields
+        .iter()
+        .map(|field| (field.key.clone(), field.value.clone()))
+        .collect();
+    set_entry_path(
+        &mut entries,
+        &segments,
+        value.map(|value| FrontmatterValue::from_json(&value)),
+    )?;
+    document.fields = entries
+        .into_iter()
+        .map(|(key, value)| FrontmatterField::new(key, value))
+        .collect();
+    replace_frontmatter(source, Some(&document))
+}
+
+/// Sets or clears the reserved `title` property, which overrides the derived heading title.
+///
+/// A blank title removes the key so the heading-derived title takes over again.
+///
+/// # Errors
+///
+/// Returns the same errors as [`set_property`].
+pub fn set_title(
+    source: &str,
+    format: FrontmatterFormat,
+    title: Option<&str>,
+) -> Result<String, FrontmatterError> {
+    let value = title
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(|title| Value::String(title.to_owned()));
+    set_property(source, format, "/title", value)
+}
+
+/// Splits and unescapes a JSON Pointer into its segments, rejecting an empty or over-escaped path.
+fn pointer_segments(pointer: &str) -> Result<Vec<String>, FrontmatterError> {
+    let raw = pointer
+        .strip_prefix('/')
+        .ok_or_else(|| FrontmatterError::Path(pointer.to_owned()))?;
+    if raw.is_empty() {
+        return Err(FrontmatterError::Path(pointer.to_owned()));
+    }
+    raw.split('/')
+        .map(|segment| {
+            if segment.is_empty() {
+                return Err(FrontmatterError::Path(pointer.to_owned()));
+            }
+            unescape_pointer_segment(segment)
+                .ok_or_else(|| FrontmatterError::Path(pointer.to_owned()))
+        })
+        .collect()
+}
+
+fn unescape_pointer_segment(segment: &str) -> Option<String> {
+    let mut output = String::with_capacity(segment.len());
+    let mut characters = segment.chars();
+    while let Some(character) = characters.next() {
+        if character != '~' {
+            output.push(character);
+            continue;
+        }
+        match characters.next()? {
+            '0' => output.push('~'),
+            '1' => output.push('/'),
+            _ => return None,
+        }
+    }
+    Some(output)
+}
+
+/// Applies a value (or removal) at `segments` within an ordered object entry list.
+fn set_entry_path(
+    entries: &mut Vec<(String, FrontmatterValue)>,
+    segments: &[String],
+    value: Option<FrontmatterValue>,
+) -> Result<(), FrontmatterError> {
+    let Some((key, rest)) = segments.split_first() else {
+        return Err(FrontmatterError::Path(
+            "property path names no key".to_owned(),
+        ));
+    };
+    if rest.is_empty() {
+        if let Some(value) = value {
+            match entries.iter_mut().find(|(name, _)| name == key) {
+                Some(entry) => entry.1 = value,
+                None => entries.push((key.clone(), value)),
+            }
+        } else {
+            entries.retain(|(name, _)| name != key);
+        }
+        return Ok(());
+    }
+    let position = entries.iter().position(|(name, _)| name == key);
+    if let Some(value) = value {
+        let position = position.unwrap_or_else(|| {
+            entries.push((key.clone(), FrontmatterValue::Object(Vec::new())));
+            entries.len() - 1
+        });
+        let FrontmatterValue::Object(nested) = &mut entries[position].1 else {
+            return Err(FrontmatterError::Path(format!("'{key}' is not an object")));
+        };
+        set_entry_path(nested, rest, Some(value))
+    } else {
+        let Some(position) = position else {
+            return Ok(());
+        };
+        let FrontmatterValue::Object(nested) = &mut entries[position].1 else {
+            return Ok(());
+        };
+        set_entry_path(nested, rest, None)?;
+        if nested.is_empty() {
+            entries.remove(position);
+        }
+        Ok(())
     }
 }
 

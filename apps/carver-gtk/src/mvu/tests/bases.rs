@@ -1,4 +1,5 @@
 use super::*;
+use crate::mvu::{EditorPropertiesRequest, PropertiesSave};
 use carver_sdk::{BaseSort, BaseSortDirection};
 
 #[test]
@@ -994,4 +995,241 @@ fn stale_base_update_should_leave_a_notice_without_reloading() {
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("base changed")
     );
+}
+
+fn base_route_model() -> (AppModel, BaseId) {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
+    (model, base_id)
+}
+
+#[test]
+fn committing_a_cell_edit_should_track_the_edit_and_save_the_configured_format() {
+    let (mut model, _) = base_route_model();
+    model.config.document_properties.format = carver_domain::FrontmatterFormat::Toml;
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::EditBaseCell {
+                request_id,
+                note_id: edited,
+                revision,
+                format,
+                path,
+                value,
+            },
+        ] => {
+            assert_eq!(*edited, note_id);
+            assert_eq!(*revision, Revision(4));
+            assert_eq!(*format, carver_domain::FrontmatterFormat::Toml);
+            assert_eq!(path, "/status");
+            assert_eq!(value, &Some(serde_json::json!("done")));
+            *request_id
+        }
+        _ => panic!("a cell edit should persist once"),
+    };
+    assert_eq!(model.bases.cell_edits.len(), 1);
+    assert_eq!(model.bases.cell_edits[0].request_id, request_id);
+}
+
+#[test]
+fn committing_a_cell_edit_without_a_base_should_be_ignored() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            revision: Revision(1),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert!(model.bases.cell_edits.is_empty());
+}
+
+#[test]
+fn a_saved_cell_edit_should_reload_the_visible_base() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            result: Ok(Revision(5)),
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
+}
+
+#[test]
+fn a_failed_cell_edit_should_keep_a_notice_without_reloading() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: None,
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            result: Err(UiError::new("conflict")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("conflict")
+    );
+}
+
+#[test]
+fn a_stale_cell_edit_reply_should_be_ignored() {
+    let (mut model, _) = base_route_model();
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id: RequestId(404),
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            result: Ok(Revision(5)),
+        }),
+    );
+    assert!(effects.is_empty());
+}
+
+#[test]
+fn editing_base_properties_should_open_the_dialog_without_leaving_the_base() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::EditProperties {
+            note_id,
+            revision: Revision(3),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::LoadBaseProperties {
+                request_id,
+                note_id: loaded,
+                revision,
+                ..
+            },
+        ] => {
+            assert_eq!(*loaded, note_id);
+            assert_eq!(*revision, Revision(3));
+            *request_id
+        }
+        _ => panic!("editing properties should load the note"),
+    };
+    assert_eq!(model.route, Route::Base);
+
+    let request = EditorPropertiesRequest {
+        save: PropertiesSave::Base {
+            note_id,
+            revision: Revision(3),
+        },
+        note_id,
+        document: None,
+        raw: None,
+        heading_title: None,
+        defaults: Vec::new(),
+        default_format: carver_domain::FrontmatterFormat::Yaml,
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id,
+            result: Ok(request),
+        }),
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowDocumentProperties { .. }]
+    ));
+    assert_eq!(model.route, Route::Base);
+    assert!(model.bases.base_properties_request.is_none());
+}
+
+#[test]
+fn applying_base_properties_should_save_and_reload_the_base() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::SaveBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("applying properties should save once"),
+    };
+    assert_eq!(model.bases.cell_edits.len(), 1);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            result: Ok(Revision(3)),
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
 }

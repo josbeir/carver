@@ -298,6 +298,48 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             Vec::new()
         }
         BasesMsg::LoadMoreRows => load_more_base_rows(model).into_iter().collect(),
+        BasesMsg::CommitCellEdit {
+            note_id,
+            path,
+            revision,
+            value,
+        } => commit_base_cell_edit(model, note_id, path, revision, value),
+        BasesMsg::EditProperties { note_id, revision } => {
+            if model.route != super::Route::Base || model.bases.base_properties_request.is_some() {
+                return Vec::new();
+            }
+            let request_id = model.next_request_id();
+            model.bases.base_properties_request = Some(request_id);
+            vec![Effect::LoadBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                defaults: model.config.document_properties.entries.clone(),
+                format: model.config.document_properties.format,
+            }]
+        }
+        BasesMsg::ApplyProperties {
+            note_id,
+            revision,
+            edit,
+        } => {
+            if model.route != super::Route::Base || model.bases.selected.is_none() {
+                return Vec::new();
+            }
+            let request_id = model.next_request_id();
+            model.bases.cell_edits.push(super::BaseCellEdit {
+                note_id,
+                path: String::new(),
+                revision,
+                request_id,
+            });
+            vec![Effect::SaveBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                edit,
+            }]
+        }
         BasesMsg::Delete(base_id) => {
             if model.bases.deleting.insert(base_id) {
                 vec![Effect::DeleteBase { base_id }]
@@ -1165,7 +1207,9 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
     };
     vec![Effect::ShowDocumentProperties {
         request: super::EditorPropertiesRequest {
-            session: document.session,
+            save: super::PropertiesSave::Editor {
+                session: document.session,
+            },
             note_id: document.note_id,
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
@@ -1672,6 +1716,22 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             base_id,
             result,
         } => update_base_rows_appended(model, request_id, base_id, result),
+        LibraryReply::BaseCellEdited {
+            request_id, result, ..
+        } => update_base_cell_edited(model, request_id, result),
+        LibraryReply::BasePropertiesLoaded { request_id, result } => {
+            if model.bases.base_properties_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.bases.base_properties_request = None;
+            match result {
+                Ok(request) => vec![Effect::ShowDocumentProperties { request }],
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
         LibraryReply::BaseUpdated { result } => update_base_updated(model, result),
         LibraryReply::BaseConfigurationLoaded {
@@ -2949,6 +3009,63 @@ fn load_more_base_rows(model: &mut AppModel) -> Option<Effect> {
         query: model.bases.search_query.clone(),
         offset: model.bases.rows_next_offset,
     })
+}
+
+/// Admits one inline Base cell edit and returns the effect that persists it.
+fn commit_base_cell_edit(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    path: String,
+    revision: carver_sdk::Revision,
+    value: Option<serde_json::Value>,
+) -> Vec<Effect> {
+    if model.route != super::Route::Base || model.bases.selected.is_none() {
+        return Vec::new();
+    }
+    let request_id = model.next_request_id();
+    model.bases.cell_edits.push(super::BaseCellEdit {
+        note_id,
+        path: path.clone(),
+        revision,
+        request_id,
+    });
+    vec![Effect::EditBaseCell {
+        request_id,
+        note_id,
+        revision,
+        format: model.config.document_properties.format,
+        path,
+        value,
+    }]
+}
+
+/// Retires a finished inline cell edit and reloads the grid so moved rows re-project.
+fn update_base_cell_edited(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    result: Result<carver_sdk::Revision, UiError>,
+) -> Vec<Effect> {
+    let Some(position) = model
+        .bases
+        .cell_edits
+        .iter()
+        .position(|edit| edit.request_id == request_id)
+    else {
+        return Vec::new();
+    };
+    model.bases.cell_edits.remove(position);
+    match result {
+        Ok(_) => match (model.route, model.bases.selected) {
+            (super::Route::Base, Some(base_id)) => {
+                reload_base_rows(model, base_id).into_iter().collect()
+            }
+            _ => Vec::new(),
+        },
+        Err(error) => {
+            model.notice = Some(error);
+            Vec::new()
+        }
+    }
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {

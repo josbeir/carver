@@ -142,6 +142,19 @@ pub(crate) enum PendingBaseConfiguration {
     Existing(carver_sdk::BaseDefinition),
 }
 
+/// One in-flight inline edit of a Base cell.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BaseCellEdit {
+    /// Note whose frontmatter is being edited.
+    pub note_id: NoteId,
+    /// JSON Pointer path of the edited property.
+    pub path: String,
+    /// Row revision captured when the edit began.
+    pub revision: Revision,
+    /// Identity used to ignore a stale completion.
+    pub request_id: RequestId,
+}
+
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
@@ -191,6 +204,10 @@ pub struct BasesModel {
     pub rows_append_error: Option<UiError>,
     /// Typed frontmatter properties currently present in active notes.
     pub property_descriptors: Resource<Vec<carver_sdk::PropertyDescriptor>>,
+    /// Inline cell edits currently being persisted.
+    pub cell_edits: Vec<BaseCellEdit>,
+    /// The Base row whose document-properties dialog is being prepared.
+    pub base_properties_request: Option<RequestId>,
 }
 
 /// The single navigation destination highlighted in the sidebar.
@@ -505,11 +522,28 @@ pub struct EditorPdfExportRequest {
     pub print_dialog: bool,
 }
 
+/// Where a document-properties dialog writes its edit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PropertiesSave {
+    /// The open editor session splices the edit into canonical source.
+    Editor {
+        /// Editor lifetime that owns the snapshot.
+        session: EditorSessionId,
+    },
+    /// A Base row loads the note, splices the edit, and saves under its revision.
+    Base {
+        /// Note being edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+    },
+}
+
 /// Immutable snapshot used to open the native document-properties dialog.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorPropertiesRequest {
-    /// Editor lifetime that owns the snapshot.
-    pub session: EditorSessionId,
+    /// Target that persists the dialog's edit.
+    pub save: PropertiesSave,
     /// Persisted note being edited.
     pub note_id: NoteId,
     /// Parsed frontmatter, or `None` when the note has no block.
