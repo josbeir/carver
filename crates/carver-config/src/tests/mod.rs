@@ -99,6 +99,51 @@ fn saved_config_round_trips() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn save_if_changed_should_write_a_missing_or_outdated_file()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    let config = Config::default();
+
+    save_if_changed(&path, &config)?;
+    assert_eq!(load(&path)?, config);
+
+    fs::write(&path, "[editor]\ndefault_mode = 'source'\n")?;
+    let migrated = load(&path)?;
+    save_if_changed(&path, &migrated)?;
+
+    let source = fs::read_to_string(&path)?;
+    assert!(source.contains("last_mode = \"source\""));
+    assert!(!source.contains("default_mode"));
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn save_if_changed_should_skip_a_current_file() -> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    let config = Config::default();
+    save_if_changed(&path, &config)?;
+
+    // A read-only directory blocks the atomic temp-write that the save path needs, so a
+    // successful call proves an unchanged document was not rewritten.
+    let mut permissions = fs::metadata(directory.path())?.permissions();
+    permissions.set_mode(0o555);
+    fs::set_permissions(directory.path(), permissions)?;
+    let result = save_if_changed(&path, &config);
+    let mut restore = fs::metadata(directory.path())?.permissions();
+    restore.set_mode(0o755);
+    fs::set_permissions(directory.path(), restore)?;
+
+    result?;
+    assert_eq!(load(&path)?, config);
+    Ok(())
+}
+
+#[test]
 fn legacy_syntax_highlighting_boolean_migrates_to_a_syntax_style()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;

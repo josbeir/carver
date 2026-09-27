@@ -7,7 +7,7 @@ use std::{
 };
 
 use adw::prelude::*;
-use carver_config::{AppPaths, Config, load, save};
+use carver_config::{AppPaths, Config, load, save_if_changed};
 use carver_sdk::{InstalledLibraryClient, open_installed_library};
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -52,7 +52,7 @@ fn build_application(application: &adw::Application) {
     let paths = AppPaths::discover();
     let config_path = paths.config_file();
     let config = load(&config_path).unwrap_or_default();
-    let _ = save(&config_path, &config);
+    let _ = save_if_changed(&config_path, &config);
     let source_syntax_dir = match install_syntax_assets(&paths.data_dir) {
         Ok(directory) => directory,
         Err(error) => {
