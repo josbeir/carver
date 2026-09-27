@@ -1,6 +1,8 @@
 use super::*;
-use crate::mvu::{EditorMsg, EditorSessionId};
-use crate::ui::tests::support::{TestResult, run_main_context_until, test_state};
+use crate::mvu::{EditorMsg, EditorSessionId, FrontmatterEdit};
+use crate::ui::tests::support::{
+    TestResult, run_main_context_until, run_main_context_until_for, test_state,
+};
 
 use std::io::Read;
 
@@ -221,6 +223,88 @@ pub(crate) fn export_runtime_should_cover_completion_cancellation_and_failures()
     failed_export_write_should_report_error_and_preserve_the_note()?;
     stale_dialog_response_should_leave_the_newer_export_usable()?;
     missing_prepared_export_should_report_a_recoverable_error()?;
+    Ok(())
+}
+
+/// Drives the runtime's editor and Base error mapping with real storage failures.
+pub(crate) fn runtime_error_paths_should_surface_failures() -> TestResult {
+    editor_save_with_a_failed_move_should_report_and_keep_content()?;
+    missing_note_base_properties_should_report_a_notice()?;
+    Ok(())
+}
+
+/// A move that fails still saves the content and surfaces the move as a notice.
+fn editor_save_with_a_failed_move_should_report_and_keep_content() -> TestResult {
+    let fixture = fixture("---\nstatus: ready\n---\n\n# Original\n")?;
+    let session = fixture
+        .runtime
+        .model()
+        .editor
+        .as_ref()
+        .map(|document| document.session)
+        .ok_or("editor session")?;
+    let category = fixture.note.category_id;
+    let parsed =
+        carver_domain::parse_frontmatter_document(&fixture.note.source).ok_or("frontmatter")?;
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(parsed),
+            category: Some(carver_sdk::CategoryId::new()),
+        }));
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || fixture.runtime.model().notice.is_some()
+    ));
+
+    // The content save was authoritative; only the move to the missing category failed.
+    let note = fixture
+        .runtime
+        .inner
+        .client
+        .note(fixture.note.id)?
+        .ok_or("note")?;
+    assert_eq!(note.category_id, category);
+    assert!(note.source.contains("# Original"));
+    Ok(())
+}
+
+/// Loading Base properties for a note that no longer exists reports a notice.
+fn missing_note_base_properties_should_report_a_notice() -> TestResult {
+    let fixture = fixture("# Missing\n")?;
+    let request_id = RequestId(7);
+    fixture
+        .runtime
+        .inner
+        .model
+        .borrow_mut()
+        .bases
+        .base_properties_request = Some(request_id);
+    fixture.runtime.load_base_properties(
+        request_id,
+        carver_sdk::NoteId::new(),
+        carver_sdk::Revision(0),
+        Vec::new(),
+        carver_domain::FrontmatterFormat::Yaml,
+        Vec::new(),
+    );
+    assert!(run_main_context_until(|| fixture
+        .runtime
+        .model()
+        .notice
+        .as_ref()
+        .is_some_and(|error| error
+            .message
+            .contains("no longer available"))));
+    assert!(
+        fixture
+            .runtime
+            .model()
+            .bases
+            .base_properties_request
+            .is_none()
+    );
     Ok(())
 }
 

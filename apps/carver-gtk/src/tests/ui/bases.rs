@@ -1057,6 +1057,10 @@ pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
 }
 
 /// Builds each grid editor and confirms it reads the typed value.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scenario builds and reads every cell editor kind"
+)]
 pub(super) fn base_cell_editors_should_commit_typed_values() -> TestResult {
     use crate::ui::bases::editing::{CellEditor, CellEditorWidget, build_boolean_cell, seed_value};
     use carver_domain::FrontmatterValue;
@@ -1125,6 +1129,36 @@ pub(super) fn base_cell_editors_should_commit_typed_values() -> TestResult {
         .map_err(|_| "multi list box")?;
     assert_eq!(container.observe_children().n_items(), 2);
     assert_eq!(multi.value(), Ok(Some(serde_json::json!(["draft"]))));
+
+    // A list without configured options is edited as comma-separated text.
+    let list_text = CellEditorWidget::build(
+        &CellEditor::ListText,
+        &FrontmatterValue::List(vec![
+            FrontmatterValue::Text("a".to_owned()),
+            FrontmatterValue::Text("b".to_owned()),
+        ]),
+        "base-cell-editor",
+    )
+    .ok_or("list text editor")?;
+    let list_entry = list_text
+        .widget()
+        .clone()
+        .downcast::<gtk::Entry>()
+        .map_err(|_| "list text entry")?;
+    assert_eq!(list_entry.text(), "a, b");
+    list_entry.set_text("x, y");
+    assert_eq!(list_text.value(), Ok(Some(serde_json::json!(["x", "y"]))));
+    assert_eq!(
+        seed_value(
+            &CellEditor::ListText,
+            &FrontmatterValue::Text("solo".to_owned())
+        ),
+        Some(serde_json::json!(["solo"]))
+    );
+    assert_eq!(
+        seed_value(&CellEditor::ListText, &FrontmatterValue::Null),
+        None
+    );
 
     // A boolean is always visible and reflects its seed.
     let switch = build_boolean_cell(true, "cell-boolean");
@@ -1602,6 +1636,353 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
         .map_err(|_| "picker button")?;
     picker.popup();
     assert!(run_main_context_until(|| picker.is_visible()));
+    window.close();
+    Ok(())
+}
+
+/// Opens the popover editor for a property cell by synthesizing its click.
+fn open_property_cell_editor(base: &gtk::Widget, cell: &str) -> TestResult {
+    let display =
+        find_widget(base, &format!("base-cell-display:property:{cell}")).ok_or("cell display")?;
+    assert!(
+        run_main_context_until(|| display.is_mapped()),
+        "cell {cell} should be mapped"
+    );
+    let gesture = display
+        .observe_controllers()
+        .iter::<glib::Object>()
+        .filter_map(Result::ok)
+        .find_map(|object| object.downcast::<gtk::GestureClick>().ok())
+        .ok_or("cell gesture")?;
+    gesture.emit_by_name::<()>("pressed", &[&1i32, &0.0f64, &0.0f64]);
+    assert!(run_main_context_until(|| {
+        find_widget(base, "base-cell-editor").is_some()
+    }));
+    Ok(())
+}
+
+/// A Base over one real note and one property column, kept alive for interaction tests.
+struct GridCellFixture {
+    _temp: tempfile::TempDir,
+    client: crate::ui::tests::support::TestLibraryClient,
+    base_widget: gtk::Widget,
+    window: adw::Window,
+    note_id: carver_sdk::NoteId,
+    _runtime: AppRuntime<carver_storage_sqlite::SqliteLibrary>,
+}
+
+/// Builds a Base with a single editable property column over a real note.
+fn grid_cell_fixture(
+    source: &str,
+    column: &str,
+    properties: serde_json::Value,
+    descriptor: carver_domain::PropertyDescriptor,
+) -> Result<GridCellFixture, Box<dyn std::error::Error>> {
+    let (temp, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let note = client.save_note(created.id, created.revision, source)?;
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Tasks".to_owned(),
+        columns: vec![carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath(
+            column.to_owned(),
+        ))],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let note_id = note.id;
+    let row = carver_sdk::BaseRow {
+        note_id,
+        revision: note.revision,
+        name: "Task".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties,
+    };
+    let descriptors = [descriptor];
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &descriptors,
+        &[],
+        &dispatcher,
+    );
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(definition.id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+    model.bases.rows.state = LoadState::Ready(vec![row.clone()]);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+    Ok(GridCellFixture {
+        _temp: temp,
+        client,
+        base_widget,
+        window,
+        note_id,
+        _runtime: runtime,
+    })
+}
+
+/// Invalid input keeps the editor open, and Escape cancels without committing.
+pub(super) fn base_cell_editor_should_reject_invalid_input_and_escape() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\npoints: 3\n---\n\n# Task\n",
+        "/points",
+        serde_json::json!({"points": 3}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/points".to_owned()),
+            kind: carver_domain::PropertyKind::Number,
+            property_type: carver_domain::PropertyType::Number,
+            example: Some("3".to_owned()),
+        },
+    )?;
+
+    open_property_cell_editor(&fixture.base_widget, "/points")?;
+    widget_as::<gtk::Entry>(&fixture.base_widget, "base-cell-editor")
+        .ok_or("points entry")?
+        .set_text("not a number");
+    widget_as::<gtk::Button>(&fixture.base_widget, "base-cell-editor-done")
+        .ok_or("done")?
+        .emit_clicked();
+    assert!(
+        find_widget(&fixture.base_widget, "base-cell-editor").is_some(),
+        "invalid input should not dismiss the editor"
+    );
+
+    let popover = widget_as::<gtk::Popover>(&fixture.base_widget, "base-cell-editor-popover")
+        .ok_or("popover")?;
+    let key = popover
+        .observe_controllers()
+        .iter::<glib::Object>()
+        .filter_map(Result::ok)
+        .find_map(|controller| controller.downcast::<gtk::EventControllerKey>().ok())
+        .ok_or("key controller")?;
+    assert!(key.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Escape,
+            &0_u32,
+            &gtk::gdk::ModifierType::empty(),
+        ],
+    ));
+    assert!(run_main_context_until(|| {
+        find_widget(&fixture.base_widget, "base-cell-editor").is_none()
+    }));
+    assert!(
+        fixture
+            .client
+            .note(fixture.note_id)?
+            .is_some_and(|note| note.source.contains("points: 3"))
+    );
+
+    // Cancel dismisses a changed value without persisting it.
+    open_property_cell_editor(&fixture.base_widget, "/points")?;
+    widget_as::<gtk::Entry>(&fixture.base_widget, "base-cell-editor")
+        .ok_or("points entry")?
+        .set_text("5");
+    widget_as::<gtk::Button>(&fixture.base_widget, "base-cell-editor-cancel")
+        .ok_or("cancel")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| {
+        find_widget(&fixture.base_widget, "base-cell-editor").is_none()
+    }));
+    assert!(
+        fixture
+            .client
+            .note(fixture.note_id)?
+            .is_some_and(|note| note.source.contains("points: 3"))
+    );
+
+    fixture.window.close();
+    Ok(())
+}
+
+/// The editor's Clear action removes the property key.
+pub(super) fn base_cell_editor_should_clear_a_value() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\nstatus: ready\n---\n\n# Task\n",
+        "/status",
+        serde_json::json!({"status": "ready"}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/status".to_owned()),
+            kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
+            example: Some("ready".to_owned()),
+        },
+    )?;
+
+    open_property_cell_editor(&fixture.base_widget, "/status")?;
+    widget_as::<gtk::Button>(&fixture.base_widget, "base-cell-editor-clear")
+        .ok_or("clear")?
+        .emit_clicked();
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || fixture
+            .client
+            .note(fixture.note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| !note.source.contains("status:"))
+    ));
+
+    fixture.window.close();
+    Ok(())
+}
+
+/// Clicking away from a changed cell commits its value.
+pub(super) fn base_cell_editor_should_commit_on_click_away() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\nstatus: ready\n---\n\n# Task\n",
+        "/status",
+        serde_json::json!({"status": "ready"}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/status".to_owned()),
+            kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
+            example: Some("ready".to_owned()),
+        },
+    )?;
+
+    open_property_cell_editor(&fixture.base_widget, "/status")?;
+    widget_as::<gtk::Entry>(&fixture.base_widget, "base-cell-editor")
+        .ok_or("status entry")?
+        .set_text("ready2");
+    widget_as::<gtk::Popover>(&fixture.base_widget, "base-cell-editor-popover")
+        .ok_or("popover")?
+        .popdown();
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || fixture
+            .client
+            .note(fixture.note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.source.contains("ready2"))
+    ));
+
+    fixture.window.close();
+    Ok(())
+}
+
+/// Choosing a day and closing the grid date picker commits the chosen value.
+pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
+    let (_temp, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let note = client.save_note(
+        created.id,
+        created.revision,
+        "---\ndue: 2026-09-01\n---\n\n# Task\n",
+    )?;
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Tasks".to_owned(),
+        columns: vec![carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath(
+            "/due".to_owned(),
+        ))],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let note_id = note.id;
+    let row = carver_sdk::BaseRow {
+        note_id,
+        revision: note.revision,
+        name: "Task".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({"due": "2026-09-01"}),
+    };
+    let descriptors = [carver_domain::PropertyDescriptor {
+        path: carver_domain::PropertyPath("/due".to_owned()),
+        kind: carver_domain::PropertyKind::Text,
+        property_type: carver_domain::PropertyType::Date,
+        example: Some("2026-09-01".to_owned()),
+    }];
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &descriptors,
+        &[],
+        &dispatcher,
+    );
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(definition.id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+    model.bases.rows.state = LoadState::Ready(vec![row.clone()]);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+
+    let display =
+        find_widget(&base_widget, "base-cell-display:property:/due").ok_or("date cell")?;
+    assert!(run_main_context_until(|| display.is_mapped()));
+    let picker = widget_as::<gtk::MenuButton>(&base_widget, "cell-date-picker").ok_or("picker")?;
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
+    let calendar =
+        widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar").ok_or("calendar")?;
+    calendar.set_day(15);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Popover>(&base_widget, "cell-date-popover")
+        .ok_or("popover")?
+        .popdown();
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || client
+            .note(note_id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.source.contains("2026-09-15"))
+    ));
+
     window.close();
     Ok(())
 }

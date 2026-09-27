@@ -34,3 +34,5 @@ pub(crate) mod tests;
 
 #[cfg(test)]
 pub(crate) use runtime::tests::export_runtime_should_cover_completion_cancellation_and_failures;
+#[cfg(test)]
+pub(crate) use runtime::tests::runtime_error_paths_should_surface_failures;

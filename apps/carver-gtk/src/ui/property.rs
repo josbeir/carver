@@ -82,15 +82,20 @@ pub(crate) struct TimeSpinner {
 }
 
 impl TimeSpinner {
-    /// Builds a spinner seeded at midnight, with controls named from `name`.
+    /// Builds a spinner in the system's clock format, with controls named from `name`.
+    #[must_use]
+    pub(crate) fn new(name: &str) -> Self {
+        Self::with_twelve_hour(name, uses_twelve_hour_clock())
+    }
+
+    /// Builds a spinner with an explicit clock format, seeding tests and callers that know it.
     // CONTEXT: The digit columns, chevron controls, AM/PM toggle, and their state live together.
     #[expect(
         clippy::too_many_lines,
         reason = "the spinner builds its columns and wiring in one place"
     )]
     #[must_use]
-    pub(crate) fn new(name: &str) -> Self {
-        let twelve_hour = uses_twelve_hour_clock();
+    pub(crate) fn with_twelve_hour(name: &str, twelve_hour: bool) -> Self {
         let container = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         container.set_widget_name(&format!("{name}-time"));
         container.set_halign(gtk::Align::Center);
@@ -128,15 +133,7 @@ impl TimeSpinner {
             let pm_label = pm_label.clone();
             Rc::new(move || {
                 let value = hour.get();
-                let display_hour = if twelve_hour {
-                    match value % 12 {
-                        0 => 12,
-                        other => other,
-                    }
-                } else {
-                    value
-                };
-                hour_label.set_text(&format!("{display_hour:02}"));
+                hour_label.set_text(&format!("{:02}", display_hour(value, twelve_hour)));
                 minute_label.set_text(&format!("{:02}", minute.get()));
                 if let Some(meridiem) = &meridiem {
                     meridiem.set_label(if value < 12 { &am_label } else { &pm_label });
@@ -237,8 +234,8 @@ impl TimeSpinner {
     }
 
     /// Returns the spinner row for the picker popover.
-    pub(crate) fn widget(&self) -> &gtk::Box {
-        &self.container
+    pub(crate) fn widget(&self) -> &gtk::Widget {
+        self.container.upcast_ref::<gtk::Widget>()
     }
 
     /// Registers a callback invoked after any time change.
@@ -627,4 +624,41 @@ pub(crate) fn display_date(iso: &str, date_only: bool) -> String {
                 .ok()
         })
         .map_or_else(|| iso.to_owned(), |formatted| formatted.to_string())
+}
+
+/// Maps a 24-hour value to the hour a 12-hour clock shows; other clocks pass it through.
+fn display_hour(hour: u8, twelve_hour: bool) -> u8 {
+    if twelve_hour {
+        match hour % 12 {
+            0 => 12,
+            other => other,
+        }
+    } else {
+        hour
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_hour_should_map_twelve_hour_values_and_pass_through_others() {
+        assert_eq!(display_hour(0, true), 12);
+        assert_eq!(display_hour(9, true), 9);
+        assert_eq!(display_hour(12, true), 12);
+        assert_eq!(display_hour(13, true), 1);
+        assert_eq!(display_hour(23, true), 11);
+        assert_eq!(display_hour(0, false), 0);
+        assert_eq!(display_hour(17, false), 17);
+    }
+
+    #[test]
+    fn locale_helpers_should_resolve_a_clock_and_meridiem_labels() {
+        // These read the process locale; the test asserts they resolve without panicking.
+        let _ = uses_twelve_hour_clock();
+        let (am, pm) = meridiem_labels();
+        assert!(!am.is_empty());
+        assert!(!pm.is_empty());
+    }
 }

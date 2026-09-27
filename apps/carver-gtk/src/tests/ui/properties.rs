@@ -1275,3 +1275,68 @@ pub(super) fn edited_title_should_lead_the_block_on_reopen() -> TestResult {
     fixture.window.close();
     Ok(())
 }
+
+/// A 12-hour spinner shows a meridiem toggle and projects its hours to 1–12.
+pub(super) fn time_spinner_should_follow_a_twelve_hour_clock() -> TestResult {
+    let spinner = crate::ui::property::TimeSpinner::with_twelve_hour("clock", true);
+    let window = adw::Window::new();
+    window.set_content(Some(spinner.widget()));
+    window.present();
+    assert!(run_main_context_until(|| spinner.widget().is_mapped()));
+
+    let hour = widget_as::<gtk::Label>(spinner.widget(), "clock-hour-label").ok_or("hour label")?;
+    let minute =
+        widget_as::<gtk::Label>(spinner.widget(), "clock-minute-label").ok_or("minute label")?;
+    let meridiem =
+        widget_as::<gtk::Button>(spinner.widget(), "clock-meridiem").ok_or("meridiem button")?;
+
+    // Midnight reads as 12 with the locale's own AM label.
+    spinner.set_time(0, 5);
+    assert_eq!(hour.text(), "12");
+    assert_eq!(minute.text(), "05");
+    let am = meridiem
+        .label()
+        .map(|label| label.to_string())
+        .ok_or("am label")?;
+    assert!(
+        !am.is_empty(),
+        "the meridiem label should come from the locale"
+    );
+
+    // Afternoon reads as 1 with the opposite label.
+    spinner.set_time(13, 30);
+    assert_eq!(hour.text(), "01");
+    assert_eq!(minute.text(), "30");
+    let pm = meridiem
+        .label()
+        .map(|label| label.to_string())
+        .ok_or("pm label")?;
+    assert_ne!(am, pm, "a 12-hour clock must distinguish AM from PM");
+
+    // Toggling flips the half of the day without changing the displayed hour.
+    meridiem.emit_clicked();
+    assert_eq!(hour.text(), "01");
+    assert_eq!(
+        meridiem.label().map(|label| label.to_string()).as_deref(),
+        Some(am.as_str())
+    );
+    assert_eq!(spinner.time(), (1, 30));
+
+    // Both chevrons wrap through the 12-hour projection.
+    spinner.set_time(11, 59);
+    widget_as::<gtk::Button>(spinner.widget(), "clock-hour-up")
+        .ok_or("hour up")?
+        .emit_clicked();
+    widget_as::<gtk::Button>(spinner.widget(), "clock-minute-up")
+        .ok_or("minute up")?
+        .emit_clicked();
+    assert_eq!(hour.text(), "12");
+    assert_eq!(minute.text(), "00");
+    widget_as::<gtk::Button>(spinner.widget(), "clock-hour-down")
+        .ok_or("hour down")?
+        .emit_clicked();
+    assert_eq!(hour.text(), "11");
+
+    window.close();
+    Ok(())
+}

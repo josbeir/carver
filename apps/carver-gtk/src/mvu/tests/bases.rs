@@ -1240,6 +1240,50 @@ fn editing_base_properties_should_open_the_dialog_without_leaving_the_base() {
 }
 
 #[test]
+fn a_stale_or_failed_base_properties_load_should_be_handled() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::EditProperties {
+            note_id,
+            revision: Revision(3),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::LoadBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("editing properties should load the note"),
+    };
+
+    // A reply for another request is stale and leaves the pending load untouched.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id: RequestId(request_id.0 + 1),
+            result: Err(UiError::new("stale")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(model.bases.base_properties_request, Some(request_id));
+    assert_eq!(model.notice, None);
+
+    // The matching failure reports a notice and clears the pending load.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id,
+            result: Err(UiError::new("load failed")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(model.bases.base_properties_request, None);
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("load failed")
+    );
+}
+
+#[test]
 fn applying_base_properties_should_save_and_reload_the_base() {
     let (mut model, base_id) = base_route_model();
     let note_id = NoteId::new();

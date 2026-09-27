@@ -233,3 +233,61 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.editor, None);
 }
+
+#[test]
+fn a_superseded_save_error_should_keep_the_move_and_restart_the_save() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let source = "---\nstatus: ready\n---\n\nInitial";
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: source.to_owned(),
+        }),
+    );
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor session");
+    };
+    let category = carver_sdk::CategoryId::new();
+    let Some(parsed) = carver_domain::parse_frontmatter_document(source) else {
+        panic!("frontmatter");
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(parsed),
+            category: Some(category),
+        }),
+    );
+
+    // Start the save that carries the move, then type before it finishes.
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::RetrySave));
+    let request = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("the retry should start one save"),
+    };
+    assert_eq!(request.move_to, Some(category));
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Typed more".to_owned())),
+    );
+
+    // The error is stale for the newer source, so the save restarts with the move preserved.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Err(UiError::new("write failed")),
+            move_error: None,
+        }),
+    );
+    let restarted = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("a superseded failure should restart the save"),
+    };
+    assert_eq!(restarted.move_to, Some(category));
+    assert_eq!(restarted.source, "Typed more");
+}
