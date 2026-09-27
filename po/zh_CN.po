@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 12:49+0200\n"
+"POT-Creation-Date: 2026-09-27 14:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -140,8 +140,8 @@ msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 #: apps/carver-gtk/src/ui/editor/mod.rs:1657
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
-#: apps/carver-gtk/src/ui/formatting.rs:96
-#: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:107
+#: apps/carver-gtk/src/ui/formatting.rs:450 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr "取消"
@@ -376,7 +376,7 @@ msgstr "自定义字段"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
-#: apps/carver-gtk/src/ui/formatting.rs:342
+#: apps/carver-gtk/src/ui/formatting.rs:440
 msgid "Text"
 msgstr "文本"
 
@@ -1106,7 +1106,7 @@ msgid "Add files…"
 msgstr "添加文件…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:47
-#: apps/carver-gtk/src/ui/formatting.rs:167
+#: apps/carver-gtk/src/ui/formatting.rs:178
 msgid "Add files"
 msgstr "添加文件"
 
@@ -1441,55 +1441,55 @@ msgstr "任务列表"
 msgid "Insert link"
 msgstr "插入链接"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:467
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:473
 msgid "Carve AST context"
 msgstr "Carve AST 上下文"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:479
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:485
 msgid "More formatting"
 msgstr "更多格式"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:626
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:633
 msgid "Text style"
 msgstr "文本样式"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:631
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:638
 msgid "Normal text"
 msgstr "正文"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:632
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:639
 msgid "Heading 1"
 msgstr "标题 1"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:633
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:640
 msgid "Heading 2"
 msgstr "标题 2"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:634
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:641
 msgid "Heading 3"
 msgstr "标题 3"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:635
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:642
 msgid "Heading 4"
 msgstr "标题 4"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:636
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:643
 msgid "Heading 5"
 msgstr "标题 5"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:637
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:644
 msgid "Heading 6"
 msgstr "标题 6"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:671
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:678
 msgid "Insert or resize image"
 msgstr "插入或调整图片大小"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:674
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:681
 msgid "Insert image…"
 msgstr "插入图片…"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:682
+#: apps/carver-gtk/src/ui/editor/toolbar.rs:689
 msgid "Original size"
 msgstr "原始大小"
 
@@ -1503,7 +1503,7 @@ msgid "Could not read pasted image"
 msgstr "无法读取粘贴的图片"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:335
+#: apps/carver-gtk/src/ui/formatting.rs:433
 msgid "Link text"
 msgstr "链接文本"
 
@@ -1513,59 +1513,60 @@ msgid "Text"
 msgstr "文本"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:344
+#: apps/carver-gtk/src/ui/formatting.rs:442
 msgid "Address"
 msgstr "地址"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:347
+#: apps/carver-gtk/src/ui/formatting.rs:445
 msgid "Insert Link"
 msgstr "插入链接"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:533
-#: apps/carver-gtk/src/ui/formatting.rs:97
-#: apps/carver-gtk/src/ui/formatting.rs:353
+#: apps/carver-gtk/src/ui/formatting.rs:108
+#: apps/carver-gtk/src/ui/formatting.rs:451
 msgid "Insert"
 msgstr "插入"
 
-#: apps/carver-gtk/src/ui/formatting.rs:38
+#: apps/carver-gtk/src/ui/formatting.rs:49
 msgid "Insert Image"
 msgstr "插入图片"
 
-#: apps/carver-gtk/src/ui/formatting.rs:86
+#: apps/carver-gtk/src/ui/formatting.rs:97
 msgid "Description (optional)"
 msgstr "描述（可选）"
 
-#: apps/carver-gtk/src/ui/formatting.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:99
 msgid "Image description"
 msgstr "图片描述"
 
-#: apps/carver-gtk/src/ui/formatting.rs:90
+#: apps/carver-gtk/src/ui/formatting.rs:101
 msgid "Used as alternative text when the image cannot be displayed."
 msgstr "在图片无法显示时用作替代文本。"
 
-#: apps/carver-gtk/src/ui/formatting.rs:109
+#: apps/carver-gtk/src/ui/formatting.rs:120
 msgid "Unsupported image format"
 msgstr "不支持的图片格式"
 
-#: apps/carver-gtk/src/ui/formatting.rs:236
-msgid "Insert table"
-msgstr "插入表格"
-
-#: apps/carver-gtk/src/ui/formatting.rs:247
-#: apps/carver-gtk/src/ui/formatting.rs:295
+#: apps/carver-gtk/src/ui/formatting.rs:284
+#: apps/carver-gtk/src/ui/formatting.rs:349
+#: apps/carver-gtk/src/ui/formatting.rs:375
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
 
-#: apps/carver-gtk/src/ui/formatting.rs:265
-msgid "Header row"
-msgstr "表头行"
-
-#: apps/carver-gtk/src/ui/formatting.rs:279
+#: apps/carver-gtk/src/ui/formatting.rs:318
 #, rust-format
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} 行 × {columns} 列"
+
+#: apps/carver-gtk/src/ui/formatting.rs:338
+msgid "Insert table"
+msgstr "插入表格"
+
+#: apps/carver-gtk/src/ui/formatting.rs:360
+msgid "Header row"
+msgstr "表头行"
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"
