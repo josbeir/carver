@@ -1774,17 +1774,18 @@ pub(crate) fn export_rendered_snapshot(
 ///
 /// GTK registers its file backend under a localized display name (`_("Print to File")`), so
 /// selecting it by the English name fails on every non-English system: `WebKit` then reports
-/// "printer not found" and no PDF is written. Enumerate the available printers and return the
-/// virtual one, which is the file backend. `gtk4-rs` exposes no printer-backend handle, so the
-/// `is-virtual` flag is the reliable discriminator. Returns `None` when no virtual printer is
-/// available, leaving the caller to keep the previous English-name behavior.
+/// "printer not found" and no PDF is written. Enumerate the printers and pick the one owned by
+/// GTK's file backend. `gtk4-rs` generates no accessor for the backend, but `GtkPrinter` exposes
+/// it as a `backend` object property, whose `GType` name is the same discriminator `WebKit` uses.
+/// Returns `None` when no file-backend printer is available, leaving the caller to keep the
+/// previous English-name behavior.
 #[cfg(target_os = "linux")]
 pub(crate) fn print_to_file_printer_name() -> Option<String> {
     let name = std::sync::Arc::new(std::sync::Mutex::new(None));
     let name_for_enumeration = std::sync::Arc::clone(&name);
     gtk::enumerate_printers(
         move |printer| {
-            if printer.is_virtual() {
+            if is_file_print_backend(printer) {
                 if let Ok(mut slot) = name_for_enumeration.lock() {
                     *slot = Some(printer.name().to_string());
                 }
@@ -1796,6 +1797,21 @@ pub(crate) fn print_to_file_printer_name() -> Option<String> {
         true,
     );
     name.lock().ok().and_then(|slot| slot.clone())
+}
+
+/// Returns whether `printer` belongs to GTK's file print backend.
+///
+/// The file backend's `GType` name changed from `GtkPrintBackendFileBuiltin` to
+/// `GtkPrintBackendFile` in GTK 4.19.3, which is older than this crate's minimum GTK, but both
+/// are accepted so the lookup keeps working if the older backend is ever present.
+#[cfg(target_os = "linux")]
+fn is_file_print_backend(printer: &gtk::Printer) -> bool {
+    printer
+        .property::<Option<glib::Object>>("backend")
+        .is_some_and(|backend| {
+            let backend_type = backend.type_().name();
+            backend_type == "GtkPrintBackendFile" || backend_type == "GtkPrintBackendFileBuiltin"
+        })
 }
 
 /// Non-Linux builds cannot enumerate GTK printers, so they keep the English backend name.
