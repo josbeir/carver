@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 09:24+0200\n"
+"POT-Creation-Date: 2026-09-27 09:45+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -162,7 +162,7 @@ msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen bli
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
 #: apps/carver-gtk/src/ui/dialogs.rs:1665
-#: apps/carver-gtk/src/ui/dialogs.rs:1837
+#: apps/carver-gtk/src/ui/dialogs.rs:1853
 #: apps/carver-gtk/src/ui/editor/mod.rs:1568
 #: apps/carver-gtk/src/ui/editor/mod.rs:1658
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
@@ -497,7 +497,7 @@ msgstr "Verplaatsen…"
 msgid "Export note…"
 msgstr "Notitie exporteren…"
 
-#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1838
+#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1854
 #: apps/carver-gtk/src/ui/editor/mod.rs:1406
 msgid "Move to Trash"
 msgstr "Naar prullenbak verplaatsen"
@@ -1095,20 +1095,20 @@ msgstr "Categorieën zoeken"
 msgid "New Category…"
 msgstr "Nieuwe categorie…"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1780
+#: apps/carver-gtk/src/ui/dialogs.rs:1796
 msgid "Current"
 msgstr "Huidig"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1802
+#: apps/carver-gtk/src/ui/dialogs.rs:1818
 msgid "No categories found"
 msgstr "Geen categorieën gevonden"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1828
+#: apps/carver-gtk/src/ui/dialogs.rs:1844
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "“{category_name}” naar de prullenbak verplaatsen?"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1832
+#: apps/carver-gtk/src/ui/dialogs.rs:1848
 msgid "Notes in this category will no longer appear in your library. You can restore the category from Trash later."
 msgstr "Notities in deze categorie verschijnen niet meer in je bibliotheek. Je kunt de categorie later vanuit de prullenbak herstellen."
 

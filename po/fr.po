@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 09:24+0200\n"
+"POT-Creation-Date: 2026-09-27 09:45+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -162,7 +162,7 @@ msgstr "Seule cette base sera supprimée. Vos notes et leurs propriétés ne ser
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
 #: apps/carver-gtk/src/ui/dialogs.rs:1665
-#: apps/carver-gtk/src/ui/dialogs.rs:1837
+#: apps/carver-gtk/src/ui/dialogs.rs:1853
 #: apps/carver-gtk/src/ui/editor/mod.rs:1568
 #: apps/carver-gtk/src/ui/editor/mod.rs:1658
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
@@ -497,7 +497,7 @@ msgstr "Déplacer…"
 msgid "Export note…"
 msgstr "Exporter la note…"
 
-#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1838
+#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1854
 #: apps/carver-gtk/src/ui/editor/mod.rs:1406
 msgid "Move to Trash"
 msgstr "Mettre à la corbeille"
@@ -1095,20 +1095,20 @@ msgstr "Rechercher des catégories"
 msgid "New Category…"
 msgstr "Nouvelle catégorie…"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1780
+#: apps/carver-gtk/src/ui/dialogs.rs:1796
 msgid "Current"
 msgstr "Actuelle"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1802
+#: apps/carver-gtk/src/ui/dialogs.rs:1818
 msgid "No categories found"
 msgstr "Aucune catégorie trouvée"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1828
+#: apps/carver-gtk/src/ui/dialogs.rs:1844
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "Mettre « {category_name} » à la corbeille ?"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1832
+#: apps/carver-gtk/src/ui/dialogs.rs:1848
 msgid "Notes in this category will no longer appear in your library. You can restore the category from Trash later."
 msgstr "Les notes de cette catégorie n'apparaîtront plus dans votre bibliothèque. Vous pourrez restaurer la catégorie depuis la corbeille plus tard."
 
