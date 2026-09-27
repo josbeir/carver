@@ -220,6 +220,13 @@ textview text {
   background: transparent;
 }
 
+/* GtkSourceView fills its square widget bounds with the style-scheme
+ * background, which cuts off the raw-frontmatter card's rounded corners and
+ * reads as a broken border. Let the card background show through instead. */
+#document-properties-raw {
+  background-color: transparent;
+}
+
 .dim-label {
   opacity: 0.72;
 }
