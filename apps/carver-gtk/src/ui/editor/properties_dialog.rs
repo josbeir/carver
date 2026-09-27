@@ -16,6 +16,7 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 use libadwaita::prelude::*;
+use sourceview5::prelude::*;
 
 use crate::mvu::{
     AppDispatcher, AppMsg, EditorMsg, EditorPropertiesRequest, FrontmatterEdit, PreferencesMsg,
@@ -922,11 +923,12 @@ pub(crate) fn show(
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
-        let view = raw_frontmatter_view(
+        let (view, buffer) = raw_frontmatter_view(
             format,
             syntax_dir,
             request.raw.as_deref().unwrap_or_default(),
         );
+        follow_color_scheme(&dialog, &buffer, syntax_dir);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_min_content_height(220);
@@ -1001,7 +1003,7 @@ fn raw_frontmatter_view(
     format: FrontmatterFormat,
     syntax_dir: Option<&std::path::Path>,
     content: &str,
-) -> sourceview5::View {
+) -> (sourceview5::View, sourceview5::Buffer) {
     let buffer = super::frontmatter_source::source_buffer(
         format,
         syntax_dir,
@@ -1017,7 +1019,35 @@ fn raw_frontmatter_view(
     view.set_bottom_margin(12);
     view.set_left_margin(12);
     view.set_right_margin(12);
-    view
+    (view, buffer)
+}
+
+/// Keeps the raw frontmatter highlight in step with the application color scheme.
+///
+/// The scheme is re-derived from the installed assets on every dark/light change and the handler
+/// is released when the dialog closes.
+fn follow_color_scheme(
+    dialog: &adw::Dialog,
+    buffer: &sourceview5::Buffer,
+    syntax_dir: Option<&std::path::Path>,
+) {
+    let Some(syntax_dir) = syntax_dir.map(std::path::Path::to_path_buf) else {
+        return;
+    };
+    let buffer = buffer.clone();
+    let handler = adw::StyleManager::default().connect_dark_notify(move |manager| {
+        if let Ok(scheme) = super::source::frontmatter_style_scheme(&syntax_dir, manager.is_dark())
+        {
+            buffer.set_style_scheme(Some(&scheme));
+        }
+    });
+    // `connect_closed` takes an `Fn`, so release the handler at most once through shared state.
+    let handler = Rc::new(RefCell::new(Some(handler)));
+    dialog.connect_closed(move |_| {
+        if let Some(handler) = handler.borrow_mut().take() {
+            adw::StyleManager::default().disconnect(handler);
+        }
+    });
 }
 
 /// What the per-note dialog reads when saving.

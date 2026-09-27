@@ -1132,6 +1132,26 @@ pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult
             Some(expected_scheme),
             "source: {source}"
         );
+        // The raw view re-derives its scheme while the dialog stays open.
+        let style_manager = adw::StyleManager::default();
+        let original_scheme = style_manager.color_scheme();
+        style_manager.set_color_scheme(adw::ColorScheme::ForceDark);
+        assert_eq!(
+            buffer
+                .style_scheme()
+                .map(|scheme| scheme.id().to_string())
+                .as_deref(),
+            Some("carve-dark")
+        );
+        style_manager.set_color_scheme(adw::ColorScheme::ForceLight);
+        assert_eq!(
+            buffer
+                .style_scheme()
+                .map(|scheme| scheme.id().to_string())
+                .as_deref(),
+            Some("carve-light")
+        );
+        style_manager.set_color_scheme(original_scheme);
         dialog.close();
         assert!(run_main_context_until(|| fixture
             .window
