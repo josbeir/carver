@@ -16,9 +16,10 @@ use libadwaita as adw;
 
 use self::editing::{
     CellEdit, CellEditor, build_boolean_cell, build_select_cell, options_with_current,
-    resolve_editor, show_cell_editor,
+    resolve_editor, seed_value, show_cell_editor,
 };
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
+use crate::ui::property::{DatePicker, display_date};
 use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
 
@@ -395,6 +396,16 @@ fn append_column(
             )));
             return;
         }
+        // A date or date-time cell shows its value with a picker icon that opens the calendar.
+        if let Some(editor @ (CellEditor::Date | CellEditor::DateTime)) = &editor_for_setup {
+            item.set_child(Some(&date_cell_for(
+                item,
+                &column_for_setup,
+                editor,
+                &dispatcher_for_setup,
+            )));
+            return;
+        }
         let open: Rc<dyn Fn()> = {
             let weak_item = item.downgrade();
             let column = column_for_setup.clone();
@@ -472,6 +483,20 @@ fn bind_cell(
     {
         if let Some(dropdown) = item.child().and_downcast::<gtk::DropDown>() {
             bind_select_cell(&dropdown, row, column, options);
+        }
+        return;
+    }
+    if let Some(CellEditor::Date | CellEditor::DateTime) = editor {
+        if let Some(child) = item.child()
+            && let Some(label) = find_value_label(&child)
+        {
+            let text = match cell_seed(row, column) {
+                FrontmatterValue::Text(text) => {
+                    display_date(&text, matches!(editor, Some(CellEditor::Date)))
+                }
+                _ => String::new(),
+            };
+            label.set_text(&text);
         }
         return;
     }
@@ -587,6 +612,76 @@ fn current_text(value: &FrontmatterValue) -> Option<String> {
         FrontmatterValue::Text(text) => Some(text.clone()),
         _ => None,
     }
+}
+
+/// Builds a date or date-time cell: its value plus a picker icon that opens the calendar directly.
+fn date_cell_for(
+    item: &gtk::ListItem,
+    column: &BaseColumn,
+    editor: &CellEditor,
+    dispatcher: &AppDispatcher,
+) -> gtk::Box {
+    let field_type = if matches!(editor, CellEditor::Date) {
+        carver_domain::PropertyType::Date
+    } else {
+        carver_domain::PropertyType::DateTime
+    };
+    let cell = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    cell.set_widget_name(&format!("base-cell-display:{}", header_column_id(column)));
+    cell.set_hexpand(true);
+    let label = value_label();
+    label.set_hexpand(true);
+    let picker = DatePicker::new(field_type, &FrontmatterValue::Null, "cell-date");
+    picker.button().set_cursor_from_name(Some("pointer"));
+    cell.append(&label);
+    cell.append(picker.button());
+
+    // Seed from the row each time the calendar opens.
+    {
+        let picker = picker.clone();
+        let popover = picker.popover().clone();
+        let weak_item = item.downgrade();
+        let column = column.clone();
+        popover.connect_show(move |_| {
+            let Some(item) = weak_item.upgrade() else {
+                return;
+            };
+            let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let row = object.borrow::<BaseRow>();
+            picker.set_frontmatter(&cell_seed(&row, &column));
+        });
+    }
+    // Commit a changed value when the calendar closes.
+    {
+        let picker = picker.clone();
+        let popover = picker.popover().clone();
+        let weak_item = item.downgrade();
+        let column = column.clone();
+        let editor = editor.clone();
+        let dispatcher = dispatcher.clone();
+        popover.connect_closed(move |_| {
+            let Some(item) = weak_item.upgrade() else {
+                return;
+            };
+            let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let row = object.borrow::<BaseRow>();
+            let current = cell_seed(&row, &column);
+            let value = picker.value().map(serde_json::Value::String);
+            if value != seed_value(&editor, &current) {
+                let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+                    note_id: row.note_id,
+                    path: column_edit_path(&column),
+                    revision: row.revision,
+                    value,
+                }));
+            }
+        });
+    }
+    cell
 }
 
 /// Builds the read-only presentation for a cell, including the Name open/edit controls.

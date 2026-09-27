@@ -127,6 +127,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_grid_should_toggle_a_boolean_property()?;
     bases::base_grid_list_should_offer_a_dropdown()?;
     bases::base_properties_should_set_the_category()?;
+    bases::base_grid_date_should_expose_a_picker_icon()?;
     icons::bundled_icons_should_be_discoverable()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;

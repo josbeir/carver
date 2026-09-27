@@ -13,9 +13,7 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg};
-use crate::ui::property::{
-    DatePicker, frontmatter_text, parse_number, picker_value, property_path,
-};
+use crate::ui::property::{frontmatter_text, parse_number, picker_value, property_path};
 
 /// The value a committed cell writes: `None` clears the property.
 pub(crate) type CellValue = Option<serde_json::Value>;
@@ -124,11 +122,17 @@ pub(crate) struct CellEditorWidget {
 impl CellEditorWidget {
     /// Builds the control for `editor`, seeded from the row's value.
     ///
-    /// Returns `None` for the always-visible boolean toggle, which is built separately.
+    /// Returns `None` for the always-visible cells (boolean, single-select, and date pickers),
+    /// which the grid builds directly.
     #[must_use]
     pub(crate) fn build(editor: &CellEditor, seed: &FrontmatterValue, name: &str) -> Option<Self> {
         match editor {
-            CellEditor::Boolean => None,
+            CellEditor::Boolean
+            | CellEditor::List {
+                multiple: false, ..
+            }
+            | CellEditor::Date
+            | CellEditor::DateTime => None,
             CellEditor::Text => {
                 let entry = gtk::Entry::new();
                 entry.set_widget_name(name);
@@ -173,22 +177,6 @@ impl CellEditorWidget {
                 };
                 Some(Self {
                     widget: entry.upcast(),
-                    read,
-                })
-            }
-            CellEditor::Date | CellEditor::DateTime => {
-                let field_type = if matches!(editor, CellEditor::Date) {
-                    PropertyType::Date
-                } else {
-                    PropertyType::DateTime
-                };
-                let picker = DatePicker::new(field_type, seed, name);
-                let read = {
-                    let picker = picker.clone();
-                    Rc::new(move || Ok(picker.value().map(serde_json::Value::String)))
-                };
-                Some(Self {
-                    widget: picker.button().clone().upcast(),
                     read,
                 })
             }

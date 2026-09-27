@@ -76,6 +76,11 @@ type ChangeCallback = Rc<RefCell<Option<Rc<dyn Fn()>>>>;
 #[derive(Clone)]
 pub(crate) struct DatePicker {
     button: gtk::MenuButton,
+    popover: gtk::Popover,
+    calendar: gtk::Calendar,
+    hours: gtk::SpinButton,
+    minutes: gtk::SpinButton,
+    field_type: PropertyType,
     state: Rc<RefCell<Option<String>>>,
     on_changed: ChangeCallback,
     date_only: bool,
@@ -178,6 +183,11 @@ impl DatePicker {
 
         Self {
             button,
+            popover,
+            calendar,
+            hours,
+            minutes,
+            field_type,
             state,
             on_changed,
             date_only,
@@ -189,9 +199,28 @@ impl DatePicker {
         &self.button
     }
 
+    /// Returns the picker's popover so a caller can observe opening and closing.
+    pub(crate) fn popover(&self) -> &gtk::Popover {
+        &self.popover
+    }
+
     /// Registers a callback invoked after any picker change, including Clear.
     pub(crate) fn connect_changed(&self, callback: impl Fn() + 'static) {
         *self.on_changed.borrow_mut() = Some(Rc::new(callback));
+    }
+
+    /// Reseeds the picker from a frontmatter value and repaints its calendar and time controls.
+    ///
+    /// Used by a grid cell that opens the picker for a different row each time.
+    pub(crate) fn set_frontmatter(&self, value: &FrontmatterValue) {
+        *self.state.borrow_mut() = picker_value(self.field_type, value);
+        apply_picker_state(
+            self.field_type,
+            &self.state,
+            &self.calendar,
+            &self.hours,
+            &self.minutes,
+        );
     }
 
     /// Returns the current ISO 8601 value, or `None` when cleared.

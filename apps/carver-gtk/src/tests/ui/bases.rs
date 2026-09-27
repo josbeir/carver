@@ -1093,22 +1093,20 @@ pub(super) fn base_cell_editors_should_commit_typed_values() -> TestResult {
     number_entry.set_text("not a number");
     assert_eq!(number.value(), Err(()));
 
-    let list = CellEditorWidget::build(
-        &CellEditor::List {
+    // A single-select list and a date picker are always-visible cells, so the popover has no
+    // widget for them.
+    for always_visible in [
+        CellEditor::List {
             options: vec!["draft".to_owned(), "done".to_owned()],
             multiple: false,
         },
-        &FrontmatterValue::Null,
-        "base-cell-editor",
-    )
-    .ok_or("list editor")?;
-    let dropdown = list
-        .widget()
-        .clone()
-        .downcast::<gtk::DropDown>()
-        .map_err(|_| "list dropdown")?;
-    dropdown.set_selected(1);
-    assert_eq!(list.value(), Ok(Some(serde_json::json!("done"))));
+        CellEditor::Date,
+    ] {
+        assert!(
+            CellEditorWidget::build(&always_visible, &FrontmatterValue::Null, "base-cell-editor")
+                .is_none()
+        );
+    }
 
     // A multi-select list renders a checklist and reads the selected options.
     let multi = CellEditorWidget::build(
@@ -1525,6 +1523,69 @@ pub(super) fn base_properties_should_set_the_category() -> TestResult {
         }
     ));
     assert_eq!(runtime.model().route, Route::Base);
+    window.close();
+    Ok(())
+}
+
+/// A date property cell shows a picker icon instead of a two-step popover.
+pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Projects".to_owned(),
+        columns: vec![carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath(
+            "/due".to_owned(),
+        ))],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        name: "Note".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({"due": "2026-09-27"}),
+    };
+    let descriptors = [carver_domain::PropertyDescriptor {
+        path: carver_domain::PropertyPath("/due".to_owned()),
+        kind: carver_domain::PropertyKind::Text,
+        property_type: carver_domain::PropertyType::Date,
+        example: Some("2026-09-27".to_owned()),
+    }];
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &descriptors,
+        &[],
+        &dispatcher,
+    );
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&base_widget));
+    window.present();
+
+    let display = find_widget(&base_widget, "base-cell-display:property:/due").ok_or("cell")?;
+    assert!(run_main_context_until(|| display.is_mapped()));
+    let label = find_widget(&display, "cell-value-label").ok_or("value label")?;
+    assert!(
+        !label
+            .downcast::<gtk::Label>()
+            .map_err(|_| "label")?
+            .text()
+            .is_empty()
+    );
+    assert!(find_widget(&display, "cell-date-picker").is_some());
+    assert!(find_widget(&display, "cell-date-popover").is_some());
     window.close();
     Ok(())
 }

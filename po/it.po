@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 16:08+0200\n"
+"POT-Creation-Date: 2026-09-27 16:13+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -70,40 +70,40 @@ msgstr "Base"
 msgid "Create"
 msgstr "Crea"
 
-#: apps/carver-gtk/src/ui/bases.rs:76
+#: apps/carver-gtk/src/ui/bases.rs:77
 msgid "Search this Base"
 msgstr "Cerca in questa base"
 
-#: apps/carver-gtk/src/ui/bases.rs:77
+#: apps/carver-gtk/src/ui/bases.rs:78
 msgid "Search this Base (Ctrl+F)"
 msgstr "Cerca in questa base (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases.rs:80
+#: apps/carver-gtk/src/ui/bases.rs:81
 msgid "Base"
 msgstr "Base"
 
-#: apps/carver-gtk/src/ui/bases.rs:86
+#: apps/carver-gtk/src/ui/bases.rs:87
 #: apps/carver-gtk/src/ui/bases/actions.rs:53
 msgid "Delete Base"
 msgstr "Elimina base"
 
-#: apps/carver-gtk/src/ui/bases.rs:89
+#: apps/carver-gtk/src/ui/bases.rs:90
 msgid "Configure"
 msgstr "Configura"
 
-#: apps/carver-gtk/src/ui/bases.rs:118 apps/carver-gtk/src/ui/browser.rs:492
+#: apps/carver-gtk/src/ui/bases.rs:119 apps/carver-gtk/src/ui/browser.rs:492
 msgid "No matching notes"
 msgstr "Nessuna nota corrispondente"
 
-#: apps/carver-gtk/src/ui/bases.rs:119
+#: apps/carver-gtk/src/ui/bases.rs:120
 msgid "Notes that match this Base will appear here."
 msgstr "Le note che corrispondono a questa base appariranno qui."
 
-#: apps/carver-gtk/src/ui/bases.rs:122 apps/carver-gtk/src/view/mod.rs:349
+#: apps/carver-gtk/src/ui/bases.rs:123 apps/carver-gtk/src/view/mod.rs:349
 msgid "Load more rows"
 msgstr "Carica altre righe"
 
-#: apps/carver-gtk/src/ui/bases.rs:267
+#: apps/carver-gtk/src/ui/bases.rs:268
 #: apps/carver-gtk/src/ui/bases/actions.rs:734
 #: apps/carver-gtk/src/ui/bases/actions.rs:737
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:610
@@ -111,27 +111,27 @@ msgstr "Carica altre righe"
 msgid "Name"
 msgstr "Nome"
 
-#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:685
+#: apps/carver-gtk/src/ui/bases.rs:276 apps/carver-gtk/src/ui/bases.rs:780
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:697
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:699
 msgid "Category"
 msgstr "Categoria"
 
-#: apps/carver-gtk/src/ui/bases.rs:278 apps/carver-gtk/src/ui/bases.rs:686
+#: apps/carver-gtk/src/ui/bases.rs:279 apps/carver-gtk/src/ui/bases.rs:781
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "Aggiornata"
 
-#: apps/carver-gtk/src/ui/bases.rs:305
+#: apps/carver-gtk/src/ui/bases.rs:306
 msgid "Edit document properties"
 msgstr "Modifica proprietà del documento"
 
-#: apps/carver-gtk/src/ui/bases.rs:627
+#: apps/carver-gtk/src/ui/bases.rs:722
 msgid "Edit title"
 msgstr "Modifica titolo"
 
-#: apps/carver-gtk/src/ui/bases.rs:683
+#: apps/carver-gtk/src/ui/bases.rs:778
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1470
 msgid "Title"
 msgstr "Titolo"
@@ -146,7 +146,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "Verrà eliminata solo questa base. Le tue note e le loro proprietà non saranno modificate."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:378
+#: apps/carver-gtk/src/ui/bases/editing.rs:366
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -349,13 +349,13 @@ msgid_plural "Currently matches {count} notes"
 msgstr[0] "Corrisponde a {count} nota"
 msgstr[1] "Corrisponde a {count} note"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:373
-#: apps/carver-gtk/src/ui/property.rs:120
+#: apps/carver-gtk/src/ui/bases/editing.rs:361
+#: apps/carver-gtk/src/ui/property.rs:125
 msgid "Clear"
 msgstr "Cancella"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:381
-#: apps/carver-gtk/src/ui/property.rs:125
+#: apps/carver-gtk/src/ui/bases/editing.rs:369
+#: apps/carver-gtk/src/ui/property.rs:130
 msgid "Done"
 msgstr "Fatto"
 
