@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 19:24+0200\n"
+"POT-Creation-Date: 2026-09-27 19:46+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -106,7 +106,7 @@ msgstr "加载更多行"
 #: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:806
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:622
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:711
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1547
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1548
 msgid "Title"
 msgstr "标题"
 
@@ -1386,20 +1386,20 @@ msgstr "新建笔记使用当前日期和时间"
 msgid "Options"
 msgstr "选项"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1254
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1260
 msgid "Comma-separated values offered as a dropdown."
 msgstr "以逗号分隔并作为下拉列表提供的值。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1265
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1271
 msgid "Allow multiple values"
 msgstr "允许多个值"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1290
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1296
 msgid "New property"
 msgstr "新属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1355
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1357
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1356
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1358
 msgid "Remove property"
 msgstr "移除属性"
 

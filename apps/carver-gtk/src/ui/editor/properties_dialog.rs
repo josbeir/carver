@@ -1243,6 +1243,12 @@ fn build_expander_row(
 
     expander.add_row(&key);
     expander.add_row(&kind);
+    // `AdwExpanderRow::add_suffix` prepends into the suffix box, so the first suffix added ends up
+    // rightmost. Add the remove button before the compact editor to keep it the last control.
+    if draft.removable {
+        let remove = remove_button(index, group, rows, drafts, on_change, mode);
+        expander.add_suffix(&remove);
+    }
     if compact.is_some() {
         expander.add_suffix(&value.widget());
     } else {
@@ -1326,11 +1332,6 @@ fn build_expander_row(
                 on_change();
             });
         });
-    }
-
-    if draft.removable {
-        let remove = remove_button(index, group, rows, drafts, on_change, mode);
-        expander.add_suffix(&remove);
     }
 
     BuiltRow::Expander {

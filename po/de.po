@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 19:24+0200\n"
+"POT-Creation-Date: 2026-09-27 19:46+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -106,7 +106,7 @@ msgstr "Weitere Zeilen laden"
 #: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:806
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:622
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:711
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1547
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1548
 msgid "Title"
 msgstr "Titel"
 
@@ -1394,20 +1394,20 @@ msgstr "Neue Notizen verwenden das aktuelle Datum und die aktuelle Uhrzeit"
 msgid "Options"
 msgstr "Optionen"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1254
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1260
 msgid "Comma-separated values offered as a dropdown."
 msgstr "Kommagetrennte Werte, die als Dropdown angeboten werden."
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1265
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1271
 msgid "Allow multiple values"
 msgstr "Mehrere Werte zulassen"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1290
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1296
 msgid "New property"
 msgstr "Neue Eigenschaft"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1355
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1357
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1356
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1358
 msgid "Remove property"
 msgstr "Eigenschaft entfernen"
 

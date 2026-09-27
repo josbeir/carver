@@ -4,6 +4,26 @@ use crate::mvu::{AppMsg, EditorMsg, PreferencesMsg};
 use libadwaita::prelude::*;
 use sourceview5::prelude::*;
 
+/// Returns the preorder position of the first widget named `name`, for asserting row order.
+fn widget_order(root: &gtk::Widget, name: &str) -> Option<usize> {
+    fn walk(widget: &gtk::Widget, name: &str, order: &mut usize) -> Option<usize> {
+        if widget.widget_name() == name {
+            return Some(*order);
+        }
+        *order += 1;
+        let mut child = widget.first_child();
+        while let Some(current) = child {
+            if let Some(found) = walk(&current, name, order) {
+                return Some(found);
+            }
+            child = current.next_sibling();
+        }
+        None
+    }
+    let mut order = 0;
+    walk(root, name, &mut order)
+}
+
 pub(super) fn document_properties_button_should_follow_mode_and_setting() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     let category = fixture.client.create_category("Properties")?;
@@ -516,6 +536,12 @@ pub(super) fn ad_hoc_date_property_should_reopen_as_date() -> TestResult {
         widget_as::<adw::EntryRow>(root, "document-property-key-1")
             .is_some_and(|key| !key.is_mapped()),
         "the expander content should stay hidden while collapsed"
+    );
+    // The remove button stays the last suffix, after the compact picker.
+    assert!(
+        widget_order(root, "document-property-remove-1")
+            > widget_order(root, "document-property-value-1-picker"),
+        "the remove button should follow the calendar picker"
     );
     dialog.close();
     fixture.window.close();
@@ -1099,6 +1125,12 @@ pub(super) fn ad_hoc_boolean_property_should_toggle_and_save() -> TestResult {
         widget_as::<adw::EntryRow>(root, "document-property-key-1")
             .is_some_and(|key| !key.is_mapped()),
         "the expander content should stay hidden while collapsed"
+    );
+    // The remove button stays the last suffix, after the compact switch.
+    assert!(
+        widget_order(root, "document-property-remove-1")
+            > widget_order(root, "document-property-value-1"),
+        "the remove button should follow the boolean switch"
     );
     assert!(toggle.is_active());
     toggle.set_active(false);
