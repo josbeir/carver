@@ -351,6 +351,18 @@ popover button:checked {
   font-weight: 600;
 }
 
+/* Keep inline selects as text-like cells rather than raised buttons. */
+.bases-grid dropdown > button {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0 4px;
+}
+
+.bases-grid dropdown > button:hover {
+  background: alpha(currentColor, 0.07);
+}
+
 .bases-grid label.link {
   color: @accent_color;
   text-decoration-line: underline;
