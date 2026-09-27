@@ -112,10 +112,11 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     );
     let dialog = window.visible_dialog().ok_or("new Base configuration")?;
     let root = dialog.upcast_ref();
-    assert!(widget_as::<gtk::Expander>(root, "base-visible-fields-section").is_some());
-    assert!(widget_as::<gtk::Expander>(root, "base-filters-section").is_some());
-    assert!(widget_as::<gtk::Expander>(root, "base-sort-section").is_some());
-    let entry = widget_as::<gtk::Entry>(root, "base-configuration-name").ok_or("new Base name")?;
+    assert!(widget_as::<adw::PreferencesGroup>(root, "base-visible-fields-section").is_some());
+    assert!(widget_as::<adw::PreferencesGroup>(root, "base-filters-section").is_some());
+    assert!(widget_as::<adw::PreferencesGroup>(root, "base-sort-section").is_some());
+    let entry =
+        widget_as::<adw::EntryRow>(root, "base-configuration-name").ok_or("new Base name")?;
     assert!(entry.text().is_empty());
     entry.set_text("  Reading list  ");
     widget_as::<gtk::Button>(root, "base-configuration-save")
@@ -140,7 +141,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     let dialog = window.visible_dialog().ok_or("duplicate configuration")?;
     let root = dialog.upcast_ref();
     let duplicate_name =
-        widget_as::<gtk::Entry>(root, "base-configuration-name").ok_or("new Base name")?;
+        widget_as::<adw::EntryRow>(root, "base-configuration-name").ok_or("new Base name")?;
     duplicate_name.set_text("Reading list");
     widget_as::<gtk::Button>(root, "base-configuration-save")
         .ok_or("create duplicate Base")?
@@ -167,7 +168,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     }));
     let dialog = window.visible_dialog().ok_or("fresh Base configuration")?;
     assert!(
-        widget_as::<gtk::Entry>(dialog.upcast_ref(), "base-configuration-name")
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "base-configuration-name")
             .ok_or("reset new Base name")?
             .text()
             .is_empty()

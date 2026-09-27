@@ -313,62 +313,35 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
     assert!(dialog.follows_content_size());
-    assert!(dialog.content_width() >= 720);
-    let visible_section =
-        widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-visible-fields-section")
-            .ok_or("visible fields section")?;
-    assert!(visible_section.is_expanded());
-    assert!(visible_section.resizes_toplevel());
-    let filters_section = widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-filters-section")
-        .ok_or("filters section")?;
-    assert!(filters_section.is_expanded());
-    let sort_section = widget_as::<gtk::Expander>(dialog.upcast_ref(), "base-sort-section")
-        .ok_or("sort section")?;
-    assert!(sort_section.is_expanded());
-    sort_section.emit_activate();
-    assert!(!sort_section.is_expanded());
-    visible_section.emit_activate();
-    filters_section.emit_activate();
+    assert!(dialog.content_width() >= 560);
     assert!(
-        run_main_context_until(|| dialog.content_height() < 500),
-        "collapsed dialog height was {}",
-        dialog.content_height()
+        widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
+            .is_some()
     );
-    visible_section.emit_activate();
-    filters_section.emit_activate();
-    sort_section.emit_activate();
-    assert!(visible_section.is_expanded());
-    assert!(filters_section.is_expanded());
-    assert!(sort_section.is_expanded());
-    let preview =
-        find_widget(dialog.upcast_ref(), "base-configuration-preview").ok_or("preview label")?;
-    let preview_label = preview
-        .clone()
-        .downcast::<gtk::Label>()
-        .map_err(|_| "preview label type")?;
+    assert!(
+        widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-filters-section").is_some()
+    );
+    assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-sort-section").is_some());
+    let preview = widget_as::<adw::ComboRow>(dialog.upcast_ref(), "base-filter-mode")
+        .ok_or("matching combo")?;
     assert!(run_main_context_until(|| {
-        preview_label.text() == "Currently matches 0 notes"
+        preview.subtitle().as_deref() == Some("Currently matches 0 notes")
     }));
-    let visible_fields = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-visible-fields-list")
-        .ok_or("visible fields list")?;
+    let visible_fields =
+        widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
+            .ok_or("visible fields group")?;
     assert!(super::find_label(visible_fields.upcast_ref(), "Name").is_some());
     assert!(super::find_label(visible_fields.upcast_ref(), "priority").is_none());
-    let visible_fields_parent = visible_fields.parent().ok_or("visible fields parent")?;
-    assert!(
-        visible_fields_parent
-            .downcast::<gtk::ScrolledWindow>()
-            .is_err()
-    );
     let add_field = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")
         .ok_or("add field button")?;
-    assert!(super::find_label(add_field.upcast_ref(), "Add field").is_some());
-    let add_filter = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-filter")
+    assert!(super::find_label(dialog.upcast_ref(), "Add field").is_some());
+    let add_filter = widget_as::<adw::ButtonRow>(dialog.upcast_ref(), "base-add-filter")
         .ok_or("add filter button")?;
     assert!(super::find_label(add_filter.upcast_ref(), "Add filter").is_some());
-    let add_sort =
-        widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-sort").ok_or("add sort button")?;
+    let add_sort = widget_as::<adw::ButtonRow>(dialog.upcast_ref(), "base-add-sort")
+        .ok_or("add sort button")?;
     assert!(super::find_label(add_sort.upcast_ref(), "Add sort rule").is_some());
-    add_filter.emit_clicked();
+    add_filter.emit_by_name::<()>("activated", &[]);
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-up-1")
         .ok_or("move added filter up")?
         .emit_clicked();
@@ -378,7 +351,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-filter-remove-1")
         .ok_or("remove added filter")?
         .emit_clicked();
-    add_sort.emit_clicked();
+    add_sort.emit_by_name::<()>("activated", &[]);
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-sort-rule-up-1")
         .ok_or("move added sort rule up")?
         .emit_clicked();
@@ -429,21 +402,8 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ok_or("remove filter button")?;
     remove_filter.emit_clicked();
     assert!(run_main_context_until(|| {
-        preview_label.text() == "Currently matches 1 note"
+        preview.subtitle().as_deref() == Some("Currently matches 1 note")
     }));
-    let scroll = preview
-        .ancestor(gtk::ScrolledWindow::static_type())
-        .and_downcast::<gtk::ScrolledWindow>()
-        .ok_or("configuration scroll view")?;
-    assert!(!scroll.vexpands());
-    assert!(scroll.propagates_natural_height());
-    assert!(scroll.propagates_natural_width());
-    assert!(scroll.min_content_width() >= 720);
-    assert!(scroll.min_content_height() < 0);
-    assert!(scroll.max_content_height() < 0);
-    let footer = widget_as::<gtk::Box>(dialog.upcast_ref(), "base-configuration-footer")
-        .ok_or("configuration footer")?;
-    assert!(footer.margin_top() >= 12);
     let save =
         widget_as::<gtk::Button>(dialog.upcast_ref(), "base-configuration-save").ok_or("save")?;
     save.emit_clicked();
