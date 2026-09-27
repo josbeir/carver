@@ -45,6 +45,60 @@ pub(crate) enum CellEditor {
     DateTime,
 }
 
+impl CellEditor {
+    /// Returns whether this editor can round-trip `seed` without dropping authored data.
+    ///
+    /// A composite value a control cannot represent (a list with non-text members, several members
+    /// in a single-select, or an authored option that is not configured) stays read-only so editing
+    /// never silently replaces it with a lossy projection.
+    pub(crate) fn can_edit(&self, seed: &FrontmatterValue) -> bool {
+        match self {
+            CellEditor::Boolean => {
+                matches!(seed, FrontmatterValue::Null | FrontmatterValue::Boolean(_))
+            }
+            CellEditor::Text | CellEditor::Number | CellEditor::Date | CellEditor::DateTime => {
+                matches!(
+                    seed,
+                    FrontmatterValue::Null
+                        | FrontmatterValue::Text(_)
+                        | FrontmatterValue::Number(_)
+                        | FrontmatterValue::Boolean(_)
+                )
+            }
+            CellEditor::ListText => match seed {
+                FrontmatterValue::Null | FrontmatterValue::Text(_) => true,
+                FrontmatterValue::List(items) => items.iter().all(is_text),
+                _ => false,
+            },
+            CellEditor::List {
+                multiple: false, ..
+            } => match seed {
+                FrontmatterValue::Null | FrontmatterValue::Text(_) => true,
+                // A single authored text is offered as an extra option, so it round-trips.
+                FrontmatterValue::List(items) => items.len() <= 1 && items.iter().all(is_text),
+                _ => false,
+            },
+            CellEditor::List {
+                multiple: true,
+                options,
+            } => match seed {
+                FrontmatterValue::Null => true,
+                // Every authored member must stay selectable, or the checklist would drop it.
+                FrontmatterValue::List(items) => items.iter().all(|item| match item {
+                    FrontmatterValue::Text(text) => options.contains(text),
+                    _ => false,
+                }),
+                _ => false,
+            },
+        }
+    }
+}
+
+/// Returns whether a frontmatter value is a text scalar.
+fn is_text(value: &FrontmatterValue) -> bool {
+    matches!(value, FrontmatterValue::Text(_))
+}
+
 /// Resolves the editor for a column from observed descriptors and configured defaults.
 ///
 /// A configured default is authoritative for its key, matching the properties dialog: its type
@@ -794,5 +848,58 @@ mod tests {
             ),
             Some(serde_json::json!("2026-09-27T10:30:00Z"))
         );
+    }
+
+    #[test]
+    fn can_edit_should_reject_values_an_editor_cannot_round_trip() {
+        let text = FrontmatterValue::Text("ready".to_owned());
+
+        // Scalars are representable, and an absent value is editable.
+        assert!(CellEditor::Text.can_edit(&text));
+        assert!(
+            CellEditor::Number.can_edit(&FrontmatterValue::Number(serde_json::Number::from(3)))
+        );
+        assert!(CellEditor::Boolean.can_edit(&FrontmatterValue::Null));
+        assert!(CellEditor::Date.can_edit(&text));
+        // A scalar editor must not overwrite a composite value.
+        let mixed_list = FrontmatterValue::List(vec![
+            FrontmatterValue::Number(serde_json::Number::from(1)),
+            FrontmatterValue::Text("ready".to_owned()),
+        ]);
+        assert!(!CellEditor::Text.can_edit(&mixed_list));
+        assert!(!CellEditor::Boolean.can_edit(&text));
+
+        // An unconfigured list round-trips only text members.
+        assert!(!CellEditor::ListText.can_edit(&mixed_list));
+        assert!(CellEditor::ListText.can_edit(&FrontmatterValue::List(vec![
+            FrontmatterValue::Text("a".to_owned())
+        ])));
+
+        // A single-select keeps one member only, and offers an authored extra option.
+        let single = list(&["draft", "done"], false);
+        assert!(single.can_edit(&FrontmatterValue::Text("legacy".to_owned())));
+        assert!(
+            single.can_edit(&FrontmatterValue::List(vec![FrontmatterValue::Text(
+                "legacy".to_owned()
+            )]))
+        );
+        assert!(!single.can_edit(&FrontmatterValue::List(vec![
+            FrontmatterValue::Text("draft".to_owned()),
+            FrontmatterValue::Text("done".to_owned()),
+        ])));
+
+        // A multi-select checklist drops any authored option it does not offer.
+        let multi = list(&["draft", "done"], true);
+        assert!(
+            multi.can_edit(&FrontmatterValue::List(vec![FrontmatterValue::Text(
+                "draft".to_owned()
+            )]))
+        );
+        assert!(
+            !multi.can_edit(&FrontmatterValue::List(vec![FrontmatterValue::Text(
+                "legacy".to_owned()
+            )]))
+        );
+        assert!(!multi.can_edit(&mixed_list));
     }
 }

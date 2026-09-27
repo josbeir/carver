@@ -155,6 +155,17 @@ pub struct BaseCellEdit {
     pub request_id: RequestId,
 }
 
+/// A Base cell edit waiting for the same note's earlier edit to finish.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingBaseCellEdit {
+    /// Note whose frontmatter is edited.
+    pub note_id: NoteId,
+    /// JSON Pointer path of the edited property.
+    pub path: String,
+    /// Value to persist, or `None` to clear the property.
+    pub value: Option<serde_json::Value>,
+}
+
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
@@ -206,6 +217,8 @@ pub struct BasesModel {
     pub property_descriptors: Resource<Vec<carver_sdk::PropertyDescriptor>>,
     /// Inline cell edits currently being persisted.
     pub cell_edits: Vec<BaseCellEdit>,
+    /// Inline cell edits queued behind another edit on the same note.
+    pub pending_cell_edits: Vec<PendingBaseCellEdit>,
     /// The Base row whose document-properties dialog is being prepared.
     pub base_properties_request: Option<RequestId>,
 }

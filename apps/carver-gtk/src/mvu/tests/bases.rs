@@ -1374,6 +1374,79 @@ fn a_moved_base_property_edit_should_reload_the_sidebar() {
             .iter()
             .any(|effect| matches!(effect, Effect::LoadSidebar { .. }))
     );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. })),
+        "a Base move should refresh the browser like the editor move path"
+    );
+}
+
+#[test]
+fn a_second_cell_edit_on_the_same_note_should_queue_until_the_first_finishes() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let first = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("draft")),
+        }),
+    );
+    let first_request = match first.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("the first edit should dispatch"),
+    };
+    // A different note is independent and may run concurrently.
+    let other = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("draft")),
+        }),
+    );
+    assert!(matches!(other.as_slice(), [Effect::EditBaseCell { .. }]));
+
+    // The second edit for the same note is queued rather than dropped.
+    let second = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/owner".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("Ada")),
+        }),
+    );
+    assert!(second.is_empty());
+    assert_eq!(model.bases.pending_cell_edits.len(), 1);
+
+    // Completing the first admits the queued edit against the revision the first save produced.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id: first_request,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    let queued_revision = effects.iter().find_map(|effect| match effect {
+        Effect::EditBaseCell { revision, .. } => Some(*revision),
+        _ => None,
+    });
+    assert_eq!(queued_revision, Some(Revision(5)));
+    assert!(model.bases.pending_cell_edits.is_empty());
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
+    );
 }
 
 #[test]

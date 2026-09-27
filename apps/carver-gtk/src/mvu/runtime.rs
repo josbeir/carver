@@ -1051,7 +1051,8 @@ impl<B: LibraryBackend> AppRuntime<B> {
         &self,
         request_id: super::RequestId,
         note_id: carver_sdk::NoteId,
-        revision: carver_sdk::Revision,
+        // The row revision is only a hint: the dialog binds its save to the loaded note's revision.
+        _revision: carver_sdk::Revision,
         defaults: Vec<carver_config::DocumentProperty>,
         format: carver_domain::FrontmatterFormat,
         categories: Vec<super::CategoryChoice>,
@@ -1061,7 +1062,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
         glib::spawn_future_local(async move {
             let result = match client.note_async(note_id).await {
                 Ok(Some(note)) => Ok(super::EditorPropertiesRequest {
-                    save: super::PropertiesSave::Base { note_id, revision },
+                    // Bind the save to the revision the dialog is actually showing, so a stale row
+                    // revision cannot make a fresh edit conflict and lose the dialog input.
+                    save: super::PropertiesSave::Base {
+                        note_id,
+                        revision: note.revision,
+                    },
                     note_id,
                     document: carver_domain::parse_frontmatter_document(&note.source),
                     raw: carver_domain::frontmatter_raw(&note.source).map(|(_, content)| content),

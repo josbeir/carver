@@ -488,6 +488,14 @@ fn bind_cell(
     column: &BaseColumn,
     editor: Option<&CellEditor>,
 ) {
+    // A cell stays interactive only when its editor can round-trip the authored value.
+    if let Some(editor) = editor
+        && let Some(child) = item.child()
+    {
+        let editable = editor.can_edit(&cell_seed(row, column));
+        child.set_sensitive(editable);
+        child.set_cursor_from_name(editable.then_some("pointer"));
+    }
     if matches!(editor, Some(CellEditor::Boolean)) {
         if let Some(switch) = item.child().and_downcast::<gtk::Switch>() {
             switch.set_active(boolean_cell_value(row, column));
@@ -774,6 +782,10 @@ fn open_cell_editor(
         let row = object.borrow::<BaseRow>();
         (row.note_id, row.revision, cell_seed(&row, column))
     };
+    // Never open an editor whose control cannot round-trip the authored value.
+    if !editor.can_edit(&seed) {
+        return;
+    }
     show_cell_editor(
         &anchor,
         dispatcher,

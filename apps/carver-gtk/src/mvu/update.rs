@@ -3121,15 +3121,35 @@ fn commit_base_cell_edit(
         return Vec::new();
     }
     // Only one edit per note may be in flight: a second edit would carry the pre-save revision and
-    // conflict once the first bumps it, losing the second change.
+    // conflict once the first bumps it. Queue it so the change is applied once the note reloads
+    // instead of being dropped.
     if model
         .bases
         .cell_edits
         .iter()
         .any(|edit| edit.note_id == note_id)
     {
+        model
+            .bases
+            .pending_cell_edits
+            .push(super::PendingBaseCellEdit {
+                note_id,
+                path,
+                value,
+            });
         return Vec::new();
     }
+    admit_base_cell_edit(model, note_id, path, revision, value)
+}
+
+/// Dispatches one inline Base cell edit and records it as in flight.
+fn admit_base_cell_edit(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    path: String,
+    revision: carver_sdk::Revision,
+    value: Option<serde_json::Value>,
+) -> Vec<Effect> {
     let request_id = model.next_request_id();
     model.bases.cell_edits.push(super::BaseCellEdit {
         note_id,
@@ -3163,8 +3183,12 @@ fn update_base_cell_edited(
     else {
         return Vec::new();
     };
-    model.bases.cell_edits.remove(position);
-    match result {
+    let finished = model.bases.cell_edits.remove(position);
+    let next_revision = match &result {
+        Ok(revision) => *revision,
+        Err(_) => finished.revision,
+    };
+    let mut effects = match result {
         Ok(_) => {
             let mut effects: Vec<Effect> = match (model.route, model.bases.selected) {
                 (super::Route::Base, Some(base_id)) => {
@@ -3173,7 +3197,10 @@ fn update_base_cell_edited(
                 _ => Vec::new(),
             };
             if moved {
+                // A move changes which categories own the note, so refresh the sidebar counts and
+                // the browser list as the editor move path does.
                 effects.extend(reload_sidebar(model));
+                effects.extend(reload_browser(model));
             }
             if let Some(error) = move_error {
                 // Content saved but the move failed; the grid reloads and the user is told.
@@ -3192,7 +3219,24 @@ fn update_base_cell_edited(
                 _ => Vec::new(),
             }
         }
+    };
+    // Apply the next queued edit for this note against the revision the first save produced.
+    if let Some(index) = model
+        .bases
+        .pending_cell_edits
+        .iter()
+        .position(|pending| pending.note_id == finished.note_id)
+    {
+        let pending = model.bases.pending_cell_edits.remove(index);
+        effects.extend(admit_base_cell_edit(
+            model,
+            pending.note_id,
+            pending.path,
+            next_revision,
+            pending.value,
+        ));
     }
+    effects
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {

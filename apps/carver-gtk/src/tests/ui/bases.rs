@@ -1854,6 +1854,44 @@ pub(super) fn base_cell_editor_should_clear_a_value() -> TestResult {
     Ok(())
 }
 
+/// A list cell whose authored value cannot round-trip stays read-only.
+pub(super) fn base_grid_should_keep_a_lossy_list_cell_read_only() -> TestResult {
+    let fixture = grid_cell_fixture(
+        "---\ntags: [1, ready]\n---\n\n# Task\n",
+        "/tags",
+        serde_json::json!({"tags": [1, "ready"]}),
+        carver_domain::PropertyDescriptor {
+            path: carver_domain::PropertyPath("/tags".to_owned()),
+            kind: carver_domain::PropertyKind::List,
+            property_type: carver_domain::PropertyType::List,
+            example: Some("ready".to_owned()),
+        },
+    )?;
+
+    let display = find_widget(&fixture.base_widget, "base-cell-display:property:/tags")
+        .ok_or("cell display")?;
+    assert!(run_main_context_until(|| display.is_mapped()));
+    assert!(
+        !display.is_sensitive(),
+        "a list cell that cannot round-trip its value must be read-only"
+    );
+
+    let gesture = display
+        .observe_controllers()
+        .iter::<glib::Object>()
+        .filter_map(Result::ok)
+        .find_map(|object| object.downcast::<gtk::GestureClick>().ok())
+        .ok_or("cell gesture")?;
+    gesture.emit_by_name::<()>("pressed", &[&1i32, &0.0f64, &0.0f64]);
+    assert!(
+        find_widget(&fixture.base_widget, "base-cell-editor").is_none(),
+        "a read-only cell must not open an editor"
+    );
+
+    fixture.window.close();
+    Ok(())
+}
+
 /// Clicking away from a changed cell commits its value.
 pub(super) fn base_cell_editor_should_commit_on_click_away() -> TestResult {
     let fixture = grid_cell_fixture(
