@@ -14,6 +14,10 @@ use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarge
 /// Shared indexed cells making up the table-size hover grid.
 type TablePickerCells = Rc<RefCell<Vec<(u8, u8, gtk::Button)>>>;
 
+/// Largest table the picker grid can express. Larger live tables stay read-only.
+const TABLE_PICKER_ROWS: u8 = 4;
+const TABLE_PICKER_COLUMNS: u8 = 6;
+
 /// Opens the native image chooser and stores the selected file as a note asset.
 ///
 /// The callback only receives asset paths created by the storage client; source
@@ -268,22 +272,30 @@ fn render_table_picker(
     let (rows, columns, header) = table.map_or((1, 1, true), |table| {
         (table.rows, table.columns, table.header)
     });
+    // A table larger than the grid cannot be expressed without dropping trailing
+    // rows or columns, so keep the whole picker read-only instead of offering a
+    // click that would damage the document.
+    let oversized =
+        rows > u32::from(TABLE_PICKER_ROWS) || columns > u32::from(TABLE_PICKER_COLUMNS);
     dimensions.set_text(&tr_fmt!(
         gettext("{rows} × {columns}"),
         rows = rows,
         columns = columns
     ));
     header_row.set_active(header);
+    header_row.set_sensitive(!oversized);
     for (cell_row, cell_column, cell) in cells.borrow().iter() {
-        if u32::from(*cell_row) <= rows && u32::from(*cell_column) <= columns {
+        let selected = u32::from(*cell_row) <= rows && u32::from(*cell_column) <= columns;
+        if selected {
             cell.add_css_class("selected");
         } else {
             cell.remove_css_class("selected");
         }
+        cell.set_sensitive(!oversized);
     }
 }
 
-/// Builds the 4×6 hover grid and returns it with its indexed picker cells.
+/// Builds the hover grid and returns it with its indexed picker cells.
 fn build_table_size_grid() -> (gtk::Grid, TablePickerCells) {
     let grid = gtk::Grid::new();
     // Keep the picker intentional at every popover width: the cells share the
@@ -294,8 +306,8 @@ fn build_table_size_grid() -> (gtk::Grid, TablePickerCells) {
     grid.set_row_spacing(4);
     grid.set_column_spacing(4);
     let cells = Rc::new(RefCell::new(Vec::new()));
-    for row in 1_u8..=4 {
-        for column in 1_u8..=6 {
+    for row in 1_u8..=TABLE_PICKER_ROWS {
+        for column in 1_u8..=TABLE_PICKER_COLUMNS {
             let cell = gtk::Button::new();
             cell.add_css_class("table-size-cell");
             cell.set_hexpand(true);

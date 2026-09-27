@@ -182,13 +182,14 @@ pub(super) fn short_rich_document_should_not_scroll_the_writing_surface(
     Ok(())
 }
 
-/// Returns the picker's dimension label and the number of highlighted cells.
-fn table_picker_highlight(root: &gtk::Widget) -> (String, usize) {
+/// Returns the picker's dimension label, highlighted cell count, and whether
+/// the grid action is currently enabled.
+fn table_picker_highlight(root: &gtk::Widget) -> (String, usize, bool) {
     let Some(menu) = widget_as::<gtk::MenuButton>(root, "format-table-button") else {
-        return (String::new(), 0);
+        return (String::new(), 0, false);
     };
     let Some(content) = menu.popover().and_then(|popover| popover.child()) else {
-        return (String::new(), 0);
+        return (String::new(), 0, false);
     };
     let label = content
         .first_child()
@@ -200,8 +201,12 @@ fn table_picker_highlight(root: &gtk::Widget) -> (String, usize) {
         .and_then(|dimensions| dimensions.next_sibling())
         .and_downcast::<gtk::Grid>()
     else {
-        return (label, 0);
+        return (label, 0, false);
     };
+    let enabled = grid
+        .first_child()
+        .and_downcast::<gtk::Button>()
+        .is_some_and(|cell| cell.is_sensitive());
     let mut selected = 0;
     let mut child = grid.first_child();
     while let Some(widget) = child {
@@ -210,7 +215,7 @@ fn table_picker_highlight(root: &gtk::Widget) -> (String, usize) {
         }
         child = widget.next_sibling();
     }
-    (label, selected)
+    (label, selected, enabled)
 }
 
 pub(super) fn rich_table_selection_should_update_the_picker(fixture: &WindowFixture) -> TestResult {
@@ -234,8 +239,8 @@ pub(super) fn rich_table_selection_should_update_the_picker(fixture: &WindowFixt
         "(() => { const editor = window.carverEditor?.editor; if (!editor) return false; let pos = null; editor.state.doc.descendants((node, position) => { if (pos === null && (node.type.name === 'tableCell' || node.type.name === 'tableHeader')) pos = position + 1; }); return pos !== null && editor.commands.setTextSelection(pos); })()",
     );
     assert!(run_main_context_until(|| {
-        let (label, selected) = table_picker_highlight(&root);
-        label == "2 × 3" && selected == 6
+        let (label, selected, enabled) = table_picker_highlight(&root);
+        label == "2 × 3" && selected == 6 && enabled
     }));
     // Growing the table through the editor must be reflected on the next update.
     assert_web_script_should_be_true(
@@ -243,8 +248,18 @@ pub(super) fn rich_table_selection_should_update_the_picker(fixture: &WindowFixt
         "window.carverEditor?.editor?.chain().focus().addRowAfter().run() === true",
     );
     assert!(run_main_context_until(|| {
-        let (label, selected) = table_picker_highlight(&root);
-        label == "3 × 3" && selected == 9
+        let (label, selected, enabled) = table_picker_highlight(&root);
+        label == "3 × 3" && selected == 9 && enabled
+    }));
+    // A table that outgrows the grid must disable the resize action instead of
+    // offering a click that would drop trailing rows.
+    assert_web_script_should_be_true(
+        &rich,
+        "(() => { const editor = window.carverEditor?.editor; if (!editor) return false; editor.chain().focus().addRowAfter().run(); editor.chain().focus().addRowAfter().run(); return true; })()",
+    );
+    assert!(run_main_context_until(|| {
+        let (label, selected, enabled) = table_picker_highlight(&root);
+        label == "5 × 3" && selected == 12 && !enabled
     }));
     Ok(())
 }

@@ -100,13 +100,21 @@ pub(crate) fn image_description_should_import_only_after_confirmation() -> TestR
     Ok(())
 }
 
-fn cell_is_selected(picker: &TablePicker, row: u8, column: u8) -> bool {
+fn picker_cell(picker: &TablePicker, row: u8, column: u8) -> Option<gtk::Button> {
     picker
         .cells
         .borrow()
         .iter()
         .find(|(cell_row, cell_column, _)| *cell_row == row && *cell_column == column)
-        .is_some_and(|(_, _, cell)| cell.has_css_class("selected"))
+        .map(|(_, _, cell)| cell.clone())
+}
+
+fn cell_is_selected(picker: &TablePicker, row: u8, column: u8) -> bool {
+    picker_cell(picker, row, column).is_some_and(|cell| cell.has_css_class("selected"))
+}
+
+fn cell_is_sensitive(picker: &TablePicker, row: u8, column: u8) -> bool {
+    picker_cell(picker, row, column).is_some_and(|cell| cell.is_sensitive())
 }
 
 /// The picker must mirror the live table and drop a stale hover when reopened.
@@ -147,4 +155,26 @@ pub(crate) fn table_picker_should_reflect_live_table_and_reset() {
     assert!(picker.header_row.is_active());
     assert!(cell_is_selected(&picker, 1, 1));
     assert!(!cell_is_selected(&picker, 2, 1));
+
+    // A table larger than the grid cannot be resized without dropping content,
+    // so the picker must refuse the action entirely.
+    picker.set_table(Some(TableSelection {
+        rows: 5,
+        columns: 7,
+        header: true,
+    }));
+    assert_eq!(picker.dimensions.text(), "5 × 7");
+    assert!(picker.header_row.is_active());
+    assert!(!picker.header_row.is_sensitive());
+    assert!(!cell_is_sensitive(&picker, 1, 1));
+    assert!(cell_is_selected(&picker, 4, 6));
+
+    // Returning within bounds restores the resize action.
+    picker.set_table(Some(TableSelection {
+        rows: 2,
+        columns: 3,
+        header: true,
+    }));
+    assert!(picker.header_row.is_sensitive());
+    assert!(cell_is_sensitive(&picker, 1, 1));
 }

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 13:27+0200\n"
+"POT-Creation-Date: 2026-09-27 13:32+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -140,8 +140,8 @@ msgstr "Solo se eliminará esta base. Tus notas y sus propiedades no cambiarán.
 #: apps/carver-gtk/src/ui/editor/mod.rs:1657
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
-#: apps/carver-gtk/src/ui/formatting.rs:100
-#: apps/carver-gtk/src/ui/formatting.rs:435 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:104
+#: apps/carver-gtk/src/ui/formatting.rs:447 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr "Cancelar"
@@ -378,7 +378,7 @@ msgstr "Campo personalizado"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
-#: apps/carver-gtk/src/ui/formatting.rs:425
+#: apps/carver-gtk/src/ui/formatting.rs:437
 msgid "Text"
 msgstr "Texto"
 
@@ -1113,7 +1113,7 @@ msgid "Add files…"
 msgstr "Añadir archivos…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:47
-#: apps/carver-gtk/src/ui/formatting.rs:171
+#: apps/carver-gtk/src/ui/formatting.rs:175
 msgid "Add files"
 msgstr "Añadir archivos"
 
@@ -1511,7 +1511,7 @@ msgid "Could not read pasted image"
 msgstr "No se pudo leer la imagen pegada"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:418
+#: apps/carver-gtk/src/ui/formatting.rs:430
 msgid "Link text"
 msgstr "Texto del enlace"
 
@@ -1521,58 +1521,58 @@ msgid "Text"
 msgstr "Texto"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:427
+#: apps/carver-gtk/src/ui/formatting.rs:439
 msgid "Address"
 msgstr "Dirección"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:430
+#: apps/carver-gtk/src/ui/formatting.rs:442
 msgid "Insert Link"
 msgstr "Insertar enlace"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:533
-#: apps/carver-gtk/src/ui/formatting.rs:101
-#: apps/carver-gtk/src/ui/formatting.rs:436
+#: apps/carver-gtk/src/ui/formatting.rs:105
+#: apps/carver-gtk/src/ui/formatting.rs:448
 msgid "Insert"
 msgstr "Insertar"
 
-#: apps/carver-gtk/src/ui/formatting.rs:42
+#: apps/carver-gtk/src/ui/formatting.rs:46
 msgid "Insert Image"
 msgstr "Insertar imagen"
 
-#: apps/carver-gtk/src/ui/formatting.rs:90
+#: apps/carver-gtk/src/ui/formatting.rs:94
 msgid "Description (optional)"
 msgstr "Descripción (opcional)"
 
-#: apps/carver-gtk/src/ui/formatting.rs:92
+#: apps/carver-gtk/src/ui/formatting.rs:96
 msgid "Image description"
 msgstr "Descripción de la imagen"
 
-#: apps/carver-gtk/src/ui/formatting.rs:94
+#: apps/carver-gtk/src/ui/formatting.rs:98
 msgid "Used as alternative text when the image cannot be displayed."
 msgstr "Se usa como texto alternativo cuando no se puede mostrar la imagen."
 
-#: apps/carver-gtk/src/ui/formatting.rs:113
+#: apps/carver-gtk/src/ui/formatting.rs:117
 msgid "Unsupported image format"
 msgstr "Formato de imagen no compatible"
 
-#: apps/carver-gtk/src/ui/formatting.rs:272
-#: apps/carver-gtk/src/ui/formatting.rs:334
-#: apps/carver-gtk/src/ui/formatting.rs:360
+#: apps/carver-gtk/src/ui/formatting.rs:281
+#: apps/carver-gtk/src/ui/formatting.rs:346
+#: apps/carver-gtk/src/ui/formatting.rs:372
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
 
-#: apps/carver-gtk/src/ui/formatting.rs:303
+#: apps/carver-gtk/src/ui/formatting.rs:315
 #, rust-format
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} filas × {columns} columnas"
 
-#: apps/carver-gtk/src/ui/formatting.rs:323
+#: apps/carver-gtk/src/ui/formatting.rs:335
 msgid "Insert table"
 msgstr "Insertar tabla"
 
-#: apps/carver-gtk/src/ui/formatting.rs:345
+#: apps/carver-gtk/src/ui/formatting.rs:357
 msgid "Header row"
 msgstr "Fila de encabezado"
 
