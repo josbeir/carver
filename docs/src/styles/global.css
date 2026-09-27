@@ -100,11 +100,11 @@
 }
 
 @layer components {
-  /* Soft brand glow behind the hero, tinted from the theme's primary color. */
+  /* Soft brand glow layered over the hero's vertical tint. */
   .hero-glow {
     background: radial-gradient(
       60% 60% at 50% 0%,
-      color-mix(in oklab, var(--color-primary) 20%, transparent) 0%,
+      color-mix(in oklab, var(--color-primary) 14%, transparent) 0%,
       transparent 70%
     );
   }

@@ -5,9 +5,11 @@ import ThemedScreenshot from './ThemedScreenshot.astro';
 interface Props {
   /** Slides, shown in order; each keeps its light/dark pair. */
   shots: Shot[];
+  /** Responsive sizes hint; defaults to the hero's capped column. */
+  sizes?: string;
 }
 
-const { shots } = Astro.props;
+const { shots, sizes = '(min-width: 1276px) 1200px, 100vw' } = Astro.props;
 
 const ordered = shots.filter(Boolean);
 ---
@@ -33,11 +35,7 @@ const ordered = shots.filter(Boolean);
         aria-label={`${index + 1} of ${ordered.length}`}
         data-carousel-slide
       >
-        <ThemedScreenshot
-          shot={shot}
-          loading={index === 0 ? 'eager' : 'lazy'}
-          sizes="(min-width: 1152px) 1104px, 100vw"
-        />
+        <ThemedScreenshot shot={shot} loading={index === 0 ? 'eager' : 'lazy'} sizes={sizes} />
       </div>
     ))}
   </div>
