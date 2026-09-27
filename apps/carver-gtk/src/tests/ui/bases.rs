@@ -919,16 +919,16 @@ pub(super) fn base_grid_edits_should_persist_to_the_note() -> TestResult {
         widget_as::<gtk::Button>(&base_widget, "cell-edit-title").ok_or("title edit")?;
     assert!(run_main_context_until(|| title_edit.is_mapped()));
     title_edit.emit_clicked();
-    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
-    let dialog = window.visible_dialog().ok_or("title dialog")?;
+    assert!(run_main_context_until(|| {
+        find_widget(&base_widget, "base-cell-editor").is_some()
+    }));
     let title_entry =
-        widget_as::<gtk::Entry>(dialog.upcast_ref(), "base-cell-editor").ok_or("title entry")?;
+        widget_as::<gtk::Entry>(&base_widget, "base-cell-editor").ok_or("title entry")?;
     assert_eq!(title_entry.text(), "Heading");
     title_entry.set_text("Override");
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-cell-editor-save")
-        .ok_or("save button")?
+    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
+        .ok_or("done button")?
         .emit_clicked();
-    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
 
     let saved: Rc<std::cell::RefCell<Option<String>>> = Rc::new(std::cell::RefCell::new(None));
     assert!(run_main_context_until_for(
@@ -1021,15 +1021,15 @@ pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
         widget_as::<gtk::Button>(&base_widget, "cell-edit-title").ok_or("title edit")?;
     assert!(run_main_context_until(|| title_edit.is_mapped()));
     title_edit.emit_clicked();
-    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
-    let dialog = window.visible_dialog().ok_or("title dialog")?;
+    assert!(run_main_context_until(|| {
+        find_widget(&base_widget, "base-cell-editor").is_some()
+    }));
     let title_entry =
-        widget_as::<gtk::Entry>(dialog.upcast_ref(), "base-cell-editor").ok_or("title entry")?;
+        widget_as::<gtk::Entry>(&base_widget, "base-cell-editor").ok_or("title entry")?;
     title_entry.set_text("   ");
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-cell-editor-save")
-        .ok_or("save button")?
+    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
+        .ok_or("done button")?
         .emit_clicked();
-    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
 
     let cleared: Rc<std::cell::RefCell<Option<String>>> = Rc::new(std::cell::RefCell::new(None));
     assert!(run_main_context_until_for(
@@ -1094,7 +1094,10 @@ pub(super) fn base_cell_editors_should_commit_typed_values() -> TestResult {
     assert_eq!(number.value(), Err(()));
 
     let list = CellEditorWidget::build(
-        &CellEditor::List(vec!["draft".to_owned(), "done".to_owned()]),
+        &CellEditor::List {
+            options: vec!["draft".to_owned(), "done".to_owned()],
+            multiple: false,
+        },
         &FrontmatterValue::Null,
         "base-cell-editor",
     )
@@ -1106,6 +1109,24 @@ pub(super) fn base_cell_editors_should_commit_typed_values() -> TestResult {
         .map_err(|_| "list dropdown")?;
     dropdown.set_selected(1);
     assert_eq!(list.value(), Ok(Some(serde_json::json!("done"))));
+
+    // A multi-select list renders a checklist and reads the selected options.
+    let multi = CellEditorWidget::build(
+        &CellEditor::List {
+            options: vec!["draft".to_owned(), "done".to_owned()],
+            multiple: true,
+        },
+        &FrontmatterValue::List(vec![FrontmatterValue::Text("draft".to_owned())]),
+        "base-cell-editor",
+    )
+    .ok_or("multi list editor")?;
+    let container = multi
+        .widget()
+        .clone()
+        .downcast::<gtk::Box>()
+        .map_err(|_| "multi list box")?;
+    assert_eq!(container.observe_children().n_items(), 2);
+    assert_eq!(multi.value(), Ok(Some(serde_json::json!(["draft"]))));
 
     // A boolean is always visible and reflects its seed.
     let switch = build_boolean_cell(true, "cell-boolean");
@@ -1288,15 +1309,136 @@ pub(super) fn double_clicking_a_cell_should_reveal_the_editor() -> TestResult {
         .ok_or("double-click gesture")?;
     gesture.emit_by_name::<()>("pressed", &[&2i32, &0.0f64, &0.0f64]);
 
-    assert!(run_main_context_until(|| window.visible_dialog().is_some()));
-    let dialog = window.visible_dialog().ok_or("editor dialog")?;
-    let entry =
-        widget_as::<gtk::Entry>(dialog.upcast_ref(), "base-cell-editor").ok_or("cell editor")?;
+    assert!(run_main_context_until(|| {
+        find_widget(&base_widget, "base-cell-editor").is_some()
+    }));
+    let entry = widget_as::<gtk::Entry>(&base_widget, "base-cell-editor").ok_or("cell editor")?;
     assert_eq!(entry.text(), "ready");
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-cell-editor-save")
-        .ok_or("save button")?
+    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
+        .ok_or("done button")?
         .emit_clicked();
-    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+    window.close();
+    Ok(())
+}
+
+/// A configured list property opens a dropdown and persists the selection.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scenario drives the full list-edit, save, and reload path"
+)]
+pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
+    let (_temp, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let note = client.save_note(
+        created.id,
+        created.revision,
+        "---\nstatus: draft\n---\n\n# Task\n",
+    )?;
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Tasks".to_owned(),
+        columns: vec![carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath(
+            "/status".to_owned(),
+        ))],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let note_id = note.id;
+    let row = carver_sdk::BaseRow {
+        note_id,
+        revision: note.revision,
+        name: "Task".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({"status": "draft"}),
+    };
+    let descriptors = [carver_domain::PropertyDescriptor {
+        path: carver_domain::PropertyPath("/status".to_owned()),
+        kind: carver_domain::PropertyKind::List,
+        property_type: carver_domain::PropertyType::List,
+        example: Some("draft".to_owned()),
+    }];
+    let defaults = [carver_config::DocumentProperty {
+        key: "status".to_owned(),
+        field_type: carver_config::DocumentPropertyType::List,
+        multiple: false,
+        value: serde_json::json!(["draft", "done"]),
+    }];
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &descriptors,
+        &defaults,
+        &dispatcher,
+    );
+    let routes = gtk::Stack::new();
+    routes.add_named(&base_widget, Some("base"));
+    let view = crate::view::ViewRefs::new(
+        routes.clone(),
+        adw::StatusPage::new(),
+        adw::StatusPage::new(),
+    )
+    .with_dispatcher(dispatcher.clone())
+    .with_base(refs);
+    let mut model = AppModel::new(&Config::default());
+    model.route = Route::Base;
+    model.bases.selected = Some(definition.id);
+    model.bases.definitions.state = LoadState::Ready(vec![definition.clone()]);
+    model.bases.rows.state = LoadState::Ready(vec![row.clone()]);
+    let runtime = AppRuntime::new(client.clone(), model, view);
+    runtime.bind_dispatcher(&dispatcher);
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&routes));
+    window.present();
+
+    let display =
+        find_widget(&base_widget, "base-cell-display:property:/status").ok_or("cell display")?;
+    assert!(run_main_context_until(|| display.is_mapped()));
+    let gesture = display
+        .observe_controllers()
+        .iter::<glib::Object>()
+        .filter_map(Result::ok)
+        .find_map(|object| object.downcast::<gtk::GestureClick>().ok())
+        .ok_or("double-click gesture")?;
+    gesture.emit_by_name::<()>("pressed", &[&2i32, &0.0f64, &0.0f64]);
+
+    assert!(run_main_context_until(|| {
+        find_widget(&base_widget, "base-cell-editor").is_some()
+    }));
+    let dropdown =
+        widget_as::<gtk::DropDown>(&base_widget, "base-cell-editor").ok_or("list dropdown")?;
+    assert_eq!(dropdown.model().map(|model| model.n_items()), Some(2));
+    dropdown.set_selected(1);
+    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
+        .ok_or("done button")?
+        .emit_clicked();
+
+    let saved: Rc<std::cell::RefCell<Option<String>>> = Rc::new(std::cell::RefCell::new(None));
+    assert!(run_main_context_until_for(
+        std::time::Duration::from_secs(5),
+        || {
+            if let Ok(Some(note)) = client.note(note_id)
+                && note.source.contains("status")
+                && note.source.contains("done")
+            {
+                *saved.borrow_mut() = Some(note.source);
+                return true;
+            }
+            false
+        }
+    ));
     window.close();
     Ok(())
 }

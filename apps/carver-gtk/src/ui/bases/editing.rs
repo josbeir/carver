@@ -1,18 +1,16 @@
-//! Inline boolean cells and the modal value editor for Base grid cells.
+//! Inline boolean cells and the anchored popover editor for Base grid cells.
 //!
-//! A boolean is always visible as a toggle. Every other editable value opens a small dialog with
-//! the appropriate control and Save/Cancel actions, which keeps the grid read-only and matches the
-//! platform's editing pattern.
+//! A boolean is always visible as a toggle. Every other editable value opens an anchored
+//! [`gtk::Popover`] with the appropriate control, Done/Cancel (and Clear where it applies), which
+//! keeps the grid read-only and does not depend on fragile focus-out handling.
 
-use std::rc::Rc;
+use std::{cell::Cell, rc::Rc};
 
 use carver_config::DocumentProperty;
 use carver_domain::{FrontmatterValue, PropertyKind, PropertyType, is_reserved_key};
 use carver_sdk::{BaseColumn, NoteId, PropertyDescriptor, Revision};
 use gettextrs::gettext;
 use gtk::prelude::*;
-use libadwaita as adw;
-use libadwaita::prelude::*;
 
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg};
 use crate::ui::property::{
@@ -34,8 +32,13 @@ pub(crate) enum CellEditor {
     Number,
     /// A boolean toggle shown directly in the cell.
     Boolean,
-    /// A single-select list of configured options.
-    List(Vec<String>),
+    /// Configured list options, rendered as a dropdown or a checklist.
+    List {
+        /// Available choices.
+        options: Vec<String>,
+        /// Whether more than one option may be selected.
+        multiple: bool,
+    },
     /// A calendar date.
     Date,
     /// A calendar date and time.
@@ -45,8 +48,8 @@ pub(crate) enum CellEditor {
 /// Resolves the editor for a column from observed descriptors and configured defaults.
 ///
 /// An observed descriptor wins over a configured default for the same path. A property with no
-/// metadata is treated as free text; a mixed or option-less list is read-only so the grid never
-/// flattens a value it cannot represent.
+/// metadata is treated as free text; a mixed value or a list with no configured options is
+/// read-only so the grid never flattens a value it cannot represent.
 #[must_use]
 pub(crate) fn resolve_editor(
     column: &BaseColumn,
@@ -91,14 +94,12 @@ fn editor_for_type(
         PropertyType::Date => Some(CellEditor::Date),
         PropertyType::DateTime => Some(CellEditor::DateTime),
         PropertyType::List => {
-            let options = configured
-                .map(DocumentProperty::options)
-                .unwrap_or_default();
-            if options.is_empty() || configured.is_some_and(|property| property.multiple) {
-                None
-            } else {
-                Some(CellEditor::List(options))
-            }
+            let configured = configured?;
+            let options = configured.options();
+            (!options.is_empty()).then_some(CellEditor::List {
+                options,
+                multiple: configured.multiple,
+            })
         }
     }
 }
@@ -110,12 +111,7 @@ pub(crate) fn seed_value(editor: &CellEditor, seed: &FrontmatterValue) -> CellVa
     match editor {
         CellEditor::Text => text_cell_value(seed),
         CellEditor::Number => number_cell_value(seed),
-        CellEditor::List(options) => match seed {
-            FrontmatterValue::Text(text) if options.contains(text) => {
-                Some(serde_json::Value::String(text.clone()))
-            }
-            _ => None,
-        },
+        CellEditor::List { options, multiple } => list_cell_value(seed, options, *multiple),
         CellEditor::Date => picker_value(PropertyType::Date, seed).map(serde_json::Value::String),
         CellEditor::DateTime => {
             picker_value(PropertyType::DateTime, seed).map(serde_json::Value::String)
@@ -166,29 +162,11 @@ impl CellEditorWidget {
                     read,
                 })
             }
-            CellEditor::List(options) => {
-                let labels: Vec<&str> = options.iter().map(String::as_str).collect();
-                let dropdown = gtk::DropDown::from_strings(&labels);
-                dropdown.set_widget_name(name);
-                dropdown.set_hexpand(true);
-                if let FrontmatterValue::Text(text) = seed
-                    && let Some(index) = options.iter().position(|option| option == text)
-                {
-                    dropdown.set_selected(u32::try_from(index).unwrap_or(0));
-                }
-                let read = {
-                    let options = options.clone();
-                    let dropdown = dropdown.clone();
-                    Rc::new(move || {
-                        let option = options.get(dropdown.selected() as usize).ok_or(())?;
-                        Ok(Some(serde_json::Value::String(option.clone())))
-                    })
-                };
-                Some(Self {
-                    widget: dropdown.upcast(),
-                    read,
-                })
-            }
+            CellEditor::List { options, multiple } => Some(if *multiple {
+                Self::build_multiple_list(options, seed, name)
+            } else {
+                Self::build_single_list(options, seed, name)
+            }),
             CellEditor::Date | CellEditor::DateTime => {
                 let field_type = if matches!(editor, CellEditor::Date) {
                     PropertyType::Date
@@ -208,7 +186,59 @@ impl CellEditorWidget {
         }
     }
 
-    /// Returns the control placed in the dialog.
+    fn build_single_list(options: &[String], seed: &FrontmatterValue, name: &str) -> Self {
+        let labels: Vec<&str> = options.iter().map(String::as_str).collect();
+        let dropdown = gtk::DropDown::from_strings(&labels);
+        dropdown.set_widget_name(name);
+        dropdown.set_hexpand(true);
+        if let FrontmatterValue::Text(text) = seed
+            && let Some(index) = options.iter().position(|option| option == text)
+        {
+            dropdown.set_selected(u32::try_from(index).unwrap_or(0));
+        }
+        let read = {
+            let options = options.to_vec();
+            let dropdown = dropdown.clone();
+            Rc::new(move || {
+                let option = options.get(dropdown.selected() as usize).ok_or(())?;
+                Ok(Some(serde_json::Value::String(option.clone())))
+            })
+        };
+        Self {
+            widget: dropdown.upcast(),
+            read,
+        }
+    }
+
+    fn build_multiple_list(options: &[String], seed: &FrontmatterValue, name: &str) -> Self {
+        let selected = selected_options(seed);
+        let container = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        container.set_widget_name(name);
+        let mut checks = Vec::new();
+        for option in options {
+            let check = gtk::CheckButton::with_label(option);
+            check.set_active(selected.contains(option));
+            container.append(&check);
+            checks.push((option.clone(), check));
+        }
+        let read = {
+            let checks = checks.clone();
+            Rc::new(move || {
+                let values: Vec<serde_json::Value> = checks
+                    .iter()
+                    .filter(|(_, check)| check.is_active())
+                    .map(|(option, _)| serde_json::Value::String(option.clone()))
+                    .collect();
+                Ok(Some(serde_json::Value::Array(values)))
+            })
+        };
+        Self {
+            widget: container.upcast(),
+            read,
+        }
+    }
+
+    /// Returns the control placed in the popover.
     pub(crate) fn widget(&self) -> &gtk::Widget {
         &self.widget
     }
@@ -231,82 +261,197 @@ pub(crate) fn build_boolean_cell(seed: bool, name: &str) -> gtk::Switch {
     switch
 }
 
-/// Opens the modal value editor for one cell and saves on confirmation.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the dialog carries the cell identity and its resolved editor"
-)]
+/// The identity and seed of one Base cell edit.
+#[derive(Clone, Copy)]
+pub(crate) struct CellEdit<'a> {
+    /// Note whose property is edited.
+    pub(crate) note_id: NoteId,
+    /// Row revision captured when the edit began.
+    pub(crate) revision: Revision,
+    /// JSON Pointer path of the edited property.
+    pub(crate) path: &'a str,
+    /// Dialog heading, usually the property key.
+    pub(crate) title: &'a str,
+    /// Editor resolved for the column.
+    pub(crate) editor: &'a CellEditor,
+    /// Value the editor starts from.
+    pub(crate) seed: &'a FrontmatterValue,
+}
+
+/// The footer buttons of a cell editor popover.
+struct CellActions {
+    clear: gtk::Button,
+    cancel: gtk::Button,
+    done: gtk::Button,
+}
+
+/// Opens the anchored editor popover for one cell.
+///
+/// Done, Clear, and clicking away commit a changed value; Cancel and Escape dismiss it unchanged.
 pub(crate) fn show_cell_editor(
-    parent: &gtk::Window,
+    anchor: &gtk::Widget,
     dispatcher: &AppDispatcher,
-    note_id: NoteId,
-    revision: Revision,
-    path: &str,
-    title: &str,
-    editor: &CellEditor,
-    seed: &FrontmatterValue,
+    edit: CellEdit<'_>,
 ) {
+    let CellEdit {
+        note_id,
+        revision,
+        path,
+        title,
+        editor,
+        seed,
+    } = edit;
     let Some(field) = CellEditorWidget::build(editor, seed, "base-cell-editor") else {
         return;
     };
-    let dialog = adw::Dialog::builder()
-        .title(title)
-        .follows_content_size(true)
-        .content_width(420)
-        .build();
-    dialog.set_widget_name("base-cell-editor-dialog");
+    let field = Rc::new(field);
+    let unchanged = seed_value(editor, seed);
+    // A list value is a selection, so clearing it is not offered.
+    let clearable = !matches!(editor, CellEditor::List { .. });
 
-    let header = adw::HeaderBar::new();
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+    content.set_margin_top(12);
+    content.set_margin_bottom(12);
+    content.set_width_request(280);
+    let heading = gtk::Label::new(Some(title));
+    heading.set_xalign(0.0);
+    heading.add_css_class("heading");
+    content.append(&heading);
+    content.append(field.widget());
+
+    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let clear = gtk::Button::with_label(&gettext("Clear"));
+    clear.add_css_class("flat");
+    clear.set_widget_name("base-cell-editor-clear");
+    clear.set_halign(gtk::Align::Start);
+    clear.set_hexpand(true);
     let cancel = gtk::Button::with_label(&gettext("Cancel"));
+    cancel.add_css_class("flat");
     cancel.set_widget_name("base-cell-editor-cancel");
-    let save = gtk::Button::with_label(&gettext("Save"));
-    save.add_css_class("suggested-action");
-    save.set_widget_name("base-cell-editor-save");
-    header.pack_start(&cancel);
-    header.pack_end(&save);
+    let done = gtk::Button::with_label(&gettext("Done"));
+    done.add_css_class("suggested-action");
+    done.set_widget_name("base-cell-editor-done");
+    footer.append(&clear);
+    footer.append(&cancel);
+    footer.append(&done);
+    content.append(&footer);
 
-    let group = adw::PreferencesGroup::new();
-    let row = adw::ActionRow::builder()
-        .title(title)
-        .child(field.widget())
-        .build();
-    group.add(&row);
-    let page = adw::PreferencesPage::new();
-    page.add(&group);
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
-    dialog.set_child(Some(&toolbar));
+    let popover = gtk::Popover::new();
+    popover.set_widget_name("base-cell-editor-popover");
+    popover.set_has_arrow(true);
+    popover.set_autohide(true);
+    popover.set_position(gtk::PositionType::Bottom);
+    popover.set_child(Some(&content));
+    popover.set_parent(anchor);
 
+    let dispatcher = dispatcher.clone();
+    let path = path.to_owned();
+    let commit: Rc<dyn Fn(CellValue)> = Rc::new(move |value| {
+        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: path.clone(),
+            revision,
+            value,
+        }));
+    });
+    connect_cell_actions(
+        &popover,
+        &field,
+        CellActions {
+            clear,
+            cancel,
+            done,
+        },
+        clearable,
+        unchanged,
+        &commit,
+    );
+    popover.popup();
+}
+
+/// Wires Done, Clear, Cancel, click-away, and Escape into one commit policy.
+fn connect_cell_actions(
+    popover: &gtk::Popover,
+    field: &Rc<CellEditorWidget>,
+    actions: CellActions,
+    clearable: bool,
+    unchanged: CellValue,
+    commit: &Rc<dyn Fn(CellValue)>,
+) {
+    let CellActions {
+        clear,
+        cancel,
+        done,
+    } = actions;
+    clear.set_visible(clearable);
+    let settled = Rc::new(Cell::new(false));
     {
-        let dialog = dialog.clone();
-        cancel.connect_clicked(move |_| {
-            let _ = dialog.close();
-        });
-    }
-    {
-        let dialog = dialog.clone();
-        let dispatcher = dispatcher.clone();
-        let path = path.to_owned();
-        let unchanged = seed_value(editor, seed);
-        save.connect_clicked(move |_| {
+        let settled = Rc::clone(&settled);
+        let commit = Rc::clone(commit);
+        let field = Rc::clone(field);
+        let unchanged = unchanged.clone();
+        let popover = popover.clone();
+        done.connect_clicked(move |_| {
             let Ok(value) = field.value() else {
-                // Invalid input keeps the dialog open so the user can correct it.
+                // Invalid input keeps the popover open so the user can correct it.
                 return;
             };
-            let _ = dialog.close();
-            if value == unchanged {
-                return;
+            settled.set(true);
+            if value != unchanged {
+                commit(value);
             }
-            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
-                note_id,
-                path: path.clone(),
-                revision,
-                value,
-            }));
+            popover.popdown();
         });
     }
-    dialog.present(Some(parent));
+    {
+        let settled = Rc::clone(&settled);
+        let commit = Rc::clone(commit);
+        let popover = popover.clone();
+        clear.connect_clicked(move |_| {
+            settled.set(true);
+            commit(None);
+            popover.popdown();
+        });
+    }
+    {
+        let settled = Rc::clone(&settled);
+        let popover = popover.clone();
+        cancel.connect_clicked(move |_| {
+            settled.set(true);
+            popover.popdown();
+        });
+    }
+    {
+        let settled = Rc::clone(&settled);
+        let commit = Rc::clone(commit);
+        let field = Rc::clone(field);
+        popover.connect_closed(move |popover| {
+            // A click-away commits a changed value; an explicit action already settled.
+            if !settled.replace(true)
+                && let Ok(value) = field.value()
+                && value != unchanged
+            {
+                commit(value);
+            }
+            popover.unparent();
+        });
+    }
+    // Escape cancels rather than falling through to the click-away commit.
+    let key = gtk::EventControllerKey::new();
+    key.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let popover_for_key = popover.clone();
+    key.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::Escape {
+            settled.set(true);
+            popover_for_key.popdown();
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    popover.add_controller(key);
 }
 
 fn read_text(entry: &gtk::Entry) -> CellValue {
@@ -333,6 +478,37 @@ fn number_cell_value(seed: &FrontmatterValue) -> CellValue {
     match seed {
         FrontmatterValue::Number(number) => Some(serde_json::Value::Number(number.clone())),
         _ => None,
+    }
+}
+
+fn selected_options(seed: &FrontmatterValue) -> Vec<String> {
+    match seed {
+        FrontmatterValue::List(items) => items
+            .iter()
+            .filter_map(|item| match item {
+                FrontmatterValue::Text(text) => Some(text.clone()),
+                _ => None,
+            })
+            .collect(),
+        FrontmatterValue::Text(text) => vec![text.clone()],
+        _ => Vec::new(),
+    }
+}
+
+fn list_cell_value(seed: &FrontmatterValue, options: &[String], multiple: bool) -> CellValue {
+    let selected: Vec<String> = selected_options(seed)
+        .into_iter()
+        .filter(|text| options.contains(text))
+        .collect();
+    if multiple {
+        Some(serde_json::Value::Array(
+            selected
+                .into_iter()
+                .map(serde_json::Value::String)
+                .collect(),
+        ))
+    } else {
+        selected.into_iter().next().map(serde_json::Value::String)
     }
 }
 
@@ -365,6 +541,13 @@ mod tests {
 
     fn property_column(path: &str) -> BaseColumn {
         BaseColumn::Property(PropertyPath(path.to_owned()))
+    }
+
+    fn list(options: &[&str], multiple: bool) -> CellEditor {
+        CellEditor::List {
+            options: options.iter().map(|option| (*option).to_owned()).collect(),
+            multiple,
+        }
     }
 
     #[test]
@@ -414,12 +597,9 @@ mod tests {
         )];
         assert_eq!(
             resolve_editor(&property_column("/status"), &[], &defaults),
-            Some(CellEditor::List(vec![
-                "draft".to_owned(),
-                "done".to_owned()
-            ]))
+            Some(list(&["draft", "done"], false))
         );
-        // A list without options, or a multi-select list, is read-only in the grid.
+        // A list with no configured options is read-only in the grid.
         assert_eq!(
             resolve_editor(
                 &property_column("/status"),
@@ -432,6 +612,7 @@ mod tests {
             ),
             None
         );
+        // A multi-select list uses a checklist.
         let multiple = vec![DocumentProperty {
             multiple: true,
             ..property(
@@ -442,7 +623,7 @@ mod tests {
         }];
         assert_eq!(
             resolve_editor(&property_column("/status"), &[], &multiple),
-            None
+            Some(list(&["draft", "done"], true))
         );
     }
 
@@ -471,11 +652,25 @@ mod tests {
         );
         assert_eq!(seed_value(&CellEditor::Text, &FrontmatterValue::Null), None);
         assert_eq!(
+            seed_value(&list(&["draft", "done"], false), &text.clone()),
+            None
+        );
+        assert_eq!(
             seed_value(
-                &CellEditor::List(vec!["draft".to_owned(), "done".to_owned()]),
+                &list(&["draft", "done"], false),
                 &FrontmatterValue::Text("done".to_owned())
             ),
             Some(serde_json::json!("done"))
+        );
+        assert_eq!(
+            seed_value(
+                &list(&["draft", "done"], true),
+                &FrontmatterValue::List(vec![
+                    FrontmatterValue::Text("draft".to_owned()),
+                    FrontmatterValue::Text("done".to_owned()),
+                ])
+            ),
+            Some(serde_json::json!(["draft", "done"]))
         );
         assert_eq!(
             seed_value(

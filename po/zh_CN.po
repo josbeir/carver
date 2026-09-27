@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 15:32+0200\n"
+"POT-Creation-Date: 2026-09-27 15:39+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -111,12 +111,12 @@ msgstr "加载更多行"
 msgid "Name"
 msgstr "名称"
 
-#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:559
+#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:557
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:560
+#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:558
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "已更新"
@@ -129,7 +129,7 @@ msgstr "编辑文档属性"
 msgid "Edit title"
 msgstr "编辑标题"
 
-#: apps/carver-gtk/src/ui/bases.rs:557
+#: apps/carver-gtk/src/ui/bases.rs:555
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1438
 msgid "Title"
 msgstr "标题"
@@ -144,7 +144,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:260
+#: apps/carver-gtk/src/ui/bases/editing.rs:330
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -328,7 +328,6 @@ msgid "Add sort rule"
 msgstr "添加排序规则"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:962
-#: apps/carver-gtk/src/ui/bases/editing.rs:262
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:665
 msgid "Save"
 msgstr "保存"
@@ -346,6 +345,16 @@ msgstr "配置视图库"
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "当前匹配 {count} 条笔记"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:325
+#: apps/carver-gtk/src/ui/property.rs:120
+msgid "Clear"
+msgstr "清除"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:333
+#: apps/carver-gtk/src/ui/property.rs:125
+msgid "Done"
+msgstr "完成"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:184
 msgid "Search fields"
@@ -1570,14 +1579,6 @@ msgstr "日期"
 #: apps/carver-gtk/src/ui/property.rs:24
 msgid "Date & time"
 msgstr "日期和时间"
-
-#: apps/carver-gtk/src/ui/property.rs:120
-msgid "Clear"
-msgstr "清除"
-
-#: apps/carver-gtk/src/ui/property.rs:125
-msgid "Done"
-msgstr "完成"
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"

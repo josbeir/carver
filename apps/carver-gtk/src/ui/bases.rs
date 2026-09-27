@@ -14,7 +14,7 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use self::editing::{CellEditor, build_boolean_cell, resolve_editor, show_cell_editor};
+use self::editing::{CellEdit, CellEditor, build_boolean_cell, resolve_editor, show_cell_editor};
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
 use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
@@ -528,11 +528,7 @@ fn open_cell_editor(
     let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
         return;
     };
-    let Some(parent) = item
-        .child()
-        .and_then(|child| child.root())
-        .and_downcast::<gtk::Window>()
-    else {
+    let Some(anchor) = item.child() else {
         return;
     };
     let (note_id, revision, seed) = {
@@ -540,14 +536,16 @@ fn open_cell_editor(
         (row.note_id, row.revision, cell_seed(&row, column))
     };
     show_cell_editor(
-        &parent,
+        &anchor,
         dispatcher,
-        note_id,
-        revision,
-        &column_edit_path(column),
-        &cell_title(column),
-        editor,
-        &seed,
+        CellEdit {
+            note_id,
+            revision,
+            path: &column_edit_path(column),
+            title: &cell_title(column),
+            editor,
+            seed: &seed,
+        },
     );
 }
 

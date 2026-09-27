@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 15:32+0200\n"
+"POT-Creation-Date: 2026-09-27 15:39+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -111,12 +111,12 @@ msgstr "Charger plus de lignes"
 msgid "Name"
 msgstr "Nom"
 
-#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:559
+#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:557
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 msgid "Category"
 msgstr "Catégorie"
 
-#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:560
+#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:558
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "Modifiée"
@@ -129,7 +129,7 @@ msgstr "Modifier les propriétés du document"
 msgid "Edit title"
 msgstr "Modifier le titre"
 
-#: apps/carver-gtk/src/ui/bases.rs:557
+#: apps/carver-gtk/src/ui/bases.rs:555
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1438
 msgid "Title"
 msgstr "Titre"
@@ -144,7 +144,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "Seule cette base sera supprimée. Vos notes et leurs propriétés ne seront pas modifiées."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:260
+#: apps/carver-gtk/src/ui/bases/editing.rs:330
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -328,7 +328,6 @@ msgid "Add sort rule"
 msgstr "Ajouter une règle de tri"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:962
-#: apps/carver-gtk/src/ui/bases/editing.rs:262
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:665
 msgid "Save"
 msgstr "Enregistrer"
@@ -347,6 +346,16 @@ msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "Correspond actuellement à {count} note"
 msgstr[1] "Correspond actuellement à {count} notes"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:325
+#: apps/carver-gtk/src/ui/property.rs:120
+msgid "Clear"
+msgstr "Effacer"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:333
+#: apps/carver-gtk/src/ui/property.rs:125
+msgid "Done"
+msgstr "Terminé"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:184
 msgid "Search fields"
@@ -1578,14 +1587,6 @@ msgstr "Date"
 #: apps/carver-gtk/src/ui/property.rs:24
 msgid "Date & time"
 msgstr "Date et heure"
-
-#: apps/carver-gtk/src/ui/property.rs:120
-msgid "Clear"
-msgstr "Effacer"
-
-#: apps/carver-gtk/src/ui/property.rs:125
-msgid "Done"
-msgstr "Terminé"
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"

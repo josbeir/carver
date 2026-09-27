@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 15:32+0200\n"
+"POT-Creation-Date: 2026-09-27 15:39+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -115,12 +115,12 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:559
+#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:557
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 msgid "Category"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:560
+#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:558
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr ""
@@ -133,7 +133,7 @@ msgstr ""
 msgid "Edit title"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:557
+#: apps/carver-gtk/src/ui/bases.rs:555
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1438
 msgid "Title"
 msgstr ""
@@ -150,7 +150,7 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:260
+#: apps/carver-gtk/src/ui/bases/editing.rs:330
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -334,7 +334,6 @@ msgid "Add sort rule"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:962
-#: apps/carver-gtk/src/ui/bases/editing.rs:262
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:665
 msgid "Save"
 msgstr ""
@@ -353,6 +352,16 @@ msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] ""
 msgstr[1] ""
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:325
+#: apps/carver-gtk/src/ui/property.rs:120
+msgid "Clear"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/editing.rs:333
+#: apps/carver-gtk/src/ui/property.rs:125
+msgid "Done"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:184
 msgid "Search fields"
@@ -1589,14 +1598,6 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/property.rs:24
 msgid "Date & time"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/property.rs:120
-msgid "Clear"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/property.rs:125
-msgid "Done"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
