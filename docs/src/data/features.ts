@@ -83,7 +83,7 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Prefer plain text? Make yourself at home.',
     icon: 'code',
     summary:
-      'Prefer plain text? Edit the canonical .crv source in an editor with syntax highlighting, breadcrumbs, and line numbers, beside a live preview.',
+      'Prefer plain text? Edit the canonical .crv source in a highlighted editor with line numbers and a breadcrumb trail of the block you are in, beside a live preview.',
     points: [
       'The rich editor, the source view, and every export share one Carve document.',
       'Import Carve or Markdown and keep a single format in your library.',
@@ -98,9 +98,10 @@ export const featureAreas: FeatureArea[] = [
     teaser: 'Bring related ideas into one view.',
     icon: 'table',
     summary:
-      'Saved views called Bases arrange notes by their frontmatter properties. Choose columns, filter and sort, and keep a project in view without moving anything.',
+      'Saved views called Bases arrange notes by their frontmatter properties. Choose columns, filter and sort, and edit the values in place without opening a note.',
     points: [
-      'Properties are typed — text, number, boolean, list, or date — so each cell gets the right control.',
+      'Properties are typed — text, number, boolean, list, or date — so each cell gets the right editor.',
+      'Edits from the grid are written straight back to the note, title overrides included.',
       'A Base is a view over your library, not a copy of it.',
     ],
     shot: shots.bases,
