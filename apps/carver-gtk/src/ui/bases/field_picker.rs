@@ -2,10 +2,14 @@
 
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
+use carver_config::DocumentProperty;
+use carver_domain::is_reserved_key;
 use carver_sdk::{BaseColumn, BaseDefinition, PropertyDescriptor, PropertyKind, PropertyPath};
 use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
+
+use crate::ui::property::{property_path, property_type_label};
 
 type PopulateFn = Rc<dyn Fn(&str)>;
 type PopulateSlot = Rc<RefCell<Option<PopulateFn>>>;
@@ -37,8 +41,17 @@ pub(crate) struct FieldCatalog {
 }
 
 impl FieldCatalog {
-    /// Builds a catalog from the current definition and library-wide descriptors.
-    pub(crate) fn new(definition: &BaseDefinition, descriptors: &[PropertyDescriptor]) -> Self {
+    /// Builds a catalog from the current definition, library-wide descriptors, and configured
+    /// default properties.
+    ///
+    /// Configured defaults are always offered, even before any note carries the key, so a Base can
+    /// select and filter a property the user has declared but not yet filled in. An observed
+    /// descriptor wins when both describe the same path.
+    pub(crate) fn new(
+        definition: &BaseDefinition,
+        descriptors: &[PropertyDescriptor],
+        defaults: &[DocumentProperty],
+    ) -> Self {
         let mut options = BTreeMap::new();
         for field in [BaseColumn::Name, BaseColumn::Category, BaseColumn::Updated] {
             options.insert(field_id(&field), option_for_field(&field, None));
@@ -47,15 +60,25 @@ impl FieldCatalog {
             let field = BaseColumn::Property(descriptor.path.clone());
             options.insert(field_id(&field), option_for_field(&field, Some(descriptor)));
         }
+        for property in defaults {
+            if is_reserved_key(property.key.trim()) {
+                continue;
+            }
+            let field = BaseColumn::Property(property_path(&property.key));
+            options
+                .entry(field_id(&field))
+                .or_insert_with(|| option_for_configured(&field, property));
+        }
         for field in definition
             .columns
             .iter()
             .chain(definition.filters.iter().map(|filter| &filter.field))
             .chain(definition.sorts.iter().map(|sort| &sort.field))
         {
+            let field = field.canonicalized();
             options
-                .entry(field_id(field))
-                .or_insert_with(|| option_for_field(field, None));
+                .entry(field_id(&field))
+                .or_insert_with(|| option_for_field(&field, None));
         }
         Self {
             options: Rc::new(RefCell::new(options.into_values().collect())),
@@ -69,7 +92,9 @@ impl FieldCatalog {
 
     /// Adds a locally entered custom field if it is not already present.
     pub(crate) fn ensure(&self, field: &BaseColumn) {
-        let id = field_id(field);
+        // A reserved path such as `/title` resolves to its built-in column.
+        let field = field.canonicalized();
+        let id = field_id(&field);
         let exists = self
             .options
             .borrow()
@@ -77,7 +102,7 @@ impl FieldCatalog {
             .any(|option| field_id(&option.field) == id);
         if !exists {
             let mut options = self.options.borrow_mut();
-            options.push(option_for_field(field, None));
+            options.push(option_for_field(&field, None));
             options.sort_by_key(|option| field_id(&option.field));
         }
     }
@@ -210,7 +235,7 @@ impl FieldPicker {
                 &catalog_for_render,
                 button_label.as_deref(),
             );
-            on_selected(field);
+            on_selected(field.canonicalized());
             if keep_open {
                 let populate = populate_slot_for_selection
                     .upgrade()
@@ -464,7 +489,8 @@ fn show_custom_field_dialog(
     dialog.connect_response(None, move |_dialog, response| {
         if response == "add" {
             let field =
-                BaseColumn::Property(PropertyPath(entry_for_response.text().trim().to_owned()));
+                BaseColumn::Property(PropertyPath(entry_for_response.text().trim().to_owned()))
+                    .canonicalized();
             catalog.ensure(&field);
             callback(field);
             populate(search.text().as_str());
@@ -492,20 +518,52 @@ fn valid_json_pointer(path: &str) -> bool {
 }
 
 fn option_for_field(field: &BaseColumn, descriptor: Option<&PropertyDescriptor>) -> FieldOption {
-    let label = field_label(field);
     let metadata = match field {
         BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => gettext("Built-in field"),
         BaseColumn::Property(_) => descriptor.map_or_else(
             || gettext("Custom field"),
             |descriptor| {
-                let kind = property_kind_label(descriptor.kind);
-                descriptor.example.as_deref().map_or_else(
-                    || kind.clone(),
-                    |example| format!("{kind} · {}", truncate(example, 48)),
-                )
+                // Mixed and empty observations have no single semantic type, so report the JSON
+                // kind; otherwise the semantic type (which can distinguish a date) is clearer.
+                let kind = if matches!(descriptor.kind, PropertyKind::Mixed | PropertyKind::Null) {
+                    property_kind_label(descriptor.kind)
+                } else {
+                    property_type_label(descriptor.property_type)
+                };
+                match descriptor.example.as_deref() {
+                    Some(example) => {
+                        let value = truncate(example, 48);
+                        tr_fmt!(gettext("{label} · {value}"), label = kind, value = value)
+                    }
+                    None => kind,
+                }
             },
         ),
     };
+    build_option(field, metadata)
+}
+
+/// Builds the picker entry for a property declared only by the user's configured defaults.
+fn option_for_configured(field: &BaseColumn, property: &DocumentProperty) -> FieldOption {
+    let type_label = property_type_label(property.field_type);
+    let options = property.options();
+    let metadata = if matches!(property.field_type, carver_domain::PropertyType::List)
+        && !options.is_empty()
+    {
+        let value = truncate(&options.join(", "), 48);
+        tr_fmt!(
+            gettext("{label} · {value}"),
+            label = type_label,
+            value = value
+        )
+    } else {
+        type_label
+    };
+    build_option(field, metadata)
+}
+
+fn build_option(field: &BaseColumn, metadata: String) -> FieldOption {
+    let label = field_label(field);
     let path = match field {
         BaseColumn::Property(path) => path.0.clone(),
         _ => String::new(),
@@ -561,7 +619,7 @@ pub(crate) fn field_id(field: &BaseColumn) -> String {
 
 pub(crate) fn field_label(field: &BaseColumn) -> String {
     match field {
-        BaseColumn::Name => gettext("Name"),
+        BaseColumn::Name => gettext("Title"),
         BaseColumn::Category => gettext("Category"),
         BaseColumn::Updated => gettext("Updated"),
         BaseColumn::Property(path) => path
@@ -649,6 +707,30 @@ mod tests {
     }
 
     #[test]
+    fn field_label_should_call_the_derived_title_column_title() {
+        assert_eq!(field_label(&BaseColumn::Name), gettext("Title"));
+    }
+
+    #[test]
+    fn catalog_should_canonicalize_a_reserved_definition_field() {
+        let reserved = BaseColumn::Property(PropertyPath("/title".to_owned()));
+        let definition = BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            vec![reserved.clone()],
+            carver_sdk::Revision(1),
+        );
+        let catalog = FieldCatalog::new(&definition, &[], &[]);
+        let options = catalog.options();
+        assert!(
+            options
+                .iter()
+                .any(|option| option.field == BaseColumn::Name)
+        );
+        assert!(!options.iter().any(|option| option.field == reserved));
+    }
+
+    #[test]
     fn field_label_should_unescape_nested_json_pointer_tokens() {
         let field = BaseColumn::Property(PropertyPath("/project/a~1b/~0name".to_owned()));
         assert_eq!(field_label(&field), "project → a/b → ~name");
@@ -666,9 +748,10 @@ mod tests {
         let descriptor = PropertyDescriptor {
             path: PropertyPath("/status".to_owned()),
             kind: PropertyKind::Text,
+            property_type: carver_sdk::PropertyType::Text,
             example: Some("ready".to_owned()),
         };
-        let catalog = FieldCatalog::new(&definition, &[descriptor]);
+        let catalog = FieldCatalog::new(&definition, &[descriptor], &[]);
         let options = catalog.options();
         assert_eq!(
             options
@@ -684,6 +767,81 @@ mod tests {
                 .map(|option| option.metadata.as_str()),
             Some("Text · ready")
         );
+    }
+
+    #[test]
+    fn catalog_should_offer_configured_defaults_before_any_note_has_them() {
+        let definition = BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            Vec::new(),
+            carver_sdk::Revision(1),
+        );
+        let defaults = vec![
+            DocumentProperty {
+                key: "status".to_owned(),
+                field_type: carver_sdk::PropertyType::List,
+                multiple: false,
+                value: serde_json::json!(["draft", "done"]),
+            },
+            DocumentProperty {
+                key: "title".to_owned(),
+                field_type: carver_sdk::PropertyType::Text,
+                multiple: false,
+                value: serde_json::Value::Null,
+            },
+        ];
+        let catalog = FieldCatalog::new(&definition, &[], &defaults);
+        let options = catalog.options();
+        let status = options
+            .iter()
+            .find(
+                |option| matches!(&option.field, BaseColumn::Property(path) if path.0 == "/status"),
+            )
+            .map(|option| option.metadata.clone());
+        assert!(status.as_deref().is_some_and(|text| text.contains("List")));
+        assert!(status.as_deref().is_some_and(|text| text.contains("draft")));
+        // The reserved title is represented by the built-in Name column.
+        assert!(!options.iter().any(
+            |option| matches!(&option.field, BaseColumn::Property(path) if path.0 == "/title")
+        ));
+    }
+
+    #[test]
+    fn catalog_should_prefer_observed_descriptors_over_configured_defaults() {
+        let definition = BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            Vec::new(),
+            carver_sdk::Revision(1),
+        );
+        let defaults = vec![DocumentProperty {
+            key: "status".to_owned(),
+            field_type: carver_sdk::PropertyType::Number,
+            multiple: false,
+            value: serde_json::json!(0),
+        }];
+        let descriptor = PropertyDescriptor {
+            path: PropertyPath("/status".to_owned()),
+            kind: PropertyKind::Text,
+            property_type: carver_sdk::PropertyType::Text,
+            example: Some("ready".to_owned()),
+        };
+        let catalog = FieldCatalog::new(&definition, &[descriptor], &defaults);
+        let options = catalog.options();
+        let status = options
+            .iter()
+            .find(
+                |option| matches!(&option.field, BaseColumn::Property(path) if path.0 == "/status"),
+            )
+            .map(|option| option.metadata.as_str());
+        assert_eq!(status, Some("Text · ready"));
+    }
+
+    #[test]
+    fn configured_property_paths_should_escape_pointer_tokens() {
+        assert_eq!(property_path("a/b").0, "/a~1b");
+        assert_eq!(property_path("~name").0, "/~0name");
     }
 
     #[test]

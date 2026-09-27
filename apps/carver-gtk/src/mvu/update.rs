@@ -298,6 +298,52 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             Vec::new()
         }
         BasesMsg::LoadMoreRows => load_more_base_rows(model).into_iter().collect(),
+        BasesMsg::CommitCellEdit {
+            note_id,
+            path,
+            revision,
+            value,
+        } => commit_base_cell_edit(model, note_id, path, revision, value),
+        BasesMsg::EditProperties { note_id, revision } => {
+            if model.route != super::Route::Base || model.bases.base_properties_request.is_some() {
+                return Vec::new();
+            }
+            let request_id = model.next_request_id();
+            model.bases.base_properties_request = Some(request_id);
+            let categories = active_category_choices(model);
+            vec![Effect::LoadBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                defaults: model.config.document_properties.entries.clone(),
+                format: model.config.document_properties.format,
+                categories,
+            }]
+        }
+        BasesMsg::ApplyProperties {
+            note_id,
+            revision,
+            edit,
+            category,
+        } => {
+            if model.route != super::Route::Base || model.bases.selected.is_none() {
+                return Vec::new();
+            }
+            let request_id = model.next_request_id();
+            model.bases.cell_edits.push(super::BaseCellEdit {
+                note_id,
+                path: String::new(),
+                revision,
+                request_id,
+            });
+            vec![Effect::SaveBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                edit,
+                category,
+            }]
+        }
         BasesMsg::Delete(base_id) => {
             if model.bases.deleting.insert(base_id) {
                 vec![Effect::DeleteBase { base_id }]
@@ -697,9 +743,11 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::PropertiesDialogRequested => open_properties_effect(model),
-        EditorMsg::ApplyFrontmatter { session, edit } => {
-            apply_frontmatter_effect(model, session, edit)
-        }
+        EditorMsg::ApplyFrontmatter {
+            session,
+            edit,
+            category,
+        } => apply_frontmatter_effect(model, session, edit, category),
         EditorMsg::ApplySourceCommand { command, selection } => {
             update_source_command(model, command, selection)
         }
@@ -1040,7 +1088,16 @@ fn update_editor_load(
     {
         return Vec::new();
     }
-    open_editor(model, note_id, revision, false, source);
+    // The test-only load path has no library note; a fresh id simply leaves the category row
+    // unselected until a real load replaces it.
+    open_editor(
+        model,
+        note_id,
+        carver_sdk::CategoryId::new(),
+        revision,
+        false,
+        source,
+    );
     Vec::new()
 }
 
@@ -1165,21 +1222,40 @@ fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
     };
     vec![Effect::ShowDocumentProperties {
         request: super::EditorPropertiesRequest {
-            session: document.session,
+            save: super::PropertiesSave::Editor {
+                session: document.session,
+            },
             note_id: document.note_id,
             document: carver_domain::parse_frontmatter_document(&document.source),
             raw: carver_domain::frontmatter_raw(&document.source).map(|(_, content)| content),
             heading_title: carver_domain::derive_content(&document.source).heading_title,
             defaults: model.config.document_properties.entries.clone(),
             default_format: model.config.document_properties.format,
+            category_id: Some(document.category_id),
+            categories: active_category_choices(model),
         },
     }]
+}
+
+/// Returns the active categories offered by the document-properties dialog.
+fn active_category_choices(model: &AppModel) -> Vec<super::CategoryChoice> {
+    match &model.sidebar.state {
+        super::LoadState::Ready(summaries) => summaries
+            .iter()
+            .map(|summary| super::CategoryChoice {
+                id: summary.category.id,
+                name: summary.category.name.clone(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn apply_frontmatter_effect(
     model: &mut AppModel,
     session: super::EditorSessionId,
     edit: super::FrontmatterEdit,
+    category: Option<carver_sdk::CategoryId>,
 ) -> Vec<Effect> {
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
@@ -1204,7 +1280,21 @@ fn apply_frontmatter_effect(
         .editor
         .as_mut()
         .is_some_and(|document| document.source_changed(updated));
-    if !changed {
+    // A category change is applied by the next save, so mark the document dirty when it is the
+    // only change (content autosave is otherwise a no-op).
+    let category_changed = category.is_some_and(|category| {
+        model.editor.as_mut().is_some_and(|document| {
+            if document.category_id == category {
+                return false;
+            }
+            document.pending_category = Some(category);
+            if matches!(document.save_state, super::EditorSaveState::Clean) {
+                document.save_state = super::EditorSaveState::Dirty;
+            }
+            true
+        })
+    });
+    if !changed && !category_changed {
         return Vec::new();
     }
     let source = model
@@ -1214,7 +1304,7 @@ fn apply_frontmatter_effect(
     model.notice = None;
     let mut effects: Vec<Effect> = schedule_preview(model).into_iter().collect();
     effects.extend(schedule_editor_save(model));
-    if let Some(source) = source {
+    if changed && let Some(source) = source {
         // The rich projection caches the old frontmatter atom; reload it so the next rich edit
         // serializes the new block instead of reverting the change.
         effects.push(Effect::ReloadRichEditor { session, source });
@@ -1255,6 +1345,7 @@ fn import_note_effect(
 fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
+    category_id: carver_sdk::CategoryId,
     revision: carver_sdk::Revision,
     is_favorite: bool,
     source: String,
@@ -1263,6 +1354,7 @@ fn open_editor(
     let mut document = super::EditorDocument::new(
         session,
         note_id,
+        category_id,
         revision,
         is_favorite,
         source.clone(),
@@ -1672,6 +1764,26 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             base_id,
             result,
         } => update_base_rows_appended(model, request_id, base_id, result),
+        LibraryReply::BaseCellEdited {
+            request_id,
+            moved,
+            move_error,
+            result,
+            ..
+        } => update_base_cell_edited(model, request_id, moved, move_error, result),
+        LibraryReply::BasePropertiesLoaded { request_id, result } => {
+            if model.bases.base_properties_request != Some(request_id) {
+                return Vec::new();
+            }
+            model.bases.base_properties_request = None;
+            match result {
+                Ok(request) => vec![Effect::ShowDocumentProperties { request }],
+                Err(error) => {
+                    model.notice = Some(error);
+                    Vec::new()
+                }
+            }
+        }
         LibraryReply::BaseCreated { result } => update_base_created(model, result),
         LibraryReply::BaseUpdated { result } => update_base_updated(model, result),
         LibraryReply::BaseConfigurationLoaded {
@@ -1692,11 +1804,13 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
+                    let default_properties = model.config.document_properties.entries.clone();
                     present_base_configuration_dialog(model, request_id);
                     vec![Effect::ShowBaseConfiguration {
                         dialog_id: request_id,
                         definition,
                         descriptors,
+                        default_properties,
                     }]
                 }
                 Err(error) => {
@@ -1716,10 +1830,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                         super::LoadState::Ready(items) => items.clone(),
                         _ => Vec::new(),
                     };
+                    let default_properties = model.config.document_properties.entries.clone();
                     present_base_configuration_dialog(model, request_id);
                     vec![Effect::ShowNewBaseConfiguration {
                         dialog_id: request_id,
                         descriptors,
+                        default_properties,
                     }]
                 }
                 Err(error) => {
@@ -1834,9 +1950,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 Vec::new()
             }
         },
-        LibraryReply::EditorSaved { request, result } => {
-            update_editor_save(model, &request, result)
-        }
+        LibraryReply::EditorSaved {
+            request,
+            move_error,
+            result,
+        } => update_editor_save(model, &request, move_error, result),
     }
 }
 
@@ -1938,6 +2056,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
     let Some(request_id) = request_id else {
         return Vec::new();
     };
+    let default_properties = model.config.document_properties.entries.clone();
     match &model.bases.property_descriptors.state {
         super::LoadState::Ready(descriptors) => match target {
             PendingBaseConfiguration::New => {
@@ -1946,6 +2065,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
                 vec![Effect::ShowNewBaseConfiguration {
                     dialog_id: request_id,
                     descriptors,
+                    default_properties,
                 }]
             }
             PendingBaseConfiguration::Existing(definition)
@@ -1958,6 +2078,7 @@ fn resume_pending_base_configuration(model: &mut AppModel) -> Vec<Effect> {
                     dialog_id: request_id,
                     definition,
                     descriptors,
+                    default_properties,
                 }]
             }
             PendingBaseConfiguration::Existing(_) => Vec::new(),
@@ -2288,7 +2409,14 @@ fn update_editor_loaded(
     }
     match result {
         Ok(note) => {
-            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(
+                model,
+                note.id,
+                note.category_id,
+                note.revision,
+                note.is_favorite,
+                note.source,
+            );
             model.route = super::Route::Editor;
             if export_after_load {
                 request_editor_export_dialog(model)
@@ -2369,7 +2497,14 @@ fn update_created_note(
 ) -> Vec<Effect> {
     match result {
         Ok(note) => {
-            let session = open_editor(model, note.id, note.revision, note.is_favorite, note.source);
+            let session = open_editor(
+                model,
+                note.id,
+                note.category_id,
+                note.revision,
+                note.is_favorite,
+                note.source,
+            );
             model.route = super::Route::Editor;
             let mut effects = vec![Effect::FocusEditor { session }];
             effects.extend(reload_after_local_mutation(model));
@@ -2533,9 +2668,10 @@ fn save_note_effect(request: EditorSaveRequest) -> Vec<Effect> {
 fn update_editor_save(
     model: &mut AppModel,
     request: &EditorSaveRequest,
+    mut move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let (close_requested, pending_favorite) = {
+    let (close_requested, pending_favorite, move_notice, moved) = {
         let Some(document) = model.editor.as_mut() else {
             return Vec::new();
         };
@@ -2548,14 +2684,30 @@ fn update_editor_save(
         }
         match result {
             Ok(revision) => {
+                // The content save is authoritative. A failed move is reported but does not keep
+                // the note on a stale revision, so the editor stays consistent.
+                let mut moved = false;
+                let move_notice = match request.move_to {
+                    Some(category) if move_error.is_none() => {
+                        document.category_id = category;
+                        moved = true;
+                        None
+                    }
+                    Some(_) => move_error.take(),
+                    None => None,
+                };
                 document.revision = revision;
-                if document.source == request.source {
+                // Re-save when the source changed or a category change arrived while this save was
+                // in flight, so the queued move is not dropped.
+                if document.source == request.source && document.pending_category.is_none() {
                     document.save_state = super::EditorSaveState::Clean;
                     (
                         document.close_is_requested(),
                         (!document.favorite_mutation_in_flight)
                             .then_some(document.pending_favorite)
                             .flatten(),
+                        move_notice,
+                        moved,
                     )
                 } else {
                     document.save_state = super::EditorSaveState::Dirty;
@@ -2565,10 +2717,13 @@ fn update_editor_save(
                 }
             }
             Err(error) if document.source == request.source => {
+                // Keep the requested move so a retry still applies it.
+                document.pending_category = document.pending_category.or(request.move_to);
                 document.save_state = super::EditorSaveState::Failed(error);
                 return Vec::new();
             }
             Err(_) => {
+                document.pending_category = document.pending_category.or(request.move_to);
                 document.save_state = super::EditorSaveState::Dirty;
                 return document
                     .begin_save()
@@ -2576,9 +2731,18 @@ fn update_editor_save(
             }
         }
     };
+    if let Some(notice) = move_notice {
+        model.notice = Some(notice);
+    }
     let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
         set_editor_favorite(model, is_favorite)
     });
+    if moved {
+        // A move changes which categories own the note, so refresh the sidebar counts and the
+        // browser list even though the save came from the editor rather than an action.
+        effects.extend(reload_sidebar(model));
+        effects.extend(reload_browser(model));
+    }
     if close_requested {
         restore_editor_origin(model);
         model.editor = None;
@@ -2798,6 +2962,7 @@ fn refresh_open_editor(model: &mut AppModel, discard_local: bool) -> Option<Effe
             note_id: document.note_id,
             expected_revision: document.revision,
             source: document.source.clone(),
+            move_to: document.pending_category,
         },
         discard_local,
     })
@@ -2942,6 +3107,136 @@ fn load_more_base_rows(model: &mut AppModel) -> Option<Effect> {
         query: model.bases.search_query.clone(),
         offset: model.bases.rows_next_offset,
     })
+}
+
+/// Admits one inline Base cell edit and returns the effect that persists it.
+fn commit_base_cell_edit(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    path: String,
+    revision: carver_sdk::Revision,
+    value: Option<serde_json::Value>,
+) -> Vec<Effect> {
+    if model.route != super::Route::Base || model.bases.selected.is_none() {
+        return Vec::new();
+    }
+    // Only one edit per note may be in flight: a second edit would carry the pre-save revision and
+    // conflict once the first bumps it. Queue it so the change is applied once the note reloads
+    // instead of being dropped.
+    if model
+        .bases
+        .cell_edits
+        .iter()
+        .any(|edit| edit.note_id == note_id)
+    {
+        model
+            .bases
+            .pending_cell_edits
+            .push(super::PendingBaseCellEdit {
+                note_id,
+                path,
+                value,
+            });
+        return Vec::new();
+    }
+    admit_base_cell_edit(model, note_id, path, revision, value)
+}
+
+/// Dispatches one inline Base cell edit and records it as in flight.
+fn admit_base_cell_edit(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    path: String,
+    revision: carver_sdk::Revision,
+    value: Option<serde_json::Value>,
+) -> Vec<Effect> {
+    let request_id = model.next_request_id();
+    model.bases.cell_edits.push(super::BaseCellEdit {
+        note_id,
+        path: path.clone(),
+        revision,
+        request_id,
+    });
+    vec![Effect::EditBaseCell {
+        request_id,
+        note_id,
+        revision,
+        format: model.config.document_properties.format,
+        path,
+        value,
+    }]
+}
+
+/// Retires a finished inline cell edit and reloads the grid so moved rows re-project.
+fn update_base_cell_edited(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    moved: bool,
+    move_error: Option<UiError>,
+    result: Result<carver_sdk::Revision, UiError>,
+) -> Vec<Effect> {
+    let Some(position) = model
+        .bases
+        .cell_edits
+        .iter()
+        .position(|edit| edit.request_id == request_id)
+    else {
+        return Vec::new();
+    };
+    let finished = model.bases.cell_edits.remove(position);
+    let next_revision = match &result {
+        Ok(revision) => *revision,
+        Err(_) => finished.revision,
+    };
+    let mut effects = match result {
+        Ok(_) => {
+            let mut effects: Vec<Effect> = match (model.route, model.bases.selected) {
+                (super::Route::Base, Some(base_id)) => {
+                    reload_base_rows(model, base_id).into_iter().collect()
+                }
+                _ => Vec::new(),
+            };
+            if moved {
+                // A move changes which categories own the note, so refresh the sidebar counts and
+                // the browser list as the editor move path does.
+                effects.extend(reload_sidebar(model));
+                effects.extend(reload_browser(model));
+            }
+            if let Some(error) = move_error {
+                // Content saved but the move failed; the grid reloads and the user is told.
+                model.notice = Some(error);
+            }
+            effects
+        }
+        Err(error) => {
+            model.notice = Some(error);
+            // A failed edit left the always-visible control showing a value that was not
+            // persisted; reload so it reflects the stored row again.
+            match (model.route, model.bases.selected) {
+                (super::Route::Base, Some(base_id)) => {
+                    reload_base_rows(model, base_id).into_iter().collect()
+                }
+                _ => Vec::new(),
+            }
+        }
+    };
+    // Apply the next queued edit for this note against the revision the first save produced.
+    if let Some(index) = model
+        .bases
+        .pending_cell_edits
+        .iter()
+        .position(|pending| pending.note_id == finished.note_id)
+    {
+        let pending = model.bases.pending_cell_edits.remove(index);
+        effects.extend(admit_base_cell_edit(
+            model,
+            pending.note_id,
+            pending.path,
+            next_revision,
+            pending.value,
+        ));
+    }
+    effects
 }
 
 fn reload_browser(model: &mut AppModel) -> Option<Effect> {

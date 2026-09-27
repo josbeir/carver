@@ -9,6 +9,8 @@ use time::format_description::well_known::{Iso8601, Rfc3339};
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
+use crate::frontmatter::{FrontmatterValue, is_reserved_key, unescape_pointer_segment};
+use crate::properties::PropertyType;
 use crate::{NoteId, Revision};
 
 /// A stable saved-base identifier.
@@ -79,15 +81,27 @@ pub struct PropertyDescriptor {
     pub path: PropertyPath,
     /// Value kind observed across active notes.
     pub kind: PropertyKind,
+    /// Semantic type inferred from the observed values.
+    ///
+    /// This is the same inference the configured defaults and the properties dialog use, so a
+    /// date-shaped text value is reported as [`PropertyType::Date`] even though its stored kind is
+    /// [`PropertyKind::Text`].
+    pub property_type: PropertyType,
     /// A representative JSON value suitable for a compact UI preview.
     pub example: Option<String>,
 }
 
 impl PropertyDescriptor {
     /// Merges another observation of the same property into this descriptor.
+    ///
+    /// Divergent semantic types collapse to [`PropertyType::Text`], matching the `Mixed` kind: the
+    /// grid then falls back to free-form text for that column.
     pub fn merge_observation(&mut self, other: &Self) {
         if self.kind != other.kind {
             self.kind = PropertyKind::Mixed;
+        }
+        if self.property_type != other.property_type {
+            self.property_type = PropertyType::Text;
         }
         match (&self.example, &other.example) {
             (None, Some(candidate)) => self.example = Some(candidate.clone()),
@@ -111,6 +125,29 @@ pub enum BaseColumn {
     Updated,
     /// A typed frontmatter property.
     Property(PropertyPath),
+}
+
+impl BaseColumn {
+    /// Canonicalizes a reserved frontmatter path to its built-in column.
+    ///
+    /// The reserved `title` key is the derived note title, so a reference to `/title` resolves to
+    /// [`BaseColumn::Name`] instead of duplicating the title as a property. Nested keys named
+    /// `title` are ordinary properties and are left alone.
+    #[must_use]
+    pub fn canonicalized(&self) -> Self {
+        match self {
+            Self::Property(path) => {
+                let reserved = path
+                    .0
+                    .strip_prefix('/')
+                    .and_then(|rest| rest.split('/').next())
+                    .and_then(unescape_pointer_segment)
+                    .is_some_and(|segment| is_reserved_key(&segment));
+                if reserved { Self::Name } else { self.clone() }
+            }
+            Self::Name | Self::Category | Self::Updated => self.clone(),
+        }
+    }
 }
 
 /// Combines filters when evaluating a saved base.
@@ -610,6 +647,10 @@ pub fn property_descriptors(value: &Value) -> Vec<PropertyDescriptor> {
     fn visit(value: &Value, path: &mut String, found: &mut BTreeMap<String, PropertyDescriptor>) {
         if let Value::Object(map) = value {
             for (key, child) in map {
+                // A reserved top-level key is a note attribute, not a user property.
+                if path.is_empty() && is_reserved_key(key) {
+                    continue;
+                }
                 let old_len = path.len();
                 path.push('/');
                 path.push_str(&key.replace('~', "~0").replace('/', "~1"));
@@ -619,6 +660,9 @@ pub fn property_descriptors(value: &Value) -> Vec<PropertyDescriptor> {
                     let descriptor = PropertyDescriptor {
                         path: PropertyPath(path.clone()),
                         kind: kind(child),
+                        property_type: PropertyType::from_value(&FrontmatterValue::from_json(
+                            child,
+                        )),
                         example: Some(example(child)),
                     };
                     if let Some(existing) = found.get_mut(path) {
@@ -827,35 +871,72 @@ mod tests {
                 PropertyDescriptor {
                     path: PropertyPath("/done".to_owned()),
                     kind: PropertyKind::Boolean,
+                    property_type: PropertyType::Boolean,
                     example: Some("false".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/empty".to_owned()),
                     kind: PropertyKind::Null,
+                    property_type: PropertyType::Text,
                     example: Some("null".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/owner/name".to_owned()),
                     kind: PropertyKind::Text,
+                    property_type: PropertyType::Text,
                     example: Some("Ada".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/priority".to_owned()),
                     kind: PropertyKind::Number,
+                    property_type: PropertyType::Number,
                     example: Some("2".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/tags".to_owned()),
                     kind: PropertyKind::List,
+                    property_type: PropertyType::List,
                     example: Some("[\"rust\",\"gtk\"]".to_owned()),
-                },
-                PropertyDescriptor {
-                    path: PropertyPath("/title".to_owned()),
-                    kind: PropertyKind::Text,
-                    example: Some("Roadmap".to_owned()),
                 },
             ]
         );
+    }
+
+    #[test]
+    fn property_descriptors_should_exclude_a_reserved_value_but_keep_a_nested_one() {
+        let descriptors = property_descriptors(&serde_json::json!({
+            "title": "Roadmap",
+            "owner": {"title": "Ada"},
+        }));
+        assert_eq!(
+            descriptors
+                .iter()
+                .map(|descriptor| descriptor.path.0.as_str())
+                .collect::<Vec<_>>(),
+            vec!["/owner/title"]
+        );
+    }
+
+    #[test]
+    fn reserved_paths_should_canonicalize_to_the_name_column() {
+        assert_eq!(
+            BaseColumn::Property(PropertyPath("/title".to_owned())).canonicalized(),
+            BaseColumn::Name
+        );
+        // A nested title is an ordinary property, and non-reserved paths are untouched.
+        assert_eq!(
+            BaseColumn::Property(PropertyPath("/owner/title".to_owned())).canonicalized(),
+            BaseColumn::Property(PropertyPath("/owner/title".to_owned()))
+        );
+        assert_eq!(
+            BaseColumn::Property(PropertyPath("/title~1sub".to_owned())).canonicalized(),
+            BaseColumn::Property(PropertyPath("/title~1sub".to_owned()))
+        );
+        assert_eq!(
+            BaseColumn::Property(PropertyPath("/status".to_owned())).canonicalized(),
+            BaseColumn::Property(PropertyPath("/status".to_owned()))
+        );
+        assert_eq!(BaseColumn::Category.canonicalized(), BaseColumn::Category);
     }
 
     #[test]
@@ -885,6 +966,7 @@ mod tests {
             PropertyDescriptor {
                 path: PropertyPath("/status".to_owned()),
                 kind: PropertyKind::Mixed,
+                property_type: PropertyType::Text,
                 example: Some("2".to_owned()),
             }
         );

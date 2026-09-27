@@ -257,6 +257,7 @@ fn refresh_completing_during_save_should_wait_for_save_completion() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
     assert!(

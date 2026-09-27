@@ -9,13 +9,17 @@ fn request(
     defaults: Vec<DocumentProperty>,
 ) -> EditorPropertiesRequest {
     EditorPropertiesRequest {
-        session: crate::mvu::EditorSessionId(1),
+        save: crate::mvu::PropertiesSave::Editor {
+            session: crate::mvu::EditorSessionId(1),
+        },
         note_id: carver_sdk::NoteId::new(),
         document,
         raw: None,
         heading_title: None,
         defaults,
         default_format: FrontmatterFormat::Yaml,
+        category_id: None,
+        categories: Vec::new(),
     }
 }
 
@@ -210,6 +214,16 @@ fn date_field_support_should_require_an_iso_value() {
 }
 
 #[test]
+fn date_time_subtitle_should_use_the_locale_format() {
+    // A raw ISO preview would contain the `T` separator; the localized one must not.
+    let subtitle = row_subtitle(
+        DocumentPropertyType::DateTime,
+        &FrontmatterValue::Text("2026-09-27T10:30:00Z".to_owned()),
+    );
+    assert!(!subtitle.contains('T'), "{subtitle}");
+}
+
+#[test]
 fn type_label_should_stay_plain_while_subtitles_escape_markup() {
     // The drop-down model renders plain text, so its label keeps the raw ampersand.
     assert_eq!(type_label(DocumentPropertyType::DateTime), "Date & time");
@@ -220,59 +234,11 @@ fn type_label_should_stay_plain_while_subtitles_escape_markup() {
     );
 }
 
-#[test]
-fn type_for_value_should_recover_iso_dates() {
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text("2026-09-16".to_owned())),
-        DocumentPropertyType::Date
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text(
-            "2026-09-26T14:22:49+02:00".to_owned()
-        )),
-        DocumentPropertyType::DateTime
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text(
-            "2026-09-26T14:22:49.240147874+02:00".to_owned()
-        )),
-        DocumentPropertyType::DateTime
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text("hello world".to_owned())),
-        DocumentPropertyType::Text
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Number(serde_json::Number::from(3))),
-        DocumentPropertyType::Number
-    );
-}
-
 fn draft_with(field_type: DocumentPropertyType, value: FrontmatterValue) -> PropertyDraft {
     let mut draft = PropertyDraft::blank();
     draft.choice = field_type;
     draft.value = value;
     draft
-}
-
-#[test]
-fn type_for_value_should_cover_every_kind() {
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Boolean(true)),
-        DocumentPropertyType::Boolean
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::List(Vec::new())),
-        DocumentPropertyType::List
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Null),
-        DocumentPropertyType::Text
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Object(Vec::new())),
-        DocumentPropertyType::Text
-    );
 }
 
 #[test]
@@ -377,38 +343,6 @@ fn simple_value_helpers_should_format_values() {
     let preview = preview_text(&FrontmatterValue::Text("x".repeat(80)));
     assert!(preview.ends_with('…'));
     assert_eq!(preview.chars().count(), 60);
-}
-
-#[test]
-fn normalized_default_value_should_coerce_mismatches() {
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!("x")),
-        serde_json::json!(0)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!("x")),
-        serde_json::json!(false)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::List, &serde_json::json!("x")),
-        serde_json::json!([])
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Text, &serde_json::json!(1)),
-        serde_json::json!("")
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!(3)),
-        serde_json::json!(3)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!(true)),
-        serde_json::json!(true)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::List, &serde_json::json!(["a"])),
-        serde_json::json!(["a"])
-    );
 }
 
 #[test]

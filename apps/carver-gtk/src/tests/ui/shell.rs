@@ -104,6 +104,7 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
             rows: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
             syncing_header_sort: std::rc::Rc::new(std::cell::Cell::new(false)),
             rendered_definition: std::cell::RefCell::new(None),
+            rendered_editors: std::cell::RefCell::new(None),
             rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
         "Couldn’t load rows",

@@ -143,6 +143,15 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     let entry =
         widget_as::<adw::EntryRow>(root, "base-configuration-name").ok_or("new Base name")?;
     assert!(entry.text().is_empty());
+    // A new Base starts with only the implicit Title field, not Category or Updated.
+    assert!(
+        widget_as::<adw::ActionRow>(root, "base-visible-field-0").is_some(),
+        "a new Base should list the Title field"
+    );
+    assert!(
+        widget_as::<adw::ActionRow>(root, "base-visible-field-1").is_none(),
+        "a new Base should not seed Category or Updated fields"
+    );
     entry.set_text("  Reading list  ");
     widget_as::<gtk::Button>(root, "base-configuration-save")
         .ok_or("create Base")?

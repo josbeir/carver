@@ -334,6 +334,30 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 self.schedule_preview(session, timer_id);
             }
             Effect::SaveNote { request } => self.save_note(request),
+            Effect::EditBaseCell {
+                request_id,
+                note_id,
+                revision,
+                format,
+                path,
+                value,
+            } => self.edit_base_cell(request_id, note_id, revision, format, path, value),
+            Effect::LoadBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                defaults,
+                format,
+                categories,
+            } => self
+                .load_base_properties(request_id, note_id, revision, defaults, format, categories),
+            Effect::SaveBaseProperties {
+                request_id,
+                note_id,
+                revision,
+                edit,
+                category,
+            } => self.save_base_properties(request_id, note_id, revision, edit, category),
             Effect::StoreEditorAsset {
                 session,
                 note_id,
@@ -955,17 +979,170 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let result = client
+            // Save content first, then move. The content save is authoritative: if the move fails
+            // the saved revision is still reported so the editor stays consistent, and the move is
+            // surfaced separately rather than failing the whole save.
+            let (result, move_error) = match client
                 .save_note_async(
                     request.note_id,
                     request.expected_revision,
                     request.source.clone(),
                 )
                 .await
-                .map(|note| note.revision)
-                .map_err(display_error);
+            {
+                Ok(saved) => match request.move_to {
+                    Some(category) => match client.move_note_async(request.note_id, category).await
+                    {
+                        Ok(moved) => (Ok(moved.revision), None),
+                        Err(error) => (Ok(saved.revision), Some(display_error(error))),
+                    },
+                    None => (Ok(saved.revision), None),
+                },
+                Err(error) => (Err(display_error(error)), None),
+            };
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
+                move_error,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one note, splices a frontmatter property, and persists it under its row revision.
+    fn edit_base_cell(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        format: carver_domain::FrontmatterFormat,
+        path: String,
+        value: Option<serde_json::Value>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.note_async(note_id).await {
+                Ok(Some(note)) => {
+                    match carver_domain::set_property(&note.source, format, &path, value) {
+                        Ok(source) => client
+                            .save_note_async(note_id, revision, source)
+                            .await
+                            .map(|note| note.revision)
+                            .map_err(display_error),
+                        Err(error) => Err(display_error(error)),
+                    }
+                }
+                Ok(None) => Err(display_error("note is no longer available")),
+                Err(error) => Err(display_error(error)),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
+                request_id,
+                note_id,
+                path,
+                moved: false,
+                move_error: None,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one Base row's note and builds the document-properties dialog snapshot.
+    fn load_base_properties(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        // The row revision is only a hint: the dialog binds its save to the loaded note's revision.
+        _revision: carver_sdk::Revision,
+        defaults: Vec<carver_config::DocumentProperty>,
+        format: carver_domain::FrontmatterFormat,
+        categories: Vec<super::CategoryChoice>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = match client.note_async(note_id).await {
+                Ok(Some(note)) => Ok(super::EditorPropertiesRequest {
+                    // Bind the save to the revision the dialog is actually showing, so a stale row
+                    // revision cannot make a fresh edit conflict and lose the dialog input.
+                    save: super::PropertiesSave::Base {
+                        note_id,
+                        revision: note.revision,
+                    },
+                    note_id,
+                    document: carver_domain::parse_frontmatter_document(&note.source),
+                    raw: carver_domain::frontmatter_raw(&note.source).map(|(_, content)| content),
+                    heading_title: carver_domain::derive_content(&note.source).heading_title,
+                    defaults,
+                    default_format: format,
+                    category_id: Some(note.category_id),
+                    categories,
+                }),
+                Ok(None) => Err(display_error("note is no longer available")),
+                Err(error) => Err(display_error(error)),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+                request_id,
+                result,
+            }));
+        });
+    }
+
+    /// Loads one Base row's note and persists a document-properties edit under its revision.
+    fn save_base_properties(
+        &self,
+        request_id: super::RequestId,
+        note_id: carver_sdk::NoteId,
+        revision: carver_sdk::Revision,
+        edit: super::FrontmatterEdit,
+        category: Option<carver_sdk::CategoryId>,
+    ) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let (moved, result, move_error) = match client.note_async(note_id).await {
+                Ok(Some(note)) => {
+                    let move_needed = category.is_some_and(|category| category != note.category_id);
+                    let updated = match edit {
+                        super::FrontmatterEdit::Parsed(document) => {
+                            carver_domain::replace_frontmatter(&note.source, Some(&document))
+                        }
+                        super::FrontmatterEdit::Raw { format, content } => Ok(
+                            carver_domain::replace_frontmatter_raw(&note.source, format, &content),
+                        ),
+                    };
+                    // The content save is authoritative: a failed move still reports the saved
+                    // revision so the grid stays consistent, and surfaces the move separately.
+                    match updated {
+                        Ok(source) => match client.save_note_async(note_id, revision, source).await
+                        {
+                            Ok(saved) if move_needed => {
+                                let category = category.unwrap_or(note.category_id);
+                                match client.move_note_async(note_id, category).await {
+                                    Ok(moved) => (true, Ok(moved.revision), None),
+                                    Err(error) => {
+                                        (false, Ok(saved.revision), Some(display_error(error)))
+                                    }
+                                }
+                            }
+                            Ok(saved) => (false, Ok(saved.revision), None),
+                            Err(error) => (false, Err(display_error(error)), None),
+                        },
+                        Err(error) => (false, Err(display_error(error)), None),
+                    }
+                }
+                Ok(None) => (
+                    false,
+                    Err(display_error("note is no longer available")),
+                    None,
+                ),
+                Err(error) => (false, Err(display_error(error)), None),
+            };
+            runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
+                request_id,
+                note_id,
+                path: String::new(),
+                moved,
+                move_error,
                 result,
             }));
         });

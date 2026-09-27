@@ -39,6 +39,7 @@ fn completed_autosave_should_reload_browser_only_when_leaving_the_editor() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
     assert!(matches!(

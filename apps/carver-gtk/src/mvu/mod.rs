@@ -12,12 +12,13 @@ mod update;
 
 pub use effect::Effect;
 pub use model::{
-    ActionKey, AppModel, BasesModel, BrowserModel, DocumentPreferences, EditorCopyRequest,
-    EditorCopyScope, EditorDocument, EditorExportDialogRequest, EditorExportProgress,
-    EditorExportWarningRequest, EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest,
-    EditorSaveRequest, EditorSaveState, EditorSessionId, FrontmatterEdit, LoadState, MediaFile,
-    MoveUndo, Preferences, RequestId, Resource, Route, SidebarSelection, SourceEditorPreferences,
-    TimerId, UiError,
+    ActionKey, AppModel, BaseCellEdit, BasesModel, BrowserModel, CategoryChoice,
+    DocumentPreferences, EditorCopyRequest, EditorCopyScope, EditorDocument,
+    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
+    EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest, EditorSaveRequest,
+    EditorSaveState, EditorSessionId, FrontmatterEdit, LoadState, MediaFile, MoveUndo,
+    PendingBaseCellEdit, Preferences, PropertiesSave, RequestId, Resource, Route, SidebarSelection,
+    SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,
@@ -33,3 +34,5 @@ pub(crate) mod tests;
 
 #[cfg(test)]
 pub(crate) use runtime::tests::export_runtime_should_cover_completion_cancellation_and_failures;
+#[cfg(test)]
+pub(crate) use runtime::tests::runtime_error_paths_should_surface_failures;

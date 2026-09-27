@@ -50,3 +50,13 @@ fn visible_column_reordering_should_keep_name_first() {
     ));
     assert_eq!(fields, vec![BaseColumn::Name, BaseColumn::Category]);
 }
+
+#[test]
+fn new_base_definition_should_start_with_only_the_implicit_title() {
+    let definition = new_base_definition();
+
+    assert!(
+        definition.columns.is_empty(),
+        "a new Base shows only the implicit Title column until fields are added"
+    );
+}

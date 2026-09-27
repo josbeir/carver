@@ -133,6 +133,7 @@ fn apply_frontmatter_should_update_the_source_and_reload_the_rich_projection() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
             edit: FrontmatterEdit::Parsed(author_document()),
+            category: None,
         }),
     );
 
@@ -171,6 +172,7 @@ fn apply_frontmatter_should_be_a_noop_for_unchanged_source() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
             edit: FrontmatterEdit::Parsed(document),
+            category: None,
         }),
     );
 
@@ -205,6 +207,7 @@ fn apply_frontmatter_should_accept_a_local_autosave() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
             edit: FrontmatterEdit::Parsed(author_document()),
+            category: None,
         }),
     );
 
@@ -231,6 +234,7 @@ fn apply_frontmatter_should_ignore_an_external_change() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session,
             edit: FrontmatterEdit::Parsed(author_document()),
+            category: None,
         }),
     );
 
@@ -254,6 +258,7 @@ fn apply_frontmatter_should_ignore_a_stale_session() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session: EditorSessionId(session.0 + 1),
             edit: FrontmatterEdit::Parsed(author_document()),
+            category: None,
         }),
     );
 
@@ -285,6 +290,7 @@ fn apply_frontmatter_without_an_editor_should_do_nothing() {
         AppMsg::Editor(EditorMsg::ApplyFrontmatter {
             session: EditorSessionId(0),
             edit: FrontmatterEdit::Parsed(author_document()),
+            category: None,
         }),
     );
     assert!(effects.is_empty());
@@ -302,6 +308,7 @@ fn apply_raw_frontmatter_should_replace_the_block() {
                 format: carver_domain::FrontmatterFormat::Yaml,
                 content: "a: b".to_owned(),
             },
+            category: None,
         }),
     );
     assert!(
@@ -311,4 +318,240 @@ fn apply_raw_frontmatter_should_replace_the_block() {
             .is_some_and(|document| document.source.contains("a: b"))
     );
     assert!(!effects.is_empty());
+}
+
+#[test]
+fn applying_a_category_change_should_move_the_note_on_save() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let category = carver_sdk::CategoryId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(author_document()),
+            category: Some(category),
+        }),
+    );
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.pending_category == Some(category))
+    );
+
+    let timer_id = effects.iter().find_map(|effect| match effect {
+        Effect::ScheduleEditorSave { timer_id, .. } => Some(*timer_id),
+        _ => None,
+    });
+    let Some(timer_id) = timer_id else {
+        panic!("expected a scheduled save");
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let move_to = effects.iter().find_map(|effect| match effect {
+        Effect::SaveNote { request } => Some(request.move_to),
+        _ => None,
+    });
+    assert_eq!(move_to, Some(Some(category)));
+}
+
+#[test]
+fn a_category_only_change_should_still_schedule_a_save() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let category = carver_sdk::CategoryId::new();
+
+    // An empty parsed document leaves "Body\n" byte-for-byte, so only the category changed.
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(carver_domain::FrontmatterDocument {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                fields: Vec::new(),
+                error: None,
+            }),
+            category: Some(category),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ScheduleEditorSave { .. })),
+        "a category-only change should autosave"
+    );
+}
+
+fn empty_document() -> carver_domain::FrontmatterDocument {
+    carver_domain::FrontmatterDocument {
+        format: carver_domain::FrontmatterFormat::Yaml,
+        fields: Vec::new(),
+        error: None,
+    }
+}
+
+fn scheduled_timer(effects: &[Effect]) -> u64 {
+    effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::ScheduleEditorSave { timer_id, .. } => Some(timer_id.0),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("expected a scheduled save"))
+}
+
+fn scheduled_save(effects: &[Effect]) -> EditorSaveRequest {
+    effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::SaveNote { request } => Some(request.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("expected a save"))
+}
+
+#[test]
+fn a_category_change_during_an_in_flight_save_should_be_saved_after() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let category = carver_sdk::CategoryId::new();
+
+    // Start a save, then change only the category while it is in flight.
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Body changed\n".to_owned())),
+    );
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::AutosaveRequested));
+    let timer_id = TimerId(scheduled_timer(&effects));
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let in_flight = scheduled_save(&effects);
+    assert_eq!(in_flight.move_to, None);
+
+    // An empty parsed document leaves the source unchanged, so only the category differs.
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(empty_document()),
+            category: Some(category),
+        }),
+    );
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.pending_category == Some(category))
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request: in_flight,
+            move_error: None,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert_eq!(scheduled_save(&effects).move_to, Some(category));
+}
+
+#[test]
+fn a_failed_move_should_keep_the_content_save_and_report_a_notice() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let original = model.editor.as_ref().map(|document| document.category_id);
+    let category = carver_sdk::CategoryId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(empty_document()),
+            category: Some(category),
+        }),
+    );
+    let timer_id = TimerId(scheduled_timer(&effects));
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let request = scheduled_save(&effects);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            move_error: Some(UiError::new("move failed")),
+            result: Ok(Revision(2)),
+        }),
+    );
+    let document = model.editor.as_ref();
+    assert_eq!(document.map(|document| document.category_id), original);
+    assert_eq!(
+        document.map(|document| document.revision),
+        Some(Revision(2))
+    );
+    assert!(
+        document.is_some_and(|document| { matches!(document.save_state, EditorSaveState::Clean) })
+    );
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("move failed")
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SaveNote { .. }))
+    );
+}
+
+#[test]
+fn an_editor_category_move_should_reload_the_sidebar() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let category = carver_sdk::CategoryId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(empty_document()),
+            category: Some(category),
+        }),
+    );
+    let timer_id = TimerId(scheduled_timer(&effects));
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let request = scheduled_save(&effects);
+    assert_eq!(request.move_to, Some(category));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            move_error: None,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadSidebar { .. })),
+        "a move should refresh category counts"
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. })),
+        "a move should refresh the note list"
+    );
 }

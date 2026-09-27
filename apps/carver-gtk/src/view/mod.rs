@@ -324,7 +324,18 @@ impl ViewRefs {
                 Some(definition),
                 dispatcher,
             );
-            crate::ui::bases::render_base(refs, definition, rows, dispatcher);
+            let descriptors = match &model.bases.property_descriptors.state {
+                LoadState::Ready(items) => items.as_slice(),
+                _ => &[],
+            };
+            crate::ui::bases::render_base(
+                refs,
+                definition,
+                rows,
+                descriptors,
+                &model.config.document_properties.entries,
+                dispatcher,
+            );
             refs.grid.set_sensitive(!model.bases.saving_configuration);
             let loading = model.bases.rows_append_request.is_some();
             refs.load_more
@@ -354,6 +365,7 @@ impl ViewRefs {
         if let Effect::ShowNewBaseConfiguration {
             dialog_id,
             descriptors,
+            default_properties,
         } = &effect
         {
             if let Some(host) = self
@@ -368,6 +380,7 @@ impl ViewRefs {
                     *dialog_id,
                     &definition,
                     descriptors,
+                    default_properties,
                     crate::ui::bases::actions::BaseConfigurationMode::Create,
                 );
                 while let Some(child) = host.base_slot.first_child() {
@@ -390,6 +403,7 @@ impl ViewRefs {
                         dispatcher,
                         *dialog_id,
                         descriptors,
+                        default_properties,
                     );
                     if let Some(refs) = &self.base {
                         refs.configuration.replace(Some((*dialog_id, dialog, form)));
@@ -402,6 +416,7 @@ impl ViewRefs {
             dialog_id,
             definition,
             descriptors,
+            default_properties,
         } = &effect
         {
             if let (Some(refs), Some(dispatcher)) = (&self.base, &self.dispatcher) {
@@ -423,6 +438,7 @@ impl ViewRefs {
                         *dialog_id,
                         definition,
                         descriptors,
+                        default_properties,
                     );
                     refs.configuration.replace(Some((*dialog_id, dialog, form)));
                 }

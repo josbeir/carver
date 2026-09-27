@@ -28,6 +28,7 @@ fn favorite_requested_with_dirty_source_should_save_before_updating_metadata() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
 
@@ -77,6 +78,7 @@ fn repeated_favorite_toggles_while_saving_should_restore_the_original_state() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
     assert!(
@@ -205,6 +207,7 @@ fn favorite_requested_before_closing_a_dirty_editor_should_run_after_saving() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
 
@@ -273,6 +276,7 @@ fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
             AppMsg::Library(LibraryReply::EditorSaved {
                 request: stale_request,
                 result: Err(UiError::new("revision conflict")),
+                move_error: None,
             }),
         )
         .is_empty()
@@ -282,6 +286,7 @@ fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: rebased_request,
             result: Ok(Revision(3)),
+            move_error: None,
         }),
     );
 
@@ -350,6 +355,7 @@ fn rebased_save_should_finish_before_a_queued_favorite_reversal() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: stale_request,
             result: Err(UiError::new("revision conflict")),
+            move_error: None,
         }),
     );
     let effects = update(
@@ -357,6 +363,7 @@ fn rebased_save_should_finish_before_a_queued_favorite_reversal() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: rebased_request,
             result: Ok(Revision(3)),
+            move_error: None,
         }),
     );
     assert!(effects.iter().any(|effect| matches!(

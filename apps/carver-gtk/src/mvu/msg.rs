@@ -148,6 +148,35 @@ pub enum BasesMsg {
     ConfigurationDismissed(RequestId),
     /// Request the next page for the visible Base.
     LoadMoreRows,
+    /// Commit one inline cell edit to a note's frontmatter.
+    CommitCellEdit {
+        /// Note whose property is edited.
+        note_id: NoteId,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// New typed value, or `None` to clear the property.
+        value: Option<serde_json::Value>,
+    },
+    /// Open the native document-properties dialog for one row without leaving the Base.
+    EditProperties {
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+    },
+    /// Persist a document-properties edit from the Base without leaving the Base.
+    ApplyProperties {
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+        /// Parsed or raw frontmatter edit produced by the dialog.
+        edit: FrontmatterEdit,
+        /// Destination category when the note should be moved, if changed.
+        category: Option<CategoryId>,
+    },
 }
 
 /// Messages that change the high-level visible surface.
@@ -318,6 +347,8 @@ pub enum EditorMsg {
         session: EditorSessionId,
         /// Structured or raw edit produced by the dialog.
         edit: FrontmatterEdit,
+        /// Destination category when the note should also move, if changed.
+        category: Option<CategoryId>,
     },
     /// Apply a pure source-formatting command to the canonical editor snapshot.
     ApplySourceCommand {
@@ -692,6 +723,28 @@ pub enum LibraryReply {
         /// Projected page or a displayable failure.
         result: Result<carver_sdk::Page<BaseRow>, UiError>,
     },
+    /// One inline Base cell edit finished persisting.
+    BaseCellEdited {
+        /// Identity of the initiating edit.
+        request_id: RequestId,
+        /// Note whose property was edited.
+        note_id: NoteId,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// Whether the edit also moved the note to another category.
+        moved: bool,
+        /// A category move that failed after the content was saved.
+        move_error: Option<UiError>,
+        /// Persisted revision or a displayable failure.
+        result: Result<Revision, UiError>,
+    },
+    /// A Base row's note loaded so its document-properties dialog can open.
+    BasePropertiesLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Dialog snapshot or a displayable failure.
+        result: Result<super::EditorPropertiesRequest, UiError>,
+    },
     /// A base creation completed.
     BaseCreated {
         /// Created definition or a displayable failure.
@@ -822,6 +875,8 @@ pub enum LibraryReply {
     EditorSaved {
         /// Save identity used to reject stale completion work.
         request: EditorSaveRequest,
+        /// A category move that failed after the content was saved.
+        move_error: Option<UiError>,
         /// Persisted revision or a user-displayable failure.
         result: Result<Revision, UiError>,
     },

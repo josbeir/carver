@@ -625,6 +625,148 @@ fn title_should_lead_the_block_even_when_authored_last() {
     );
 }
 
+fn set_field(source: &str, pointer: &str, value: Option<serde_json::Value>) -> String {
+    match set_property(source, FrontmatterFormat::Yaml, pointer, value) {
+        Ok(updated) => updated,
+        Err(error) => panic!("expected an edit: {error}"),
+    }
+}
+
+fn field_value_at(source: &str, key: &str) -> Option<FrontmatterValue> {
+    yaml_document(source)
+        .fields
+        .into_iter()
+        .find(|field| field.key == key)
+        .map(|field| field.value)
+}
+
+#[test]
+fn set_property_should_replace_a_field_and_keep_authored_trivia() {
+    let source = "---\nauthor: Jane\n# keep me\ncount: 3\n---\n\nBody";
+    let updated = set_field(source, "/author", Some(serde_json::json!("Ada")));
+    assert!(updated.contains("# keep me"));
+    assert!(updated.contains("count: 3"));
+    assert_eq!(
+        field_value_at(&updated, "author"),
+        Some(FrontmatterValue::Text("Ada".to_owned()))
+    );
+}
+
+#[test]
+fn set_property_should_add_a_missing_top_level_field() {
+    let updated = set_field(
+        "---\nauthor: Jane\n---",
+        "/status",
+        Some(serde_json::json!("draft")),
+    );
+    assert_eq!(
+        field_value_at(&updated, "status"),
+        Some(FrontmatterValue::Text("draft".to_owned()))
+    );
+    assert_eq!(
+        field_value_at(&updated, "author"),
+        Some(FrontmatterValue::Text("Jane".to_owned()))
+    );
+}
+
+#[test]
+fn set_property_should_remove_a_field_and_its_empty_parent() {
+    let source = "---\nstatus:\n  owner: Ada\ncount: 3\n---";
+    let updated = set_field(source, "/status/owner", None);
+    assert_eq!(field_value_at(&updated, "status"), None);
+    assert_eq!(
+        field_value_at(&updated, "count"),
+        Some(FrontmatterValue::Number(serde_json::Number::from(3)))
+    );
+}
+
+#[test]
+fn set_property_should_write_a_nested_path_without_dropping_siblings() {
+    let updated = set_field(
+        "---\nauthor: Jane\n---",
+        "/owner/name",
+        Some(serde_json::json!("Ada")),
+    );
+    let owner = field_value_at(&updated, "owner");
+    let Some(FrontmatterValue::Object(entries)) = owner else {
+        panic!("expected a nested object");
+    };
+    assert_eq!(
+        entries
+            .iter()
+            .find(|(key, _)| key == "name")
+            .map(|(_, value)| value),
+        Some(&FrontmatterValue::Text("Ada".to_owned()))
+    );
+    assert_eq!(
+        field_value_at(&updated, "author"),
+        Some(FrontmatterValue::Text("Jane".to_owned()))
+    );
+}
+
+#[test]
+fn set_property_should_create_a_block_in_the_requested_format() {
+    let updated = match set_property(
+        "Body text",
+        FrontmatterFormat::Toml,
+        "/status",
+        Some(serde_json::json!("active")),
+    ) {
+        Ok(updated) => updated,
+        Err(error) => panic!("expected an edit: {error}"),
+    };
+    assert!(updated.starts_with("---toml\n"));
+    assert!(updated.ends_with("Body text"));
+    assert!(updated.contains("status"));
+}
+
+#[test]
+fn set_property_should_reject_malformed_blocks_and_bad_paths() {
+    assert!(matches!(
+        set_property(
+            "---toml\na = [\n---",
+            FrontmatterFormat::Yaml,
+            "/status",
+            Some(serde_json::json!("x")),
+        ),
+        Err(FrontmatterError::Malformed(_))
+    ));
+    assert!(matches!(
+        set_property(
+            "---\nauthor: Jane\n---",
+            FrontmatterFormat::Yaml,
+            "author",
+            Some(serde_json::json!("x")),
+        ),
+        Err(FrontmatterError::Path(_))
+    ));
+    assert!(matches!(
+        set_property(
+            "---\nauthor: Jane\n---",
+            FrontmatterFormat::Yaml,
+            "/author/name",
+            Some(serde_json::json!("x")),
+        ),
+        Err(FrontmatterError::Path(_))
+    ));
+}
+
+#[test]
+fn set_title_should_override_then_release_the_derived_title() {
+    let source = "---\nauthor: Jane\n---\n\n# Heading\n";
+    let titled = match set_title(source, FrontmatterFormat::Yaml, Some("  Override  ")) {
+        Ok(updated) => updated,
+        Err(error) => panic!("expected a title edit: {error}"),
+    };
+    assert_eq!(crate::derive_content(&titled).title, "Override");
+    let cleared = match set_title(&titled, FrontmatterFormat::Yaml, None) {
+        Ok(updated) => updated,
+        Err(error) => panic!("expected a title clear: {error}"),
+    };
+    assert_eq!(crate::derive_content(&cleared).title, "Heading");
+    assert_eq!(field_value_at(&cleared, "title"), None);
+}
+
 #[test]
 fn a_new_title_should_lead_the_block() {
     let source = "---\nauthor: Jane\n---\nBody";

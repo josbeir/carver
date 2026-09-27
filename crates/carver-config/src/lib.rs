@@ -11,12 +11,14 @@ use std::{
 
 use atomic_write_file::AtomicWriteFile;
 use carver_domain::{
-    FrontmatterField, FrontmatterFormat, FrontmatterValue, PropertyKind,
-    frontmatter_source_with_format, is_reserved_key,
+    FrontmatterField, FrontmatterFormat, FrontmatterValue, frontmatter_source_with_format,
+    is_reserved_key,
 };
 use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
+
+pub use carver_domain::PropertyType as DocumentPropertyType;
 
 const APPLICATION_QUALIFIER: &str = "io";
 const APPLICATION_ORGANIZATION: &str = "github.josbeir";
@@ -321,46 +323,6 @@ const fn default_frontmatter_format() -> FrontmatterFormat {
     FrontmatterFormat::Yaml
 }
 
-/// A user-selectable document property field type.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DocumentPropertyType {
-    /// A single-line text value.
-    #[default]
-    Text,
-    /// A multi-line text value.
-    LongText,
-    /// A numeric value.
-    Number,
-    /// A boolean value.
-    Boolean,
-    /// A list of configured options.
-    List,
-    /// An ISO 8601 calendar date.
-    Date,
-    /// An ISO 8601 date and time.
-    DateTime,
-}
-
-impl DocumentPropertyType {
-    /// Returns the domain value kind this field type is stored as.
-    #[must_use]
-    pub const fn domain_kind(self) -> PropertyKind {
-        match self {
-            Self::Text | Self::LongText | Self::Date | Self::DateTime => PropertyKind::Text,
-            Self::Number => PropertyKind::Number,
-            Self::Boolean => PropertyKind::Boolean,
-            Self::List => PropertyKind::List,
-        }
-    }
-
-    /// Returns whether the field type is a date or a date and time.
-    #[must_use]
-    pub const fn is_date(self) -> bool {
-        matches!(self, Self::Date | Self::DateTime)
-    }
-}
-
 /// One user-configured document property.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DocumentProperty {
@@ -427,6 +389,57 @@ impl DocumentProperty {
     pub fn default_field(&self) -> Option<FrontmatterField> {
         self.default_field_at(now_local())
     }
+
+    /// Returns this configured default's resolved editing shape.
+    #[must_use]
+    pub fn resolved(&self) -> ResolvedProperty {
+        ResolvedProperty {
+            field_type: self.field_type,
+            multiple: self.multiple,
+            options: self.options(),
+        }
+    }
+}
+
+/// The authoritatively resolved editing shape of one document property.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResolvedProperty {
+    /// Field type used to edit the value.
+    pub field_type: DocumentPropertyType,
+    /// Whether a list allows multiple selections.
+    pub multiple: bool,
+    /// Configured list options; empty for other types and unconfigured properties.
+    pub options: Vec<String>,
+}
+
+/// Returns the configured default for a top-level key, ignoring reserved keys.
+#[must_use]
+pub fn configured_property<'a>(
+    defaults: &'a [DocumentProperty],
+    key: &str,
+) -> Option<&'a DocumentProperty> {
+    defaults
+        .iter()
+        .find(|property| !is_reserved_key(&property.key) && property.key == key)
+}
+
+/// Resolves a property's editing shape, preferring a configured default over the observed type.
+///
+/// This is the single authority shared by the properties dialog and the Base grid: a configured
+/// default always wins, so an authored scalar that backs a configured list still edits as a list.
+#[must_use]
+pub fn resolve_property(
+    configured: Option<&DocumentProperty>,
+    observed: DocumentPropertyType,
+) -> ResolvedProperty {
+    configured.map_or_else(
+        || ResolvedProperty {
+            field_type: observed,
+            multiple: false,
+            options: Vec::new(),
+        },
+        DocumentProperty::resolved,
+    )
 }
 
 /// The current local time, falling back to UTC when the offset is indeterminate.
@@ -489,7 +502,7 @@ impl DocumentPropertiesConfig {
                     "property '{key}' can only allow multiple values when it is a list"
                 ));
             }
-            if !value_matches_type(entry.field_type, &entry.value) {
+            if !entry.field_type.accepts_json(&entry.value) {
                 return Err(format!("property '{key}' value does not match its type"));
             }
             if !seen.insert(key.to_owned()) {
@@ -497,24 +510,6 @@ impl DocumentPropertiesConfig {
             }
         }
         Ok(())
-    }
-}
-
-fn value_matches_type(field_type: DocumentPropertyType, value: &serde_json::Value) -> bool {
-    if value.is_null() {
-        return true;
-    }
-    match field_type {
-        DocumentPropertyType::Text
-        | DocumentPropertyType::LongText
-        | DocumentPropertyType::Date
-        | DocumentPropertyType::DateTime => value.is_string(),
-        DocumentPropertyType::Number => value.is_number(),
-        DocumentPropertyType::Boolean => value.is_boolean(),
-        // A list property's value is its option list, so every entry is a string.
-        DocumentPropertyType::List => value
-            .as_array()
-            .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
     }
 }
 

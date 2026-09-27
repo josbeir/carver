@@ -332,11 +332,23 @@ popover button:checked {
   min-width: 20px;
   opacity: 0.65;
 }
+/* The grid is the pane surface itself, not a card floating inside it. Keep a top divider between
+   the column header and the window header, and a bottom divider under the last row. */
 .bases-grid {
   font-size: 0.9em;
-  border: 1px solid alpha(currentColor, 0.12);
-  border-radius: 8px;
-  background: @view_bg_color;
+  border-top: 1px solid alpha(currentColor, 0.12);
+}
+
+.bases-grid row:last-child {
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+/* The title cell is a flat button around the value label; strip its padding so the text lines up
+   with the other columns instead of adding button chrome. */
+.bases-grid button.bases-name-link {
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 .sidebar-add-panel { padding: 8px 18px 18px; }
@@ -358,7 +370,44 @@ popover button:checked {
   font-weight: 600;
 }
 
+/* Keep inline selects as text-like cells rather than raised buttons. */
+.bases-grid dropdown,
+.bases-grid dropdown button,
+.bases-grid dropdown button box,
+.bases-grid dropdown button label {
+  background: none;
+  background-image: none;
+  box-shadow: none;
+  border: none;
+}
+
+.bases-grid dropdown button {
+  padding: 0 2px;
+}
+
+.bases-grid dropdown button:hover {
+  background: alpha(currentColor, 0.07);
+}
+
 .bases-grid label.link {
   color: @accent_color;
   text-decoration-line: underline;
+}
+
+/* GNOME-style hour/minute spinner used by the shared date/time picker. */
+.time-spinner-step {
+  padding: 0;
+  min-width: 36px;
+  min-height: 22px;
+}
+
+.time-spinner-value {
+  font-size: 1.7em;
+  font-weight: 300;
+  min-width: 2.5em;
+}
+
+.time-spinner-meridiem {
+  font-weight: 600;
+  margin-left: 8px;
 }

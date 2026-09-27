@@ -1,6 +1,6 @@
 //! Side effects requested by the pure reducer.
 
-use carver_config::Config;
+use carver_config::{Config, DocumentProperty};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     BaseColumn, BaseFilter, BaseFilterMode, BaseId, BaseSort, CategoryAppearance, CategoryId,
@@ -10,7 +10,7 @@ use carver_sdk::{
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
     EditorExportWarningRequest, EditorPdfExportRequest, EditorPropertiesRequest, EditorSaveRequest,
-    EditorSessionId, RequestId, SourceImageTarget, TimerId,
+    EditorSessionId, FrontmatterEdit, RequestId, SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
@@ -36,6 +36,8 @@ pub enum Effect {
         definition: carver_sdk::BaseDefinition,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
+        /// Configured default properties always offered as fields.
+        default_properties: Vec<DocumentProperty>,
     },
     /// Present the shared Base configuration dialog in create mode.
     ShowNewBaseConfiguration {
@@ -43,6 +45,8 @@ pub enum Effect {
         dialog_id: RequestId,
         /// Library-wide field catalog.
         descriptors: Vec<carver_sdk::PropertyDescriptor>,
+        /// Configured default properties always offered as fields.
+        default_properties: Vec<DocumentProperty>,
     },
     /// Count rows matching draft Base filters without loading their projections.
     PreviewBaseRowCount {
@@ -304,6 +308,49 @@ pub enum Effect {
     SaveNote {
         /// Session, revision, and source to persist.
         request: EditorSaveRequest,
+    },
+    /// Load one Base row's note so its document-properties dialog can open without leaving Base.
+    LoadBaseProperties {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+        /// Configured defaults always offered as value-only rows.
+        defaults: Vec<DocumentProperty>,
+        /// Format used when the dialog creates a new frontmatter block.
+        format: carver_domain::FrontmatterFormat,
+        /// Active categories offered as the note's category.
+        categories: Vec<super::CategoryChoice>,
+    },
+    /// Persist a document-properties edit under a Base row's revision.
+    SaveBaseProperties {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose properties are edited.
+        note_id: NoteId,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// Parsed or raw frontmatter edit produced by the dialog.
+        edit: FrontmatterEdit,
+        /// Destination category when the note should be moved, if changed.
+        category: Option<CategoryId>,
+    },
+    /// Load one note, set a frontmatter property, and persist it under its revision.
+    EditBaseCell {
+        /// Identity used to reject stale completions.
+        request_id: RequestId,
+        /// Note whose property is edited.
+        note_id: NoteId,
+        /// Row revision captured when the edit began.
+        revision: Revision,
+        /// Frontmatter format used when the note has no block yet.
+        format: carver_domain::FrontmatterFormat,
+        /// JSON Pointer path of the edited property.
+        path: String,
+        /// New typed value, or `None` to clear the property.
+        value: Option<serde_json::Value>,
     },
     /// Prepare a non-PDF export from an immutable editor snapshot.
     PrepareEditorExport {

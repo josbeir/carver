@@ -1,4 +1,5 @@
 use super::*;
+use crate::mvu::{EditorPropertiesRequest, PropertiesSave};
 use carver_sdk::{BaseSort, BaseSortDirection};
 
 #[test]
@@ -154,6 +155,7 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
     let descriptor = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/project/status".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("planned".to_owned()),
     };
     assert!(matches!(
@@ -504,6 +506,7 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
     let stale = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/stale".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("old".to_owned()),
     };
     assert!(
@@ -524,6 +527,7 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
     let descriptor = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/status".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("ready".to_owned()),
     };
     assert!(
@@ -583,6 +587,7 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Err(UiError::new("save failed")),
+            move_error: None,
         }),
     );
     assert_eq!(model.route, Route::Editor);
@@ -702,6 +707,7 @@ fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
     assert_eq!(model.route, Route::Base);
@@ -990,5 +996,498 @@ fn stale_base_update_should_leave_a_notice_without_reloading() {
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("base changed")
+    );
+}
+
+fn base_route_model() -> (AppModel, BaseId) {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    model.bases.rows.state = LoadState::Ready(Vec::new());
+    (model, base_id)
+}
+
+#[test]
+fn committing_a_cell_edit_should_track_the_edit_and_save_the_configured_format() {
+    let (mut model, _) = base_route_model();
+    model.config.document_properties.format = carver_domain::FrontmatterFormat::Toml;
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::EditBaseCell {
+                request_id,
+                note_id: edited,
+                revision,
+                format,
+                path,
+                value,
+            },
+        ] => {
+            assert_eq!(*edited, note_id);
+            assert_eq!(*revision, Revision(4));
+            assert_eq!(*format, carver_domain::FrontmatterFormat::Toml);
+            assert_eq!(path, "/status");
+            assert_eq!(value, &Some(serde_json::json!("done")));
+            *request_id
+        }
+        _ => panic!("a cell edit should persist once"),
+    };
+    assert_eq!(model.bases.cell_edits.len(), 1);
+    assert_eq!(model.bases.cell_edits[0].request_id, request_id);
+}
+
+#[test]
+fn committing_a_cell_edit_without_a_base_should_be_ignored() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            revision: Revision(1),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert!(model.bases.cell_edits.is_empty());
+}
+
+#[test]
+fn a_saved_cell_edit_should_reload_the_visible_base() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
+}
+
+#[test]
+fn a_failed_cell_edit_should_reload_and_keep_a_notice() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: None,
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Err(UiError::new("conflict")),
+            move_error: None,
+        }),
+    );
+    // The control had already changed visually, so the grid reloads the stored row.
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
+    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("conflict")
+    );
+}
+
+#[test]
+fn a_second_edit_for_the_same_note_should_wait_for_the_first() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let first = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    assert!(matches!(first.as_slice(), [Effect::EditBaseCell { .. }]));
+    // A second edit for the same note would carry the pre-save revision and conflict.
+    let second = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/done".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!(true)),
+        }),
+    );
+    assert!(second.is_empty());
+    assert_eq!(model.bases.cell_edits.len(), 1);
+}
+
+#[test]
+fn a_stale_cell_edit_reply_should_be_ignored() {
+    let (mut model, _) = base_route_model();
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id: RequestId(404),
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    assert!(effects.is_empty());
+}
+
+#[test]
+fn editing_base_properties_should_open_the_dialog_without_leaving_the_base() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::EditProperties {
+            note_id,
+            revision: Revision(3),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::LoadBaseProperties {
+                request_id,
+                note_id: loaded,
+                revision,
+                ..
+            },
+        ] => {
+            assert_eq!(*loaded, note_id);
+            assert_eq!(*revision, Revision(3));
+            *request_id
+        }
+        _ => panic!("editing properties should load the note"),
+    };
+    assert_eq!(model.route, Route::Base);
+
+    let request = EditorPropertiesRequest {
+        save: PropertiesSave::Base {
+            note_id,
+            revision: Revision(3),
+        },
+        note_id,
+        document: None,
+        raw: None,
+        heading_title: None,
+        defaults: Vec::new(),
+        default_format: carver_domain::FrontmatterFormat::Yaml,
+        category_id: None,
+        categories: Vec::new(),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id,
+            result: Ok(request),
+        }),
+    );
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::ShowDocumentProperties { .. }]
+    ));
+    assert_eq!(model.route, Route::Base);
+    assert!(model.bases.base_properties_request.is_none());
+}
+
+#[test]
+fn a_stale_or_failed_base_properties_load_should_be_handled() {
+    let (mut model, _) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::EditProperties {
+            note_id,
+            revision: Revision(3),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::LoadBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("editing properties should load the note"),
+    };
+
+    // A reply for another request is stale and leaves the pending load untouched.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id: RequestId(request_id.0 + 1),
+            result: Err(UiError::new("stale")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(model.bases.base_properties_request, Some(request_id));
+    assert_eq!(model.notice, None);
+
+    // The matching failure reports a notice and clears the pending load.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasePropertiesLoaded {
+            request_id,
+            result: Err(UiError::new("load failed")),
+        }),
+    );
+    assert!(effects.is_empty());
+    assert_eq!(model.bases.base_properties_request, None);
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("load failed")
+    );
+}
+
+#[test]
+fn applying_base_properties_should_save_and_reload_the_base() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+            category: None,
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::SaveBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("applying properties should save once"),
+    };
+    assert_eq!(model.bases.cell_edits.len(), 1);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            moved: false,
+            result: Ok(Revision(3)),
+            move_error: None,
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
+    ));
+}
+
+#[test]
+fn a_moved_base_property_edit_should_reload_the_sidebar() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+            category: Some(carver_sdk::CategoryId::new()),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [
+            Effect::SaveBaseProperties {
+                request_id,
+                category,
+                ..
+            },
+        ] => {
+            assert!(category.is_some());
+            *request_id
+        }
+        _ => panic!("applying properties should save once"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            moved: true,
+            result: Ok(Revision(3)),
+            move_error: None,
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadSidebar { .. }))
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. })),
+        "a Base move should refresh the browser like the editor move path"
+    );
+}
+
+#[test]
+fn a_second_cell_edit_on_the_same_note_should_queue_until_the_first_finishes() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let first = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("draft")),
+        }),
+    );
+    let first_request = match first.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("the first edit should dispatch"),
+    };
+    // A different note is independent and may run concurrently.
+    let other = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id: NoteId::new(),
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("draft")),
+        }),
+    );
+    assert!(matches!(other.as_slice(), [Effect::EditBaseCell { .. }]));
+
+    // The second edit for the same note is queued rather than dropped.
+    let second = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/owner".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("Ada")),
+        }),
+    );
+    assert!(second.is_empty());
+    assert_eq!(model.bases.pending_cell_edits.len(), 1);
+
+    // Completing the first admits the queued edit against the revision the first save produced.
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id: first_request,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    let queued_revision = effects.iter().find_map(|effect| match effect {
+        Effect::EditBaseCell { revision, .. } => Some(*revision),
+        _ => None,
+    });
+    assert_eq!(queued_revision, Some(Revision(5)));
+    assert!(model.bases.pending_cell_edits.is_empty());
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
+    );
+}
+
+#[test]
+fn a_failed_base_move_should_reload_rows_and_report_a_notice() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+            category: Some(carver_sdk::CategoryId::new()),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::SaveBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("expected a save"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            moved: false,
+            move_error: Some(UiError::new("move failed")),
+            result: Ok(Revision(3)),
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    // The content was saved, so the grid reloads; the failed move is surfaced.
+    assert!(effects.iter().any(
+        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
+    ));
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("move failed")
     );
 }

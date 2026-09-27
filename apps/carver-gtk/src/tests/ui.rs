@@ -59,6 +59,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     rendering::code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline()?;
     excerpts::note_card_should_display_the_complete_final_grapheme()?;
     crate::mvu::export_runtime_should_cover_completion_cancellation_and_failures()?;
+    crate::mvu::runtime_error_paths_should_surface_failures()?;
     interactions::cancelled_source_link_should_leave_the_document_unchanged()?;
     interactions::stale_web_messages_should_not_change_the_active_document()?;
     interactions::source_link_should_keep_the_captured_selection()?;
@@ -87,6 +88,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::date_picker_should_offer_clear_and_done_controls()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
     properties::date_time_default_should_edit_the_picker()?;
+    properties::time_spinner_should_follow_a_twelve_hour_clock()?;
     properties::typed_defaults_should_save_edited_values()?;
     properties::title_frontmatter_should_fill_the_title_row()?;
     properties::malformed_frontmatter_should_fall_back_to_raw_source()?;
@@ -120,9 +122,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
     bases::base_field_picker_should_add_a_valid_custom_path()?;
     bases::base_rule_controls_should_edit_rules_and_fields()?;
+    bases::base_cell_editors_should_commit_typed_values()?;
+    bases::clicking_a_cell_should_reveal_the_editor()?;
+    bases::base_cell_editor_should_reject_invalid_input_and_escape()?;
+    bases::base_cell_editor_should_clear_a_value()?;
+    bases::base_cell_editor_should_commit_on_click_away()?;
+    bases::base_grid_should_keep_a_lossy_list_cell_read_only()?;
+    bases::base_grid_edits_should_persist_to_the_note()?;
+    bases::base_grid_should_clear_the_title_override()?;
+    bases::base_grid_should_toggle_a_boolean_property()?;
+    bases::base_grid_list_should_offer_a_dropdown()?;
+    bases::base_properties_should_set_the_category()?;
+    bases::base_grid_date_should_expose_a_picker_icon()?;
+    bases::base_grid_date_picker_should_commit_on_close()?;
     icons::bundled_icons_should_be_discoverable()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
+    crate::mvu::tests::runtime_should_edit_base_properties_without_leaving_the_base()?;
+    crate::mvu::tests::runtime_should_refresh_sidebar_counts_after_an_editor_category_move()?;
     crate::ui::editor::source_commands::tests::gtk_source_commands_cover_selection_and_block_operations(
     );
     let fixture = window_fixture()?;

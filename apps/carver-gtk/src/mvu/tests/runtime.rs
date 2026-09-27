@@ -496,3 +496,144 @@ fn assert_external_category_deletion(
     }));
     Ok(())
 }
+
+pub(crate) fn runtime_should_edit_base_properties_without_leaving_the_base()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let paths = AppPaths {
+        config_dir: temporary_directory.path().join("config"),
+        data_dir: temporary_directory.path().join("data"),
+        cache_dir: temporary_directory.path().join("cache"),
+    };
+    paths.ensure_exists()?;
+    let client = LibraryClient::spawn(SqliteLibrary::open(
+        &paths.database_file(),
+        &paths.assets_dir(),
+    )?)?;
+    let category = client.create_category("Notes")?;
+    let created = client.create_note(category.id)?;
+    let note = client.save_note(created.id, created.revision, "# Note\n\nBody")?;
+    let destination = client.create_category("Archive")?;
+
+    let mut model = AppModel::new(&Config::default());
+    model.route = crate::mvu::Route::Base;
+    model.bases.selected = Some(carver_sdk::BaseId::new());
+    let runtime = AppRuntime::new(
+        client.clone(),
+        model,
+        crate::view::ViewRefs::new(
+            gtk::Stack::new(),
+            libadwaita::StatusPage::new(),
+            libadwaita::StatusPage::new(),
+        ),
+    );
+
+    runtime.dispatch(AppMsg::Bases(BasesMsg::EditProperties {
+        note_id: note.id,
+        revision: note.revision,
+    }));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().bases.base_properties_request.is_none()
+    }));
+    assert_eq!(runtime.model().route, crate::mvu::Route::Base);
+
+    runtime.dispatch(AppMsg::Bases(BasesMsg::ApplyProperties {
+        note_id: note.id,
+        revision: note.revision,
+        edit: crate::mvu::FrontmatterEdit::Raw {
+            format: carver_domain::FrontmatterFormat::Yaml,
+            content: "author: Ada".to_owned(),
+        },
+        category: Some(destination.id),
+    }));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        client.note(note.id).ok().flatten().is_some_and(|note| {
+            note.source.contains("author: Ada") && note.category_id == destination.id
+        })
+    }));
+    // The category counts follow the move.
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        sidebar_count(&runtime, category.id) == Some(0)
+            && sidebar_count(&runtime, destination.id) == Some(1)
+    }));
+    assert_eq!(runtime.model().route, crate::mvu::Route::Base);
+    Ok(())
+}
+
+pub(crate) fn runtime_should_refresh_sidebar_counts_after_an_editor_category_move()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let paths = AppPaths {
+        config_dir: temporary_directory.path().join("config"),
+        data_dir: temporary_directory.path().join("data"),
+        cache_dir: temporary_directory.path().join("cache"),
+    };
+    paths.ensure_exists()?;
+    let client = LibraryClient::spawn(SqliteLibrary::open(
+        &paths.database_file(),
+        &paths.assets_dir(),
+    )?)?;
+    let source = client.create_category("Source")?;
+    let destination = client.create_category("Destination")?;
+    let created = client.create_note(source.id)?;
+    let note = client.save_note(created.id, created.revision, "# Note\n")?;
+
+    let runtime = AppRuntime::new(
+        client.clone(),
+        AppModel::new(&Config::default()),
+        crate::view::ViewRefs::new(
+            gtk::Stack::new(),
+            libadwaita::StatusPage::new(),
+            libadwaita::StatusPage::new(),
+        ),
+    );
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::Started));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        sidebar_count(&runtime, source.id) == Some(1)
+            && sidebar_count(&runtime, destination.id) == Some(0)
+    }));
+
+    // Open the note in the editor, then move it from the properties dialog.
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        runtime.model().editor.is_some()
+    }));
+    let session = runtime
+        .model()
+        .editor
+        .as_ref()
+        .map(|document| document.session)
+        .ok_or("editor should be open")?;
+    runtime.dispatch(AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+        session,
+        edit: FrontmatterEdit::Raw {
+            format: carver_domain::FrontmatterFormat::Yaml,
+            content: String::new(),
+        },
+        category: Some(destination.id),
+    }));
+
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        client
+            .note(note.id)
+            .ok()
+            .flatten()
+            .is_some_and(|note| note.category_id == destination.id)
+    }));
+    // The counts must follow the move without any further navigation.
+    assert!(crate::ui::tests::support::run_main_context_until(|| {
+        sidebar_count(&runtime, source.id) == Some(0)
+            && sidebar_count(&runtime, destination.id) == Some(1)
+    }));
+    Ok(())
+}
+
+fn sidebar_count(runtime: &AppRuntime<SqliteLibrary>, id: carver_sdk::CategoryId) -> Option<usize> {
+    match &runtime.model().sidebar.state {
+        LoadState::Ready(summaries) => summaries
+            .iter()
+            .find(|summary| summary.category.id == id)
+            .map(|summary| summary.note_count),
+        _ => None,
+    }
+}

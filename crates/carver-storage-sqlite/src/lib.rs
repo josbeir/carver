@@ -112,24 +112,59 @@ const fn base_definition_version() -> u8 {
 }
 
 fn decode_base_payload(raw: &str) -> Result<BaseDefinitionPayload, StorageError> {
-    if let Ok(payload) = serde_json::from_str::<BaseDefinitionPayload>(raw) {
+    let mut payload = if let Ok(payload) = serde_json::from_str::<BaseDefinitionPayload>(raw) {
         if payload.version != 1 {
             return Err(StorageError::InvalidBaseDefinition(format!(
                 "unsupported definition version {}",
                 payload.version
             )));
         }
-        return Ok(payload);
-    }
-    let columns = serde_json::from_str::<Vec<BaseColumn>>(raw)
-        .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))?;
-    Ok(BaseDefinitionPayload {
-        version: 1,
-        columns,
-        filter_mode: BaseFilterMode::All,
-        filters: Vec::new(),
-        sorts: Vec::new(),
-    })
+        payload
+    } else {
+        let columns = serde_json::from_str::<Vec<BaseColumn>>(raw)
+            .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))?;
+        BaseDefinitionPayload {
+            version: 1,
+            columns,
+            filter_mode: BaseFilterMode::All,
+            filters: Vec::new(),
+            sorts: Vec::new(),
+        }
+    };
+    // Reserved frontmatter paths resolve to their built-in column on read, so an older definition
+    // that referenced `/title` behaves as the derived-title column.
+    let (columns, filters, sorts) =
+        canonicalize_base_fields(&payload.columns, &payload.filters, &payload.sorts);
+    payload.columns = columns;
+    payload.filters = filters;
+    payload.sorts = sorts;
+    Ok(payload)
+}
+
+/// Maps every reserved frontmatter field reference to its built-in column.
+fn canonicalize_base_fields(
+    columns: &[BaseColumn],
+    filters: &[BaseFilter],
+    sorts: &[BaseSort],
+) -> (Vec<BaseColumn>, Vec<BaseFilter>, Vec<BaseSort>) {
+    let columns = columns.iter().map(BaseColumn::canonicalized).collect();
+    let filters = filters
+        .iter()
+        .cloned()
+        .map(|mut filter| {
+            filter.field = filter.field.canonicalized();
+            filter
+        })
+        .collect();
+    let sorts = sorts
+        .iter()
+        .cloned()
+        .map(|mut sort| {
+            sort.field = sort.field.canonicalized();
+            sort
+        })
+        .collect();
+    (columns, filters, sorts)
 }
 
 fn encode_base_payload(
@@ -224,7 +259,8 @@ impl SqliteLibrary {
         }
         let id = BaseId::new();
         let revision = Revision(1);
-        let definition_json = encode_base_payload(columns, filter_mode, filters, sorts)?;
+        let (columns, filters, sorts) = canonicalize_base_fields(columns, filters, sorts);
+        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts)?;
         self.connection.execute(
             "INSERT INTO bases (id, name, definition_json, revision) VALUES (?1, ?2, ?3, ?4)",
             params![id.to_string(), name, definition_json, revision.0],
@@ -232,10 +268,10 @@ impl SqliteLibrary {
         let mut definition = BaseDefinition {
             id,
             name: name.to_owned(),
-            columns: columns.to_vec(),
+            columns,
             filter_mode,
-            filters: filters.to_vec(),
-            sorts: sorts.to_vec(),
+            filters,
+            sorts,
             revision,
             row_count: 0,
         };
@@ -319,7 +355,8 @@ impl SqliteLibrary {
             return Err(StorageError::InvalidBaseName);
         }
         let next_revision = Revision(revision.0.saturating_add(1));
-        let definition_json = encode_base_payload(columns, filter_mode, filters, sorts)?;
+        let (columns, filters, sorts) = canonicalize_base_fields(columns, filters, sorts);
+        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts)?;
         let changed = self.connection.execute(
             "UPDATE bases SET name = ?1, definition_json = ?2, revision = ?3
              WHERE id = ?4 AND revision = ?5",
@@ -337,10 +374,10 @@ impl SqliteLibrary {
         let mut definition = BaseDefinition {
             id: base_id,
             name: name.to_owned(),
-            columns: columns.to_vec(),
+            columns,
             filter_mode,
-            filters: filters.to_vec(),
-            sorts: sorts.to_vec(),
+            filters,
+            sorts,
             revision: next_revision,
             row_count: 0,
         };

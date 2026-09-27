@@ -142,6 +142,30 @@ pub(crate) enum PendingBaseConfiguration {
     Existing(carver_sdk::BaseDefinition),
 }
 
+/// One in-flight inline edit of a Base cell.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BaseCellEdit {
+    /// Note whose frontmatter is being edited.
+    pub note_id: NoteId,
+    /// JSON Pointer path of the edited property.
+    pub path: String,
+    /// Row revision captured when the edit began.
+    pub revision: Revision,
+    /// Identity used to ignore a stale completion.
+    pub request_id: RequestId,
+}
+
+/// A Base cell edit waiting for the same note's earlier edit to finish.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingBaseCellEdit {
+    /// Note whose frontmatter is edited.
+    pub note_id: NoteId,
+    /// JSON Pointer path of the edited property.
+    pub path: String,
+    /// Value to persist, or `None` to clear the property.
+    pub value: Option<serde_json::Value>,
+}
+
 /// Saved bases and the currently visible grid.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BasesModel {
@@ -191,6 +215,12 @@ pub struct BasesModel {
     pub rows_append_error: Option<UiError>,
     /// Typed frontmatter properties currently present in active notes.
     pub property_descriptors: Resource<Vec<carver_sdk::PropertyDescriptor>>,
+    /// Inline cell edits currently being persisted.
+    pub cell_edits: Vec<BaseCellEdit>,
+    /// Inline cell edits queued behind another edit on the same note.
+    pub pending_cell_edits: Vec<PendingBaseCellEdit>,
+    /// The Base row whose document-properties dialog is being prepared.
+    pub base_properties_request: Option<RequestId>,
 }
 
 /// The single navigation destination highlighted in the sidebar.
@@ -364,6 +394,8 @@ pub struct EditorSaveRequest {
     pub expected_revision: Revision,
     /// Canonical Carve source captured for this save.
     pub source: String,
+    /// Destination category when the note should also move, applied after the content save.
+    pub move_to: Option<CategoryId>,
 }
 
 /// A persisted change that must be resolved before saving the local draft.
@@ -384,6 +416,10 @@ pub struct EditorDocument {
     pub note_id: NoteId,
     /// Last persisted revision of the note.
     pub revision: Revision,
+    /// Category the note currently belongs to.
+    pub category_id: CategoryId,
+    /// Category to move the note to on the next save, when the dialog changed it.
+    pub pending_category: Option<CategoryId>,
     /// Whether this note appears in the Favorites carousel.
     pub is_favorite: bool,
     /// Canonical Carve source shared by the source and rich projections.
@@ -505,11 +541,37 @@ pub struct EditorPdfExportRequest {
     pub print_dialog: bool,
 }
 
+/// An active category offered for a note's category in the properties dialog.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CategoryChoice {
+    /// Category identity.
+    pub id: CategoryId,
+    /// Category display name.
+    pub name: String,
+}
+
+/// Where a document-properties dialog writes its edit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PropertiesSave {
+    /// The open editor session splices the edit into canonical source.
+    Editor {
+        /// Editor lifetime that owns the snapshot.
+        session: EditorSessionId,
+    },
+    /// A Base row loads the note, splices the edit, and saves under its revision.
+    Base {
+        /// Note being edited.
+        note_id: NoteId,
+        /// Row revision captured when the dialog opened.
+        revision: Revision,
+    },
+}
+
 /// Immutable snapshot used to open the native document-properties dialog.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditorPropertiesRequest {
-    /// Editor lifetime that owns the snapshot.
-    pub session: EditorSessionId,
+    /// Target that persists the dialog's edit.
+    pub save: PropertiesSave,
     /// Persisted note being edited.
     pub note_id: NoteId,
     /// Parsed frontmatter, or `None` when the note has no block.
@@ -522,6 +584,10 @@ pub struct EditorPropertiesRequest {
     pub defaults: Vec<carver_config::DocumentProperty>,
     /// Format used when the dialog creates a new frontmatter block.
     pub default_format: carver_domain::FrontmatterFormat,
+    /// The note's current category, or `None` to hide the category row.
+    pub category_id: Option<CategoryId>,
+    /// Active categories offered when the category row is shown.
+    pub categories: Vec<CategoryChoice>,
 }
 
 /// A frontmatter edit produced by the native document-properties dialog.
@@ -542,6 +608,7 @@ impl EditorDocument {
     pub(super) fn new(
         session: EditorSessionId,
         note_id: NoteId,
+        category_id: CategoryId,
         revision: Revision,
         is_favorite: bool,
         source: String,
@@ -552,6 +619,8 @@ impl EditorDocument {
             session,
             note_id,
             revision,
+            category_id,
+            pending_category: None,
             is_favorite,
             source,
             mode,
@@ -589,6 +658,8 @@ impl EditorDocument {
     pub(super) fn accept_external_note(&mut self, note: &carver_sdk::Note) {
         self.source_changed(note.source.clone());
         self.revision = note.revision;
+        self.category_id = note.category_id;
+        self.pending_category = None;
         self.is_favorite = note.is_favorite;
         self.save_state = EditorSaveState::Clean;
         self.external_change = None;
@@ -616,6 +687,7 @@ impl EditorDocument {
             note_id: self.note_id,
             expected_revision: self.revision,
             source: self.source.clone(),
+            move_to: self.pending_category.take(),
         };
         self.save_state = EditorSaveState::Saving(request.clone());
         Some(request)

@@ -511,29 +511,6 @@ fn document_properties_date_time_defaults_should_drop_subsecond_precision() {
 }
 
 #[test]
-fn document_property_type_should_map_to_domain_kinds() {
-    assert_eq!(DocumentPropertyType::Text.domain_kind(), PropertyKind::Text);
-    assert_eq!(
-        DocumentPropertyType::LongText.domain_kind(),
-        PropertyKind::Text
-    );
-    assert_eq!(DocumentPropertyType::Date.domain_kind(), PropertyKind::Text);
-    assert_eq!(
-        DocumentPropertyType::DateTime.domain_kind(),
-        PropertyKind::Text
-    );
-    assert_eq!(
-        DocumentPropertyType::Number.domain_kind(),
-        PropertyKind::Number
-    );
-    assert_eq!(
-        DocumentPropertyType::Boolean.domain_kind(),
-        PropertyKind::Boolean
-    );
-    assert_eq!(DocumentPropertyType::List.domain_kind(), PropertyKind::List);
-}
-
-#[test]
 fn document_properties_should_reject_blank_keys_and_bad_boolean_values() {
     let blank = DocumentPropertiesConfig {
         enabled: true,

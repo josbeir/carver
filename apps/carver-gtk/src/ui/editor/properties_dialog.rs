@@ -8,7 +8,9 @@
 
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
-use carver_config::{DocumentProperty, DocumentPropertyType};
+use carver_config::{
+    DocumentProperty, DocumentPropertyType, ResolvedProperty, configured_property, resolve_property,
+};
 use carver_domain::{
     FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, is_reserved_key,
 };
@@ -19,8 +21,10 @@ use libadwaita::prelude::*;
 use sourceview5::prelude::*;
 
 use crate::mvu::{
-    AppDispatcher, AppMsg, EditorMsg, EditorPropertiesRequest, FrontmatterEdit, PreferencesMsg,
+    AppDispatcher, AppMsg, BasesMsg, EditorMsg, EditorPropertiesRequest, FrontmatterEdit,
+    PreferencesMsg, PropertiesSave,
 };
+use crate::ui::property::{frontmatter_text, parse_number};
 
 /// The reserved, always-present title field key.
 const TITLE_KEY: &str = "title";
@@ -53,27 +57,6 @@ fn type_index(field_type: DocumentPropertyType) -> u32 {
         .unwrap_or(0)
 }
 
-/// Infers a field type from an existing frontmatter value.
-fn type_for_value(value: &FrontmatterValue) -> DocumentPropertyType {
-    match value {
-        FrontmatterValue::Number(_) => DocumentPropertyType::Number,
-        FrontmatterValue::Boolean(_) => DocumentPropertyType::Boolean,
-        FrontmatterValue::List(_) => DocumentPropertyType::List,
-        FrontmatterValue::Text(text) => {
-            // A date or date-time is stored as text, so its type is recovered from the ISO 8601
-            // shape to round-trip an ad-hoc property across dialog opens.
-            if text.contains('T') && parse_date_time(text).is_some() {
-                DocumentPropertyType::DateTime
-            } else if parse_date(text).is_some() {
-                DocumentPropertyType::Date
-            } else {
-                DocumentPropertyType::Text
-            }
-        }
-        FrontmatterValue::Null | FrontmatterValue::Object(_) => DocumentPropertyType::Text,
-    }
-}
-
 /// Returns whether a value can be edited through the structured fields UI.
 ///
 /// Scalars and lists of plain, comma-free text are editable; nested objects and lists holding
@@ -98,15 +81,7 @@ fn markup_escape(text: &str) -> String {
 }
 
 fn type_label(field_type: DocumentPropertyType) -> String {
-    match field_type {
-        DocumentPropertyType::Text => gettext("Text"),
-        DocumentPropertyType::LongText => gettext("Long text"),
-        DocumentPropertyType::Number => gettext("Number"),
-        DocumentPropertyType::Boolean => gettext("Boolean"),
-        DocumentPropertyType::List => gettext("List"),
-        DocumentPropertyType::Date => gettext("Date"),
-        DocumentPropertyType::DateTime => gettext("Date & time"),
-    }
+    crate::ui::property::property_type_label(field_type)
 }
 
 fn type_model() -> gtk::StringList {
@@ -128,11 +103,11 @@ enum ValueWidget {
     Hint(gtk::Label),
 }
 
-/// A calendar (and optional time) picker for a date or date-time value.
+/// A calendar (and optional time) picker row delegating to the shared date picker.
 #[derive(Clone)]
 struct DateTimePicker {
     row: adw::ActionRow,
-    state: Rc<RefCell<Option<String>>>,
+    picker: crate::ui::property::DatePicker,
 }
 
 impl DateTimePicker {
@@ -142,251 +117,38 @@ impl DateTimePicker {
         name: &str,
         title: &str,
     ) -> Self {
-        let date_only = field_type == DocumentPropertyType::Date;
         let row = adw::ActionRow::new();
         row.set_title(title);
         row.set_widget_name(name);
+        let picker = crate::ui::property::DatePicker::new(field_type, value, name);
+        row.add_suffix(picker.button());
+        let date_only = picker.is_date_only();
+        let row_for_subtitle = row.clone();
+        let picker_for_subtitle = picker.clone();
+        picker.connect_changed(move || {
+            let subtitle = picker_for_subtitle.value().map_or_else(
+                || gettext("Not set"),
+                |iso| crate::ui::property::display_date(&iso, date_only),
+            );
+            row_for_subtitle.set_subtitle(&subtitle);
+        });
+        picker.set_value(picker.value().as_deref());
 
-        let button = gtk::MenuButton::new();
-        button.set_icon_name("x-office-calendar-symbolic");
-        button.add_css_class("flat");
-        button.set_valign(gtk::Align::Center);
-        button.set_widget_name(&format!("{name}-picker"));
-        let popover = gtk::Popover::new();
-        let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
-        content.set_margin_start(6);
-        content.set_margin_end(6);
-        content.set_margin_top(6);
-        content.set_margin_bottom(6);
-
-        let calendar = gtk::Calendar::new();
-        calendar.set_widget_name(&format!("{name}-calendar"));
-        content.append(&calendar);
-
-        let hours = gtk::SpinButton::with_range(0.0, 23.0, 1.0);
-        let minutes = gtk::SpinButton::with_range(0.0, 59.0, 1.0);
-        hours.set_widget_name(&format!("{name}-hours"));
-        minutes.set_widget_name(&format!("{name}-minutes"));
-        hours.set_width_chars(2);
-        minutes.set_width_chars(2);
-        if !date_only {
-            let clock = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-            clock.set_halign(gtk::Align::Center);
-            clock.append(&hours);
-            clock.append(&gtk::Label::new(Some(":")));
-            clock.append(&minutes);
-            content.append(&clock);
-        }
-
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        let clear = gtk::Button::with_label(&gettext("Clear"));
-        clear.add_css_class("flat");
-        clear.set_halign(gtk::Align::Start);
-        clear.set_hexpand(true);
-        clear.set_widget_name(&format!("{name}-clear"));
-        let done = gtk::Button::with_label(&gettext("Done"));
-        done.add_css_class("suggested-action");
-        done.set_halign(gtk::Align::End);
-        done.set_widget_name(&format!("{name}-done"));
-        actions.append(&clear);
-        actions.append(&done);
-        content.append(&actions);
-
-        popover.set_child(Some(&content));
-        popover.set_widget_name(&format!("{name}-popover"));
-        button.set_popover(Some(&popover));
-        row.add_suffix(&button);
-
-        let state = Rc::new(RefCell::new(picker_text(field_type, value)));
-
-        let refresh: Rc<dyn Fn()> = {
-            let row = row.clone();
-            let state = Rc::clone(&state);
-            Rc::new(move || {
-                let subtitle = state
-                    .borrow()
-                    .as_ref()
-                    .map_or_else(|| gettext("Not set"), |iso| display_date(iso, date_only));
-                row.set_subtitle(&subtitle);
-            })
-        };
-        apply_picker_state(field_type, &state, &calendar, &hours, &minutes);
-
-        let update: Rc<dyn Fn()> = {
-            let calendar = calendar.clone();
-            let hours = hours.clone();
-            let minutes = minutes.clone();
-            let state = Rc::clone(&state);
-            let refresh = Rc::clone(&refresh);
-            Rc::new(move || {
-                *state.borrow_mut() = read_picker(field_type, &calendar, &hours, &minutes);
-                refresh();
-            })
-        };
-        {
-            let update = Rc::clone(&update);
-            calendar.connect_day_selected(move |_| update());
-        }
-        if !date_only {
-            let update_hours = Rc::clone(&update);
-            hours.connect_value_changed(move |_| update_hours());
-            let update_minutes = Rc::clone(&update);
-            minutes.connect_value_changed(move |_| update_minutes());
-        }
-        {
-            let state = Rc::clone(&state);
-            let refresh = Rc::clone(&refresh);
-            clear.connect_clicked(move |_| {
-                *state.borrow_mut() = None;
-                refresh();
-            });
-        }
-        {
-            let popover = popover.clone();
-            done.connect_clicked(move |_| popover.popdown());
-        }
-        refresh();
-
-        Self { row, state }
+        Self { row, picker }
     }
 
     fn frontmatter(&self) -> FrontmatterValue {
-        self.state
-            .borrow()
-            .as_ref()
-            .map_or(FrontmatterValue::Null, |iso| {
-                FrontmatterValue::Text(iso.clone())
-            })
+        self.picker.frontmatter()
     }
 
     fn frontmatter_preserving(&self, previous: &FrontmatterValue) -> FrontmatterValue {
-        let current = self.state.borrow().clone();
+        let current = self.picker.value();
         if current.as_deref() == Some(frontmatter_text(previous).as_str()) {
             previous.clone()
         } else {
-            current.map_or(FrontmatterValue::Null, FrontmatterValue::Text)
+            self.picker.frontmatter()
         }
     }
-}
-
-/// Returns the value text for a picker, or `None` when it is absent or unparseable.
-fn picker_text(field_type: DocumentPropertyType, value: &FrontmatterValue) -> Option<String> {
-    let FrontmatterValue::Text(text) = value else {
-        return None;
-    };
-    let valid = if field_type == DocumentPropertyType::Date {
-        parse_date(text).is_some()
-    } else {
-        parse_date_time(text).is_some()
-    };
-    valid.then(|| text.clone())
-}
-
-/// Applies a picker state to its calendar and time spins.
-fn apply_picker_state(
-    field_type: DocumentPropertyType,
-    state: &Rc<RefCell<Option<String>>>,
-    calendar: &gtk::Calendar,
-    hours: &gtk::SpinButton,
-    minutes: &gtk::SpinButton,
-) {
-    let borrow = state.borrow();
-    let Some(iso) = borrow.as_deref() else {
-        return;
-    };
-    if field_type == DocumentPropertyType::Date {
-        if let Some(date) = parse_date(iso) {
-            set_calendar(calendar, date);
-        }
-        return;
-    }
-    let Some(instant) = parse_date_time(iso) else {
-        return;
-    };
-    // Convert the stored instant to the local wall clock, which resolves the offset for that
-    // instant (honouring daylight-saving shifts) rather than assuming today's offset.
-    let Some(local) = glib::DateTime::from_unix_local(instant.unix_timestamp()).ok() else {
-        return;
-    };
-    calendar.set_year(local.year());
-    calendar.set_month(local.month() - 1);
-    calendar.set_day(local.day_of_month());
-    hours.set_value(f64::from(local.hour()));
-    minutes.set_value(f64::from(local.minute()));
-}
-
-/// Reads the picker's calendar and time into an ISO 8601 string.
-fn read_picker(
-    field_type: DocumentPropertyType,
-    calendar: &gtk::Calendar,
-    hours: &gtk::SpinButton,
-    minutes: &gtk::SpinButton,
-) -> Option<String> {
-    let selected = calendar.date();
-    let date = time::Date::from_calendar_date(
-        selected.year(),
-        time::Month::try_from(u8::try_from(selected.month()).ok()?).ok()?,
-        u8::try_from(selected.day_of_month()).ok()?,
-    )
-    .ok()?;
-    if field_type == DocumentPropertyType::Date {
-        return Some(date.to_string());
-    }
-    // Build the selected wall clock in the local zone so the stored offset matches that date.
-    let local = glib::DateTime::new(
-        &glib::TimeZone::local(),
-        selected.year(),
-        selected.month(),
-        selected.day_of_month(),
-        hours.value_as_int(),
-        minutes.value_as_int(),
-        0.0,
-    )
-    .ok()?;
-    let offset =
-        time::UtcOffset::from_whole_seconds(i32::try_from(local.utc_offset().as_seconds()).ok()?)
-            .ok()?;
-    let time = time::Time::from_hms(
-        u8::try_from(local.hour()).ok()?,
-        u8::try_from(local.minute()).ok()?,
-        0,
-    )
-    .ok()?;
-    time::PrimitiveDateTime::new(date, time)
-        .assume_offset(offset)
-        .format(&time::format_description::well_known::Rfc3339)
-        .ok()
-}
-
-fn set_calendar(calendar: &gtk::Calendar, date: time::Date) {
-    calendar.set_year(date.year());
-    calendar.set_month(i32::from(u8::from(date.month())) - 1);
-    calendar.set_day(i32::from(date.day()));
-}
-
-fn parse_date(value: &str) -> Option<time::Date> {
-    time::Date::parse(value, &time::format_description::well_known::Iso8601::DATE).ok()
-}
-
-fn parse_date_time(value: &str) -> Option<time::OffsetDateTime> {
-    time::OffsetDateTime::parse(
-        value,
-        &time::format_description::well_known::Iso8601::DEFAULT,
-    )
-    .ok()
-}
-
-/// Formats an ISO 8601 value with the user's locale, falling back to the raw text.
-fn display_date(iso: &str, date_only: bool) -> String {
-    glib::DateTime::from_iso8601(iso, None)
-        .ok()
-        .and_then(|date_time| date_time.to_local().ok())
-        .and_then(|date_time| {
-            date_time
-                .format(if date_only { "%x" } else { "%x %X" })
-                .ok()
-        })
-        .map_or_else(|| iso.to_owned(), |formatted| formatted.to_string())
 }
 
 impl ValueWidget {
@@ -616,48 +378,46 @@ impl PropertyDraft {
 
     /// An ad-hoc note property with an editable name, type, and value.
     fn custom(key: String, value: FrontmatterValue) -> Self {
-        Self {
-            key,
-            choice: type_for_value(&value),
-            value,
-            editable_key: true,
-            editable_kind: true,
-            removable: true,
-            multiple: false,
-            options: Vec::new(),
-            preserve_empty: false,
-            derived: false,
-        }
+        let resolved = resolve_property(None, DocumentPropertyType::from_value(&value));
+        Self::from_resolved(key, value, &resolved, false)
     }
 
-    /// A note property whose key matches a configured default: the type comes from the default
-    /// and the row cannot be removed, so the configured attributes are always present.
+    /// A note property whose key matches a configured default: the resolved type and options come
+    /// from the default and the row cannot be removed, so the configured attributes persist.
     fn default_row(key: String, property: &DocumentProperty, value: FrontmatterValue) -> Self {
-        Self {
-            key,
-            choice: property.field_type,
-            value,
-            editable_key: false,
-            editable_kind: false,
-            removable: false,
-            multiple: property.multiple,
-            options: property.options(),
-            preserve_empty: false,
-            derived: false,
-        }
+        let resolved = resolve_property(Some(property), DocumentPropertyType::from_value(&value));
+        Self::from_resolved(key, value, &resolved, true)
     }
 
     /// A configured default edited in the defaults settings, where the type is editable.
     fn editable_property(property: &DocumentProperty) -> Self {
+        Self::from_resolved(
+            property.key.clone(),
+            FrontmatterValue::from_json(&property.value),
+            &property.resolved(),
+            false,
+        )
+    }
+
+    /// Builds a draft from the shared resolved property shape.
+    ///
+    /// `configured` fixes the key, type, and presence in the dialog because a configured default
+    /// owns those attributes.
+    fn from_resolved(
+        key: String,
+        value: FrontmatterValue,
+        resolved: &ResolvedProperty,
+        configured: bool,
+    ) -> Self {
         Self {
-            key: property.key.clone(),
-            choice: property.field_type,
-            value: FrontmatterValue::from_json(&property.value),
-            editable_key: true,
-            editable_kind: true,
-            removable: true,
-            multiple: property.multiple,
-            options: property.options(),
+            key,
+            choice: resolved.field_type,
+            value,
+            editable_key: !configured,
+            editable_kind: !configured,
+            removable: !configured,
+            multiple: resolved.multiple,
+            options: resolved.options.clone(),
             preserve_empty: false,
             derived: false,
         }
@@ -876,7 +636,16 @@ impl BuiltRow {
 type Rows = Rc<RefCell<Vec<BuiltRow>>>;
 type Drafts = Rc<RefCell<Vec<PropertyDraft>>>;
 
-/// Presents the native document-properties dialog for an immutable editor snapshot.
+/// Presents the native document-properties dialog for an immutable snapshot.
+///
+/// The snapshot's [`PropertiesSave`] target decides whether a save applies to the open editor or
+/// to a Base row, so the same dialog serves both surfaces.
+// CONTEXT: The dialog builds its whole page and save route in one function so the editor and Base
+// targets share an identical presentation.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the dialog keeps its shared presentation and save routing together"
+)]
 pub(crate) fn show(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
@@ -918,6 +687,38 @@ pub(crate) fn show(
                 .fields
                 .iter()
                 .any(|field| !is_editable_value(&field.value))
+    });
+
+    // Category leads the dialog because it is the note's top-level place, not frontmatter. It is
+    // only offered when the note's current category is among the known ones, so saving cannot
+    // silently preselect an unrelated category.
+    let category_control = request.category_id.and_then(|current| {
+        request
+            .categories
+            .iter()
+            .any(|category| category.id == current)
+            .then(|| {
+                let group = adw::PreferencesGroup::new();
+                group.set_title(&gettext("Category"));
+                let combo = adw::ComboRow::new();
+                combo.set_title(&gettext("Category"));
+                combo.set_widget_name("document-properties-category");
+                let names: Vec<&str> = request
+                    .categories
+                    .iter()
+                    .map(|category| category.name.as_str())
+                    .collect();
+                combo.set_model(Some(&gtk::StringList::new(&names)));
+                let selected = request
+                    .categories
+                    .iter()
+                    .position(|category| category.id == current)
+                    .unwrap_or(0);
+                combo.set_selected(u32::try_from(selected).unwrap_or(0));
+                group.add(&combo);
+                page.add(&group);
+                (combo, request.categories.clone(), current)
+            })
     });
 
     let save_source = if raw_mode {
@@ -971,7 +772,7 @@ pub(crate) fn show(
         let _ = draft_cancel.close();
     });
 
-    let session = request.session;
+    let save_target = request.save;
     let dispatcher = dispatcher.clone();
     let dialog_for_save = dialog.clone();
     save.connect_clicked(move |_| {
@@ -985,11 +786,29 @@ pub(crate) fn show(
                 FrontmatterEdit::Parsed(build_document(format, &drafts.borrow()))
             }
         };
+        let category = category_control
+            .as_ref()
+            .and_then(|(combo, categories, current)| {
+                let selected = categories.get(combo.selected() as usize)?.id;
+                (selected != *current).then_some(selected)
+            });
         let _ = dialog_for_save.close();
-        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplyFrontmatter {
-            session,
-            edit,
-        }));
+        let message = match save_target {
+            PropertiesSave::Editor { session } => AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+                session,
+                edit,
+                category,
+            }),
+            PropertiesSave::Base { note_id, revision } => {
+                AppMsg::Bases(BasesMsg::ApplyProperties {
+                    note_id,
+                    revision,
+                    edit,
+                    category,
+                })
+            }
+        };
+        let _ = dispatcher.dispatch(message);
     });
 
     dialog.present(Some(parent));
@@ -1146,11 +965,7 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
                 authored_title = Some(field.value.clone());
                 continue;
             }
-            let draft = match request
-                .defaults
-                .iter()
-                .find(|property| property.key == field.key)
-            {
+            let draft = match configured_property(&request.defaults, &field.key) {
                 Some(property) => {
                     PropertyDraft::default_row(field.key.clone(), property, field.value.clone())
                 }
@@ -1597,7 +1412,7 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
             // Date and date-time defaults are dynamic, so no fixed value is stored.
             serde_json::Value::String(String::new())
         } else {
-            normalized_default_value(field_type, &draft.value.to_json())
+            field_type.normalized_json(&draft.value.to_json())
         };
         normalized.push(DocumentProperty {
             key,
@@ -1609,35 +1424,17 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
     normalized
 }
 
-fn normalized_default_value(
-    field_type: DocumentPropertyType,
-    value: &serde_json::Value,
-) -> serde_json::Value {
-    let matches = value.is_null()
-        || match field_type {
-            DocumentPropertyType::Text
-            | DocumentPropertyType::LongText
-            | DocumentPropertyType::Date
-            | DocumentPropertyType::DateTime => value.is_string(),
-            DocumentPropertyType::Number => value.is_number(),
-            DocumentPropertyType::Boolean => value.is_boolean(),
-            DocumentPropertyType::List => value
-                .as_array()
-                .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
-        };
-    if matches {
-        return value.clone();
-    }
-    match field_type {
-        DocumentPropertyType::Number => serde_json::Value::from(0),
-        DocumentPropertyType::Boolean => serde_json::Value::Bool(false),
-        DocumentPropertyType::List => serde_json::Value::Array(Vec::new()),
-        _ => serde_json::Value::String(String::new()),
-    }
-}
-
 fn row_subtitle(choice: DocumentPropertyType, value: &FrontmatterValue) -> String {
-    let preview = preview_text(value);
+    // A date or date-time preview uses the same locale format as its cell and picker.
+    let preview = match (choice, value) {
+        (DocumentPropertyType::Date, FrontmatterValue::Text(text)) => {
+            crate::ui::property::display_date(text, true)
+        }
+        (DocumentPropertyType::DateTime, FrontmatterValue::Text(text)) => {
+            crate::ui::property::display_date(text, false)
+        }
+        _ => preview_text(value),
+    };
     let subtitle = if preview.is_empty() {
         type_label(choice)
     } else {
@@ -1669,16 +1466,6 @@ fn buffer_text(buffer: &gtk::TextBuffer) -> String {
     buffer
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
         .to_string()
-}
-
-fn frontmatter_text(value: &FrontmatterValue) -> String {
-    match value {
-        FrontmatterValue::Text(text) => text.clone(),
-        FrontmatterValue::Number(number) => number.to_string(),
-        FrontmatterValue::Boolean(flag) => flag.to_string(),
-        FrontmatterValue::Null => String::new(),
-        FrontmatterValue::Object(_) | FrontmatterValue::List(_) => value.to_json().to_string(),
-    }
 }
 
 fn frontmatter_list_text(value: &FrontmatterValue) -> String {
@@ -1727,68 +1514,26 @@ fn selected_options(switches: &[adw::SwitchRow]) -> String {
 
 /// Returns whether a note value is representable by the configured default for its row.
 fn configured_value_supported(draft: &PropertyDraft) -> bool {
-    match draft.choice {
-        DocumentPropertyType::List if !draft.options.is_empty() => {
-            if draft.multiple {
-                matches!(
-                    &draft.value,
-                    FrontmatterValue::List(items) if items.iter().all(|item| option_supported(draft, item))
-                )
-            } else {
-                matches!(
-                    &draft.value,
-                    FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text)
-                )
-            }
-        }
-        DocumentPropertyType::Number => matches!(
-            draft.value,
-            FrontmatterValue::Number(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Boolean => matches!(
-            draft.value,
-            FrontmatterValue::Boolean(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Text | DocumentPropertyType::LongText => matches!(
-            draft.value,
-            FrontmatterValue::Text(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Date => {
+    // A configured list with options is an option set, so its members are checked here; the
+    // scalar/date acceptance comes from the shared domain type.
+    if draft.choice == DocumentPropertyType::List && !draft.options.is_empty() {
+        return if draft.multiple {
             matches!(
                 &draft.value,
-                FrontmatterValue::Text(text) if parse_date(text).is_some()
-            ) || matches!(draft.value, FrontmatterValue::Null)
-        }
-        DocumentPropertyType::DateTime => {
+                FrontmatterValue::List(items) if items.iter().all(|item| option_supported(draft, item))
+            )
+        } else {
             matches!(
                 &draft.value,
-                FrontmatterValue::Text(text) if parse_date_time(text).is_some()
-            ) || matches!(draft.value, FrontmatterValue::Null)
-        }
-        // A list with no configured options is not an option set, so it stays free-form.
-        DocumentPropertyType::List => true,
+                FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text)
+            )
+        };
     }
+    draft.choice.accepts_value(&draft.value)
 }
 
 fn option_supported(draft: &PropertyDraft, item: &FrontmatterValue) -> bool {
     matches!(item, FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text))
-}
-
-fn parse_number(text: &str) -> Option<serde_json::Number> {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    if let Ok(value) = trimmed.parse::<i64>() {
-        return Some(serde_json::Number::from(value));
-    }
-    if let Ok(value) = trimmed.parse::<u64>() {
-        return Some(serde_json::Number::from(value));
-    }
-    trimmed
-        .parse::<f64>()
-        .ok()
-        .and_then(serde_json::Number::from_f64)
 }
 
 #[cfg(test)]

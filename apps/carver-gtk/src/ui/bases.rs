@@ -1,7 +1,12 @@
 //! Native database-style grid for saved note bases.
 pub(crate) mod actions;
+pub(crate) mod editing;
 pub(crate) mod field_picker;
 
+use std::rc::Rc;
+
+use carver_config::DocumentProperty;
+use carver_domain::{FrontmatterValue, PropertyDescriptor};
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseRow, BaseSort, BaseSortDirection, NoteId, Revision,
 };
@@ -9,7 +14,12 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
+use self::editing::{
+    CellEdit, CellEditor, build_boolean_cell, build_select_cell, resolve_editor, seed_value,
+    select_index, select_labels, select_value, show_cell_editor,
+};
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
+use crate::ui::property::{DatePicker, display_date};
 use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
 
@@ -37,6 +47,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) rows: gtk::gio::ListStore,
     pub(crate) syncing_header_sort: std::rc::Rc<std::cell::Cell<bool>>,
     pub(crate) rendered_definition: std::cell::RefCell<Option<BaseDefinition>>,
+    pub(crate) rendered_editors: std::cell::RefCell<Option<Vec<Option<CellEditor>>>>,
     pub(crate) rendered_rows: std::cell::RefCell<Vec<(NoteId, Revision)>>,
 }
 
@@ -170,6 +181,7 @@ pub(crate) fn build_base(
             rows,
             syncing_header_sort,
             rendered_definition: std::cell::RefCell::new(None),
+            rendered_editors: std::cell::RefCell::new(None),
             rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
     )
@@ -213,22 +225,51 @@ pub(crate) fn render_base(
     refs: &BaseViewRefs,
     definition: &BaseDefinition,
     rows: &[BaseRow],
+    descriptors: &[PropertyDescriptor],
+    default_properties: &[DocumentProperty],
     dispatcher: &AppDispatcher,
 ) {
     refs.title.set_text(&definition.name);
     refs.grid.set_sensitive(true);
-    if refs.rendered_definition.borrow().as_ref() != Some(definition) {
-        rebuild_columns(refs, definition, dispatcher);
+    // The editor per column depends on the definition, the observed descriptors, and the
+    // configured defaults, so any change among them must rebuild the columns.
+    let editors = resolve_column_editors(definition, descriptors, default_properties);
+    let definition_changed = refs.rendered_definition.borrow().as_ref() != Some(definition);
+    let editors_changed = refs.rendered_editors.borrow().as_deref() != Some(editors.as_slice());
+    if definition_changed || editors_changed {
+        rebuild_columns(refs, definition, &editors, dispatcher);
         refs.rows.remove_all();
         refs.rendered_rows.borrow_mut().clear();
         refs.rendered_definition.replace(Some(definition.clone()));
+        refs.rendered_editors.replace(Some(editors));
     }
     append_rows(refs, rows);
     refs.pages
         .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
 }
 
-fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher: &AppDispatcher) {
+/// Resolves the editor for each configured column, aligned with `definition.columns`.
+fn resolve_column_editors(
+    definition: &BaseDefinition,
+    descriptors: &[PropertyDescriptor],
+    default_properties: &[DocumentProperty],
+) -> Vec<Option<CellEditor>> {
+    definition
+        .columns
+        .iter()
+        .map(|column| match column {
+            BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => None,
+            BaseColumn::Property(_) => resolve_editor(column, descriptors, default_properties),
+        })
+        .collect()
+}
+
+fn rebuild_columns(
+    refs: &BaseViewRefs,
+    definition: &BaseDefinition,
+    editors: &[Option<CellEditor>],
+    dispatcher: &AppDispatcher,
+) {
     refs.syncing_header_sort.set(true);
     while let Some(column) = refs
         .grid
@@ -241,107 +282,182 @@ fn rebuild_columns(refs: &BaseViewRefs, definition: &BaseDefinition, dispatcher:
     append_column(
         &refs.grid,
         &BaseColumn::Name,
-        &gettext("Name"),
-        None,
-        Some(dispatcher),
+        &gettext("Title"),
+        Some(CellEditor::Text),
+        dispatcher,
     );
-    for column in &definition.columns {
+    for (index, column) in definition.columns.iter().enumerate() {
+        let editor = editors.get(index).cloned().flatten();
         match column {
             BaseColumn::Name => {}
             BaseColumn::Category => {
-                append_column(
-                    &refs.grid,
-                    column,
-                    &gettext("Category"),
-                    Some("category"),
-                    None,
-                );
+                append_column(&refs.grid, column, &gettext("Category"), None, dispatcher);
             }
             BaseColumn::Updated => {
-                append_column(
-                    &refs.grid,
-                    column,
-                    &gettext("Updated"),
-                    Some("updated"),
-                    None,
-                );
+                append_column(&refs.grid, column, &gettext("Updated"), None, dispatcher);
             }
             BaseColumn::Property(path) => append_column(
                 &refs.grid,
                 column,
                 path.0.trim_start_matches('/'),
-                Some(&path.0),
-                None,
+                editor,
+                dispatcher,
             ),
         }
     }
+    append_actions_column(&refs.grid, dispatcher);
     apply_header_sort(&refs.grid, &definition.sorts);
     refs.syncing_header_sort.set(false);
 }
 
-fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
-    let incoming: Vec<_> = rows.iter().map(|row| (row.note_id, row.revision)).collect();
-    let mut rendered = refs.rendered_rows.borrow_mut();
-    let appends_existing_rows = rows.len() >= rendered.len()
-        && incoming
-            .get(..rendered.len())
-            .is_some_and(|prefix| prefix == rendered.as_slice());
-    if !appends_existing_rows {
-        refs.rows.remove_all();
-        rendered.clear();
-    }
-    for row in &rows[rendered.len()..] {
-        refs.rows.append(&glib::BoxedAnyObject::new(row.clone()));
-    }
-    *rendered = incoming;
-}
-
-fn append_column(
-    grid: &gtk::ColumnView,
-    column_field: &BaseColumn,
-    title: &str,
-    field: Option<&str>,
-    dispatcher: Option<&AppDispatcher>,
-) {
+/// Appends the trailing per-row document-properties action.
+fn append_actions_column(grid: &gtk::ColumnView, dispatcher: &AppDispatcher) {
     let factory = gtk::SignalListItemFactory::new();
-    let dispatcher_for_setup = dispatcher.cloned();
+    let dispatcher_for_setup = dispatcher.clone();
     factory.connect_setup(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
         };
-        let label = gtk::Label::new(None);
-        label.set_xalign(0.0);
-        label.set_margin_start(10);
-        label.set_margin_end(10);
-        label.set_margin_top(7);
-        label.set_margin_bottom(7);
-        label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        if let Some(dispatcher) = &dispatcher_for_setup {
-            label.add_css_class("link");
-            let button = gtk::Button::new();
-            button.add_css_class("flat");
-            button.set_child(Some(&label));
-            let dispatcher = dispatcher.clone();
-            let weak_item = item.downgrade();
-            button.connect_clicked(move |_| {
-                let Some(item) = weak_item.upgrade() else {
-                    return;
-                };
-                let Some(row) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-                    return;
-                };
-                let note_id = {
-                    let row = row.borrow::<BaseRow>();
-                    row.note_id
-                };
-                let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
-            });
-            item.set_child(Some(&button));
-        } else {
-            item.set_child(Some(&label));
-        }
+        let button = gtk::Button::from_icon_name("document-properties-symbolic");
+        button.add_css_class("flat");
+        button.set_widget_name("base-row-properties");
+        button.set_tooltip_text(Some(&gettext("Edit document properties")));
+        button.set_halign(gtk::Align::Center);
+        let dispatcher = dispatcher_for_setup.clone();
+        let weak_item = item.downgrade();
+        button.connect_clicked(move |_| {
+            let Some(item) = weak_item.upgrade() else {
+                return;
+            };
+            let Some(row) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let row = row.borrow::<BaseRow>();
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::EditProperties {
+                note_id: row.note_id,
+                revision: row.revision,
+            }));
+        });
+        item.set_child(Some(&button));
     });
-    let field_for_bind = field.map(ToOwned::to_owned);
+    let column = gtk::ColumnViewColumn::new(None, Some(factory));
+    column.set_id(Some("base-row-actions"));
+    column.set_resizable(false);
+    column.set_expand(false);
+    grid.append_column(&column);
+}
+
+fn append_rows(refs: &BaseViewRefs, rows: &[BaseRow]) {
+    let incoming: Vec<_> = rows.iter().map(|row| (row.note_id, row.revision)).collect();
+    // Release the rendered-row borrow before touching the list store: binding a newly appended
+    // row can synchronously dispatch a commit that re-renders the grid.
+    let pending: Vec<BaseRow> = {
+        let mut rendered = refs.rendered_rows.borrow_mut();
+        let appends_existing_rows = rows.len() >= rendered.len()
+            && incoming
+                .get(..rendered.len())
+                .is_some_and(|prefix| prefix == rendered.as_slice());
+        if !appends_existing_rows {
+            refs.rows.remove_all();
+            rendered.clear();
+        }
+        let pending = rows[rendered.len()..].to_vec();
+        *rendered = incoming;
+        pending
+    };
+    for row in &pending {
+        refs.rows.append(&glib::BoxedAnyObject::new(row.clone()));
+    }
+}
+
+fn append_column(
+    grid: &gtk::ColumnView,
+    column: &BaseColumn,
+    title: &str,
+    editor: Option<CellEditor>,
+    dispatcher: &AppDispatcher,
+) {
+    let factory = gtk::SignalListItemFactory::new();
+    let column_for_setup = column.clone();
+    let editor_for_setup = editor;
+    let editor_for_bind = editor_for_setup.clone();
+    let dispatcher_for_setup = dispatcher.clone();
+    // Suppresses selection/toggle commits while a cell is being projected during bind.
+    let syncing = Rc::new(std::cell::Cell::new(false));
+    let syncing_for_setup = Rc::clone(&syncing);
+    factory.connect_setup(move |_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+            return;
+        };
+        // A boolean is always visible: the switch itself is the cell, and toggling saves.
+        if matches!(editor_for_setup, Some(CellEditor::Boolean)) {
+            item.set_child(Some(&boolean_cell_for(
+                item,
+                &column_for_setup,
+                &dispatcher_for_setup,
+                &syncing_for_setup,
+            )));
+            return;
+        }
+        // A single-select list is always visible too: the dropdown itself is the cell.
+        if let Some(CellEditor::List {
+            options,
+            multiple: false,
+        }) = &editor_for_setup
+        {
+            item.set_child(Some(&select_cell_for(
+                item,
+                &column_for_setup,
+                options,
+                &dispatcher_for_setup,
+                &syncing_for_setup,
+            )));
+            return;
+        }
+        // A date or date-time cell shows its value with a picker icon that opens the calendar.
+        if let Some(editor @ (CellEditor::Date | CellEditor::DateTime)) = &editor_for_setup {
+            item.set_child(Some(&date_cell_for(
+                item,
+                &column_for_setup,
+                editor,
+                &dispatcher_for_setup,
+            )));
+            return;
+        }
+        let open: Rc<dyn Fn()> = {
+            let weak_item = item.downgrade();
+            let column = column_for_setup.clone();
+            let editor = editor_for_setup.clone();
+            let dispatcher = dispatcher_for_setup.clone();
+            Rc::new(move || open_cell_editor(&weak_item, &column, editor.as_ref(), &dispatcher))
+        };
+        let display = build_display_cell(&column_for_setup, item, &dispatcher_for_setup, &open);
+        let cell = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        cell.set_widget_name(&format!(
+            "base-cell-display:{}",
+            header_column_id(&column_for_setup)
+        ));
+        cell.set_hexpand(true);
+        if editor_for_setup.is_some() {
+            cell.set_cursor_from_name(Some("pointer"));
+        }
+        cell.append(&display);
+        // Property cells open the editor on a single click; the Name cell uses its edit button.
+        if editor_for_setup.is_some() && !matches!(column_for_setup, BaseColumn::Name) {
+            let gesture = gtk::GestureClick::new();
+            let open = Rc::clone(&open);
+            gesture.connect_pressed(move |gesture, n_press, _, _| {
+                if n_press == 1 {
+                    gesture.set_state(gtk::EventSequenceState::Claimed);
+                    open();
+                }
+            });
+            cell.add_controller(gesture);
+        }
+        item.set_child(Some(&cell));
+    });
+    let column_for_bind = column.clone();
+    let syncing_for_bind = Rc::clone(&syncing);
     factory.connect_bind(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -349,34 +465,424 @@ fn append_column(
         let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
             return;
         };
-        let Some(child) = item.child() else {
+        syncing_for_bind.set(true);
+        {
+            let row = object.borrow::<BaseRow>();
+            bind_cell(item, &row, &column_for_bind, editor_for_bind.as_ref());
+        }
+        syncing_for_bind.set(false);
+    });
+    let is_name = matches!(column, BaseColumn::Name);
+    let column_view = gtk::ColumnViewColumn::new(Some(title), Some(factory));
+    column_view.set_id(Some(&header_column_id(column)));
+    column_view.set_sorter(Some(&gtk::CustomSorter::new(|_, _| gtk::Ordering::Equal)));
+    column_view.set_resizable(true);
+    column_view.set_expand(is_name);
+    grid.append_column(&column_view);
+}
+
+/// Projects one row into an already-created cell.
+fn bind_cell(
+    item: &gtk::ListItem,
+    row: &BaseRow,
+    column: &BaseColumn,
+    editor: Option<&CellEditor>,
+) {
+    // A cell stays interactive only when its editor can round-trip the authored value.
+    if let Some(editor) = editor
+        && let Some(child) = item.child()
+    {
+        let editable = editor.can_edit(&cell_seed(row, column));
+        child.set_sensitive(editable);
+        child.set_cursor_from_name(editable.then_some("pointer"));
+    }
+    if matches!(editor, Some(CellEditor::Boolean)) {
+        if let Some(switch) = item.child().and_downcast::<gtk::Switch>() {
+            switch.set_active(boolean_cell_value(row, column));
+        }
+        return;
+    }
+    if let Some(CellEditor::List {
+        options,
+        multiple: false,
+    }) = editor
+    {
+        if let Some(dropdown) = item.child().and_downcast::<gtk::DropDown>() {
+            bind_select_cell(&dropdown, row, column, options);
+        }
+        return;
+    }
+    if let Some(CellEditor::Date | CellEditor::DateTime) = editor {
+        if let Some(child) = item.child()
+            && let Some(label) = find_value_label(&child)
+        {
+            let text = match cell_seed(row, column) {
+                FrontmatterValue::Text(text) => {
+                    display_date(&text, matches!(editor, Some(CellEditor::Date)))
+                }
+                _ => String::new(),
+            };
+            label.set_text(&text);
+        }
+        return;
+    }
+    let Some(child) = item.child() else {
+        return;
+    };
+    if let Some(label) = find_value_label(&child) {
+        label.set_text(&display_cell_value(row, column));
+    }
+    if let Some(button) = find_open_note_button(&child) {
+        button.set_widget_name(&format!("base-note:{}", row.note_id));
+    }
+}
+
+/// The text a read-only cell shows, formatting timestamps like the date property cells.
+fn display_cell_value(row: &BaseRow, column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Updated => display_date(&row.updated, false),
+        _ => row_value(row, column),
+    }
+}
+
+/// Builds an always-visible boolean cell that saves a toggle immediately.
+fn boolean_cell_for(
+    item: &gtk::ListItem,
+    column: &BaseColumn,
+    dispatcher: &AppDispatcher,
+    syncing: &Rc<std::cell::Cell<bool>>,
+) -> gtk::Switch {
+    let switch = build_boolean_cell(false, "cell-boolean");
+    let weak_item = item.downgrade();
+    let column = column.clone();
+    let dispatcher = dispatcher.clone();
+    let syncing = Rc::clone(syncing);
+    switch.connect_state_set(move |_, active| {
+        if syncing.get() {
+            return glib::Propagation::Proceed;
+        }
+        let Some(item) = weak_item.upgrade() else {
+            return glib::Propagation::Proceed;
+        };
+        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+            return glib::Propagation::Proceed;
+        };
+        let row = object.borrow::<BaseRow>();
+        if boolean_cell_value(&row, &column) != active {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+                note_id: row.note_id,
+                path: column_edit_path(&column),
+                revision: row.revision,
+                value: Some(serde_json::Value::Bool(active)),
+            }));
+        }
+        glib::Propagation::Proceed
+    });
+    switch
+}
+
+/// Builds an always-visible single-select dropdown that saves a change immediately.
+fn select_cell_for(
+    item: &gtk::ListItem,
+    column: &BaseColumn,
+    options: &[String],
+    dispatcher: &AppDispatcher,
+    syncing: &Rc<std::cell::Cell<bool>>,
+) -> gtk::DropDown {
+    let dropdown = build_select_cell(&FrontmatterValue::Null, options, "cell-select");
+    let weak_item = item.downgrade();
+    let column = column.clone();
+    let options = options.to_vec();
+    let dispatcher = dispatcher.clone();
+    let syncing = Rc::clone(syncing);
+    dropdown.connect_selected_notify(move |dropdown| {
+        if syncing.get() {
+            return;
+        }
+        let Some(item) = weak_item.upgrade() else {
             return;
         };
-        let label = child.clone().downcast::<gtk::Label>().ok().or_else(|| {
-            child
-                .clone()
-                .downcast::<gtk::Button>()
-                .ok()?
-                .child()?
-                .downcast::<gtk::Label>()
-                .ok()
-        });
-        let Some(label) = label else {
+        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
             return;
         };
         let row = object.borrow::<BaseRow>();
-        if child.is::<gtk::Button>() {
-            child.set_widget_name(&format!("base-note:{}", row.note_id));
+        let current = cell_seed(&row, &column);
+        let labels = select_labels(&options, &current);
+        let value = select_value(&labels, dropdown.selected());
+        if value != select_value(&labels, select_index(&labels, &current)) {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+                note_id: row.note_id,
+                path: column_edit_path(&column),
+                revision: row.revision,
+                value,
+            }));
         }
-        let value = row_value(&row, field_for_bind.as_deref());
-        label.set_text(&value);
     });
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
-    column.set_id(Some(&header_column_id(column_field)));
-    column.set_sorter(Some(&gtk::CustomSorter::new(|_, _| gtk::Ordering::Equal)));
-    column.set_resizable(true);
-    column.set_expand(field.is_none());
-    grid.append_column(&column);
+    dropdown
+}
+
+/// Seeds a single-select dropdown from the row, extending its options with an authored value.
+fn bind_select_cell(
+    dropdown: &gtk::DropDown,
+    row: &BaseRow,
+    column: &BaseColumn,
+    options: &[String],
+) {
+    let current = cell_seed(row, column);
+    let labels = select_labels(options, &current);
+    let strings: Vec<&str> = labels.iter().map(String::as_str).collect();
+    dropdown.set_model(Some(&gtk::StringList::new(&strings)));
+    dropdown.set_selected(select_index(&labels, &current));
+}
+
+/// Builds a date or date-time cell: its value plus a picker icon that opens the calendar directly.
+fn date_cell_for(
+    item: &gtk::ListItem,
+    column: &BaseColumn,
+    editor: &CellEditor,
+    dispatcher: &AppDispatcher,
+) -> gtk::Box {
+    let field_type = if matches!(editor, CellEditor::Date) {
+        carver_domain::PropertyType::Date
+    } else {
+        carver_domain::PropertyType::DateTime
+    };
+    let cell = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    cell.set_widget_name(&format!("base-cell-display:{}", header_column_id(column)));
+    cell.set_hexpand(true);
+    let label = value_label();
+    label.set_hexpand(true);
+    let picker = DatePicker::new(field_type, &FrontmatterValue::Null, "cell-date");
+    picker.button().set_cursor_from_name(Some("pointer"));
+    cell.append(&label);
+    cell.append(picker.button());
+
+    // Seed from the row each time the calendar opens.
+    {
+        let picker = picker.clone();
+        let popover = picker.popover().clone();
+        let weak_item = item.downgrade();
+        let column = column.clone();
+        popover.connect_show(move |_| {
+            let Some(item) = weak_item.upgrade() else {
+                return;
+            };
+            let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let row = object.borrow::<BaseRow>();
+            picker.set_frontmatter(&cell_seed(&row, &column));
+        });
+    }
+    // Commit a changed value when the calendar closes.
+    {
+        let picker = picker.clone();
+        let popover = picker.popover().clone();
+        let weak_item = item.downgrade();
+        let column = column.clone();
+        let editor = editor.clone();
+        let dispatcher = dispatcher.clone();
+        popover.connect_closed(move |_| {
+            let Some(item) = weak_item.upgrade() else {
+                return;
+            };
+            let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let row = object.borrow::<BaseRow>();
+            let current = cell_seed(&row, &column);
+            let value = picker.value().map(serde_json::Value::String);
+            if value != seed_value(&editor, &current) {
+                let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+                    note_id: row.note_id,
+                    path: column_edit_path(&column),
+                    revision: row.revision,
+                    value,
+                }));
+            }
+        });
+    }
+    cell
+}
+
+/// Builds the read-only presentation for a cell, including the Name open/edit controls.
+fn build_display_cell(
+    column: &BaseColumn,
+    item: &gtk::ListItem,
+    dispatcher: &AppDispatcher,
+    open_editor: &Rc<dyn Fn()>,
+) -> gtk::Widget {
+    let label = value_label();
+    match column {
+        BaseColumn::Name => {
+            label.add_css_class("link");
+            let open = gtk::Button::new();
+            open.add_css_class("flat");
+            // Drop the button's own padding so the label's margins set the cell inset, matching
+            // the bare-label columns instead of adding button chrome on top of them.
+            open.add_css_class("bases-name-link");
+            open.set_widget_name("cell-open-note");
+            open.set_child(Some(&label));
+            open.set_hexpand(true);
+            open.set_halign(gtk::Align::Start);
+            {
+                let dispatcher = dispatcher.clone();
+                let weak_item = item.downgrade();
+                open.connect_clicked(move |_| {
+                    let Some(item) = weak_item.upgrade() else {
+                        return;
+                    };
+                    let Some(row) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                        return;
+                    };
+                    let note_id = { row.borrow::<BaseRow>().note_id };
+                    let _ =
+                        dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+                });
+            }
+            let edit = gtk::Button::from_icon_name("document-edit-symbolic");
+            edit.add_css_class("flat");
+            edit.set_widget_name("cell-edit-title");
+            edit.set_tooltip_text(Some(&gettext("Edit title")));
+            edit.set_valign(gtk::Align::Center);
+            {
+                let open_editor = Rc::clone(open_editor);
+                edit.connect_clicked(move |_| open_editor());
+            }
+            let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            row.set_hexpand(true);
+            row.append(&open);
+            row.append(&edit);
+            row.upcast()
+        }
+        BaseColumn::Category | BaseColumn::Updated | BaseColumn::Property(_) => label.upcast(),
+    }
+}
+
+/// Opens the modal editor for a cell, seeded from the row's current value.
+fn open_cell_editor(
+    weak_item: &glib::WeakRef<gtk::ListItem>,
+    column: &BaseColumn,
+    editor: Option<&CellEditor>,
+    dispatcher: &AppDispatcher,
+) {
+    let Some(editor) = editor else {
+        return;
+    };
+    let Some(item) = weak_item.upgrade() else {
+        return;
+    };
+    let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+        return;
+    };
+    let Some(anchor) = item.child() else {
+        return;
+    };
+    let (note_id, revision, seed) = {
+        let row = object.borrow::<BaseRow>();
+        (row.note_id, row.revision, cell_seed(&row, column))
+    };
+    // Never open an editor whose control cannot round-trip the authored value.
+    if !editor.can_edit(&seed) {
+        return;
+    }
+    show_cell_editor(
+        &anchor,
+        dispatcher,
+        CellEdit {
+            note_id,
+            revision,
+            path: &column_edit_path(column),
+            title: &cell_title(column),
+            editor,
+            seed: &seed,
+        },
+    );
+}
+
+/// Returns the dialog title for an editable cell.
+fn cell_title(column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Name => gettext("Title"),
+        BaseColumn::Property(path) => path.0.trim_start_matches('/').to_owned(),
+        BaseColumn::Category => gettext("Category"),
+        BaseColumn::Updated => gettext("Updated"),
+    }
+}
+
+fn value_label() -> gtk::Label {
+    let label = gtk::Label::new(None);
+    label.set_widget_name("cell-value-label");
+    label.set_hexpand(true);
+    label.set_xalign(0.0);
+    label.set_margin_start(10);
+    label.set_margin_end(10);
+    label.set_margin_top(7);
+    label.set_margin_bottom(7);
+    label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    label
+}
+
+/// Returns the value a cell editor starts from.
+fn cell_seed(row: &BaseRow, column: &BaseColumn) -> FrontmatterValue {
+    match column {
+        BaseColumn::Name => FrontmatterValue::Text(row.name.clone()),
+        BaseColumn::Property(path) => row
+            .properties
+            .pointer(&path.0)
+            .map_or(FrontmatterValue::Null, FrontmatterValue::from_json),
+        BaseColumn::Category | BaseColumn::Updated => FrontmatterValue::Null,
+    }
+}
+
+/// Returns the boolean a toggle cell shows for a row.
+fn boolean_cell_value(row: &BaseRow, column: &BaseColumn) -> bool {
+    let BaseColumn::Property(path) = column else {
+        return false;
+    };
+    row.properties.pointer(&path.0) == Some(&serde_json::Value::Bool(true))
+}
+
+/// Returns the frontmatter path a cell edits.
+fn column_edit_path(column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Name => "/title".to_owned(),
+        BaseColumn::Property(path) => path.0.clone(),
+        BaseColumn::Category | BaseColumn::Updated => String::new(),
+    }
+}
+
+fn find_value_label(widget: &gtk::Widget) -> Option<gtk::Label> {
+    if let Some(label) = widget.downcast_ref::<gtk::Label>()
+        && label.widget_name() == "cell-value-label"
+    {
+        return Some(label.clone());
+    }
+    let mut child = widget.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_value_label(&current) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
+}
+
+fn find_open_note_button(widget: &gtk::Widget) -> Option<gtk::Button> {
+    if let Some(button) = widget.downcast_ref::<gtk::Button>() {
+        let name = button.widget_name();
+        if name == "cell-open-note" || name.starts_with("base-note:") {
+            return Some(button.clone());
+        }
+    }
+    let mut child = widget.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_open_note_button(&current) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
 }
 
 fn connect_header_sorting(
@@ -459,14 +965,14 @@ fn header_column_from_id(id: &str) -> Option<BaseColumn> {
     }
 }
 
-fn row_value(row: &BaseRow, field: Option<&str>) -> String {
-    match field {
-        None => row.name.clone(),
-        Some("category") => row.category.clone(),
-        Some("updated") => row.updated.clone(),
-        Some(path) => row
+fn row_value(row: &BaseRow, column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Name => row.name.clone(),
+        BaseColumn::Category => row.category.clone(),
+        BaseColumn::Updated => row.updated.clone(),
+        BaseColumn::Property(path) => row
             .properties
-            .pointer(path)
+            .pointer(&path.0)
             .map(display_value)
             .unwrap_or_default(),
     }
@@ -511,14 +1017,87 @@ mod tests {
             "empty": null
         }));
 
-        assert_eq!(row_value(&row, None), "Roadmap");
-        assert_eq!(row_value(&row, Some("category")), "Projects");
-        assert_eq!(row_value(&row, Some("updated")), "2026-09-09T12:00:00Z");
-        assert_eq!(row_value(&row, Some("/owner/name")), "Ada");
-        assert_eq!(row_value(&row, Some("/tags")), "rust, 2, ");
-        assert_eq!(row_value(&row, Some("/done")), "true");
-        assert_eq!(row_value(&row, Some("/empty")), "");
-        assert_eq!(row_value(&row, Some("/missing")), "");
+        let property = |path: &str| BaseColumn::Property(carver_sdk::PropertyPath(path.to_owned()));
+        assert_eq!(row_value(&row, &BaseColumn::Name), "Roadmap");
+        assert_eq!(row_value(&row, &BaseColumn::Category), "Projects");
+        assert_eq!(
+            row_value(&row, &BaseColumn::Updated),
+            "2026-09-09T12:00:00Z"
+        );
+        assert_eq!(row_value(&row, &property("/owner/name")), "Ada");
+        assert_eq!(row_value(&row, &property("/tags")), "rust, 2, ");
+        assert_eq!(row_value(&row, &property("/done")), "true");
+        assert_eq!(row_value(&row, &property("/empty")), "");
+        assert_eq!(row_value(&row, &property("/missing")), "");
+    }
+
+    #[test]
+    fn cell_seed_should_project_the_current_value() {
+        let row = row(serde_json::json!({"status": "ready", "count": 3}));
+        assert_eq!(
+            cell_seed(&row, &BaseColumn::Name),
+            FrontmatterValue::Text("Roadmap".to_owned())
+        );
+        assert_eq!(
+            cell_seed(
+                &row,
+                &BaseColumn::Property(carver_sdk::PropertyPath("/status".to_owned()))
+            ),
+            FrontmatterValue::Text("ready".to_owned())
+        );
+        assert_eq!(
+            cell_seed(
+                &row,
+                &BaseColumn::Property(carver_sdk::PropertyPath("/missing".to_owned()))
+            ),
+            FrontmatterValue::Null
+        );
+    }
+
+    #[test]
+    fn resolve_column_editors_should_follow_descriptors_and_defaults() {
+        let done = BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned()));
+        let definition = carver_sdk::BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            vec![BaseColumn::Name, done],
+            carver_sdk::Revision(1),
+        );
+        let descriptors = [PropertyDescriptor {
+            path: carver_sdk::PropertyPath("/done".to_owned()),
+            kind: carver_domain::PropertyKind::Boolean,
+            property_type: carver_domain::PropertyType::Boolean,
+            example: Some("false".to_owned()),
+        }];
+        assert_eq!(
+            resolve_column_editors(&definition, &descriptors, &[]),
+            vec![None, Some(CellEditor::Boolean)]
+        );
+        // With no observation and no configured default the column stays free text.
+        assert_eq!(
+            resolve_column_editors(&definition, &[], &[]),
+            vec![None, Some(CellEditor::Text)]
+        );
+    }
+
+    #[test]
+    fn display_cell_value_should_format_updated_timestamps_for_display() {
+        let row = row(serde_json::json!({}));
+        let text = display_cell_value(&row, &BaseColumn::Updated);
+        // The stored value stays ISO; only the shown text is localized.
+        assert_ne!(text, row.updated);
+        assert!(!text.contains('T'));
+    }
+
+    #[test]
+    fn column_edit_path_should_map_name_to_the_reserved_title() {
+        assert_eq!(column_edit_path(&BaseColumn::Name), "/title");
+        assert_eq!(
+            column_edit_path(&BaseColumn::Property(carver_sdk::PropertyPath(
+                "/status".to_owned()
+            ))),
+            "/status"
+        );
     }
 
     #[test]
