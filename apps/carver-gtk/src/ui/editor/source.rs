@@ -17,6 +17,12 @@ use sourceview5::prelude::*;
 use thiserror::Error;
 
 const CARVE_LANGUAGE: &str = include_str!("../../../resources/source-syntax/carve.lang");
+// Bundled GtkSourceView grammars for the raw frontmatter editor. They carry their own upstream
+// LGPL-2.1-or-later headers and are installed alongside the Carve grammar so highlighting the
+// supported frontmatter formats never depends on the host's GtkSourceView data.
+const YAML_LANGUAGE: &str = include_str!("../../../resources/source-syntax/yaml.lang");
+const TOML_LANGUAGE: &str = include_str!("../../../resources/source-syntax/toml.lang");
+const JSON_LANGUAGE: &str = include_str!("../../../resources/source-syntax/json.lang");
 const CARVE_LIGHT_STYLE: &str = include_str!("../../../resources/source-syntax/carve-light.xml");
 const CARVE_DARK_STYLE: &str = include_str!("../../../resources/source-syntax/carve-dark.xml");
 const CARVE_WRITING_FOCUS_LIGHT_STYLE: &str =
@@ -55,6 +61,9 @@ pub(crate) fn install_syntax_assets(data_dir: &Path) -> Result<PathBuf, SourceSy
     fs::create_dir_all(&directory)?;
     for (name, contents) in [
         ("carve.lang", CARVE_LANGUAGE),
+        ("yaml.lang", YAML_LANGUAGE),
+        ("toml.lang", TOML_LANGUAGE),
+        ("json.lang", JSON_LANGUAGE),
         ("carve-light.xml", CARVE_LIGHT_STYLE),
         ("carve-dark.xml", CARVE_DARK_STYLE),
         (

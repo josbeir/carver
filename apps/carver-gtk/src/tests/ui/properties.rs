@@ -2,6 +2,7 @@
 use super::*;
 use crate::mvu::{AppMsg, EditorMsg, PreferencesMsg};
 use libadwaita::prelude::*;
+use sourceview5::prelude::*;
 
 pub(super) fn document_properties_button_should_follow_mode_and_setting() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
@@ -1083,18 +1084,41 @@ pub(super) fn explicit_empty_value_should_survive_an_unchanged_save() -> TestRes
 pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     let category = fixture.client.create_category("Properties")?;
-    let note = fixture.client.create_note(category.id)?;
-    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-        note_id: note.id,
-        revision: note.revision,
-        source: "---\nitems: [true, 2]\n---\nBody\n".to_owned(),
-    }));
-    let dialog = open_properties_dialog(&fixture)?;
-    assert!(
-        widget_as::<gtk::TextView>(dialog.upcast_ref(), "document-properties-raw").is_some(),
-        "a list with typed elements should use the raw editor"
-    );
-    dialog.close();
+    for (source, expected_language) in [
+        ("---\nitems: [true, 2]\n---\nBody\n", "yaml"),
+        ("---toml\nowner = { name = \"Grace\" }\n---\nBody\n", "toml"),
+        (
+            "---json\n{\n  \"owner\": {\"name\": \"Grace\"}\n}\n---\nBody\n",
+            "json",
+        ),
+    ] {
+        let note = fixture.client.create_note(category.id)?;
+        fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+            note_id: note.id,
+            revision: note.revision,
+            source: source.to_owned(),
+        }));
+        let dialog = open_properties_dialog(&fixture)?;
+        // A value the structured editor cannot represent falls back to the raw source view,
+        // which highlights the block with the grammar for its declared format.
+        let view = widget_as::<sourceview5::View>(dialog.upcast_ref(), "document-properties-raw")
+            .ok_or("raw source view")?;
+        let buffer = view
+            .buffer()
+            .downcast::<sourceview5::Buffer>()
+            .map_err(|_| "GtkSourceBuffer")?;
+        assert!(buffer.is_highlight_syntax(), "source: {source}");
+        assert_eq!(
+            buffer.language().map(|language| language.id().to_string()),
+            Some(expected_language.to_owned()),
+            "source: {source}"
+        );
+        dialog.close();
+        assert!(run_main_context_until(|| fixture
+            .window
+            .visible_dialog()
+            .is_none()));
+    }
     fixture.window.close();
     Ok(())
 }

@@ -880,6 +880,7 @@ pub(crate) fn show(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     request: &EditorPropertiesRequest,
+    syntax_dir: Option<&std::path::Path>,
 ) {
     let dialog = adw::Dialog::builder()
         .title(gettext("Document Properties"))
@@ -921,12 +922,13 @@ pub(crate) fn show(
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
-        let view = gtk::TextView::new();
+        // Highlight the block with the grammar for its declared format (YAML, TOML, or JSON).
+        let buffer = super::frontmatter_source::source_buffer(format, syntax_dir);
+        buffer.set_text(request.raw.as_deref().unwrap_or_default());
+        let view = sourceview5::View::with_buffer(&buffer);
         view.set_widget_name("document-properties-raw");
         view.set_wrap_mode(gtk::WrapMode::WordChar);
         view.set_monospace(true);
-        view.buffer()
-            .set_text(request.raw.as_deref().unwrap_or_default());
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_min_content_height(220);
@@ -995,7 +997,7 @@ pub(crate) fn show(
 
 /// What the per-note dialog reads when saving.
 enum SaveSource {
-    Raw(gtk::TextView),
+    Raw(sourceview5::View),
     Fields { rows: Rows, drafts: Drafts },
 }
 

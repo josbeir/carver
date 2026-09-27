@@ -166,6 +166,7 @@ fn build_window(
         .with_add_dialog(Rc::clone(&add_dialog))
         .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
         .with_editor(content.editor)
+        .with_source_syntax_dir(source_syntax_dir.to_path_buf())
         .with_trash(
             content.trash.list,
             content.trash.pages,
