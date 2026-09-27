@@ -65,8 +65,13 @@ body[data-preview] {
 }
 
 /* A new document contains only one empty paragraph. Keep its writing surface
- * tall enough for clicks after the shared body inset is removed. */
+ * tall enough for clicks after the shared body inset is removed. `flow-root`
+ * makes that surface contain its descendants' margins: without a block
+ * formatting context the final block's `margin-bottom` escapes `.ProseMirror`,
+ * grows the document by 1rem beyond the viewport, and makes `WebKit` show a
+ * scrollbar even for an empty note. */
 .ProseMirror {
+  display: flow-root;
   min-height: calc(100vh - 48px);
   max-width: var(--document-content-width);
   outline: none;

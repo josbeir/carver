@@ -62,6 +62,7 @@ body[data-preview] {
   margin-inline: auto;
 }
 .ProseMirror {
+  display: flow-root;
   min-height: calc(100vh - 48px);
   max-width: var(--document-content-width);
   outline: none;
