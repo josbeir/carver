@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 16:20+0200\n"
+"POT-Creation-Date: 2026-09-27 16:23+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -111,14 +111,14 @@ msgstr "Carica altre righe"
 msgid "Name"
 msgstr "Nome"
 
-#: apps/carver-gtk/src/ui/bases.rs:276 apps/carver-gtk/src/ui/bases.rs:780
+#: apps/carver-gtk/src/ui/bases.rs:276 apps/carver-gtk/src/ui/bases.rs:788
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:697
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:699
 msgid "Category"
 msgstr "Categoria"
 
-#: apps/carver-gtk/src/ui/bases.rs:279 apps/carver-gtk/src/ui/bases.rs:781
+#: apps/carver-gtk/src/ui/bases.rs:279 apps/carver-gtk/src/ui/bases.rs:789
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "Aggiornata"
@@ -127,12 +127,12 @@ msgstr "Aggiornata"
 msgid "Edit document properties"
 msgstr "Modifica proprietà del documento"
 
-#: apps/carver-gtk/src/ui/bases.rs:722
+#: apps/carver-gtk/src/ui/bases.rs:730
 msgid "Edit title"
 msgstr "Modifica titolo"
 
-#: apps/carver-gtk/src/ui/bases.rs:778
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1470
+#: apps/carver-gtk/src/ui/bases.rs:786
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1479
 msgid "Title"
 msgstr "Titolo"
 

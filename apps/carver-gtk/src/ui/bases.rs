@@ -504,10 +504,18 @@ fn bind_cell(
         return;
     };
     if let Some(label) = find_value_label(&child) {
-        label.set_text(&row_value(row, column));
+        label.set_text(&display_cell_value(row, column));
     }
     if let Some(button) = find_open_note_button(&child) {
         button.set_widget_name(&format!("base-note:{}", row.note_id));
+    }
+}
+
+/// The text a read-only cell shows, formatting timestamps like the date property cells.
+fn display_cell_value(row: &BaseRow, column: &BaseColumn) -> String {
+    match column {
+        BaseColumn::Updated => display_date(&row.updated, false),
+        _ => row_value(row, column),
     }
 }
 
@@ -1024,6 +1032,15 @@ mod tests {
             ),
             FrontmatterValue::Null
         );
+    }
+
+    #[test]
+    fn display_cell_value_should_format_updated_timestamps_for_display() {
+        let row = row(serde_json::json!({}));
+        let text = display_cell_value(&row, &BaseColumn::Updated);
+        // The stored value stays ISO; only the shown text is localized.
+        assert_ne!(text, row.updated);
+        assert!(!text.contains('T'));
     }
 
     #[test]

@@ -1420,7 +1420,16 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
 }
 
 fn row_subtitle(choice: DocumentPropertyType, value: &FrontmatterValue) -> String {
-    let preview = preview_text(value);
+    // A date or date-time preview uses the same locale format as its cell and picker.
+    let preview = match (choice, value) {
+        (DocumentPropertyType::Date, FrontmatterValue::Text(text)) => {
+            crate::ui::property::display_date(text, true)
+        }
+        (DocumentPropertyType::DateTime, FrontmatterValue::Text(text)) => {
+            crate::ui::property::display_date(text, false)
+        }
+        _ => preview_text(value),
+    };
     let subtitle = if preview.is_empty() {
         type_label(choice)
     } else {

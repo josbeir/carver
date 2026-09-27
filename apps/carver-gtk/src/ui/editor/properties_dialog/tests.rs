@@ -214,6 +214,16 @@ fn date_field_support_should_require_an_iso_value() {
 }
 
 #[test]
+fn date_time_subtitle_should_use_the_locale_format() {
+    // A raw ISO preview would contain the `T` separator; the localized one must not.
+    let subtitle = row_subtitle(
+        DocumentPropertyType::DateTime,
+        &FrontmatterValue::Text("2026-09-27T10:30:00Z".to_owned()),
+    );
+    assert!(!subtitle.contains('T'), "{subtitle}");
+}
+
+#[test]
 fn type_label_should_stay_plain_while_subtitles_escape_markup() {
     // The drop-down model renders plain text, so its label keeps the raw ampersand.
     assert_eq!(type_label(DocumentPropertyType::DateTime), "Date & time");
