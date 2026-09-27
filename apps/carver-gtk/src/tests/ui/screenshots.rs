@@ -243,7 +243,7 @@ const FOCUS_NOTE: &str = "---\nstatus: Done\n---\n\n\
     and a few of them will turn out to matter far more than they seemed to at the time.\n\n\
     ## What to keep\n\n\
     Keep the awkward first version. Keep the question you could not answer. Keep the small \
-    detail that felt important for no clear reason — those are usually the ones that grow \
+    detail that felt important for no clear reason, since those are usually the ones that grow \
     into something later.\n";
 
 #[test]

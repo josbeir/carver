@@ -123,7 +123,7 @@ export const featureAreas: FeatureArea[] = [
     summary:
       'Saved views called Bases arrange notes by their frontmatter properties. Choose columns, filter and sort, and edit the values in place without opening a note.',
     points: [
-      'Properties are typed — text, number, boolean, list, or date — so each cell gets the right editor.',
+      'Properties are typed (text, number, boolean, list, or date), so each cell gets the right editor.',
       'Edits from the grid are written straight back to the note, title overrides included.',
       'A Base is a view over your library, not a copy of it.',
     ],
