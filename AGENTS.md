@@ -162,6 +162,10 @@ CI's authoritative coverage tool is `cargo-llvm-cov`, not Tarpaulin. The coverag
   --include-ignored --test-threads=1
 ```
 
+CI runs coverage once per PR — on open, or on ready-for-review when the PR was opened as a draft —
+and on every push to `main`, not on each `synchronize` push. Mark a PR ready or toggle its draft
+state to request another coverage run; Codecov statuses are informational (`codecov.yml`).
+
 GTK signal tests require one initialization thread and a display server. Carver uses native
 Wayland tests: the `scripts/with-weston.sh` harness starts an isolated Weston headless compositor
 with GTK forced onto its Wayland backend and software renderer for deterministic headless output.
