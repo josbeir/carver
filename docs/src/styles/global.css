@@ -100,15 +100,6 @@
 }
 
 @layer components {
-  /* Soft brand glow layered over the hero's vertical tint. */
-  .hero-glow {
-    background: radial-gradient(
-      60% 60% at 50% 0%,
-      color-mix(in oklab, var(--color-primary) 14%, transparent) 0%,
-      transparent 70%
-    );
-  }
-
   /* The carousel scrolls natively; hide its scrollbar in favour of the dots. */
   .carousel-track {
     scrollbar-width: none;
