@@ -12,7 +12,7 @@ pub use carver_domain::{
     BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
     CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
     DocumentImportReport, DocumentImportResult, Note, NoteId, NoteSummary, PropertyDescriptor,
-    PropertyKind, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    PropertyKind, PropertyPath, PropertyType, Revision, SearchHit, TrashContents, TrashPurgeResult,
     TrashedCategorySummary, TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};

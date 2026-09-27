@@ -9,6 +9,8 @@ use time::format_description::well_known::{Iso8601, Rfc3339};
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
+use crate::frontmatter::FrontmatterValue;
+use crate::properties::PropertyType;
 use crate::{NoteId, Revision};
 
 /// A stable saved-base identifier.
@@ -79,15 +81,27 @@ pub struct PropertyDescriptor {
     pub path: PropertyPath,
     /// Value kind observed across active notes.
     pub kind: PropertyKind,
+    /// Semantic type inferred from the observed values.
+    ///
+    /// This is the same inference the configured defaults and the properties dialog use, so a
+    /// date-shaped text value is reported as [`PropertyType::Date`] even though its stored kind is
+    /// [`PropertyKind::Text`].
+    pub property_type: PropertyType,
     /// A representative JSON value suitable for a compact UI preview.
     pub example: Option<String>,
 }
 
 impl PropertyDescriptor {
     /// Merges another observation of the same property into this descriptor.
+    ///
+    /// Divergent semantic types collapse to [`PropertyType::Text`], matching the `Mixed` kind: the
+    /// grid then falls back to free-form text for that column.
     pub fn merge_observation(&mut self, other: &Self) {
         if self.kind != other.kind {
             self.kind = PropertyKind::Mixed;
+        }
+        if self.property_type != other.property_type {
+            self.property_type = PropertyType::Text;
         }
         match (&self.example, &other.example) {
             (None, Some(candidate)) => self.example = Some(candidate.clone()),
@@ -619,6 +633,9 @@ pub fn property_descriptors(value: &Value) -> Vec<PropertyDescriptor> {
                     let descriptor = PropertyDescriptor {
                         path: PropertyPath(path.clone()),
                         kind: kind(child),
+                        property_type: PropertyType::from_value(&FrontmatterValue::from_json(
+                            child,
+                        )),
                         example: Some(example(child)),
                     };
                     if let Some(existing) = found.get_mut(path) {
@@ -827,31 +844,37 @@ mod tests {
                 PropertyDescriptor {
                     path: PropertyPath("/done".to_owned()),
                     kind: PropertyKind::Boolean,
+                    property_type: PropertyType::Boolean,
                     example: Some("false".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/empty".to_owned()),
                     kind: PropertyKind::Null,
+                    property_type: PropertyType::Text,
                     example: Some("null".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/owner/name".to_owned()),
                     kind: PropertyKind::Text,
+                    property_type: PropertyType::Text,
                     example: Some("Ada".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/priority".to_owned()),
                     kind: PropertyKind::Number,
+                    property_type: PropertyType::Number,
                     example: Some("2".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/tags".to_owned()),
                     kind: PropertyKind::List,
+                    property_type: PropertyType::List,
                     example: Some("[\"rust\",\"gtk\"]".to_owned()),
                 },
                 PropertyDescriptor {
                     path: PropertyPath("/title".to_owned()),
                     kind: PropertyKind::Text,
+                    property_type: PropertyType::Text,
                     example: Some("Roadmap".to_owned()),
                 },
             ]
@@ -885,6 +908,7 @@ mod tests {
             PropertyDescriptor {
                 path: PropertyPath("/status".to_owned()),
                 kind: PropertyKind::Mixed,
+                property_type: PropertyType::Text,
                 example: Some("2".to_owned()),
             }
         );

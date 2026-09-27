@@ -283,11 +283,13 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         carver_domain::PropertyDescriptor {
             path: carver_domain::PropertyPath("/priority".to_owned()),
             kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
             example: Some("high".to_owned()),
         },
         carver_domain::PropertyDescriptor {
             path: carver_domain::PropertyPath("/owner".to_owned()),
             kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
             example: Some("Ada".to_owned()),
         },
     ]);
@@ -759,11 +761,13 @@ pub(super) fn base_rule_controls_should_edit_rules_and_fields() -> TestResult {
         carver_domain::PropertyDescriptor {
             path: carver_domain::PropertyPath("/priority".to_owned()),
             kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
             example: Some("high".to_owned()),
         },
         carver_domain::PropertyDescriptor {
             path: carver_domain::PropertyPath("/owner".to_owned()),
             kind: carver_domain::PropertyKind::Text,
+            property_type: carver_domain::PropertyType::Text,
             example: Some("Ada".to_owned()),
         },
     ]);

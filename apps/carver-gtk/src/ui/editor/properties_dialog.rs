@@ -11,6 +11,7 @@ use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use carver_config::{DocumentProperty, DocumentPropertyType};
 use carver_domain::{
     FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, is_reserved_key,
+    parse_iso_date, parse_iso_date_time,
 };
 use gettextrs::gettext;
 use gtk::prelude::*;
@@ -51,27 +52,6 @@ fn type_index(field_type: DocumentPropertyType) -> u32 {
         .position(|candidate| *candidate == field_type)
         .and_then(|index| u32::try_from(index).ok())
         .unwrap_or(0)
-}
-
-/// Infers a field type from an existing frontmatter value.
-fn type_for_value(value: &FrontmatterValue) -> DocumentPropertyType {
-    match value {
-        FrontmatterValue::Number(_) => DocumentPropertyType::Number,
-        FrontmatterValue::Boolean(_) => DocumentPropertyType::Boolean,
-        FrontmatterValue::List(_) => DocumentPropertyType::List,
-        FrontmatterValue::Text(text) => {
-            // A date or date-time is stored as text, so its type is recovered from the ISO 8601
-            // shape to round-trip an ad-hoc property across dialog opens.
-            if text.contains('T') && parse_date_time(text).is_some() {
-                DocumentPropertyType::DateTime
-            } else if parse_date(text).is_some() {
-                DocumentPropertyType::Date
-            } else {
-                DocumentPropertyType::Text
-            }
-        }
-        FrontmatterValue::Null | FrontmatterValue::Object(_) => DocumentPropertyType::Text,
-    }
 }
 
 /// Returns whether a value can be edited through the structured fields UI.
@@ -275,9 +255,9 @@ fn picker_text(field_type: DocumentPropertyType, value: &FrontmatterValue) -> Op
         return None;
     };
     let valid = if field_type == DocumentPropertyType::Date {
-        parse_date(text).is_some()
+        parse_iso_date(text).is_some()
     } else {
-        parse_date_time(text).is_some()
+        parse_iso_date_time(text).is_some()
     };
     valid.then(|| text.clone())
 }
@@ -295,12 +275,12 @@ fn apply_picker_state(
         return;
     };
     if field_type == DocumentPropertyType::Date {
-        if let Some(date) = parse_date(iso) {
+        if let Some(date) = parse_iso_date(iso) {
             set_calendar(calendar, date);
         }
         return;
     }
-    let Some(instant) = parse_date_time(iso) else {
+    let Some(instant) = parse_iso_date_time(iso) else {
         return;
     };
     // Convert the stored instant to the local wall clock, which resolves the offset for that
@@ -362,18 +342,6 @@ fn set_calendar(calendar: &gtk::Calendar, date: time::Date) {
     calendar.set_year(date.year());
     calendar.set_month(i32::from(u8::from(date.month())) - 1);
     calendar.set_day(i32::from(date.day()));
-}
-
-fn parse_date(value: &str) -> Option<time::Date> {
-    time::Date::parse(value, &time::format_description::well_known::Iso8601::DATE).ok()
-}
-
-fn parse_date_time(value: &str) -> Option<time::OffsetDateTime> {
-    time::OffsetDateTime::parse(
-        value,
-        &time::format_description::well_known::Iso8601::DEFAULT,
-    )
-    .ok()
 }
 
 /// Formats an ISO 8601 value with the user's locale, falling back to the raw text.
@@ -618,7 +586,7 @@ impl PropertyDraft {
     fn custom(key: String, value: FrontmatterValue) -> Self {
         Self {
             key,
-            choice: type_for_value(&value),
+            choice: DocumentPropertyType::from_value(&value),
             value,
             editable_key: true,
             editable_kind: true,
@@ -1597,7 +1565,7 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
             // Date and date-time defaults are dynamic, so no fixed value is stored.
             serde_json::Value::String(String::new())
         } else {
-            normalized_default_value(field_type, &draft.value.to_json())
+            field_type.normalized_json(&draft.value.to_json())
         };
         normalized.push(DocumentProperty {
             key,
@@ -1607,33 +1575,6 @@ fn normalized_default_properties(drafts: &[PropertyDraft]) -> Vec<DocumentProper
         });
     }
     normalized
-}
-
-fn normalized_default_value(
-    field_type: DocumentPropertyType,
-    value: &serde_json::Value,
-) -> serde_json::Value {
-    let matches = value.is_null()
-        || match field_type {
-            DocumentPropertyType::Text
-            | DocumentPropertyType::LongText
-            | DocumentPropertyType::Date
-            | DocumentPropertyType::DateTime => value.is_string(),
-            DocumentPropertyType::Number => value.is_number(),
-            DocumentPropertyType::Boolean => value.is_boolean(),
-            DocumentPropertyType::List => value
-                .as_array()
-                .is_some_and(|items| items.iter().all(serde_json::Value::is_string)),
-        };
-    if matches {
-        return value.clone();
-    }
-    match field_type {
-        DocumentPropertyType::Number => serde_json::Value::from(0),
-        DocumentPropertyType::Boolean => serde_json::Value::Bool(false),
-        DocumentPropertyType::List => serde_json::Value::Array(Vec::new()),
-        _ => serde_json::Value::String(String::new()),
-    }
 }
 
 fn row_subtitle(choice: DocumentPropertyType, value: &FrontmatterValue) -> String {
@@ -1727,47 +1668,22 @@ fn selected_options(switches: &[adw::SwitchRow]) -> String {
 
 /// Returns whether a note value is representable by the configured default for its row.
 fn configured_value_supported(draft: &PropertyDraft) -> bool {
-    match draft.choice {
-        DocumentPropertyType::List if !draft.options.is_empty() => {
-            if draft.multiple {
-                matches!(
-                    &draft.value,
-                    FrontmatterValue::List(items) if items.iter().all(|item| option_supported(draft, item))
-                )
-            } else {
-                matches!(
-                    &draft.value,
-                    FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text)
-                )
-            }
-        }
-        DocumentPropertyType::Number => matches!(
-            draft.value,
-            FrontmatterValue::Number(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Boolean => matches!(
-            draft.value,
-            FrontmatterValue::Boolean(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Text | DocumentPropertyType::LongText => matches!(
-            draft.value,
-            FrontmatterValue::Text(_) | FrontmatterValue::Null
-        ),
-        DocumentPropertyType::Date => {
+    // A configured list with options is an option set, so its members are checked here; the
+    // scalar/date acceptance comes from the shared domain type.
+    if draft.choice == DocumentPropertyType::List && !draft.options.is_empty() {
+        return if draft.multiple {
             matches!(
                 &draft.value,
-                FrontmatterValue::Text(text) if parse_date(text).is_some()
-            ) || matches!(draft.value, FrontmatterValue::Null)
-        }
-        DocumentPropertyType::DateTime => {
+                FrontmatterValue::List(items) if items.iter().all(|item| option_supported(draft, item))
+            )
+        } else {
             matches!(
                 &draft.value,
-                FrontmatterValue::Text(text) if parse_date_time(text).is_some()
-            ) || matches!(draft.value, FrontmatterValue::Null)
-        }
-        // A list with no configured options is not an option set, so it stays free-form.
-        DocumentPropertyType::List => true,
+                FrontmatterValue::Text(text) if draft.options.iter().any(|option| option == text)
+            )
+        };
     }
+    draft.choice.accepts_value(&draft.value)
 }
 
 fn option_supported(draft: &PropertyDraft, item: &FrontmatterValue) -> bool {

@@ -154,6 +154,7 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
     let descriptor = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/project/status".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("planned".to_owned()),
     };
     assert!(matches!(
@@ -504,6 +505,7 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
     let stale = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/stale".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("old".to_owned()),
     };
     assert!(
@@ -524,6 +526,7 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
     let descriptor = carver_sdk::PropertyDescriptor {
         path: carver_sdk::PropertyPath("/status".to_owned()),
         kind: carver_sdk::PropertyKind::Text,
+        property_type: carver_sdk::PropertyType::Text,
         example: Some("ready".to_owned()),
     };
     assert!(

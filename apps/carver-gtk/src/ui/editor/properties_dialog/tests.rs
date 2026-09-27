@@ -220,59 +220,11 @@ fn type_label_should_stay_plain_while_subtitles_escape_markup() {
     );
 }
 
-#[test]
-fn type_for_value_should_recover_iso_dates() {
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text("2026-09-16".to_owned())),
-        DocumentPropertyType::Date
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text(
-            "2026-09-26T14:22:49+02:00".to_owned()
-        )),
-        DocumentPropertyType::DateTime
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text(
-            "2026-09-26T14:22:49.240147874+02:00".to_owned()
-        )),
-        DocumentPropertyType::DateTime
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Text("hello world".to_owned())),
-        DocumentPropertyType::Text
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Number(serde_json::Number::from(3))),
-        DocumentPropertyType::Number
-    );
-}
-
 fn draft_with(field_type: DocumentPropertyType, value: FrontmatterValue) -> PropertyDraft {
     let mut draft = PropertyDraft::blank();
     draft.choice = field_type;
     draft.value = value;
     draft
-}
-
-#[test]
-fn type_for_value_should_cover_every_kind() {
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Boolean(true)),
-        DocumentPropertyType::Boolean
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::List(Vec::new())),
-        DocumentPropertyType::List
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Null),
-        DocumentPropertyType::Text
-    );
-    assert_eq!(
-        type_for_value(&FrontmatterValue::Object(Vec::new())),
-        DocumentPropertyType::Text
-    );
 }
 
 #[test]
@@ -377,38 +329,6 @@ fn simple_value_helpers_should_format_values() {
     let preview = preview_text(&FrontmatterValue::Text("x".repeat(80)));
     assert!(preview.ends_with('…'));
     assert_eq!(preview.chars().count(), 60);
-}
-
-#[test]
-fn normalized_default_value_should_coerce_mismatches() {
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!("x")),
-        serde_json::json!(0)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!("x")),
-        serde_json::json!(false)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::List, &serde_json::json!("x")),
-        serde_json::json!([])
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Text, &serde_json::json!(1)),
-        serde_json::json!("")
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Number, &serde_json::json!(3)),
-        serde_json::json!(3)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::Boolean, &serde_json::json!(true)),
-        serde_json::json!(true)
-    );
-    assert_eq!(
-        normalized_default_value(DocumentPropertyType::List, &serde_json::json!(["a"])),
-        serde_json::json!(["a"])
-    );
 }
 
 #[test]

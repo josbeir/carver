@@ -14,6 +14,7 @@ use uuid::Uuid;
 pub mod bases;
 pub mod frontmatter;
 pub mod paste;
+pub mod properties;
 pub mod rendering;
 pub mod source_analysis;
 
@@ -32,6 +33,7 @@ pub use frontmatter::{
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,
 };
+pub use properties::{PropertyType, parse_iso_date, parse_iso_date_time};
 
 /// A document representation accepted by Carver's import pipeline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

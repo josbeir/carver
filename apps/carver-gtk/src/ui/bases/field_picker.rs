@@ -666,6 +666,7 @@ mod tests {
         let descriptor = PropertyDescriptor {
             path: PropertyPath("/status".to_owned()),
             kind: PropertyKind::Text,
+            property_type: carver_sdk::PropertyType::Text,
             example: Some("ready".to_owned()),
         };
         let catalog = FieldCatalog::new(&definition, &[descriptor]);
