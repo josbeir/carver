@@ -2671,7 +2671,7 @@ fn update_editor_save(
     mut move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let (close_requested, pending_favorite, move_notice) = {
+    let (close_requested, pending_favorite, move_notice, moved) = {
         let Some(document) = model.editor.as_mut() else {
             return Vec::new();
         };
@@ -2686,9 +2686,11 @@ fn update_editor_save(
             Ok(revision) => {
                 // The content save is authoritative. A failed move is reported but does not keep
                 // the note on a stale revision, so the editor stays consistent.
+                let mut moved = false;
                 let move_notice = match request.move_to {
                     Some(category) if move_error.is_none() => {
                         document.category_id = category;
+                        moved = true;
                         None
                     }
                     Some(_) => move_error.take(),
@@ -2705,6 +2707,7 @@ fn update_editor_save(
                             .then_some(document.pending_favorite)
                             .flatten(),
                         move_notice,
+                        moved,
                     )
                 } else {
                     document.save_state = super::EditorSaveState::Dirty;
@@ -2734,6 +2737,12 @@ fn update_editor_save(
     let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
         set_editor_favorite(model, is_favorite)
     });
+    if moved {
+        // A move changes which categories own the note, so refresh the sidebar counts and the
+        // browser list even though the save came from the editor rather than an action.
+        effects.extend(reload_sidebar(model));
+        effects.extend(reload_browser(model));
+    }
     if close_requested {
         restore_editor_origin(model);
         model.editor = None;

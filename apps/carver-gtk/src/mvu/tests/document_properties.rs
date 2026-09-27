@@ -511,3 +511,47 @@ fn a_failed_move_should_keep_the_content_save_and_report_a_notice() {
             .any(|effect| matches!(effect, Effect::SaveNote { .. }))
     );
 }
+
+#[test]
+fn an_editor_category_move_should_reload_the_sidebar() {
+    let mut model = AppModel::new(&Config::default());
+    let session = load_editor(&mut model, "Body\n");
+    let category = carver_sdk::CategoryId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplyFrontmatter {
+            session,
+            edit: FrontmatterEdit::Parsed(empty_document()),
+            category: Some(category),
+        }),
+    );
+    let timer_id = TimerId(scheduled_timer(&effects));
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::AutosaveElapsed { session, timer_id }),
+    );
+    let request = scheduled_save(&effects);
+    assert_eq!(request.move_to, Some(category));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            move_error: None,
+            result: Ok(Revision(2)),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadSidebar { .. })),
+        "a move should refresh category counts"
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. })),
+        "a move should refresh the note list"
+    );
+}
