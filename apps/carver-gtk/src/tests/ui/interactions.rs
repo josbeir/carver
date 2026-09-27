@@ -63,9 +63,9 @@ pub(super) fn rich_link_should_update_canonical_source() -> TestResult {
         revision: carver_sdk::Revision(1),
         source: "Read".into(),
     }));
-    widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich")
-        .ok_or("rich mode")?
-        .set_active(true);
+    widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?
+        .set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
     assert_web_script_should_be_true(
         &rich,
@@ -192,9 +192,9 @@ pub(super) fn rich_changes_should_be_ignored_while_another_mode_is_active() -> T
         revision: carver_sdk::Revision(1),
         source: "# Current".into(),
     }));
-    widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich")
-        .ok_or("rich mode")?
-        .set_active(true);
+    widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?
+        .set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
     assert_web_script_should_be_true(
         &rich,
@@ -214,9 +214,9 @@ pub(super) fn rich_changes_should_be_ignored_while_another_mode_is_active() -> T
         .editor
         .is_some_and(|doc| doc.source.contains("From rich"))));
 
-    widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-source")
-        .ok_or("source mode")?
-        .set_active(true);
+    widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?
+        .set_visible_child_name("source");
     assert!(run_main_context_until(|| !rich.is_mapped()));
     // A late rich change must not overwrite the now-active source projection.
     assert_web_script_should_be_true(
@@ -294,9 +294,9 @@ pub(super) fn stale_web_messages_should_not_change_the_active_document() -> Test
         revision: carver_sdk::Revision(1),
         source: "# Current".into(),
     }));
-    widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich")
-        .ok_or("rich mode")?
-        .set_active(true);
+    widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?
+        .set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
     assert_web_script_should_be_true(
         &rich,

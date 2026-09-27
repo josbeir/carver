@@ -85,14 +85,15 @@ pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
 ) -> TestResult {
     let window = fixture.window.clone();
     let root = fixture.root()?;
-    let source_mode = fixture.source_mode()?;
+    let editor_stack = fixture.editor_mode_stack()?;
     window.set_default_size(360, 640);
     let responsive_editor = widget_as::<adw::BreakpointBin>(&root, "editor-responsive-container")
         .ok_or("responsive editor container")?;
     assert!(run_main_context_until(|| responsive_editor.width() <= 700));
     assert!(
-        widget_as::<gtk::Label>(&root, "editor-mode-rich-label")
-            .is_some_and(|label| !label.is_visible())
+        widget_as::<adw::InlineViewSwitcher>(&root, "editor-mode-group").is_some_and(|switcher| {
+            switcher.display_mode() == adw::InlineViewSwitcherDisplayMode::Icons
+        })
     );
     assert!(
         widget_as::<gtk::Box>(&root, "formatting-toolbar-desktop")
@@ -130,7 +131,7 @@ pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
         !split_toggle.is_visible(),
         "the split preview control should be hidden outside Source mode"
     );
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     assert_eq!(
         toolbar,
         widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("source toolbar")?

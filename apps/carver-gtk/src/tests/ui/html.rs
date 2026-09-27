@@ -18,9 +18,8 @@ pub(super) fn preview_and_copy_should_preserve_source_with_quoted_image_attribut
         source: source_text.into(),
     }));
     let root = &fixture.surface;
-    let mode =
-        widget_as::<gtk::ToggleButton>(root, "editor-mode-rendered").ok_or("preview mode")?;
-    mode.set_active(true);
+    let mode = widget_as::<adw::ViewStack>(root, "editor-mode-stack").ok_or("editor mode stack")?;
+    mode.set_visible_child_name("rendered");
     let preview =
         widget_as::<webkit6::WebView>(root, "editor-rendered-preview").ok_or("preview")?;
     assert_web_script_should_be_true(
@@ -66,8 +65,8 @@ pub(super) fn preview_and_copy_should_preserve_source_with_quoted_image_attribut
     assert!(html.contains("<span>[Image: &lt;b&gt; &amp; A &gt; B]</span>"));
     assert!(!html.contains("<img") && !html.contains("<IMG"));
     let source_mode =
-        widget_as::<gtk::ToggleButton>(root, "editor-mode-source").ok_or("source mode")?;
-    source_mode.set_active(true);
+        widget_as::<adw::ViewStack>(root, "editor-mode-stack").ok_or("editor mode stack")?;
+    source_mode.set_visible_child_name("source");
     let source = widget_as::<sourceview5::View>(root, "source-editor").ok_or("source editor")?;
     assert_eq!(
         crate::ui::editor::buffer_text(&source.buffer()),
@@ -93,9 +92,9 @@ pub(super) fn document_font_should_remain_css_text_inside_the_preview_head() -> 
         revision: saved.revision,
         source: saved.source.clone(),
     }));
-    let mode = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rendered")
-        .ok_or("preview mode")?;
-    mode.set_active(true);
+    let mode = widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?;
+    mode.set_visible_child_name("rendered");
     let font = crate::ui::editor::normalize_document_font_description(
         "</style><p id=font-injection>Injected</p> 12",
     )

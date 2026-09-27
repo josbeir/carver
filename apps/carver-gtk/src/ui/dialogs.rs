@@ -1323,14 +1323,16 @@ pub(crate) fn show_category_name_dialog(
     initial_name: &str,
     on_submit: impl Fn(String) + 'static,
 ) {
-    let entry = gtk::Entry::new();
+    let entry = adw::EntryRow::new();
     entry.set_widget_name("category-name-entry");
+    entry.set_title(&gettext("Category name"));
     entry.set_text(initial_name);
-    entry.set_placeholder_text(Some(&gettext("Category name")));
     entry.set_activates_default(true);
+    let name_group = adw::PreferencesGroup::new();
+    name_group.add(&entry);
     let dialog = adw::AlertDialog::builder()
         .heading(title)
-        .extra_child(&entry)
+        .extra_child(&name_group)
         .default_response("save")
         .close_response("cancel")
         .build();
@@ -1357,7 +1359,7 @@ pub(crate) fn show_category_name_dialog(
 /// Presents one category form with a validated name and an explicit visual identity.
 pub(crate) struct CategoryForm {
     pub(crate) content: gtk::Box,
-    pub(crate) entry: gtk::Entry,
+    pub(crate) entry: adw::EntryRow,
     pub(crate) icon: Rc<std::cell::Cell<CategoryIcon>>,
     pub(crate) color: Rc<std::cell::Cell<CategoryColor>>,
 }
@@ -1368,11 +1370,14 @@ pub(crate) fn category_form(
 ) -> CategoryForm {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
     content.set_widget_name("category-dialog-content");
-    let entry = gtk::Entry::new();
+    let entry = adw::EntryRow::new();
     entry.set_widget_name("category-name-entry");
+    entry.set_title(&gettext("Category name"));
     entry.set_text(initial_name);
-    entry.set_placeholder_text(Some(&gettext("Category name")));
-    content.append(&entry);
+    entry.set_activates_default(true);
+    let name_group = adw::PreferencesGroup::new();
+    name_group.add(&entry);
+    content.append(&name_group);
     let (picker, icon, color) = category_appearance_picker(initial_appearance);
     content.append(&picker);
     CategoryForm {
@@ -1646,6 +1651,7 @@ pub(crate) fn show_move_note_dialog(
     let list = gtk::ListBox::new();
     list.set_widget_name("move-note-category-list");
     list.set_selection_mode(gtk::SelectionMode::None);
+    list.set_activate_on_single_click(true);
     list.add_css_class("boxed-list");
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_vexpand(true);
@@ -1766,31 +1772,20 @@ fn populate_move_categories(
             continue;
         }
         matching_categories += 1;
-        let row = gtk::ListBoxRow::new();
+        let row = adw::ActionRow::new();
         row.set_widget_name(&format!("move-note-category:{}", category.id));
-        let button = gtk::Button::new();
-        button.add_css_class("flat");
-        button.set_hexpand(true);
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        content.set_margin_start(12);
-        content.set_margin_end(12);
-        content.set_margin_top(8);
-        content.set_margin_bottom(8);
-        content.append(&gtk::Image::from_icon_name("folder-symbolic"));
-        let label = gtk::Label::new(Some(&category.name));
-        label.set_xalign(0.0);
-        label.set_hexpand(true);
-        content.append(&label);
+        row.set_title(&category.name);
+        row.add_prefix(&gtk::Image::from_icon_name("folder-symbolic"));
         if category.id == source_category_id {
             let current = gtk::Label::new(Some(&gettext("Current")));
             current.add_css_class("dim-label");
-            content.append(&current);
-            button.set_sensitive(false);
+            row.add_suffix(&current);
+            row.set_sensitive(false);
         } else {
             let dispatcher = dispatcher.clone();
             let dialog = dialog.clone();
             let category_id = category.id;
-            button.connect_clicked(move |_| {
+            row.connect_activated(move |_| {
                 dialog.close();
                 let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::MoveNote {
                     note_id,
@@ -1799,8 +1794,6 @@ fn populate_move_categories(
                 }));
             });
         }
-        button.set_child(Some(&content));
-        row.set_child(Some(&button));
         list.append(&row);
     }
     if matching_categories == 0 {

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-26 18:26+0200\n"
+"POT-Creation-Date: 2026-09-27 09:24+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -76,7 +76,7 @@ msgstr ""
 msgid "Examples: Work, Personal, Research"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/add.rs:68 apps/carver-gtk/src/ui/dialogs.rs:1739
+#: apps/carver-gtk/src/ui/add.rs:68 apps/carver-gtk/src/ui/dialogs.rs:1745
 msgid "New Category"
 msgstr ""
 
@@ -167,12 +167,12 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
-#: apps/carver-gtk/src/ui/dialogs.rs:1338
-#: apps/carver-gtk/src/ui/dialogs.rs:1407
-#: apps/carver-gtk/src/ui/dialogs.rs:1659
-#: apps/carver-gtk/src/ui/dialogs.rs:1844
-#: apps/carver-gtk/src/ui/editor/mod.rs:1620
-#: apps/carver-gtk/src/ui/editor/mod.rs:1710
+#: apps/carver-gtk/src/ui/dialogs.rs:1340
+#: apps/carver-gtk/src/ui/dialogs.rs:1412
+#: apps/carver-gtk/src/ui/dialogs.rs:1665
+#: apps/carver-gtk/src/ui/dialogs.rs:1837
+#: apps/carver-gtk/src/ui/editor/mod.rs:1568
+#: apps/carver-gtk/src/ui/editor/mod.rs:1658
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:892
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
@@ -489,7 +489,7 @@ msgid "Note actions"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs:729
-#: apps/carver-gtk/src/ui/editor/mod.rs:130
+#: apps/carver-gtk/src/ui/editor/mod.rs:127
 msgid "Remove from Favorites"
 msgstr ""
 
@@ -502,12 +502,12 @@ msgid "Move…"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs:773
-#: apps/carver-gtk/src/ui/editor/mod.rs:1450
+#: apps/carver-gtk/src/ui/editor/mod.rs:1399
 msgid "Export note…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1845
-#: apps/carver-gtk/src/ui/editor/mod.rs:1457
+#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1838
+#: apps/carver-gtk/src/ui/editor/mod.rs:1406
 msgid "Move to Trash"
 msgstr ""
 
@@ -577,8 +577,8 @@ msgid "Toggle favorite"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs:87
-#: apps/carver-gtk/src/ui/editor/mod.rs:1612
-#: apps/carver-gtk/src/ui/editor/mod.rs:1675
+#: apps/carver-gtk/src/ui/editor/mod.rs:1560
+#: apps/carver-gtk/src/ui/editor/mod.rs:1623
 msgid "Export note"
 msgstr ""
 
@@ -999,128 +999,128 @@ msgstr ""
 msgid "Keyboard Shortcuts"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1329
-#: apps/carver-gtk/src/ui/dialogs.rs:1374
+#: apps/carver-gtk/src/ui/dialogs.rs:1328
+#: apps/carver-gtk/src/ui/dialogs.rs:1375
 msgid "Category name"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1339
-#: apps/carver-gtk/src/ui/dialogs.rs:1408
+#: apps/carver-gtk/src/ui/dialogs.rs:1341
+#: apps/carver-gtk/src/ui/dialogs.rs:1413
 msgctxt "dialog"
 msgid "Save"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1440
+#: apps/carver-gtk/src/ui/dialogs.rs:1445
 msgctxt "category appearance"
 msgid "Icon"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1469
+#: apps/carver-gtk/src/ui/dialogs.rs:1474
 msgctxt "category appearance"
 msgid "Colour"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1557
+#: apps/carver-gtk/src/ui/dialogs.rs:1562
 msgid "Folder"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1558
+#: apps/carver-gtk/src/ui/dialogs.rs:1563
 msgid "Briefcase"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1559
+#: apps/carver-gtk/src/ui/dialogs.rs:1564
 msgid "Calendar"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1560
+#: apps/carver-gtk/src/ui/dialogs.rs:1565
 msgid "Book"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1561
+#: apps/carver-gtk/src/ui/dialogs.rs:1566
 msgid "Heart"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1562
+#: apps/carver-gtk/src/ui/dialogs.rs:1567
 msgid "Home"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1563
+#: apps/carver-gtk/src/ui/dialogs.rs:1568
 msgid "People"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1564
+#: apps/carver-gtk/src/ui/dialogs.rs:1569
 msgid "Star"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1565
+#: apps/carver-gtk/src/ui/dialogs.rs:1570
 msgid "Tag"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1566
+#: apps/carver-gtk/src/ui/dialogs.rs:1571
 msgid "Idea"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1585
+#: apps/carver-gtk/src/ui/dialogs.rs:1590
 msgctxt "category colour"
 msgid "Auto"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1586
+#: apps/carver-gtk/src/ui/dialogs.rs:1591
 msgid "Rose"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1587
+#: apps/carver-gtk/src/ui/dialogs.rs:1592
 msgid "Tangerine"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1588
+#: apps/carver-gtk/src/ui/dialogs.rs:1593
 msgid "Yellow"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1589
+#: apps/carver-gtk/src/ui/dialogs.rs:1594
 msgid "Olive"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1590
+#: apps/carver-gtk/src/ui/dialogs.rs:1595
 msgid "Teal"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1591
+#: apps/carver-gtk/src/ui/dialogs.rs:1596
 msgid "Blue"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1592
+#: apps/carver-gtk/src/ui/dialogs.rs:1597
 msgid "Purple"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1623
-#: apps/carver-gtk/src/ui/dialogs.rs:1636
+#: apps/carver-gtk/src/ui/dialogs.rs:1628
+#: apps/carver-gtk/src/ui/dialogs.rs:1641
 #, rust-format
 msgid "Move “{note_title}”"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1644
+#: apps/carver-gtk/src/ui/dialogs.rs:1649
 msgid "Search categories"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1654
+#: apps/carver-gtk/src/ui/dialogs.rs:1660
 msgid "New Category…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1785
+#: apps/carver-gtk/src/ui/dialogs.rs:1780
 msgid "Current"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1809
+#: apps/carver-gtk/src/ui/dialogs.rs:1802
 msgid "No categories found"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1835
+#: apps/carver-gtk/src/ui/dialogs.rs:1828
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1839
+#: apps/carver-gtk/src/ui/dialogs.rs:1832
 msgid ""
 "Notes in this category will no longer appear in your library. You can "
 "restore the category from Trash later."
@@ -1166,7 +1166,7 @@ msgid "Hide document sidebar"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:120
-#: apps/carver-gtk/src/ui/editor/mod.rs:619
+#: apps/carver-gtk/src/ui/editor/mod.rs:594
 msgid "Show document sidebar"
 msgstr ""
 
@@ -1206,119 +1206,107 @@ msgid_plural "{count} matches"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:132
-#: apps/carver-gtk/src/ui/editor/mod.rs:614
-#: apps/carver-gtk/src/ui/editor/mod.rs:1404
+#: apps/carver-gtk/src/ui/editor/mod.rs:129
+#: apps/carver-gtk/src/ui/editor/mod.rs:589
+#: apps/carver-gtk/src/ui/editor/mod.rs:1353
 msgid "Add to Favorites"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:590
+#: apps/carver-gtk/src/ui/editor/mod.rs:605
+#: apps/carver-gtk/src/ui/editor/mod.rs:1358
+msgid "Show rendered preview"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/mod.rs:712
+#: apps/carver-gtk/src/ui/editor/mod.rs:714
+msgid "Document properties"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/mod.rs:1047
 msgctxt "editor mode"
 msgid "Edit"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:591
-msgid "Edit with rich text"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:597
+#: apps/carver-gtk/src/ui/editor/mod.rs:1053
 msgctxt "editor mode"
 msgid "Source"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:598
-msgid "Edit Carve markup"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:604
+#: apps/carver-gtk/src/ui/editor/mod.rs:1059
 msgctxt "editor mode"
 msgid "Preview"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:605
-msgid "Read-only preview"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:630
-#: apps/carver-gtk/src/ui/editor/mod.rs:1409
-msgid "Show rendered preview"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:736
-#: apps/carver-gtk/src/ui/editor/mod.rs:738
-msgid "Document properties"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1398
+#: apps/carver-gtk/src/ui/editor/mod.rs:1347
 msgid "Note options"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1436
+#: apps/carver-gtk/src/ui/editor/mod.rs:1385
 msgid "Copy note"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1438
+#: apps/carver-gtk/src/ui/editor/mod.rs:1387
 msgid "Paste as Markdown"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1447
+#: apps/carver-gtk/src/ui/editor/mod.rs:1396
 msgid "Document properties…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1451
+#: apps/carver-gtk/src/ui/editor/mod.rs:1400
 msgid "Print…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1589
+#: apps/carver-gtk/src/ui/editor/mod.rs:1537
 msgctxt "export dialog"
 msgid "Format"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1595
+#: apps/carver-gtk/src/ui/editor/mod.rs:1543
 msgid "Include managed files"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1597
+#: apps/carver-gtk/src/ui/editor/mod.rs:1545
 msgid "Create a portable ZIP archive with the document and its files."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1614
+#: apps/carver-gtk/src/ui/editor/mod.rs:1562
 msgid "Export the current note, including any unsaved edits."
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1621
+#: apps/carver-gtk/src/ui/editor/mod.rs:1569
 msgid "Export…"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1652
+#: apps/carver-gtk/src/ui/editor/mod.rs:1600
 msgid "Carve documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1653
+#: apps/carver-gtk/src/ui/editor/mod.rs:1601
 msgid "Markdown documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1654
+#: apps/carver-gtk/src/ui/editor/mod.rs:1602
 msgid "HTML documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1655
+#: apps/carver-gtk/src/ui/editor/mod.rs:1603
 msgid "PDF documents"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1656
+#: apps/carver-gtk/src/ui/editor/mod.rs:1604
 msgid "Portable ZIP archives"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1676
+#: apps/carver-gtk/src/ui/editor/mod.rs:1624
 msgid "Export"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1702
+#: apps/carver-gtk/src/ui/editor/mod.rs:1650
 msgid "Export may lose content"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1704
+#: apps/carver-gtk/src/ui/editor/mod.rs:1652
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1326,7 +1314,7 @@ msgid ""
 "Export anyway?"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1711
+#: apps/carver-gtk/src/ui/editor/mod.rs:1659
 msgid "Export anyway"
 msgstr ""
 

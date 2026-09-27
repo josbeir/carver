@@ -62,7 +62,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     widget_as::<gtk::Button>(root, "add-category-choice")
         .ok_or("category choice")?
         .emit_clicked();
-    let entry = widget_as::<gtk::Entry>(root, "category-name-entry").ok_or("category name")?;
+    let entry = widget_as::<adw::EntryRow>(root, "category-name-entry").ok_or("category name")?;
     let create = widget_as::<gtk::Button>(root, "add-category-create").ok_or("create category")?;
     entry.set_text("  ");
     assert!(!create.is_sensitive());
@@ -77,7 +77,7 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         .ok_or("category choice")?
         .emit_clicked();
     assert_eq!(entry.text(), "  Work  ");
-    entry.emit_activate();
+    entry.emit_by_name::<()>("entry-activated", &[]);
     create.emit_clicked();
     assert!(run_main_context_until(|| client
         .categories()

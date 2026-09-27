@@ -122,15 +122,11 @@ impl WindowFixture {
             .map_err(|_| "GtkSourceBuffer")?)
     }
 
-    pub(crate) fn source_mode(&self) -> Result<gtk::ToggleButton, Box<dyn std::error::Error>> {
+    pub(crate) fn editor_mode_stack(&self) -> Result<adw::ViewStack, Box<dyn std::error::Error>> {
         Ok(
-            widget_as::<gtk::ToggleButton>(&self.root()?, "editor-mode-source")
-                .ok_or("source mode")?,
+            widget_as::<adw::ViewStack>(&self.root()?, "editor-mode-stack")
+                .ok_or("editor mode stack")?,
         )
-    }
-
-    pub(crate) fn rich_mode(&self) -> Result<gtk::ToggleButton, Box<dyn std::error::Error>> {
-        Ok(widget_as::<gtk::ToggleButton>(&self.root()?, "editor-mode-rich").ok_or("rich mode")?)
     }
 
     pub(crate) fn toolbar(&self) -> Result<gtk::Box, Box<dyn std::error::Error>> {

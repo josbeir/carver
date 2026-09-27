@@ -156,7 +156,7 @@ fn connect_form_navigation(
     name: &'static str,
     choice: &gtk::Button,
     back: &gtk::Button,
-    entry: &gtk::Entry,
+    entry: &adw::EntryRow,
     create: &gtk::Button,
 ) {
     let weak_stack = stack.downgrade();
@@ -184,7 +184,7 @@ fn connect_form_navigation(
         }
     });
     let weak_create = create.downgrade();
-    entry.connect_activate(move |_| {
+    entry.connect_entry_activated(move |_| {
         if let Some(create) = weak_create.upgrade().filter(WidgetExt::is_sensitive) {
             create.emit_clicked();
         }
