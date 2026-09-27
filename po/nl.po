@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 17:23+0200\n"
+"POT-Creation-Date: 2026-09-27 17:39+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -356,12 +356,12 @@ msgid "Not set"
 msgstr "Niet ingesteld"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:367
-#: apps/carver-gtk/src/ui/property.rs:132
+#: apps/carver-gtk/src/ui/property.rs:402
 msgid "Clear"
 msgstr "Wissen"
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:375
-#: apps/carver-gtk/src/ui/property.rs:137
+#: apps/carver-gtk/src/ui/property.rs:407
 msgid "Done"
 msgstr "Gedaan"
 
@@ -1597,6 +1597,26 @@ msgstr "Datum"
 #: apps/carver-gtk/src/ui/property.rs:24
 msgid "Date & time"
 msgstr "Datum en tijd"
+
+#: apps/carver-gtk/src/ui/property.rs:117
+msgid "AM or PM"
+msgstr "AM of PM"
+
+#: apps/carver-gtk/src/ui/property.rs:152
+msgid "Increase hours"
+msgstr "Uren verhogen"
+
+#: apps/carver-gtk/src/ui/property.rs:167
+msgid "Decrease hours"
+msgstr "Uren verlagen"
+
+#: apps/carver-gtk/src/ui/property.rs:188
+msgid "Increase minutes"
+msgstr "Minuten verhogen"
+
+#: apps/carver-gtk/src/ui/property.rs:203
+msgid "Decrease minutes"
+msgstr "Minuten verlagen"
 
 #: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
 msgid "Back to notes"

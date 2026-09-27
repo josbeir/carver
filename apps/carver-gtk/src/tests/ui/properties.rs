@@ -676,13 +676,31 @@ pub(super) fn date_time_default_should_edit_the_picker() -> TestResult {
 
     let calendar =
         widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
-    let hours =
-        widget_as::<gtk::SpinButton>(root, "document-property-value-1-hours").ok_or("hours")?;
-    let minutes =
-        widget_as::<gtk::SpinButton>(root, "document-property-value-1-minutes").ok_or("minutes")?;
+    let hour_up =
+        widget_as::<gtk::Button>(root, "document-property-value-1-hour-up").ok_or("hour up")?;
+    let minute_down = widget_as::<gtk::Button>(root, "document-property-value-1-minute-down")
+        .ok_or("minute down")?;
 
-    hours.set_value(5.0);
-    minutes.set_value(45.0);
+    // Drive the spinner to a fixed wall-clock time regardless of the seeded value or timezone.
+    // (The display suite runs on a 24-hour clock.)
+    let hour_label = widget_as::<gtk::Label>(root, "document-property-value-1-hour-label")
+        .ok_or("hour label")?;
+    let minute_label = widget_as::<gtk::Label>(root, "document-property-value-1-minute-label")
+        .ok_or("minute label")?;
+    for _ in 0..24 {
+        if hour_label.text() == "09" {
+            break;
+        }
+        hour_up.emit_clicked();
+    }
+    for _ in 0..60 {
+        if minute_label.text() == "15" {
+            break;
+        }
+        minute_down.emit_clicked();
+    }
+    assert_eq!(hour_label.text(), "09");
+    assert_eq!(minute_label.text(), "15");
     calendar.set_day(20);
     calendar.emit_by_name::<()>("day-selected", &[]);
     widget_as::<gtk::Button>(root, "document-property-value-1-clear")
@@ -692,8 +710,7 @@ pub(super) fn date_time_default_should_edit_the_picker() -> TestResult {
         .ok_or("done")?
         .emit_clicked();
 
-    hours.set_value(9.0);
-    minutes.set_value(15.0);
+    // The retained time is applied again on save.
     calendar.emit_by_name::<()>("day-selected", &[]);
     widget_as::<gtk::Button>(root, "document-properties-save")
         .ok_or("save")?

@@ -386,3 +386,21 @@ popover button:checked {
   color: @accent_color;
   text-decoration-line: underline;
 }
+
+/* GNOME-style hour/minute spinner used by the shared date/time picker. */
+.time-spinner-step {
+  padding: 0;
+  min-width: 36px;
+  min-height: 22px;
+}
+
+.time-spinner-value {
+  font-size: 1.7em;
+  font-weight: 300;
+  min-width: 2.5em;
+}
+
+.time-spinner-meridiem {
+  font-weight: 600;
+  margin-left: 8px;
+}
