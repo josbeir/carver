@@ -1,5 +1,6 @@
 //! Display-backed editor preferences dialog persistence coverage.
 use super::*;
+use adw::prelude::PreferencesGroupExt;
 
 pub(super) fn document_appearance_should_persist(fixture: &WindowFixture) -> TestResult {
     let application = fixture.application.clone();
@@ -98,7 +99,7 @@ pub(super) fn source_preferences_should_toggle_gutter_and_font(
     let window = fixture.window.clone();
     let config = fixture.config.clone();
     let preferences_dialog = fixture.preferences_dialog.clone();
-    preferences_dialog.set_visible_page_name("source");
+    preferences_dialog.set_visible_page_name("appearance");
     assert_eq!(
         widget_as::<adw::SwitchRow>(
             preferences_dialog.upcast_ref(),
@@ -153,7 +154,7 @@ pub(super) fn source_preferences_should_toggle_gutter_and_font(
         &custom_font_config,
         &crate::mvu::AppDispatcher::default(),
     );
-    custom_font_preferences.set_visible_page_name("source");
+    custom_font_preferences.set_visible_page_name("appearance");
     let reset_font = widget_as::<adw::ActionRow>(
         custom_font_preferences.upcast_ref(),
         "source-font-reset-row",
@@ -176,7 +177,6 @@ pub(super) fn preferences_should_expose_searchable_pages(fixture: &WindowFixture
             "Appearance",
             "preferences-desktop-appearance-symbolic",
         ),
-        ("source", "Source", "utilities-terminal-symbolic"),
         ("properties", "Properties", "document-properties-symbolic"),
     ] {
         let page = widget_as::<adw::PreferencesPage>(preferences_dialog.upcast_ref(), name)
@@ -196,6 +196,48 @@ pub(super) fn preferences_should_expose_searchable_pages(fixture: &WindowFixture
         Some("Properties".to_owned())
     );
     preferences_dialog.set_visible_page_name("editor");
+    assert_preferences_grouping(&preferences_dialog)?;
+    Ok(())
+}
+
+/// Verifies each preference row sits under its logical page and section.
+fn assert_preferences_grouping(preferences_dialog: &adw::PreferencesDialog) -> TestResult {
+    for (row_name, group_title, page_title) in [
+        ("formatting-toolbar-setting", "Editor controls", "Editor"),
+        (
+            "document-properties-floating-button",
+            "Editor controls",
+            "Editor",
+        ),
+        (
+            "enhanced-carve-rendering-setting",
+            "Previews and exports",
+            "Editor",
+        ),
+        ("remote-images-setting", "Previews and exports", "Editor"),
+        ("document-font-setting", "Edit and Preview", "Appearance"),
+        ("source-font-setting", "Source", "Appearance"),
+        ("source-line-numbers-setting", "Source", "Appearance"),
+        ("source-syntax-style-setting", "Source", "Appearance"),
+        (
+            "document-properties-setting",
+            "New note properties",
+            "Properties",
+        ),
+    ] {
+        let row = widget_as::<gtk::Widget>(preferences_dialog.upcast_ref(), row_name)
+            .ok_or_else(|| format!("preference row {row_name}"))?;
+        let group = row
+            .ancestor(adw::PreferencesGroup::static_type())
+            .and_downcast::<adw::PreferencesGroup>()
+            .ok_or_else(|| format!("preferences group for {row_name}"))?;
+        assert_eq!(group.title().as_str(), group_title, "group for {row_name}");
+        let page = row
+            .ancestor(adw::PreferencesPage::static_type())
+            .and_downcast::<adw::PreferencesPage>()
+            .ok_or_else(|| format!("preferences page for {row_name}"))?;
+        assert_eq!(page.title().as_str(), page_title, "page for {row_name}");
+    }
     Ok(())
 }
 
