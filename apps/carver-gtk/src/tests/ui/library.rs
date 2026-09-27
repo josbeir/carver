@@ -236,7 +236,7 @@ pub(super) fn move_picker_should_filter_and_move_notes(
         .and_downcast::<adw::ActionRow>()
         .ok_or("filtered move destination")?;
     assert!(destination_row.is_sensitive());
-    destination_row.emit_by_name::<()>("activated", &[]);
+    destination_row.emit_by_name::<()>("activate", &[]);
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()

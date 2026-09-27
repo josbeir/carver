@@ -1753,18 +1753,21 @@ fn connect_move_picker_new_category(
 }
 
 /// Builds one move-picker row. Category names are user data, not Pango markup.
-fn move_category_row(category_id: CategoryId, name: &str) -> adw::ActionRow {
+fn move_category_row(category_id: CategoryId, name: &str, activatable: bool) -> adw::ActionRow {
     let row = adw::ActionRow::new();
     row.set_widget_name(&format!("move-note-category:{category_id}"));
     row.set_use_markup(false);
     row.set_title(name);
     row.add_prefix(&gtk::Image::from_icon_name("folder-symbolic"));
+    // `GtkListBox` only emits `row-activated` (and thus `AdwActionRow::activated`)
+    // for rows it considers activatable; `AdwActionRow` defaults to inactive.
+    row.set_activatable(activatable);
     row
 }
 
 #[cfg(test)]
 pub(crate) fn move_category_row_for_test(name: &str) -> adw::ActionRow {
-    move_category_row(CategoryId::new(), name)
+    move_category_row(CategoryId::new(), name, true)
 }
 
 fn populate_move_categories(
@@ -1787,8 +1790,9 @@ fn populate_move_categories(
             continue;
         }
         matching_categories += 1;
-        let row = move_category_row(category.id, &category.name);
-        if category.id == source_category_id {
+        let is_current = category.id == source_category_id;
+        let row = move_category_row(category.id, &category.name, !is_current);
+        if is_current {
             let current = gtk::Label::new(Some(&gettext("Current")));
             current.add_css_class("dim-label");
             row.add_suffix(&current);
