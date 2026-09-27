@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 16:13+0200\n"
+"POT-Creation-Date: 2026-09-27 16:20+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -356,12 +356,12 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:361
-#: apps/carver-gtk/src/ui/property.rs:125
+#: apps/carver-gtk/src/ui/property.rs:132
 msgid "Clear"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/editing.rs:369
-#: apps/carver-gtk/src/ui/property.rs:130
+#: apps/carver-gtk/src/ui/property.rs:137
 msgid "Done"
 msgstr ""
 

@@ -4,7 +4,7 @@
 //! the same [`PropertyType`] values and edit dates the same way, so the translation and the date
 //! picker live here rather than in each surface.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::Cell, cell::RefCell, rc::Rc};
 
 use carver_domain::{FrontmatterValue, PropertyType, parse_iso_date, parse_iso_date_time};
 use carver_sdk::PropertyPath;
@@ -83,11 +83,18 @@ pub(crate) struct DatePicker {
     field_type: PropertyType,
     state: Rc<RefCell<Option<String>>>,
     on_changed: ChangeCallback,
+    /// Set while programmatically reseeding, so widget signals do not write back mid-apply.
+    applying: Rc<Cell<bool>>,
     date_only: bool,
 }
 
 impl DatePicker {
     /// Builds a picker for `field_type`, seeded from an existing frontmatter value.
+    // CONTEXT: The calendar, time spins, Clear/Done actions, and their wiring compose one widget.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the picker builds its whole popover and signals in one place"
+    )]
     pub(crate) fn new(field_type: PropertyType, value: &FrontmatterValue, name: &str) -> Self {
         let date_only = field_type == PropertyType::Date;
         let button = gtk::MenuButton::new();
@@ -141,6 +148,7 @@ impl DatePicker {
 
         let state = Rc::new(RefCell::new(picker_value(field_type, value)));
         let on_changed: ChangeCallback = Rc::new(RefCell::new(None));
+        let applying = Rc::new(Cell::new(false));
         apply_picker_state(field_type, &state, &calendar, &hours, &minutes);
 
         let update: Rc<dyn Fn()> = {
@@ -149,7 +157,11 @@ impl DatePicker {
             let minutes = minutes.clone();
             let state = Rc::clone(&state);
             let on_changed = Rc::clone(&on_changed);
+            let applying = Rc::clone(&applying);
             Rc::new(move || {
+                if applying.get() {
+                    return;
+                }
                 *state.borrow_mut() = read_picker(field_type, &calendar, &hours, &minutes);
                 if let Some(callback) = on_changed.borrow().as_ref() {
                     callback();
@@ -190,6 +202,7 @@ impl DatePicker {
             field_type,
             state,
             on_changed,
+            applying,
             date_only,
         }
     }
@@ -213,6 +226,7 @@ impl DatePicker {
     ///
     /// Used by a grid cell that opens the picker for a different row each time.
     pub(crate) fn set_frontmatter(&self, value: &FrontmatterValue) {
+        self.applying.set(true);
         *self.state.borrow_mut() = picker_value(self.field_type, value);
         apply_picker_state(
             self.field_type,
@@ -221,6 +235,7 @@ impl DatePicker {
             &self.hours,
             &self.minutes,
         );
+        self.applying.set(false);
     }
 
     /// Returns the current ISO 8601 value, or `None` when cleared.
@@ -269,8 +284,10 @@ fn apply_picker_state(
     hours: &gtk::SpinButton,
     minutes: &gtk::SpinButton,
 ) {
-    let borrow = state.borrow();
-    let Some(iso) = borrow.as_deref() else {
+    // Clone and drop the borrow before mutating widgets: setting the calendar emits
+    // `day-selected`, whose handler writes back to the same state.
+    let iso = state.borrow().clone();
+    let Some(iso) = iso.as_deref() else {
         return;
     };
     if field_type == PropertyType::Date {

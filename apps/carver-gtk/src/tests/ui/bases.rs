@@ -1584,8 +1584,13 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
             .text()
             .is_empty()
     );
-    assert!(find_widget(&display, "cell-date-picker").is_some());
-    assert!(find_widget(&display, "cell-date-popover").is_some());
+    // Opening the picker reseeds it from the row, which must not re-enter while applying.
+    let picker = find_widget(&display, "cell-date-picker").ok_or("date picker")?;
+    let picker = picker
+        .downcast::<gtk::MenuButton>()
+        .map_err(|_| "picker button")?;
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
     window.close();
     Ok(())
 }
