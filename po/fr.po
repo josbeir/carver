@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 13:32+0200\n"
+"POT-Creation-Date: 2026-09-27 14:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -140,8 +140,8 @@ msgstr "Seule cette base sera supprimée. Vos notes et leurs propriétés ne ser
 #: apps/carver-gtk/src/ui/editor/mod.rs:1657
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 #: apps/carver-gtk/src/ui/editor/web.rs:532
-#: apps/carver-gtk/src/ui/formatting.rs:104
-#: apps/carver-gtk/src/ui/formatting.rs:447 apps/carver-gtk/src/ui/trash.rs:88
+#: apps/carver-gtk/src/ui/formatting.rs:107
+#: apps/carver-gtk/src/ui/formatting.rs:450 apps/carver-gtk/src/ui/trash.rs:88
 #: apps/carver-gtk/src/view/mod.rs:577
 msgid "Cancel"
 msgstr "Annuler"
@@ -378,7 +378,7 @@ msgstr "Champ personnalisé"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:579
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:102
-#: apps/carver-gtk/src/ui/formatting.rs:437
+#: apps/carver-gtk/src/ui/formatting.rs:440
 msgid "Text"
 msgstr "Texte"
 
@@ -1113,7 +1113,7 @@ msgid "Add files…"
 msgstr "Ajouter des fichiers…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs:47
-#: apps/carver-gtk/src/ui/formatting.rs:175
+#: apps/carver-gtk/src/ui/formatting.rs:178
 msgid "Add files"
 msgstr "Ajouter des fichiers"
 
@@ -1511,7 +1511,7 @@ msgid "Could not read pasted image"
 msgstr "Impossible de lire l'image collée"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:430
+#: apps/carver-gtk/src/ui/formatting.rs:433
 msgid "Link text"
 msgstr "Texte du lien"
 
@@ -1521,58 +1521,58 @@ msgid "Text"
 msgstr "Texte"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:439
+#: apps/carver-gtk/src/ui/formatting.rs:442
 msgid "Address"
 msgstr "Adresse"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:442
+#: apps/carver-gtk/src/ui/formatting.rs:445
 msgid "Insert Link"
 msgstr "Insérer un lien"
 
 #: apps/carver-gtk/src/ui/editor/web.rs:533
-#: apps/carver-gtk/src/ui/formatting.rs:105
-#: apps/carver-gtk/src/ui/formatting.rs:448
+#: apps/carver-gtk/src/ui/formatting.rs:108
+#: apps/carver-gtk/src/ui/formatting.rs:451
 msgid "Insert"
 msgstr "Insérer"
 
-#: apps/carver-gtk/src/ui/formatting.rs:46
+#: apps/carver-gtk/src/ui/formatting.rs:49
 msgid "Insert Image"
 msgstr "Insérer une image"
 
-#: apps/carver-gtk/src/ui/formatting.rs:94
+#: apps/carver-gtk/src/ui/formatting.rs:97
 msgid "Description (optional)"
 msgstr "Description (facultatif)"
 
-#: apps/carver-gtk/src/ui/formatting.rs:96
+#: apps/carver-gtk/src/ui/formatting.rs:99
 msgid "Image description"
 msgstr "Description de l'image"
 
-#: apps/carver-gtk/src/ui/formatting.rs:98
+#: apps/carver-gtk/src/ui/formatting.rs:101
 msgid "Used as alternative text when the image cannot be displayed."
 msgstr "Utilisée comme texte alternatif lorsque l'image ne peut pas être affichée."
 
-#: apps/carver-gtk/src/ui/formatting.rs:117
+#: apps/carver-gtk/src/ui/formatting.rs:120
 msgid "Unsupported image format"
 msgstr "Format d'image non pris en charge"
 
-#: apps/carver-gtk/src/ui/formatting.rs:281
-#: apps/carver-gtk/src/ui/formatting.rs:346
-#: apps/carver-gtk/src/ui/formatting.rs:372
+#: apps/carver-gtk/src/ui/formatting.rs:284
+#: apps/carver-gtk/src/ui/formatting.rs:349
+#: apps/carver-gtk/src/ui/formatting.rs:375
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
 
-#: apps/carver-gtk/src/ui/formatting.rs:315
+#: apps/carver-gtk/src/ui/formatting.rs:318
 #, rust-format
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} lignes × {columns} colonnes"
 
-#: apps/carver-gtk/src/ui/formatting.rs:335
+#: apps/carver-gtk/src/ui/formatting.rs:338
 msgid "Insert table"
 msgstr "Insérer un tableau"
 
-#: apps/carver-gtk/src/ui/formatting.rs:357
+#: apps/carver-gtk/src/ui/formatting.rs:360
 msgid "Header row"
 msgstr "Ligne d’en-tête"
 

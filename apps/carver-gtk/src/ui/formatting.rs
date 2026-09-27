@@ -11,8 +11,11 @@ use libadwaita as adw;
 use super::editor::{focus::EditorFocusRestorer, source_commands};
 use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarget, SourceCommand};
 
-/// Shared indexed cells making up the table-size hover grid.
-type TablePickerCells = Rc<RefCell<Vec<(u8, u8, gtk::Button)>>>;
+/// Indexed cells making up the table-size hover grid.
+///
+/// The list is built once and never mutated afterwards, so it needs no interior
+/// mutability: reading it never holds a `RefCell` borrow across GTK calls.
+type TablePickerCells = Rc<Vec<(u8, u8, gtk::Button)>>;
 
 /// Largest table the picker grid can express. Larger live tables stay read-only.
 const TABLE_PICKER_ROWS: u8 = 4;
@@ -266,7 +269,7 @@ impl TablePicker {
 fn render_table_picker(
     dimensions: &gtk::Label,
     header_row: &gtk::Switch,
-    cells: &TablePickerCells,
+    cells: &[(u8, u8, gtk::Button)],
     table: Option<TableSelection>,
 ) {
     let (rows, columns, header) = table.map_or((1, 1, true), |table| {
@@ -284,7 +287,7 @@ fn render_table_picker(
     ));
     header_row.set_active(header);
     header_row.set_sensitive(!oversized);
-    for (cell_row, cell_column, cell) in cells.borrow().iter() {
+    for (cell_row, cell_column, cell) in cells {
         let selected = u32::from(*cell_row) <= rows && u32::from(*cell_column) <= columns;
         if selected {
             cell.add_css_class("selected");
@@ -305,7 +308,7 @@ fn build_table_size_grid() -> (gtk::Grid, TablePickerCells) {
     grid.set_column_homogeneous(true);
     grid.set_row_spacing(4);
     grid.set_column_spacing(4);
-    let cells = Rc::new(RefCell::new(Vec::new()));
+    let mut cells = Vec::new();
     for row in 1_u8..=TABLE_PICKER_ROWS {
         for column in 1_u8..=TABLE_PICKER_COLUMNS {
             let cell = gtk::Button::new();
@@ -317,10 +320,10 @@ fn build_table_size_grid() -> (gtk::Grid, TablePickerCells) {
                 columns = column
             )));
             grid.attach(&cell, i32::from(column - 1), i32::from(row - 1), 1, 1);
-            cells.borrow_mut().push((row, column, cell));
+            cells.push((row, column, cell));
         }
     }
-    (grid, cells)
+    (grid, Rc::new(cells))
 }
 
 /// Appends the shared hoverable table-size picker used by both editing modes.
@@ -361,7 +364,7 @@ pub(crate) fn append_table_picker(
     let popover = gtk::Popover::new();
     popover.set_child(Some(&content));
     let on_insert: Rc<dyn Fn(u8, u8, bool)> = Rc::new(on_insert);
-    for (row, column, cell) in cells.borrow().iter() {
+    for (row, column, cell) in cells.iter() {
         let dimensions = dimensions.clone();
         let cells_for_motion = Rc::clone(&cells);
         let motion = gtk::EventControllerMotion::new();
@@ -373,7 +376,7 @@ pub(crate) fn append_table_picker(
                 rows = row,
                 columns = column
             ));
-            for (cell_row, cell_column, cell) in cells_for_motion.borrow().iter() {
+            for (cell_row, cell_column, cell) in cells_for_motion.iter() {
                 if *cell_row <= row && *cell_column <= column {
                     cell.add_css_class("selected");
                 } else {

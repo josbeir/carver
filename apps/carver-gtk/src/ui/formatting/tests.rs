@@ -103,7 +103,6 @@ pub(crate) fn image_description_should_import_only_after_confirmation() -> TestR
 fn picker_cell(picker: &TablePicker, row: u8, column: u8) -> Option<gtk::Button> {
     picker
         .cells
-        .borrow()
         .iter()
         .find(|(cell_row, cell_column, _)| *cell_row == row && *cell_column == column)
         .map(|(_, _, cell)| cell.clone())
@@ -141,7 +140,7 @@ pub(crate) fn table_picker_should_reflect_live_table_and_reset() {
 
     // Simulate a hover left behind after the popover closed; closing must
     // restore the live table instead of presenting the stale highlight.
-    for (_, _, cell) in picker.cells.borrow().iter() {
+    for (_, _, cell) in picker.cells.iter() {
         cell.remove_css_class("selected");
     }
     assert!(!cell_is_selected(&picker, 3, 4));
