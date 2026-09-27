@@ -38,7 +38,7 @@ const appImageSteps = [
   <div class="mx-auto max-w-6xl px-4">
     <div class="max-w-3xl">
       <p class="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">Install</p>
-      <h2 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+      <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
         Install Carver {version}
       </h2>
       <p class="mt-5 text-base/7 text-base-content/75">
@@ -56,17 +56,17 @@ const appImageSteps = [
       <div class="card border border-base-300/70 bg-base-100">
         <div class="card-body gap-4">
           <div class="flex items-center gap-3">
-            <h3 class="card-title text-lg">Flatpak</h3>
+            <h3 class="card-title text-xl">Flatpak</h3>
             <span class="badge badge-primary badge-sm">Recommended</span>
           </div>
-          <p class="text-sm/6 text-base-content/70">
+          <p class="text-base/7 text-base-content/70">
             Carver needs the GNOME runtime. If Flatpak asks to add Flathub, accept the prompt, or
             run the first command once.
           </p>
           {flatpakSteps.map((step) => (
             <CodeBlock label={step.label} code={step.code} />
           ))}
-          <p class="text-xs text-base-content/55">
+          <p class="text-sm/6 text-base-content/55">
             GitHub release bundles do not update automatically yet. To update, download the bundle
             from a newer release and run the same install command.
           </p>
@@ -76,18 +76,18 @@ const appImageSteps = [
       <div class="card border border-base-300/70 bg-base-100">
         <div class="card-body gap-4">
           <div class="flex items-center gap-3">
-            <h3 class="card-title text-lg">AppImage</h3>
+            <h3 class="card-title text-xl">AppImage</h3>
             <span class="badge badge-warning badge-sm badge-outline">Experimental</span>
           </div>
-          <p class="text-sm/6 text-base-content/70">
+          <p class="text-base/7 text-base-content/70">
             Targets Ubuntu 26.04 or a compatible newer system with
-            <code class="font-mono text-xs">glycin-loaders</code> and Bubblewrap installed. Use
+            <code class="font-mono text-sm">glycin-loaders</code> and Bubblewrap installed. Use
             Flatpak on older distributions.
           </p>
           {appImageSteps.map((step) => (
             <CodeBlock label={step.label} code={step.code} />
           ))}
-          <p class="text-xs text-base-content/55">
+          <p class="text-sm/6 text-base-content/55">
             Extraction works without FUSE; if FUSE is available the image can also be launched
             directly. AppImages use the native XDG data directories, separate from the Flatpak
             library.

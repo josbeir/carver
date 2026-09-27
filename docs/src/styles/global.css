@@ -94,9 +94,9 @@
 @custom-variant dark (&:where([data-theme="carver-dark"], [data-theme="carver-dark"] *));
 
 @theme {
-  --font-sans:
-    'Inter Variable', 'Adwaita Sans', Cantarell, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono Variable', 'Adwaita Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-sans: 'Inter', 'Adwaita Sans', Cantarell, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Adwaita Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-hand: 'Caveat', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
 }
 
 @layer components {
@@ -112,6 +112,8 @@
 
 @layer base {
   html {
+    /* Larger root size scales the whole rem-based type and spacing scale. */
+    font-size: 18px;
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
   }

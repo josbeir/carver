@@ -54,7 +54,9 @@ const widths = [640, 960, 1280, 1600];
       class="block h-auto w-full"
     />
   </span>
-  <figcaption class="border-t border-base-300/60 px-4 py-3 text-sm text-base-content/70">
-    {shot.caption}
-  </figcaption>
+  {shot.caption && (
+    <figcaption class="border-t border-base-300/60 px-4 py-3 text-base text-base-content/70">
+      {shot.caption}
+    </figcaption>
+  )}
 </figure>

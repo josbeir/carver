@@ -35,6 +35,7 @@ docs/
     assets/screenshots/    application screenshots, one light/dark pair per view
     assets/agent-icons/    agent client logos, normalized to currentColor
     components/            page sections and shared widgets
+    data/features.ts       the feature areas shown in the interactive section
     data/screenshots.ts    single source of truth for screenshots
     data/version.ts        Carver version, read from the workspace Cargo.toml
     layouts/BaseLayout.astro

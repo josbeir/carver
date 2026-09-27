@@ -12,8 +12,8 @@ const { code, label, class: className = '' } = Astro.props;
 
 <div class={`overflow-hidden rounded-xl border border-base-300/70 bg-base-200/50 ${className}`}>
   <div class="flex items-center justify-between gap-2 border-b border-base-300/50 px-3 py-1">
-    <span class="text-xs font-medium text-base-content/60">{label}</span>
+    <span class="text-sm font-medium text-base-content/60">{label}</span>
     <CopyButton value={code} />
   </div>
-  <pre class="overflow-x-auto px-4 py-3 font-mono text-xs/6 text-base-content/90"><code>{code}</code></pre>
+  <pre class="overflow-x-auto px-4 py-3 font-mono text-sm/7 text-base-content/90"><code>{code}</code></pre>
 </div>
