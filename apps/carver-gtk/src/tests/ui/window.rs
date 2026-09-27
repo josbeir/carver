@@ -19,6 +19,39 @@ pub(crate) struct WindowFixture {
 
 /// Builds the shared application window, dialogs, and seed library for one display run.
 pub(crate) fn window_fixture() -> Result<WindowFixture, Box<dyn std::error::Error>> {
+    window_fixture_for("io.github.josbeir.Carver.Tests")
+}
+
+/// Like [`window_fixture`], but with a caller-chosen application id.
+///
+/// The docs screenshot capture runs as its own process/test and uses a distinct
+/// id so both entry points can coexist without colliding on registration.
+pub(crate) fn window_fixture_for(
+    application_id: &str,
+) -> Result<WindowFixture, Box<dyn std::error::Error>> {
+    window_fixture_seeded(
+        application_id,
+        |_, _| Ok(()),
+        // Deterministic document font for the display-backed assertions.
+        |config| config.editor.document_font = Some("DejaVu Serif Italic 15".to_owned()),
+    )
+}
+
+/// Builds the fixture, running `seed` on the test library before the window is
+/// created so the initial load already reflects the seeded content, and letting
+/// the caller adjust the configuration first.
+pub(crate) fn window_fixture_seeded<S, C>(
+    application_id: &str,
+    seed: S,
+    configure: C,
+) -> Result<WindowFixture, Box<dyn std::error::Error>>
+where
+    S: FnOnce(
+        &super::super::support::TestLibraryClient,
+        carver_sdk::CategoryId,
+    ) -> Result<(), Box<dyn std::error::Error>>,
+    C: FnOnce(&mut Config),
+{
     let (temporary_directory, client) = test_state()?;
     let category = client.create_category_with_appearance(
         "Notes",
@@ -37,10 +70,9 @@ pub(crate) fn window_fixture() -> Result<WindowFixture, Box<dyn std::error::Erro
             carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/status".to_owned())),
         ],
     ))?;
-    let application = adw::Application::new(
-        Some("io.github.josbeir.Carver.Tests"),
-        gtk::gio::ApplicationFlags::empty(),
-    );
+    seed(&client, category.id)?;
+    let application =
+        adw::Application::new(Some(application_id), gtk::gio::ApplicationFlags::empty());
     application.register(None::<&gtk::gio::Cancellable>)?;
     let config_path = temporary_directory.path().join("config.toml");
     let mut config = Config::default();
@@ -48,7 +80,7 @@ pub(crate) fn window_fixture() -> Result<WindowFixture, Box<dyn std::error::Erro
     config.editor.source_line_numbers = true;
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
-    config.editor.document_font = Some("DejaVu Serif Italic 15".to_owned());
+    configure(&mut config);
     let window =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
     let preferences_dispatcher = crate::mvu::AppDispatcher::default();

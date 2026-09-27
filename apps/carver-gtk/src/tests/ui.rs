@@ -18,6 +18,7 @@ mod printing;
 mod properties;
 mod rendering;
 mod rich_mode;
+mod screenshots;
 mod shell;
 mod source_mode;
 mod trash;

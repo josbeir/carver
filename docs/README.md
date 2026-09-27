@@ -62,21 +62,23 @@ the dark application screenshot in dark mode using CSS only.
 
 ## Screenshots
 
-Each captured application view is a light/dark **pair**. A view only renders
-once both files exist, so the page never shows an empty slot.
+The screenshots in `src/assets/screenshots/` are generated, not hand-captured:
 
-1. Capture the view in Carver's light and dark themes.
-2. Save both as `src/assets/screenshots/<name>-light.png` and
-   `<name>-dark.png`.
-3. Add an entry to `shots` in `src/data/screenshots.ts` with `alt`, `caption`,
-   and the two imports.
+```sh
+./scripts/capture-screenshots.sh
+```
 
-Capture checklist:
+The script runs the opt-in `capture_docs_screenshots` GTK test under the same
+headless Weston harness as the display-backed test suite. It seeds a neutral
+sample library, opens each view, and writes 2x light/dark PNG pairs (the
+embedded editor and preview follow the theme as well). Review the images and
+commit them.
 
-- Use one fixed window size for both themes so the swap does not shift layout.
-- Capture at 2x (HiDPI); Astro downsamples and emits AVIF/WebP.
-- Use the same neutral, non-personal sample library in every shot.
-- Export as PNG; do not pre-resize.
+The scenes live in `apps/carver-gtk/src/tests/ui/screenshots.rs`; add or adjust a
+scene there instead of capturing by hand. `src/data/screenshots.ts` is the single
+source of truth for which views the page shows, including `alt` text and the
+optional `narrow` flag that keeps tall dialog captures from dominating a panel.
+A view only renders once both theme variants exist.
 
 ## Deployment
 
