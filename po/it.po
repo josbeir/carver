@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 17:39+0200\n"
+"POT-Creation-Date: 2026-09-27 17:43+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -66,7 +66,7 @@ msgid "Base"
 msgstr "Base"
 
 #: apps/carver-gtk/src/ui/add.rs:168
-#: apps/carver-gtk/src/ui/bases/actions.rs:960
+#: apps/carver-gtk/src/ui/bases/actions.rs:963
 msgid "Create"
 msgstr "Crea"
 
@@ -264,85 +264,85 @@ msgstr "Sposta campo giù"
 msgid "Remove field"
 msgstr "Rimuovi campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:734
 #: apps/carver-gtk/src/ui/bases/actions.rs:737
+#: apps/carver-gtk/src/ui/bases/actions.rs:740
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1150
 msgid "Name"
 msgstr "Nome"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:746
+#: apps/carver-gtk/src/ui/bases/actions.rs:749
 msgid "Visible fields"
 msgstr "Campi visibili"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:748
+#: apps/carver-gtk/src/ui/bases/actions.rs:751
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Scegli le colonne mostrate in questa base. Il nome è sempre incluso."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:757
+#: apps/carver-gtk/src/ui/bases/actions.rs:760
 msgid "Add field"
 msgstr "Aggiungi campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:808
+#: apps/carver-gtk/src/ui/bases/actions.rs:811
 msgid "Filters"
 msgstr "Filtri"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:810
+#: apps/carver-gtk/src/ui/bases/actions.rs:813
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "Usa le frecce per impostare la priorità delle regole, o rimuovi una regola che non ti serve più."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:815
+#: apps/carver-gtk/src/ui/bases/actions.rs:818
 #, fuzzy
 msgid "Matching"
 msgstr "Ricerca in corso…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:818
+#: apps/carver-gtk/src/ui/bases/actions.rs:821
 msgid "Match all filters"
 msgstr "Corrispondi a tutti i filtri"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:819
+#: apps/carver-gtk/src/ui/bases/actions.rs:822
 msgid "Match any filter"
 msgstr "Corrispondi a qualsiasi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:832
+#: apps/carver-gtk/src/ui/bases/actions.rs:835
 msgid "Sort"
 msgstr "Ordina"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:833
+#: apps/carver-gtk/src/ui/bases/actions.rs:836
 msgid "Sort rules are applied from top to bottom."
 msgstr "Le regole di ordinamento vengono applicate dall'alto verso il basso."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:870
-#: apps/carver-gtk/src/ui/bases/actions.rs:898
+#: apps/carver-gtk/src/ui/bases/actions.rs:873
+#: apps/carver-gtk/src/ui/bases/actions.rs:901
 msgid "filter"
 msgstr "filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:881
+#: apps/carver-gtk/src/ui/bases/actions.rs:884
 msgid "Add filter"
 msgstr "Aggiungi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:920
-#: apps/carver-gtk/src/ui/bases/actions.rs:944
+#: apps/carver-gtk/src/ui/bases/actions.rs:923
+#: apps/carver-gtk/src/ui/bases/actions.rs:947
 msgid "sort rule"
 msgstr "regola di ordinamento"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:931
+#: apps/carver-gtk/src/ui/bases/actions.rs:934
 msgid "Add sort rule"
 msgstr "Aggiungi regola di ordinamento"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:962
+#: apps/carver-gtk/src/ui/bases/actions.rs:965
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:665
 msgid "Save"
 msgstr "Salva"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1028
+#: apps/carver-gtk/src/ui/bases/actions.rs:1031
 msgid "New Base"
 msgstr "Nuova base"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1030
+#: apps/carver-gtk/src/ui/bases/actions.rs:1033
 msgid "Configure Base"
 msgstr "Configura base"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1065
+#: apps/carver-gtk/src/ui/bases/actions.rs:1068
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
