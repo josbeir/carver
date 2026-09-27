@@ -14,7 +14,10 @@ use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 
-use self::editing::{CellEdit, CellEditor, build_boolean_cell, resolve_editor, show_cell_editor};
+use self::editing::{
+    CellEdit, CellEditor, build_boolean_cell, build_select_cell, options_with_current,
+    resolve_editor, show_cell_editor,
+};
 use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
 use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
@@ -367,6 +370,20 @@ fn append_column(
             )));
             return;
         }
+        // A single-select list is always visible too: the dropdown itself is the cell.
+        if let Some(CellEditor::List {
+            options,
+            multiple: false,
+        }) = &editor_for_setup
+        {
+            item.set_child(Some(&select_cell_for(
+                item,
+                &column_for_setup,
+                options,
+                &dispatcher_for_setup,
+            )));
+            return;
+        }
         let open: Rc<dyn Fn()> = {
             let weak_item = item.downgrade();
             let column = column_for_setup.clone();
@@ -381,13 +398,16 @@ fn append_column(
             header_column_id(&column_for_setup)
         ));
         cell.set_hexpand(true);
+        if editor_for_setup.is_some() {
+            cell.set_cursor_from_name(Some("pointer"));
+        }
         cell.append(&display);
-        // Property cells open the editor on double-click; the Name cell uses its edit button.
+        // Property cells open the editor on a single click; the Name cell uses its edit button.
         if editor_for_setup.is_some() && !matches!(column_for_setup, BaseColumn::Name) {
             let gesture = gtk::GestureClick::new();
             let open = Rc::clone(&open);
             gesture.connect_pressed(move |gesture, n_press, _, _| {
-                if n_press == 2 {
+                if n_press == 1 {
                     gesture.set_state(gtk::EventSequenceState::Claimed);
                     open();
                 }
@@ -405,21 +425,7 @@ fn append_column(
             return;
         };
         let row = object.borrow::<BaseRow>();
-        if matches!(editor_for_bind, Some(CellEditor::Boolean)) {
-            if let Some(switch) = item.child().and_downcast::<gtk::Switch>() {
-                switch.set_active(boolean_cell_value(&row, &column_for_bind));
-            }
-            return;
-        }
-        let Some(child) = item.child() else {
-            return;
-        };
-        if let Some(label) = find_value_label(&child) {
-            label.set_text(&row_value(&row, &column_for_bind));
-        }
-        if let Some(button) = find_open_note_button(&child) {
-            button.set_widget_name(&format!("base-note:{}", row.note_id));
-        }
+        bind_cell(item, &row, &column_for_bind, editor_for_bind.as_ref());
     });
     let is_name = matches!(column, BaseColumn::Name);
     let column_view = gtk::ColumnViewColumn::new(Some(title), Some(factory));
@@ -428,6 +434,40 @@ fn append_column(
     column_view.set_resizable(true);
     column_view.set_expand(is_name);
     grid.append_column(&column_view);
+}
+
+/// Projects one row into an already-created cell.
+fn bind_cell(
+    item: &gtk::ListItem,
+    row: &BaseRow,
+    column: &BaseColumn,
+    editor: Option<&CellEditor>,
+) {
+    if matches!(editor, Some(CellEditor::Boolean)) {
+        if let Some(switch) = item.child().and_downcast::<gtk::Switch>() {
+            switch.set_active(boolean_cell_value(row, column));
+        }
+        return;
+    }
+    if let Some(CellEditor::List {
+        options,
+        multiple: false,
+    }) = editor
+    {
+        if let Some(dropdown) = item.child().and_downcast::<gtk::DropDown>() {
+            bind_select_cell(&dropdown, row, column, options);
+        }
+        return;
+    }
+    let Some(child) = item.child() else {
+        return;
+    };
+    if let Some(label) = find_value_label(&child) {
+        label.set_text(&row_value(row, column));
+    }
+    if let Some(button) = find_open_note_button(&child) {
+        button.set_widget_name(&format!("base-note:{}", row.note_id));
+    }
 }
 
 /// Builds an always-visible boolean cell that saves a toggle immediately.
@@ -459,6 +499,68 @@ fn boolean_cell_for(
         glib::Propagation::Proceed
     });
     switch
+}
+
+/// Builds an always-visible single-select dropdown that saves a change immediately.
+fn select_cell_for(
+    item: &gtk::ListItem,
+    column: &BaseColumn,
+    options: &[String],
+    dispatcher: &AppDispatcher,
+) -> gtk::DropDown {
+    let dropdown = build_select_cell(&FrontmatterValue::Null, options, "cell-select");
+    let weak_item = item.downgrade();
+    let column = column.clone();
+    let options = options.to_vec();
+    let dispatcher = dispatcher.clone();
+    dropdown.connect_selected_notify(move |dropdown| {
+        let Some(item) = weak_item.upgrade() else {
+            return;
+        };
+        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+            return;
+        };
+        let row = object.borrow::<BaseRow>();
+        let current = cell_seed(&row, &column);
+        // Include an authored value outside the configured options so it is not misrepresented.
+        let effective = options_with_current(&options, &current);
+        let Some(option) = effective.get(dropdown.selected() as usize) else {
+            return;
+        };
+        if Some(option) != current_text(&current).as_ref() {
+            let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
+                note_id: row.note_id,
+                path: column_edit_path(&column),
+                revision: row.revision,
+                value: Some(serde_json::Value::String(option.clone())),
+            }));
+        }
+    });
+    dropdown
+}
+
+/// Seeds a single-select dropdown from the row, extending its options with an authored value.
+fn bind_select_cell(
+    dropdown: &gtk::DropDown,
+    row: &BaseRow,
+    column: &BaseColumn,
+    options: &[String],
+) {
+    let current = cell_seed(row, column);
+    let effective = options_with_current(options, &current);
+    let labels: Vec<&str> = effective.iter().map(String::as_str).collect();
+    dropdown.set_model(Some(&gtk::StringList::new(&labels)));
+    let selected = current_text(&current)
+        .and_then(|text| effective.iter().position(|option| option == &text))
+        .unwrap_or(0);
+    dropdown.set_selected(u32::try_from(selected).unwrap_or(0));
+}
+
+fn current_text(value: &FrontmatterValue) -> Option<String> {
+    match value {
+        FrontmatterValue::Text(text) => Some(text.clone()),
+        _ => None,
+    }
 }
 
 /// Builds the read-only presentation for a cell, including the Name open/edit controls.

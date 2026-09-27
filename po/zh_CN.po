@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 15:39+0200\n"
+"POT-Creation-Date: 2026-09-27 15:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -70,67 +70,67 @@ msgstr "视图库"
 msgid "Create"
 msgstr "创建"
 
-#: apps/carver-gtk/src/ui/bases.rs:73
+#: apps/carver-gtk/src/ui/bases.rs:76
 msgid "Search this Base"
 msgstr "搜索此视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:74
+#: apps/carver-gtk/src/ui/bases.rs:77
 msgid "Search this Base (Ctrl+F)"
 msgstr "搜索此视图库 (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases.rs:77
+#: apps/carver-gtk/src/ui/bases.rs:80
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:83
+#: apps/carver-gtk/src/ui/bases.rs:86
 #: apps/carver-gtk/src/ui/bases/actions.rs:53
 msgid "Delete Base"
 msgstr "删除视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:86
+#: apps/carver-gtk/src/ui/bases.rs:89
 msgid "Configure"
 msgstr "配置"
 
-#: apps/carver-gtk/src/ui/bases.rs:115 apps/carver-gtk/src/ui/browser.rs:492
+#: apps/carver-gtk/src/ui/bases.rs:118 apps/carver-gtk/src/ui/browser.rs:492
 msgid "No matching notes"
 msgstr "没有匹配的笔记"
 
-#: apps/carver-gtk/src/ui/bases.rs:116
+#: apps/carver-gtk/src/ui/bases.rs:119
 msgid "Notes that match this Base will appear here."
 msgstr "匹配此视图库的笔记将显示在此处。"
 
-#: apps/carver-gtk/src/ui/bases.rs:119 apps/carver-gtk/src/view/mod.rs:349
+#: apps/carver-gtk/src/ui/bases.rs:122 apps/carver-gtk/src/view/mod.rs:349
 msgid "Load more rows"
 msgstr "加载更多行"
 
-#: apps/carver-gtk/src/ui/bases.rs:264
+#: apps/carver-gtk/src/ui/bases.rs:267
 #: apps/carver-gtk/src/ui/bases/actions.rs:734
 #: apps/carver-gtk/src/ui/bases/actions.rs:737
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:610
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1113
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1109
 msgid "Name"
 msgstr "名称"
 
-#: apps/carver-gtk/src/ui/bases.rs:272 apps/carver-gtk/src/ui/bases.rs:557
+#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:659
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:611
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:275 apps/carver-gtk/src/ui/bases.rs:558
+#: apps/carver-gtk/src/ui/bases.rs:278 apps/carver-gtk/src/ui/bases.rs:660
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:612
 msgid "Updated"
 msgstr "已更新"
 
-#: apps/carver-gtk/src/ui/bases.rs:302
+#: apps/carver-gtk/src/ui/bases.rs:305
 msgid "Edit document properties"
 msgstr "编辑文档属性"
 
-#: apps/carver-gtk/src/ui/bases.rs:499
+#: apps/carver-gtk/src/ui/bases.rs:601
 msgid "Edit title"
 msgstr "编辑标题"
 
-#: apps/carver-gtk/src/ui/bases.rs:555
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1438
+#: apps/carver-gtk/src/ui/bases.rs:657
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1434
 msgid "Title"
 msgstr "标题"
 
@@ -144,7 +144,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:330
+#: apps/carver-gtk/src/ui/bases/editing.rs:373
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:468
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
@@ -235,7 +235,7 @@ msgid "Field"
 msgstr "字段"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:440
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1145
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1141
 msgid "Value"
 msgstr "值"
 
@@ -346,12 +346,12 @@ msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "当前匹配 {count} 条笔记"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:325
+#: apps/carver-gtk/src/ui/bases/editing.rs:368
 #: apps/carver-gtk/src/ui/property.rs:120
 msgid "Clear"
 msgstr "清除"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:333
+#: apps/carver-gtk/src/ui/bases/editing.rs:376
 #: apps/carver-gtk/src/ui/property.rs:125
 msgid "Done"
 msgstr "完成"
@@ -1323,7 +1323,7 @@ msgstr "仍要导出"
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:128
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:130
 msgid "Not set"
 msgstr "未设置"
 
@@ -1356,36 +1356,36 @@ msgstr "添加属性"
 msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
 msgstr "这些属性会出现在每个文档属性对话框中，并在启用时为新建笔记填充默认值。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1119
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1115
 msgid "Type"
 msgstr "类型"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1127
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1123
 msgid "New notes use today's date"
 msgstr "新建笔记使用今天的日期"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1129
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1125
 msgid "New notes use the current date and time"
 msgstr "新建笔记使用当前日期和时间"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1138
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1134
 msgid "Options"
 msgstr "选项"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1155
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1151
 msgid "Comma-separated values offered as a dropdown."
 msgstr "以逗号分隔并作为下拉列表提供的值。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1166
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1162
 msgid "Allow multiple values"
 msgstr "允许多个值"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1191
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1187
 msgid "New property"
 msgstr "新属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1255
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1257
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1251
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1253
 msgid "Remove property"
 msgstr "移除属性"
 

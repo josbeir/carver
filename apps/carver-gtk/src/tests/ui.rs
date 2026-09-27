@@ -121,7 +121,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_field_picker_should_add_a_valid_custom_path()?;
     bases::base_rule_controls_should_edit_rules_and_fields()?;
     bases::base_cell_editors_should_commit_typed_values()?;
-    bases::double_clicking_a_cell_should_reveal_the_editor()?;
+    bases::clicking_a_cell_should_reveal_the_editor()?;
     bases::base_grid_edits_should_persist_to_the_note()?;
     bases::base_grid_should_clear_the_title_override()?;
     bases::base_grid_should_toggle_a_boolean_property()?;

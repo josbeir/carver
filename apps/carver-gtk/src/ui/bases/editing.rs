@@ -6,7 +6,7 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use carver_config::DocumentProperty;
+use carver_config::{DocumentProperty, ResolvedProperty, resolve_property};
 use carver_domain::{FrontmatterValue, PropertyKind, PropertyType, is_reserved_key};
 use carver_sdk::{BaseColumn, NoteId, PropertyDescriptor, Revision};
 use gettextrs::gettext;
@@ -39,6 +39,8 @@ pub(crate) enum CellEditor {
         /// Whether more than one option may be selected.
         multiple: bool,
     },
+    /// A list without configured options, edited as comma-separated text.
+    ListText,
     /// A calendar date.
     Date,
     /// A calendar date and time.
@@ -47,9 +49,11 @@ pub(crate) enum CellEditor {
 
 /// Resolves the editor for a column from observed descriptors and configured defaults.
 ///
-/// An observed descriptor wins over a configured default for the same path. A property with no
-/// metadata is treated as free text; a mixed value or a list with no configured options is
-/// read-only so the grid never flattens a value it cannot represent.
+/// A configured default is authoritative for its key, matching the properties dialog: its type
+/// decides the editor even when the observed value is a scalar (a single-select list is stored as
+/// text, so the descriptor alone would wrongly report `Text`). Only properties without a
+/// configured default fall back to the observed descriptor, and then to free text. A mixed value
+/// with no configured default stays read-only so the grid never flattens what it cannot represent.
 #[must_use]
 pub(crate) fn resolve_editor(
     column: &BaseColumn,
@@ -66,41 +70,31 @@ pub(crate) fn resolve_editor(
             let configured = defaults.iter().find(|property| {
                 !is_reserved_key(&property.key) && property_path(&property.key) == *path
             });
-            if let Some(descriptor) = descriptors
+            let descriptor = descriptors
                 .iter()
-                .find(|descriptor| descriptor.path == *path)
-            {
-                if descriptor.kind == PropertyKind::Mixed {
-                    return None;
-                }
-                return editor_for_type(descriptor.property_type, configured);
+                .find(|descriptor| descriptor.path == *path);
+            if configured.is_none() && descriptor.is_some_and(|d| d.kind == PropertyKind::Mixed) {
+                return None;
             }
-            if let Some(property) = configured {
-                return editor_for_type(property.field_type, Some(property));
-            }
-            Some(CellEditor::Text)
+            let observed = descriptor.map_or(PropertyType::Text, |d| d.property_type);
+            Some(editor_for_resolved(&resolve_property(configured, observed)))
         }
     }
 }
 
-fn editor_for_type(
-    field_type: PropertyType,
-    configured: Option<&DocumentProperty>,
-) -> Option<CellEditor> {
-    match field_type {
-        PropertyType::Text | PropertyType::LongText => Some(CellEditor::Text),
-        PropertyType::Number => Some(CellEditor::Number),
-        PropertyType::Boolean => Some(CellEditor::Boolean),
-        PropertyType::Date => Some(CellEditor::Date),
-        PropertyType::DateTime => Some(CellEditor::DateTime),
-        PropertyType::List => {
-            let configured = configured?;
-            let options = configured.options();
-            (!options.is_empty()).then_some(CellEditor::List {
-                options,
-                multiple: configured.multiple,
-            })
-        }
+/// Maps the shared resolved property shape onto the grid's editor.
+fn editor_for_resolved(resolved: &ResolvedProperty) -> CellEditor {
+    match resolved.field_type {
+        PropertyType::Text | PropertyType::LongText => CellEditor::Text,
+        PropertyType::Number => CellEditor::Number,
+        PropertyType::Boolean => CellEditor::Boolean,
+        PropertyType::Date => CellEditor::Date,
+        PropertyType::DateTime => CellEditor::DateTime,
+        PropertyType::List if resolved.options.is_empty() => CellEditor::ListText,
+        PropertyType::List => CellEditor::List {
+            options: resolved.options.clone(),
+            multiple: resolved.multiple,
+        },
     }
 }
 
@@ -112,6 +106,7 @@ pub(crate) fn seed_value(editor: &CellEditor, seed: &FrontmatterValue) -> CellVa
         CellEditor::Text => text_cell_value(seed),
         CellEditor::Number => number_cell_value(seed),
         CellEditor::List { options, multiple } => list_cell_value(seed, options, *multiple),
+        CellEditor::ListText => list_text_cell_value(seed),
         CellEditor::Date => picker_value(PropertyType::Date, seed).map(serde_json::Value::String),
         CellEditor::DateTime => {
             picker_value(PropertyType::DateTime, seed).map(serde_json::Value::String)
@@ -167,6 +162,20 @@ impl CellEditorWidget {
             } else {
                 Self::build_single_list(options, seed, name)
             }),
+            CellEditor::ListText => {
+                let entry = gtk::Entry::new();
+                entry.set_widget_name(name);
+                entry.set_text(&selected_options(seed).join(", "));
+                entry.set_hexpand(true);
+                let read = {
+                    let entry = entry.clone();
+                    Rc::new(move || Ok(read_list(&entry)))
+                };
+                Some(Self {
+                    widget: entry.upcast(),
+                    read,
+                })
+            }
             CellEditor::Date | CellEditor::DateTime => {
                 let field_type = if matches!(editor, CellEditor::Date) {
                     PropertyType::Date
@@ -258,6 +267,7 @@ pub(crate) fn build_boolean_cell(seed: bool, name: &str) -> gtk::Switch {
     switch.set_halign(gtk::Align::Center);
     switch.set_valign(gtk::Align::Center);
     switch.set_hexpand(true);
+    switch.set_cursor_from_name(Some("pointer"));
     switch
 }
 
@@ -283,6 +293,39 @@ struct CellActions {
     clear: gtk::Button,
     cancel: gtk::Button,
     done: gtk::Button,
+}
+
+/// Builds the always-visible single-select dropdown for a cell.
+#[must_use]
+pub(crate) fn build_select_cell(
+    seed: &FrontmatterValue,
+    options: &[String],
+    name: &str,
+) -> gtk::DropDown {
+    let labels: Vec<&str> = options.iter().map(String::as_str).collect();
+    let dropdown = gtk::DropDown::from_strings(&labels);
+    dropdown.set_widget_name(name);
+    dropdown.set_hexpand(true);
+    dropdown.set_cursor_from_name(Some("pointer"));
+    if let FrontmatterValue::Text(text) = seed
+        && let Some(index) = options.iter().position(|option| option == text)
+    {
+        dropdown.set_selected(u32::try_from(index).unwrap_or(0));
+    }
+    dropdown
+}
+
+/// Returns the option list including an authored value that is not one of the configured options.
+#[must_use]
+pub(crate) fn options_with_current(options: &[String], current: &FrontmatterValue) -> Vec<String> {
+    let mut options = options.to_vec();
+    if let FrontmatterValue::Text(text) = current
+        && !text.trim().is_empty()
+        && !options.iter().any(|option| option == text)
+    {
+        options.push(text.clone());
+    }
+    options
 }
 
 /// Opens the anchored editor popover for one cell.
@@ -333,6 +376,11 @@ pub(crate) fn show_cell_editor(
     let done = gtk::Button::with_label(&gettext("Done"));
     done.add_css_class("suggested-action");
     done.set_widget_name("base-cell-editor-done");
+    // Enter in a text or number entry submits, matching the Done button.
+    if let Some(entry) = field.widget().downcast_ref::<gtk::Entry>() {
+        let done = done.clone();
+        entry.connect_activate(move |_| done.emit_clicked());
+    }
     footer.append(&clear);
     footer.append(&cancel);
     footer.append(&done);
@@ -474,6 +522,26 @@ fn text_cell_value(seed: &FrontmatterValue) -> CellValue {
     }
 }
 
+/// Reads a comma-separated entry into a JSON string array, or `None` when it is empty.
+fn read_list(entry: &gtk::Entry) -> CellValue {
+    let values: Vec<serde_json::Value> = entry
+        .text()
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| serde_json::Value::String(item.to_owned()))
+        .collect();
+    (!values.is_empty()).then_some(serde_json::Value::Array(values))
+}
+
+fn list_text_cell_value(seed: &FrontmatterValue) -> CellValue {
+    let values: Vec<serde_json::Value> = selected_options(seed)
+        .into_iter()
+        .map(serde_json::Value::String)
+        .collect();
+    (!values.is_empty()).then_some(serde_json::Value::Array(values))
+}
+
 fn number_cell_value(seed: &FrontmatterValue) -> CellValue {
     match seed {
         FrontmatterValue::Number(number) => Some(serde_json::Value::Number(number.clone())),
@@ -599,7 +667,7 @@ mod tests {
             resolve_editor(&property_column("/status"), &[], &defaults),
             Some(list(&["draft", "done"], false))
         );
-        // A list with no configured options is read-only in the grid.
+        // A list with no configured options is edited as comma-separated text.
         assert_eq!(
             resolve_editor(
                 &property_column("/status"),
@@ -610,7 +678,7 @@ mod tests {
                 )],
                 &[]
             ),
-            None
+            Some(CellEditor::ListText)
         );
         // A multi-select list uses a checklist.
         let multiple = vec![DocumentProperty {
@@ -624,6 +692,25 @@ mod tests {
         assert_eq!(
             resolve_editor(&property_column("/status"), &[], &multiple),
             Some(list(&["draft", "done"], true))
+        );
+    }
+
+    #[test]
+    fn resolve_editor_should_prefer_a_configured_list_over_scalar_observation() {
+        // A single-select list is stored as text, so the descriptor says `Text`; the configured
+        // options must still win so the grid offers the dropdown, like the properties dialog.
+        let defaults = vec![property(
+            "type",
+            PropertyType::List,
+            serde_json::json!(["draft", "open", "new", "closed"]),
+        )];
+        assert_eq!(
+            resolve_editor(
+                &property_column("/type"),
+                &[descriptor("/type", PropertyKind::Text, PropertyType::Text)],
+                &defaults
+            ),
+            Some(list(&["draft", "open", "new", "closed"], false))
         );
     }
 
@@ -671,6 +758,13 @@ mod tests {
                 ])
             ),
             Some(serde_json::json!(["draft", "done"]))
+        );
+        assert_eq!(
+            seed_value(
+                &CellEditor::ListText,
+                &FrontmatterValue::List(vec![FrontmatterValue::Text("a".to_owned())])
+            ),
+            Some(serde_json::json!(["a"]))
         );
         assert_eq!(
             seed_value(

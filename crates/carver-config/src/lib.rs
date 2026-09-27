@@ -389,6 +389,57 @@ impl DocumentProperty {
     pub fn default_field(&self) -> Option<FrontmatterField> {
         self.default_field_at(now_local())
     }
+
+    /// Returns this configured default's resolved editing shape.
+    #[must_use]
+    pub fn resolved(&self) -> ResolvedProperty {
+        ResolvedProperty {
+            field_type: self.field_type,
+            multiple: self.multiple,
+            options: self.options(),
+        }
+    }
+}
+
+/// The authoritatively resolved editing shape of one document property.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResolvedProperty {
+    /// Field type used to edit the value.
+    pub field_type: DocumentPropertyType,
+    /// Whether a list allows multiple selections.
+    pub multiple: bool,
+    /// Configured list options; empty for other types and unconfigured properties.
+    pub options: Vec<String>,
+}
+
+/// Returns the configured default for a top-level key, ignoring reserved keys.
+#[must_use]
+pub fn configured_property<'a>(
+    defaults: &'a [DocumentProperty],
+    key: &str,
+) -> Option<&'a DocumentProperty> {
+    defaults
+        .iter()
+        .find(|property| !is_reserved_key(&property.key) && property.key == key)
+}
+
+/// Resolves a property's editing shape, preferring a configured default over the observed type.
+///
+/// This is the single authority shared by the properties dialog and the Base grid: a configured
+/// default always wins, so an authored scalar that backs a configured list still edits as a list.
+#[must_use]
+pub fn resolve_property(
+    configured: Option<&DocumentProperty>,
+    observed: DocumentPropertyType,
+) -> ResolvedProperty {
+    configured.map_or_else(
+        || ResolvedProperty {
+            field_type: observed,
+            multiple: false,
+            options: Vec::new(),
+        },
+        DocumentProperty::resolved,
+    )
 }
 
 /// The current local time, falling back to UTC when the offset is indeterminate.

@@ -8,7 +8,9 @@
 
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
-use carver_config::{DocumentProperty, DocumentPropertyType};
+use carver_config::{
+    DocumentProperty, DocumentPropertyType, ResolvedProperty, configured_property, resolve_property,
+};
 use carver_domain::{
     FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, is_reserved_key,
 };
@@ -376,48 +378,46 @@ impl PropertyDraft {
 
     /// An ad-hoc note property with an editable name, type, and value.
     fn custom(key: String, value: FrontmatterValue) -> Self {
-        Self {
-            key,
-            choice: DocumentPropertyType::from_value(&value),
-            value,
-            editable_key: true,
-            editable_kind: true,
-            removable: true,
-            multiple: false,
-            options: Vec::new(),
-            preserve_empty: false,
-            derived: false,
-        }
+        let resolved = resolve_property(None, DocumentPropertyType::from_value(&value));
+        Self::from_resolved(key, value, &resolved, false)
     }
 
-    /// A note property whose key matches a configured default: the type comes from the default
-    /// and the row cannot be removed, so the configured attributes are always present.
+    /// A note property whose key matches a configured default: the resolved type and options come
+    /// from the default and the row cannot be removed, so the configured attributes persist.
     fn default_row(key: String, property: &DocumentProperty, value: FrontmatterValue) -> Self {
-        Self {
-            key,
-            choice: property.field_type,
-            value,
-            editable_key: false,
-            editable_kind: false,
-            removable: false,
-            multiple: property.multiple,
-            options: property.options(),
-            preserve_empty: false,
-            derived: false,
-        }
+        let resolved = resolve_property(Some(property), DocumentPropertyType::from_value(&value));
+        Self::from_resolved(key, value, &resolved, true)
     }
 
     /// A configured default edited in the defaults settings, where the type is editable.
     fn editable_property(property: &DocumentProperty) -> Self {
+        Self::from_resolved(
+            property.key.clone(),
+            FrontmatterValue::from_json(&property.value),
+            &property.resolved(),
+            false,
+        )
+    }
+
+    /// Builds a draft from the shared resolved property shape.
+    ///
+    /// `configured` fixes the key, type, and presence in the dialog because a configured default
+    /// owns those attributes.
+    fn from_resolved(
+        key: String,
+        value: FrontmatterValue,
+        resolved: &ResolvedProperty,
+        configured: bool,
+    ) -> Self {
         Self {
-            key: property.key.clone(),
-            choice: property.field_type,
-            value: FrontmatterValue::from_json(&property.value),
-            editable_key: true,
-            editable_kind: true,
-            removable: true,
-            multiple: property.multiple,
-            options: property.options(),
+            key,
+            choice: resolved.field_type,
+            value,
+            editable_key: !configured,
+            editable_kind: !configured,
+            removable: !configured,
+            multiple: resolved.multiple,
+            options: resolved.options.clone(),
             preserve_empty: false,
             derived: false,
         }
@@ -924,11 +924,7 @@ fn initial_drafts(request: &EditorPropertiesRequest) -> Vec<PropertyDraft> {
                 authored_title = Some(field.value.clone());
                 continue;
             }
-            let draft = match request
-                .defaults
-                .iter()
-                .find(|property| property.key == field.key)
-            {
+            let draft = match configured_property(&request.defaults, &field.key) {
                 Some(property) => {
                     PropertyDraft::default_row(field.key.clone(), property, field.value.clone())
                 }

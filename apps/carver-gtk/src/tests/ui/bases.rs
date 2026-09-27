@@ -1243,8 +1243,8 @@ pub(super) fn base_grid_should_toggle_a_boolean_property() -> TestResult {
     Ok(())
 }
 
-/// Double-clicking an editable property cell reveals its editor.
-pub(super) fn double_clicking_a_cell_should_reveal_the_editor() -> TestResult {
+/// Single-clicking an editable property cell reveals its editor.
+pub(super) fn clicking_a_cell_should_reveal_the_editor() -> TestResult {
     let dispatcher = AppDispatcher::default();
     let (base_widget, refs) = crate::ui::bases::build_base(
         &dispatcher,
@@ -1306,26 +1306,21 @@ pub(super) fn double_clicking_a_cell_should_reveal_the_editor() -> TestResult {
         .iter::<glib::Object>()
         .filter_map(Result::ok)
         .find_map(|object| object.downcast::<gtk::GestureClick>().ok())
-        .ok_or("double-click gesture")?;
-    gesture.emit_by_name::<()>("pressed", &[&2i32, &0.0f64, &0.0f64]);
+        .ok_or("cell gesture")?;
+    gesture.emit_by_name::<()>("pressed", &[&1i32, &0.0f64, &0.0f64]);
 
     assert!(run_main_context_until(|| {
         find_widget(&base_widget, "base-cell-editor").is_some()
     }));
     let entry = widget_as::<gtk::Entry>(&base_widget, "base-cell-editor").ok_or("cell editor")?;
     assert_eq!(entry.text(), "ready");
-    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
-        .ok_or("done button")?
-        .emit_clicked();
+    // Enter submits the popover like the Done button.
+    entry.emit_by_name::<()>("activate", &[]);
     window.close();
     Ok(())
 }
 
-/// A configured list property opens a dropdown and persists the selection.
-#[expect(
-    clippy::too_many_lines,
-    reason = "one scenario drives the full list-edit, save, and reload path"
-)]
+/// A configured list property renders an inline dropdown and persists the selection.
 pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
     let (_temp, client) = test_state()?;
     let category = client.create_category("Notes")?;
@@ -1362,10 +1357,12 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
         updated: String::new(),
         properties: serde_json::json!({"status": "draft"}),
     };
+    // A single-select list is stored as text, so the observation reports `Text`; the configured
+    // options must still drive the cell editor.
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/status".to_owned()),
-        kind: carver_domain::PropertyKind::List,
-        property_type: carver_domain::PropertyType::List,
+        kind: carver_domain::PropertyKind::Text,
+        property_type: carver_domain::PropertyType::Text,
         example: Some("draft".to_owned()),
     }];
     let defaults = [carver_config::DocumentProperty {
@@ -1403,27 +1400,13 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
     window.set_content(Some(&routes));
     window.present();
 
-    let display =
-        find_widget(&base_widget, "base-cell-display:property:/status").ok_or("cell display")?;
-    assert!(run_main_context_until(|| display.is_mapped()));
-    let gesture = display
-        .observe_controllers()
-        .iter::<glib::Object>()
-        .filter_map(Result::ok)
-        .find_map(|object| object.downcast::<gtk::GestureClick>().ok())
-        .ok_or("double-click gesture")?;
-    gesture.emit_by_name::<()>("pressed", &[&2i32, &0.0f64, &0.0f64]);
-
-    assert!(run_main_context_until(|| {
-        find_widget(&base_widget, "base-cell-editor").is_some()
-    }));
+    // A single-select list is always visible as a dropdown, seeded from the row.
     let dropdown =
-        widget_as::<gtk::DropDown>(&base_widget, "base-cell-editor").ok_or("list dropdown")?;
+        widget_as::<gtk::DropDown>(&base_widget, "cell-select").ok_or("list dropdown")?;
+    assert!(run_main_context_until(|| dropdown.is_mapped()));
     assert_eq!(dropdown.model().map(|model| model.n_items()), Some(2));
+    assert_eq!(dropdown.selected(), 0);
     dropdown.set_selected(1);
-    widget_as::<gtk::Button>(&base_widget, "base-cell-editor-done")
-        .ok_or("done button")?
-        .emit_clicked();
 
     let saved: Rc<std::cell::RefCell<Option<String>>> = Rc::new(std::cell::RefCell::new(None));
     assert!(run_main_context_until_for(
