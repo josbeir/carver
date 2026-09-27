@@ -679,7 +679,7 @@ fn pointer_segments(pointer: &str) -> Result<Vec<String>, FrontmatterError> {
         .collect()
 }
 
-fn unescape_pointer_segment(segment: &str) -> Option<String> {
+pub(crate) fn unescape_pointer_segment(segment: &str) -> Option<String> {
     let mut output = String::with_capacity(segment.len());
     let mut characters = segment.chars();
     while let Some(character) = characters.next() {

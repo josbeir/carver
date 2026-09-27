@@ -869,3 +869,37 @@ fn json1_query_should_ignore_non_scalar_range_filter_values() {
         &[],
     );
 }
+
+#[test]
+fn reserved_title_references_should_canonicalize_to_the_name_column() {
+    let (_directory, library) = library();
+    let base = library
+        .create_base("Reserved", &[BaseColumn::Category])
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    let reserved = BaseColumn::Property(PropertyPath("/title".to_owned()));
+    let payload = serde_json::json!({
+        "version": 1,
+        "columns": [reserved],
+        "filter_mode": "All",
+        "filters": [{
+            "field": reserved,
+            "operator": "Contains",
+            "value": "Road",
+        }],
+        "sorts": [{ "field": reserved, "direction": "Ascending" }],
+    });
+    library
+        .connection
+        .execute(
+            "UPDATE bases SET definition_json = ?1 WHERE id = ?2",
+            rusqlite::params![payload.to_string(), base.id.to_string()],
+        )
+        .unwrap_or_else(|error| panic!("reserved definition update failed: {error}"));
+
+    let loaded = library
+        .bases()
+        .unwrap_or_else(|error| panic!("bases failed: {error}"));
+    assert_eq!(loaded[0].columns, vec![BaseColumn::Name]);
+    assert_eq!(loaded[0].filters[0].field, BaseColumn::Name);
+    assert_eq!(loaded[0].sorts[0].field, BaseColumn::Name);
+}

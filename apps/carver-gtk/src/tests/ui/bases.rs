@@ -346,7 +346,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     let visible_fields =
         widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
             .ok_or("visible fields group")?;
-    assert!(super::find_label(visible_fields.upcast_ref(), "Name").is_some());
+    assert!(super::find_label(visible_fields.upcast_ref(), "Title").is_some());
     assert!(super::find_label(visible_fields.upcast_ref(), "priority").is_none());
     let add_field = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-add-visible-field")
         .ok_or("add field button")?;
@@ -1569,6 +1569,16 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
         &[],
         &dispatcher,
     );
+    // The derived-title column is labelled Title, matching the properties dialog.
+    let header = refs
+        .grid
+        .columns()
+        .item(0)
+        .and_downcast::<gtk::ColumnViewColumn>()
+        .ok_or("name column")?;
+    let expected = gettextrs::gettext("Title");
+    assert_eq!(header.title().as_deref(), Some(expected.as_str()));
+
     let window = adw::Window::new();
     window.set_default_size(700, 500);
     window.set_content(Some(&base_widget));

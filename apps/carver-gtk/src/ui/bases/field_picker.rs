@@ -75,9 +75,10 @@ impl FieldCatalog {
             .chain(definition.filters.iter().map(|filter| &filter.field))
             .chain(definition.sorts.iter().map(|sort| &sort.field))
         {
+            let field = field.canonicalized();
             options
-                .entry(field_id(field))
-                .or_insert_with(|| option_for_field(field, None));
+                .entry(field_id(&field))
+                .or_insert_with(|| option_for_field(&field, None));
         }
         Self {
             options: Rc::new(RefCell::new(options.into_values().collect())),
@@ -91,7 +92,9 @@ impl FieldCatalog {
 
     /// Adds a locally entered custom field if it is not already present.
     pub(crate) fn ensure(&self, field: &BaseColumn) {
-        let id = field_id(field);
+        // A reserved path such as `/title` resolves to its built-in column.
+        let field = field.canonicalized();
+        let id = field_id(&field);
         let exists = self
             .options
             .borrow()
@@ -99,7 +102,7 @@ impl FieldCatalog {
             .any(|option| field_id(&option.field) == id);
         if !exists {
             let mut options = self.options.borrow_mut();
-            options.push(option_for_field(field, None));
+            options.push(option_for_field(&field, None));
             options.sort_by_key(|option| field_id(&option.field));
         }
     }
@@ -232,7 +235,7 @@ impl FieldPicker {
                 &catalog_for_render,
                 button_label.as_deref(),
             );
-            on_selected(field);
+            on_selected(field.canonicalized());
             if keep_open {
                 let populate = populate_slot_for_selection
                     .upgrade()
@@ -486,7 +489,8 @@ fn show_custom_field_dialog(
     dialog.connect_response(None, move |_dialog, response| {
         if response == "add" {
             let field =
-                BaseColumn::Property(PropertyPath(entry_for_response.text().trim().to_owned()));
+                BaseColumn::Property(PropertyPath(entry_for_response.text().trim().to_owned()))
+                    .canonicalized();
             catalog.ensure(&field);
             callback(field);
             populate(search.text().as_str());
@@ -607,7 +611,7 @@ pub(crate) fn field_id(field: &BaseColumn) -> String {
 
 pub(crate) fn field_label(field: &BaseColumn) -> String {
     match field {
-        BaseColumn::Name => gettext("Name"),
+        BaseColumn::Name => gettext("Title"),
         BaseColumn::Category => gettext("Category"),
         BaseColumn::Updated => gettext("Updated"),
         BaseColumn::Property(path) => path
@@ -692,6 +696,30 @@ mod tests {
         assert!(!valid_json_pointer("/project/~2status"));
         assert!(!valid_json_pointer("/project/\0status"));
         assert!(!valid_json_pointer(""));
+    }
+
+    #[test]
+    fn field_label_should_call_the_derived_title_column_title() {
+        assert_eq!(field_label(&BaseColumn::Name), gettext("Title"));
+    }
+
+    #[test]
+    fn catalog_should_canonicalize_a_reserved_definition_field() {
+        let reserved = BaseColumn::Property(PropertyPath("/title".to_owned()));
+        let definition = BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            vec![reserved.clone()],
+            carver_sdk::Revision(1),
+        );
+        let catalog = FieldCatalog::new(&definition, &[], &[]);
+        let options = catalog.options();
+        assert!(
+            options
+                .iter()
+                .any(|option| option.field == BaseColumn::Name)
+        );
+        assert!(!options.iter().any(|option| option.field == reserved));
     }
 
     #[test]

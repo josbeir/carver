@@ -265,7 +265,7 @@ fn rebuild_columns(
     append_column(
         &refs.grid,
         &BaseColumn::Name,
-        &gettext("Name"),
+        &gettext("Title"),
         Some(CellEditor::Text),
         dispatcher,
     );

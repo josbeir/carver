@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 16:23+0200\n"
+"POT-Creation-Date: 2026-09-27 16:47+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -51,7 +51,7 @@ msgstr "Notizen"
 
 #: apps/carver-gtk/src/ui/add.rs:60 apps/carver-gtk/src/ui/add.rs:63
 #: apps/carver-gtk/src/ui/add.rs:70
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:469
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:472
 msgid "Add"
 msgstr "Hinzufügen"
 
@@ -103,23 +103,22 @@ msgstr "Notizen, die zu dieser Basis passen, erscheinen hier."
 msgid "Load more rows"
 msgstr "Weitere Zeilen laden"
 
-#: apps/carver-gtk/src/ui/bases.rs:268
-#: apps/carver-gtk/src/ui/bases/actions.rs:734
-#: apps/carver-gtk/src/ui/bases/actions.rs:737
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:610
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1145
-msgid "Name"
-msgstr "Name"
+#: apps/carver-gtk/src/ui/bases.rs:268 apps/carver-gtk/src/ui/bases.rs:786
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:614
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:703
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1479
+msgid "Title"
+msgstr "Titel"
 
 #: apps/carver-gtk/src/ui/bases.rs:276 apps/carver-gtk/src/ui/bases.rs:788
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:611
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:615
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:697
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:699
 msgid "Category"
 msgstr "Kategorie"
 
 #: apps/carver-gtk/src/ui/bases.rs:279 apps/carver-gtk/src/ui/bases.rs:789
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:612
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:616
 msgid "Updated"
 msgstr "Aktualisiert"
 
@@ -130,11 +129,6 @@ msgstr "Dokumenteigenschaften bearbeiten"
 #: apps/carver-gtk/src/ui/bases.rs:730
 msgid "Edit title"
 msgstr "Titel bearbeiten"
-
-#: apps/carver-gtk/src/ui/bases.rs:786
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1479
-msgid "Title"
-msgstr "Titel"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:44
 #, rust-format
@@ -147,7 +141,7 @@ msgstr "Nur diese Basis wird gelöscht. Deine Notizen und ihre Eigenschaften wer
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
 #: apps/carver-gtk/src/ui/bases/editing.rs:366
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:468
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:471
 #: apps/carver-gtk/src/ui/dialogs.rs:1344
 #: apps/carver-gtk/src/ui/dialogs.rs:1416
 #: apps/carver-gtk/src/ui/dialogs.rs:1669
@@ -232,7 +226,7 @@ msgstr "Operator"
 #: apps/carver-gtk/src/ui/bases/actions.rs:390
 #: apps/carver-gtk/src/ui/bases/actions.rs:396
 #: apps/carver-gtk/src/ui/bases/actions.rs:550
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:583
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:587
 msgid "Field"
 msgstr "Feld"
 
@@ -269,6 +263,12 @@ msgstr "Feld nach unten verschieben"
 #: apps/carver-gtk/src/ui/bases/actions.rs:583
 msgid "Remove field"
 msgstr "Feld entfernen"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:734
+#: apps/carver-gtk/src/ui/bases/actions.rs:737
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1145
+msgid "Name"
+msgstr "Name"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:746
 msgid "Visible fields"
@@ -359,75 +359,75 @@ msgstr "Leeren"
 msgid "Done"
 msgstr "Fertig"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:184
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:187
 msgid "Search fields"
 msgstr "Felder durchsuchen"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:202
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:205
 msgid "Add custom field…"
 msgstr "Benutzerdefiniertes Feld hinzufügen…"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:344
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:347
 msgid "No matching fields"
 msgstr "Keine passenden Felder"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:353
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:356
 #, rust-format
 msgid "Type to search {count} more field"
 msgid_plural "Type to search {count} more fields"
 msgstr[0] "Tippe, um {count} weiteres Feld zu suchen"
 msgstr[1] "Tippe, um {count} weitere Felder zu suchen"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:418
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:421
 msgid "Selected"
 msgstr "Ausgewählt"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:446
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:449
 msgid "Use a slash-prefixed JSON Pointer for nested fields."
 msgstr "Verwende einen mit Schrägstrich beginnenden JSON Pointer für verschachtelte Felder."
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:451
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:454
 msgid "Enter a valid path such as /project/status."
 msgstr "Gib einen gültigen Pfad wie /project/status ein."
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:462
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:465
 msgid "Add custom field"
 msgstr "Benutzerdefiniertes Feld hinzufügen"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:518
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:522
 msgid "Built-in field"
 msgstr "Integriertes Feld"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:520
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:524
 msgid "Custom field"
 msgstr "Benutzerdefiniertes Feld"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:625
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:629
 #: apps/carver-gtk/src/ui/formatting.rs:440
 #: apps/carver-gtk/src/ui/property.rs:18
 msgid "Text"
 msgstr "Text"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:626
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:630
 #: apps/carver-gtk/src/ui/property.rs:20
 msgid "Number"
 msgstr "Zahl"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:627
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:631
 #: apps/carver-gtk/src/ui/property.rs:21
 msgid "Boolean"
 msgstr "Boolesch"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:628
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:632
 #: apps/carver-gtk/src/ui/property.rs:22
 msgid "List"
 msgstr "Liste"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:629
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:633
 msgid "Empty"
 msgstr "Leer"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:630
+#: apps/carver-gtk/src/ui/bases/field_picker.rs:634
 msgid "Mixed"
 msgstr "Gemischt"
 
