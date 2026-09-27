@@ -6,7 +6,17 @@ import InstallBlock from '../components/InstallBlock.astro';
 import { shots, type Shot, type ShotName } from '../data/screenshots';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-const heroOrder: ShotName[] = ['editor', 'source', 'bases', 'agent', 'library', 'settings'];
+const heroOrder: ShotName[] = [
+  'editor',
+  'media',
+  'focus',
+  'source',
+  'bases',
+  'agent',
+  'library',
+  'search',
+  'settings',
+];
 const heroShots = heroOrder
   .map((name) => shots[name])
   .filter((shot): shot is Shot => Boolean(shot));

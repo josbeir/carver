@@ -229,8 +229,22 @@ impl Groups {
 /// Ids the capture scenes need from the seeded library.
 struct Showcase {
     review: carver_sdk::NoteId,
+    media: carver_sdk::NoteId,
+    focus: carver_sdk::NoteId,
     base: carver_sdk::BaseId,
 }
+
+/// A prose note for the distraction-free writing view.
+const FOCUS_NOTE: &str = "---\nstatus: Done\n---\n\n\
+    # On keeping a notebook\n\n\
+    The point of a notebook is not to be tidy. It is to be there when a thought arrives, \
+    so the thought has somewhere to land before it drifts off again.\n\n\
+    Most entries will never be read twice, and that is fine. Their value was in the writing, \
+    and a few of them will turn out to matter far more than they seemed to at the time.\n\n\
+    ## What to keep\n\n\
+    Keep the awkward first version. Keep the question you could not answer. Keep the small \
+    detail that felt important for no clear reason — those are usually the ones that grow \
+    into something later.\n";
 
 #[test]
 #[ignore = "captures docs screenshots; set CARVER_SCREENSHOT_DIR and run under a display"]
@@ -299,8 +313,57 @@ fn seed_showcase(
 
     Ok(Showcase {
         review: review.id,
+        media: seed_media_note(client, groups.notes)?,
+        focus: seed_note(client, groups.notes, FOCUS_NOTE, 6)?.id,
         base: seed_bases(client)?.id,
     })
+}
+
+/// Seeds a note with managed image assets so the document sidebar has content.
+fn seed_media_note(
+    client: &TestLibraryClient,
+    category: carver_sdk::CategoryId,
+) -> Result<carver_sdk::NoteId, Box<dyn std::error::Error>> {
+    let note = client.create_note(category)?;
+    let study = client.store_asset(note.id, "png", &sample_png(0x2f8f_7aff, 0x1d5f_8fff)?)?;
+    let draft = client.store_asset(note.id, "png", &sample_png(0xe893_5aff, 0x7d63_d8ff)?)?;
+
+    let source = format!(
+        "---\nstatus: In progress\n---\n\n# Sketchbook\n\n\
+         Two files live beside this note.\n\n\
+         ![Colour study]({study})\n\n![Layout draft]({draft})\n"
+    );
+    let saved = client.save_note(note.id, note.revision, &source)?;
+    let timestamp = time::OffsetDateTime::now_utc() - time::Duration::days(4);
+    let _ = glib::MainContext::default().block_on(client.update_note_timestamps_async(
+        saved.id,
+        saved.revision,
+        timestamp,
+        timestamp,
+    ))?;
+    Ok(saved.id)
+}
+
+/// A small striped PNG, so the media sidebar has something to display.
+fn sample_png(base: u32, band: u32) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    const WIDTH: i32 = 640;
+    const HEIGHT: i32 = 400;
+    const BAND: i32 = 88;
+
+    let image =
+        gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, WIDTH, HEIGHT)
+            .ok_or("pixbuf")?;
+    image.fill(base);
+
+    let stripe =
+        gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, WIDTH, BAND)
+            .ok_or("stripe")?;
+    stripe.fill(band);
+    for top in [96, 264] {
+        stripe.copy_area(0, 0, WIDTH, BAND, &image, 0, top);
+    }
+
+    Ok(image.save_to_bufferv("png", &[])?)
 }
 
 /// Creates the saved Bases; the roadmap's text, boolean, and date columns are
@@ -439,6 +502,8 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     assert_web_script_should_be_true(&split_preview, "document.body.innerText.length > 0");
     scroll_web_view_to_top(&split_preview);
     capture_theme_pair(fixture, directory, "source")?;
+    capture_media(fixture, directory, showcase.media)?;
+    capture_focus(fixture, directory, showcase.focus)?;
 
     // Saved Base grid with text, boolean, and date columns.
     assert!(sidebar_select(
@@ -452,10 +517,89 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     capture_theme_pair(fixture, directory, "bases")?;
 
     // Return to the notes browser so dialogs sit over a familiar surface.
+    capture_dialogs(fixture, directory)?;
+
+    // Leave the app in the light theme.
+    apply_color_scheme(false);
+    Ok(())
+}
+
+/// The document sidebar listing a note's managed image assets.
+fn capture_media(
+    fixture: &WindowFixture,
+    directory: &Path,
+    note: carver_sdk::NoteId,
+) -> TestResult {
+    let root = fixture.root()?;
+    let editor_stack = fixture.editor_mode_stack()?;
+    let split =
+        widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
+
+    assert!(open_note(fixture, note)?);
+    editor_stack.set_visible_child_name("source");
+    reset_source_scroll(fixture)?;
+    split.set_active(false);
+
+    let sidebar_toggle = widget_as::<gtk::ToggleButton>(&root, "editor-document-sidebar-toggle")
+        .ok_or("document sidebar toggle")?;
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| find_widget(
+        &root,
+        "editor-media-item"
+    )
+    .is_some()));
+    capture_theme_pair(fixture, directory, "media")?;
+
+    sidebar_toggle.set_active(false);
+    let _ = run_main_context_until_for(Duration::from_millis(200), || false);
+    Ok(())
+}
+
+/// A distraction-free writing view: no category sidebar, no toolbar, no panels.
+fn capture_focus(
+    fixture: &WindowFixture,
+    directory: &Path,
+    note: carver_sdk::NoteId,
+) -> TestResult {
+    let root = fixture.root()?;
+    let editor_stack = fixture.editor_mode_stack()?;
+    let navigation = widget_as::<adw::BreakpointBin>(&root, "responsive-navigation-container")
+        .and_then(|container| container.child())
+        .and_downcast::<adw::NavigationSplitView>()
+        .ok_or("navigation split view")?;
+
+    assert!(open_note(fixture, note)?);
+    editor_stack.set_visible_child_name("rich");
+    let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
+    assert_web_script_should_be_true(&rich, "document.body.innerText.includes('notebook')");
+    scroll_web_view_to_top(&rich);
+
+    // The same result as the preferences and the header toggles, applied straight
+    // to the widgets: those controls dispatch through runtimes the display
+    // fixture does not wire to the editor.
+    let toolbar = widget_as::<gtk::Box>(&root, "formatting-toolbar").ok_or("formatting toolbar")?;
+    toolbar.set_visible(false);
+    let sidebar_toggle = widget_as::<gtk::ToggleButton>(&root, "editor-toggle-categories-button")
+        .or_else(|| widget_as::<gtk::ToggleButton>(&root, "toggle-categories-button"))
+        .ok_or("categories toggle")?;
+    sidebar_toggle.set_active(false);
+    assert!(run_main_context_until(|| navigation.is_collapsed()));
+
+    capture_theme_pair(fixture, directory, "focus")?;
+
+    sidebar_toggle.set_active(true);
+    assert!(run_main_context_until(|| !navigation.is_collapsed()));
+    toolbar.set_visible(true);
+    Ok(())
+}
+
+/// The agent setup and preferences dialogs, over the notes browser.
+fn capture_dialogs(fixture: &WindowFixture, directory: &Path) -> TestResult {
+    let window = fixture.window.clone();
+    let sidebar = fixture.sidebar()?;
     assert!(sidebar_select(&sidebar, "all-notes-count"));
     let _ = run_main_context_until_for(Duration::from_millis(300), || false);
 
-    // Agent setup dialog, captured with the window for context.
     let agent = crate::ui::dialogs::show_agent_setup_dialog_for_test(&window);
     assert!(run_main_context_until(|| window.visible_dialog().is_some()));
     settle();
@@ -465,16 +609,39 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
         window.visible_dialog().is_none()
     });
 
-    // Preferences dialog.
     let preferences = fixture.preferences_dialog.clone();
     preferences.present(Some(&window));
     assert!(run_main_context_until(|| window.visible_dialog().is_some()));
     settle();
     capture_theme_pair(fixture, directory, "settings")?;
     preferences.close();
+    Ok(())
+}
 
-    // Leave the app in the light theme.
-    apply_color_scheme(false);
+/// Selects all notes and opens the given note in the editor.
+fn open_note(
+    fixture: &WindowFixture,
+    note: carver_sdk::NoteId,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let sidebar = fixture.sidebar()?;
+    let note_list = fixture.note_list()?;
+    let route_stack = fixture.route_stack()?;
+
+    Ok(sidebar_select(&sidebar, "all-notes-count")
+        && run_main_context_until(|| note_list.model().is_some_and(|model| model.n_items() >= 8))
+        && activate_browser_note(&note_list, note)
+        && run_main_context_until(|| route_stack.visible_child_name().as_deref() == Some("editor")))
+}
+
+/// Scrolls the source editor back to the top of the buffer.
+fn reset_source_scroll(fixture: &WindowFixture) -> TestResult {
+    if let Some(scroll) = fixture
+        .source()?
+        .parent()
+        .and_downcast::<gtk::ScrolledWindow>()
+    {
+        scroll.vadjustment().set_value(0.0);
+    }
     Ok(())
 }
 

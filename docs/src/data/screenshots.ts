@@ -6,8 +6,12 @@ import basesDark from '../assets/screenshots/bases-dark.png';
 import basesLight from '../assets/screenshots/bases-light.png';
 import editorDark from '../assets/screenshots/editor-dark.png';
 import editorLight from '../assets/screenshots/editor-light.png';
+import focusDark from '../assets/screenshots/focus-dark.png';
+import focusLight from '../assets/screenshots/focus-light.png';
 import libraryDark from '../assets/screenshots/library-dark.png';
 import libraryLight from '../assets/screenshots/library-light.png';
+import mediaDark from '../assets/screenshots/media-dark.png';
+import mediaLight from '../assets/screenshots/media-light.png';
 import searchDark from '../assets/screenshots/search-dark.png';
 import searchLight from '../assets/screenshots/search-light.png';
 import settingsDark from '../assets/screenshots/settings-dark.png';
@@ -32,13 +36,24 @@ export interface Shot {
  * renders once both variants exist, so a feature panel never shows an empty
  * slot while a capture is still pending.
  */
-export type ShotName = 'editor' | 'source' | 'bases' | 'agent' | 'library' | 'search' | 'settings';
+export type ShotName =
+  'editor' | 'media' | 'focus' | 'source' | 'bases' | 'agent' | 'library' | 'search' | 'settings';
 
 export const shots: Partial<Record<ShotName, Shot>> = {
   editor: {
     alt: "Editing a note in Carver's rich text editor",
     light: editorLight,
     dark: editorDark,
+  },
+  media: {
+    alt: "A note's images and attachments in the document sidebar",
+    light: mediaLight,
+    dark: mediaDark,
+  },
+  focus: {
+    alt: 'A distraction-free writing view with no toolbar or sidebar',
+    light: focusLight,
+    dark: focusDark,
   },
   source: {
     alt: 'Editing Carve source beside its live preview',
