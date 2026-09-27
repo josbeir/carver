@@ -1,0 +1,12 @@
+# Coverage is advisory. The CI workflow runs it once per PR (on open / ready-for-review) and on
+# every main push, so later commits on a PR may not have a fresh report. Keep the statuses
+# informational so a missing per-commit report never blocks a merge; the sticky PR comment still
+# shows the coverage the run produced.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
