@@ -39,15 +39,16 @@ const appImageSteps = [
     <div class="max-w-3xl">
       <p class="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">Install</p>
       <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        Install Carver {version}
+        Make room for your next idea
       </h2>
       <p class="mt-5 text-base/7 text-base-content/75">
-        Download the current release and verify it before installing. Carver is distributed as a
-        Flatpak bundle, with an experimental AppImage for newer systems.
+        Get Carver {version} for Linux and start with a single note. Choose the recommended Flatpak
+        download, or try the experimental AppImage on a newer system. Download its matching checksum
+        file too, then follow the steps below.
       </p>
       <div class="mt-6">
         <a class="btn btn-primary" href={releases}>
-          Get the latest release
+          Download Carver
         </a>
       </div>
     </div>
@@ -60,8 +61,8 @@ const appImageSteps = [
             <span class="badge badge-primary badge-sm">Recommended</span>
           </div>
           <p class="text-base/7 text-base-content/70">
-            Carver needs the GNOME runtime. If Flatpak asks to add Flathub, accept the prompt, or
-            run the first command once.
+            Flatpak takes care of the components Carver needs. If it asks to add Flathub, accept the
+            prompt, or run the first command once.
           </p>
           {flatpakSteps.map((step) => (
             <CodeBlock label={step.label} code={step.code} />
@@ -88,9 +89,9 @@ const appImageSteps = [
             <CodeBlock label={step.label} code={step.code} />
           ))}
           <p class="text-sm/6 text-base-content/55">
-            Extraction works without FUSE; if FUSE is available the image can also be launched
-            directly. AppImages use the native XDG data directories, separate from the Flatpak
-            library.
+            The command above works without FUSE. If FUSE is installed, you can also launch the
+            AppImage directly. AppImage and Flatpak keep separate note libraries, so your notes will
+            not automatically appear when switching between them.
           </p>
         </div>
       </div>

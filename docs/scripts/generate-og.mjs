@@ -29,8 +29,8 @@ const background = `
   <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)"/>
   <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
   <text x="96" y="392" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="92" font-weight="700" fill="#fff9df">Carver</text>
-  <text x="100" y="452" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="34" fill="#fff9df" fill-opacity="0.78">A native GNOME home for notes that last</text>
-  <text x="100" y="524" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="24" letter-spacing="2" fill="#42b883" fill-opacity="0.9">RUST · GTK4 · OPEN SOURCE</text>
+  <text x="100" y="452" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="34" fill="#fff9df" fill-opacity="0.78">A little space for big ideas</text>
+  <text x="100" y="524" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="24" letter-spacing="2" fill="#42b883" fill-opacity="0.9">WRITE · ORGANIZE · MAKE IT YOURS</text>
 </svg>`;
 
 await access(iconPath);
