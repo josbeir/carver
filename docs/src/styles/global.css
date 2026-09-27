@@ -100,6 +100,34 @@
 }
 
 @layer components {
+  /*
+    Layered, low-contrast backdrop for the hero. Several soft radial tints at
+    low opacity read as depth, where a single gradient band reads as an obvious
+    stripe. Tints are per-theme so dark mode darkens rather than glows.
+  */
+  .hero-backdrop {
+    --hero-tint-a: color-mix(in oklab, var(--color-primary) 14%, transparent);
+    --hero-tint-b: color-mix(in oklab, var(--color-neutral) 16%, transparent);
+    --hero-tint-c: color-mix(in oklab, var(--color-secondary) 9%, transparent);
+    --hero-fade: color-mix(in oklab, var(--color-base-200) 55%, transparent);
+    /* Covers the nav and the top of the hero so the transparent nav has no seam. */
+    background-image:
+      radial-gradient(55% 50% at 10% 22%, var(--hero-tint-a), transparent 70%),
+      radial-gradient(48% 44% at 90% 16%, var(--hero-tint-b), transparent 72%),
+      radial-gradient(70% 50% at 50% 10%, var(--hero-tint-c), transparent 76%),
+      linear-gradient(to bottom, transparent 0%, var(--hero-fade) 20%, transparent 58%);
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: 100% 52rem;
+  }
+
+  [data-theme='carver-dark'] .hero-backdrop {
+    --hero-tint-a: color-mix(in oklab, var(--color-primary) 16%, transparent);
+    --hero-tint-b: color-mix(in oklab, var(--color-neutral) 40%, transparent);
+    --hero-tint-c: color-mix(in oklab, var(--color-secondary) 14%, transparent);
+    --hero-fade: color-mix(in oklab, #000 38%, transparent);
+  }
+
   /* The carousel scrolls natively; hide its scrollbar in favour of the dots. */
   .carousel-track {
     scrollbar-width: none;

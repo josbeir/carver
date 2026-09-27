@@ -8,9 +8,11 @@ import { base } from '../utils/base';
 interface Props {
   title: string;
   description: string;
+  /** Paints the layered hero backdrop behind the top of the page. */
+  backdrop?: boolean;
 }
 
-const { title, description } = Astro.props;
+const { title, description, backdrop = false } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogImage = new URL(`${base}og.png`, Astro.site);
@@ -72,7 +74,12 @@ const ogImage = new URL(`${base}og.png`, Astro.site);
     </script>
     <slot name="head" />
   </head>
-  <body class="flex min-h-dvh flex-col bg-base-100 text-base-content">
+  <body
+    class:list={[
+      'flex min-h-dvh flex-col bg-base-100 text-base-content',
+      backdrop && 'hero-backdrop',
+    ]}
+  >
     <a
       href="#main"
       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-content"

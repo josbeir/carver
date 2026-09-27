@@ -5,7 +5,10 @@ import ThemeToggle from './ThemeToggle.astro';
 const repo = 'https://github.com/josbeir/carver';
 ---
 
-<header class="sticky top-0 z-40 border-b border-base-300/70 bg-base-100/85 backdrop-blur-md">
+<header
+  data-site-nav
+  class="sticky top-0 z-40 border-b border-transparent bg-transparent transition-colors data-[scrolled]:border-base-300/70 data-[scrolled]:bg-base-100/85 data-[scrolled]:backdrop-blur-md"
+>
   <div class="navbar mx-auto max-w-6xl gap-2 px-4">
     <div class="navbar-start">
       <a
@@ -43,3 +46,13 @@ const repo = 'https://github.com/josbeir/carver';
     </div>
   </div>
 </header>
+
+<script>
+  // The nav is transparent over the hero and only gains a surface once stuck.
+  const nav = document.querySelector('[data-site-nav]');
+  if (nav) {
+    const update = () => nav.toggleAttribute('data-scrolled', window.scrollY > 4);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+  }
+</script>
