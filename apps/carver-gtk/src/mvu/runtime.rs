@@ -979,9 +979,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            // Save content first, then move, so the reply carries the final revision and the two
-            // changes apply to one consistent note.
-            let result = match client
+            // Save content first, then move. The content save is authoritative: if the move fails
+            // the saved revision is still reported so the editor stays consistent, and the move is
+            // surfaced separately rather than failing the whole save.
+            let (result, move_error) = match client
                 .save_note_async(
                     request.note_id,
                     request.expected_revision,
@@ -990,17 +991,18 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .await
             {
                 Ok(saved) => match request.move_to {
-                    Some(category) => client
-                        .move_note_async(request.note_id, category)
-                        .await
-                        .map(|note| note.revision)
-                        .map_err(display_error),
-                    None => Ok(saved.revision),
+                    Some(category) => match client.move_note_async(request.note_id, category).await
+                    {
+                        Ok(moved) => (Ok(moved.revision), None),
+                        Err(error) => (Ok(saved.revision), Some(display_error(error))),
+                    },
+                    None => (Ok(saved.revision), None),
                 },
-                Err(error) => Err(display_error(error)),
+                Err(error) => (Err(display_error(error)), None),
             };
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorSaved {
                 request,
+                move_error,
                 result,
             }));
         });
@@ -1038,6 +1040,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 note_id,
                 path,
                 moved: false,
+                move_error: None,
                 result,
             }));
         });
@@ -1090,7 +1093,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
-            let (moved, result) = match client.note_async(note_id).await {
+            let (moved, result, move_error) = match client.note_async(note_id).await {
                 Ok(Some(note)) => {
                     let move_needed = category.is_some_and(|category| category != note.category_id);
                     let updated = match edit {
@@ -1101,39 +1104,39 @@ impl<B: LibraryBackend> AppRuntime<B> {
                             carver_domain::replace_frontmatter_raw(&note.source, format, &content),
                         ),
                     };
-                    // Save the content first under the row revision, then move, so both apply to
-                    // one consistent note and the reply carries the final revision.
+                    // The content save is authoritative: a failed move still reports the saved
+                    // revision so the grid stays consistent, and surfaces the move separately.
                     match updated {
-                        Ok(source) => {
-                            let saved = client
-                                .save_note_async(note_id, revision, source)
-                                .await
-                                .map_err(display_error);
-                            match saved {
-                                Ok(_) if move_needed => {
-                                    let category = category.unwrap_or(note.category_id);
-                                    let result = client
-                                        .move_note_async(note_id, category)
-                                        .await
-                                        .map(|note| note.revision)
-                                        .map_err(display_error);
-                                    (true, result)
+                        Ok(source) => match client.save_note_async(note_id, revision, source).await
+                        {
+                            Ok(saved) if move_needed => {
+                                let category = category.unwrap_or(note.category_id);
+                                match client.move_note_async(note_id, category).await {
+                                    Ok(moved) => (true, Ok(moved.revision), None),
+                                    Err(error) => {
+                                        (false, Ok(saved.revision), Some(display_error(error)))
+                                    }
                                 }
-                                Ok(saved) => (false, Ok(saved.revision)),
-                                Err(error) => (false, Err(error)),
                             }
-                        }
-                        Err(error) => (false, Err(display_error(error))),
+                            Ok(saved) => (false, Ok(saved.revision), None),
+                            Err(error) => (false, Err(display_error(error)), None),
+                        },
+                        Err(error) => (false, Err(display_error(error)), None),
                     }
                 }
-                Ok(None) => (false, Err(display_error("note is no longer available"))),
-                Err(error) => (false, Err(display_error(error))),
+                Ok(None) => (
+                    false,
+                    Err(display_error("note is no longer available")),
+                    None,
+                ),
+                Err(error) => (false, Err(display_error(error)), None),
             };
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCellEdited {
                 request_id,
                 note_id,
                 path: String::new(),
                 moved,
+                move_error,
                 result,
             }));
         });

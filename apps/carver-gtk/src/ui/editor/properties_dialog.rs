@@ -690,30 +690,35 @@ pub(crate) fn show(
     });
 
     // Category leads the dialog because it is the note's top-level place, not frontmatter. It is
-    // offered whenever the caller can persist a move.
+    // only offered when the note's current category is among the known ones, so saving cannot
+    // silently preselect an unrelated category.
     let category_control = request.category_id.and_then(|current| {
-        (!request.categories.is_empty()).then(|| {
-            let group = adw::PreferencesGroup::new();
-            group.set_title(&gettext("Category"));
-            let combo = adw::ComboRow::new();
-            combo.set_title(&gettext("Category"));
-            combo.set_widget_name("document-properties-category");
-            let names: Vec<&str> = request
-                .categories
-                .iter()
-                .map(|category| category.name.as_str())
-                .collect();
-            combo.set_model(Some(&gtk::StringList::new(&names)));
-            let selected = request
-                .categories
-                .iter()
-                .position(|category| category.id == current)
-                .unwrap_or(0);
-            combo.set_selected(u32::try_from(selected).unwrap_or(0));
-            group.add(&combo);
-            page.add(&group);
-            (combo, request.categories.clone(), current)
-        })
+        request
+            .categories
+            .iter()
+            .any(|category| category.id == current)
+            .then(|| {
+                let group = adw::PreferencesGroup::new();
+                group.set_title(&gettext("Category"));
+                let combo = adw::ComboRow::new();
+                combo.set_title(&gettext("Category"));
+                combo.set_widget_name("document-properties-category");
+                let names: Vec<&str> = request
+                    .categories
+                    .iter()
+                    .map(|category| category.name.as_str())
+                    .collect();
+                combo.set_model(Some(&gtk::StringList::new(&names)));
+                let selected = request
+                    .categories
+                    .iter()
+                    .position(|category| category.id == current)
+                    .unwrap_or(0);
+                combo.set_selected(u32::try_from(selected).unwrap_or(0));
+                group.add(&combo);
+                page.add(&group);
+                (combo, request.categories.clone(), current)
+            })
     });
 
     let save_source = if raw_mode {

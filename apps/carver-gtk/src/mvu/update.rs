@@ -1767,9 +1767,10 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::BaseCellEdited {
             request_id,
             moved,
+            move_error,
             result,
             ..
-        } => update_base_cell_edited(model, request_id, moved, result),
+        } => update_base_cell_edited(model, request_id, moved, move_error, result),
         LibraryReply::BasePropertiesLoaded { request_id, result } => {
             if model.bases.base_properties_request != Some(request_id) {
                 return Vec::new();
@@ -1949,9 +1950,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 Vec::new()
             }
         },
-        LibraryReply::EditorSaved { request, result } => {
-            update_editor_save(model, &request, result)
-        }
+        LibraryReply::EditorSaved {
+            request,
+            move_error,
+            result,
+        } => update_editor_save(model, &request, move_error, result),
     }
 }
 
@@ -2665,9 +2668,10 @@ fn save_note_effect(request: EditorSaveRequest) -> Vec<Effect> {
 fn update_editor_save(
     model: &mut AppModel,
     request: &EditorSaveRequest,
+    mut move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let (close_requested, pending_favorite) = {
+    let (close_requested, pending_favorite, move_notice) = {
         let Some(document) = model.editor.as_mut() else {
             return Vec::new();
         };
@@ -2680,17 +2684,27 @@ fn update_editor_save(
         }
         match result {
             Ok(revision) => {
-                if let Some(category) = request.move_to {
-                    document.category_id = category;
-                }
+                // The content save is authoritative. A failed move is reported but does not keep
+                // the note on a stale revision, so the editor stays consistent.
+                let move_notice = match request.move_to {
+                    Some(category) if move_error.is_none() => {
+                        document.category_id = category;
+                        None
+                    }
+                    Some(_) => move_error.take(),
+                    None => None,
+                };
                 document.revision = revision;
-                if document.source == request.source {
+                // Re-save when the source changed or a category change arrived while this save was
+                // in flight, so the queued move is not dropped.
+                if document.source == request.source && document.pending_category.is_none() {
                     document.save_state = super::EditorSaveState::Clean;
                     (
                         document.close_is_requested(),
                         (!document.favorite_mutation_in_flight)
                             .then_some(document.pending_favorite)
                             .flatten(),
+                        move_notice,
                     )
                 } else {
                     document.save_state = super::EditorSaveState::Dirty;
@@ -2714,6 +2728,9 @@ fn update_editor_save(
             }
         }
     };
+    if let Some(notice) = move_notice {
+        model.notice = Some(notice);
+    }
     let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
         set_editor_favorite(model, is_favorite)
     });
@@ -3116,6 +3133,7 @@ fn update_base_cell_edited(
     model: &mut AppModel,
     request_id: super::RequestId,
     moved: bool,
+    move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
     let Some(position) = model
@@ -3137,6 +3155,10 @@ fn update_base_cell_edited(
             };
             if moved {
                 effects.extend(reload_sidebar(model));
+            }
+            if let Some(error) = move_error {
+                // Content saved but the move failed; the grid reloads and the user is told.
+                model.notice = Some(error);
             }
             effects
         }

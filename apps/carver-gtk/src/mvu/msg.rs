@@ -733,6 +733,8 @@ pub enum LibraryReply {
         path: String,
         /// Whether the edit also moved the note to another category.
         moved: bool,
+        /// A category move that failed after the content was saved.
+        move_error: Option<UiError>,
         /// Persisted revision or a displayable failure.
         result: Result<Revision, UiError>,
     },
@@ -873,6 +875,8 @@ pub enum LibraryReply {
     EditorSaved {
         /// Save identity used to reject stale completion work.
         request: EditorSaveRequest,
+        /// A category move that failed after the content was saved.
+        move_error: Option<UiError>,
         /// Persisted revision or a user-displayable failure.
         result: Result<Revision, UiError>,
     },

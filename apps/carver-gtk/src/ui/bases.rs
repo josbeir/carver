@@ -47,6 +47,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) rows: gtk::gio::ListStore,
     pub(crate) syncing_header_sort: std::rc::Rc<std::cell::Cell<bool>>,
     pub(crate) rendered_definition: std::cell::RefCell<Option<BaseDefinition>>,
+    pub(crate) rendered_editors: std::cell::RefCell<Option<Vec<Option<CellEditor>>>>,
     pub(crate) rendered_rows: std::cell::RefCell<Vec<(NoteId, Revision)>>,
 }
 
@@ -180,6 +181,7 @@ pub(crate) fn build_base(
             rows,
             syncing_header_sort,
             rendered_definition: std::cell::RefCell::new(None),
+            rendered_editors: std::cell::RefCell::new(None),
             rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
     )
@@ -229,28 +231,43 @@ pub(crate) fn render_base(
 ) {
     refs.title.set_text(&definition.name);
     refs.grid.set_sensitive(true);
-    if refs.rendered_definition.borrow().as_ref() != Some(definition) {
-        rebuild_columns(
-            refs,
-            definition,
-            descriptors,
-            default_properties,
-            dispatcher,
-        );
+    // The editor per column depends on the definition, the observed descriptors, and the
+    // configured defaults, so any change among them must rebuild the columns.
+    let editors = resolve_column_editors(definition, descriptors, default_properties);
+    let definition_changed = refs.rendered_definition.borrow().as_ref() != Some(definition);
+    let editors_changed = refs.rendered_editors.borrow().as_deref() != Some(editors.as_slice());
+    if definition_changed || editors_changed {
+        rebuild_columns(refs, definition, &editors, dispatcher);
         refs.rows.remove_all();
         refs.rendered_rows.borrow_mut().clear();
         refs.rendered_definition.replace(Some(definition.clone()));
+        refs.rendered_editors.replace(Some(editors));
     }
     append_rows(refs, rows);
     refs.pages
         .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
 }
 
-fn rebuild_columns(
-    refs: &BaseViewRefs,
+/// Resolves the editor for each configured column, aligned with `definition.columns`.
+fn resolve_column_editors(
     definition: &BaseDefinition,
     descriptors: &[PropertyDescriptor],
     default_properties: &[DocumentProperty],
+) -> Vec<Option<CellEditor>> {
+    definition
+        .columns
+        .iter()
+        .map(|column| match column {
+            BaseColumn::Name | BaseColumn::Category | BaseColumn::Updated => None,
+            BaseColumn::Property(_) => resolve_editor(column, descriptors, default_properties),
+        })
+        .collect()
+}
+
+fn rebuild_columns(
+    refs: &BaseViewRefs,
+    definition: &BaseDefinition,
+    editors: &[Option<CellEditor>],
     dispatcher: &AppDispatcher,
 ) {
     refs.syncing_header_sort.set(true);
@@ -269,7 +286,8 @@ fn rebuild_columns(
         Some(CellEditor::Text),
         dispatcher,
     );
-    for column in &definition.columns {
+    for (index, column) in definition.columns.iter().enumerate() {
+        let editor = editors.get(index).cloned().flatten();
         match column {
             BaseColumn::Name => {}
             BaseColumn::Category => {
@@ -282,7 +300,7 @@ fn rebuild_columns(
                 &refs.grid,
                 column,
                 path.0.trim_start_matches('/'),
-                resolve_editor(column, descriptors, default_properties),
+                editor,
                 dispatcher,
             ),
         }
@@ -1031,6 +1049,32 @@ mod tests {
                 &BaseColumn::Property(carver_sdk::PropertyPath("/missing".to_owned()))
             ),
             FrontmatterValue::Null
+        );
+    }
+
+    #[test]
+    fn resolve_column_editors_should_follow_descriptors_and_defaults() {
+        let done = BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned()));
+        let definition = carver_sdk::BaseDefinition::defaults(
+            carver_sdk::BaseId::new(),
+            "Projects".to_owned(),
+            vec![BaseColumn::Name, done],
+            carver_sdk::Revision(1),
+        );
+        let descriptors = [PropertyDescriptor {
+            path: carver_sdk::PropertyPath("/done".to_owned()),
+            kind: carver_domain::PropertyKind::Boolean,
+            property_type: carver_domain::PropertyType::Boolean,
+            example: Some("false".to_owned()),
+        }];
+        assert_eq!(
+            resolve_column_editors(&definition, &descriptors, &[]),
+            vec![None, Some(CellEditor::Boolean)]
+        );
+        // With no observation and no configured default the column stays free text.
+        assert_eq!(
+            resolve_column_editors(&definition, &[], &[]),
+            vec![None, Some(CellEditor::Text)]
         );
     }
 

@@ -161,11 +161,9 @@ impl CellEditorWidget {
                     read,
                 })
             }
-            CellEditor::List { options, multiple } => Some(if *multiple {
-                Self::build_multiple_list(options, seed, name)
-            } else {
-                Self::build_single_list(options, seed, name)
-            }),
+            CellEditor::List { options, .. } => {
+                Some(Self::build_multiple_list(options, seed, name))
+            }
             CellEditor::ListText => {
                 let entry = gtk::Entry::new();
                 entry.set_widget_name(name);
@@ -180,30 +178,6 @@ impl CellEditorWidget {
                     read,
                 })
             }
-        }
-    }
-
-    fn build_single_list(options: &[String], seed: &FrontmatterValue, name: &str) -> Self {
-        let labels: Vec<&str> = options.iter().map(String::as_str).collect();
-        let dropdown = gtk::DropDown::from_strings(&labels);
-        dropdown.set_widget_name(name);
-        dropdown.set_hexpand(true);
-        if let FrontmatterValue::Text(text) = seed
-            && let Some(index) = options.iter().position(|option| option == text)
-        {
-            dropdown.set_selected(u32::try_from(index).unwrap_or(0));
-        }
-        let read = {
-            let options = options.to_vec();
-            let dropdown = dropdown.clone();
-            Rc::new(move || {
-                let option = options.get(dropdown.selected() as usize).ok_or(())?;
-                Ok(Some(serde_json::Value::String(option.clone())))
-            })
-        };
-        Self {
-            widget: dropdown.upcast(),
-            read,
         }
     }
 

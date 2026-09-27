@@ -42,6 +42,7 @@ fn source_change_while_saving_should_start_one_follow_up_save() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: first_request,
             result: Ok(Revision(5)),
+            move_error: None,
         }),
     );
 
@@ -102,6 +103,7 @@ fn stale_editor_save_completion_should_not_replace_a_newer_document() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: first_request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
 
@@ -149,6 +151,7 @@ fn failed_editor_save_should_preserve_source_and_retry_on_request() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request: request.clone(),
             result: Err(error.clone()),
+            move_error: None,
         }),
     );
 
@@ -203,6 +206,7 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
         AppMsg::Library(LibraryReply::EditorSaved {
             request: first_request,
             result: Ok(Revision(8)),
+            move_error: None,
         }),
     );
     let final_request = match effects.as_slice() {
@@ -216,6 +220,7 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
         AppMsg::Library(LibraryReply::EditorSaved {
             request: final_request,
             result: Ok(Revision(9)),
+            move_error: None,
         }),
     );
     assert!(matches!(

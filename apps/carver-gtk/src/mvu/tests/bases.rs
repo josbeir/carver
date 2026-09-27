@@ -587,6 +587,7 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Err(UiError::new("save failed")),
+            move_error: None,
         }),
     );
     assert_eq!(model.route, Route::Editor);
@@ -706,6 +707,7 @@ fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
         AppMsg::Library(LibraryReply::EditorSaved {
             request,
             result: Ok(Revision(2)),
+            move_error: None,
         }),
     );
     assert_eq!(model.route, Route::Base);
@@ -1085,6 +1087,7 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
             path: "/status".to_owned(),
             moved: false,
             result: Ok(Revision(5)),
+            move_error: None,
         }),
     );
     assert!(model.bases.cell_edits.is_empty());
@@ -1119,6 +1122,7 @@ fn a_failed_cell_edit_should_keep_a_notice_without_reloading() {
             path: "/status".to_owned(),
             moved: false,
             result: Err(UiError::new("conflict")),
+            move_error: None,
         }),
     );
     assert!(effects.is_empty());
@@ -1140,6 +1144,7 @@ fn a_stale_cell_edit_reply_should_be_ignored() {
             path: "/status".to_owned(),
             moved: false,
             result: Ok(Revision(5)),
+            move_error: None,
         }),
     );
     assert!(effects.is_empty());
@@ -1232,6 +1237,7 @@ fn applying_base_properties_should_save_and_reload_the_base() {
             path: String::new(),
             moved: false,
             result: Ok(Revision(3)),
+            move_error: None,
         }),
     );
     assert!(model.bases.cell_edits.is_empty());
@@ -1279,6 +1285,7 @@ fn a_moved_base_property_edit_should_reload_the_sidebar() {
             path: String::new(),
             moved: true,
             result: Ok(Revision(3)),
+            move_error: None,
         }),
     );
     assert!(
@@ -1290,5 +1297,48 @@ fn a_moved_base_property_edit_should_reload_the_sidebar() {
         effects
             .iter()
             .any(|effect| matches!(effect, Effect::LoadSidebar { .. }))
+    );
+}
+
+#[test]
+fn a_failed_base_move_should_reload_rows_and_report_a_notice() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::ApplyProperties {
+            note_id,
+            revision: Revision(2),
+            edit: FrontmatterEdit::Raw {
+                format: carver_domain::FrontmatterFormat::Yaml,
+                content: "a: b".to_owned(),
+            },
+            category: Some(carver_sdk::CategoryId::new()),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::SaveBaseProperties { request_id, .. }] => *request_id,
+        _ => panic!("expected a save"),
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: String::new(),
+            moved: false,
+            move_error: Some(UiError::new("move failed")),
+            result: Ok(Revision(3)),
+        }),
+    );
+    assert!(model.bases.cell_edits.is_empty());
+    // The content was saved, so the grid reloads; the failed move is surfaced.
+    assert!(effects.iter().any(
+        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
+    ));
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("move failed")
     );
 }
