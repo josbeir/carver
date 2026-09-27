@@ -1,0 +1,147 @@
+@import 'tailwindcss';
+
+@plugin "daisyui" {
+  themes:
+    carver --default,
+    carver-dark --prefersdark;
+}
+
+/*
+ * Carver light theme. Colors are derived from the application icon palette:
+ * green (#42b883 -> #197d68), paper (#fff9df -> #f1d68a), coral (#e85d4a),
+ * purple (#7d63d8), and deep teal (#0b3c37), expressed in OKLCH.
+ */
+@plugin "daisyui/theme" {
+  name: 'carver';
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: oklch(99% 0.007 97);
+  --color-base-200: oklch(96% 0.013 96);
+  --color-base-300: oklch(92% 0.02 95);
+  --color-base-content: oklch(26% 0.02 177);
+  --color-primary: oklch(53% 0.093 174);
+  --color-primary-content: oklch(98% 0.02 170);
+  --color-secondary: oklch(58.3% 0.172 290);
+  --color-secondary-content: oklch(98% 0.01 290);
+  --color-accent: oklch(65.4% 0.176 30);
+  --color-accent-content: oklch(98% 0.01 30);
+  --color-neutral: oklch(32.3% 0.051 185);
+  --color-neutral-content: oklch(97% 0.02 96);
+  --color-info: oklch(60% 0.11 230);
+  --color-info-content: oklch(98% 0.01 230);
+  --color-success: oklch(60% 0.12 155);
+  --color-success-content: oklch(98% 0.01 155);
+  --color-warning: oklch(82% 0.13 85);
+  --color-warning-content: oklch(28% 0.05 85);
+  --color-error: oklch(58% 0.18 25);
+  --color-error-content: oklch(98% 0.01 25);
+
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Carver dark theme, following the application's dark presentation. */
+@plugin "daisyui/theme" {
+  name: 'carver-dark';
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: oklch(20.7% 0.022 180);
+  --color-base-200: oklch(17.5% 0.02 180);
+  --color-base-300: oklch(27% 0.028 180);
+  --color-base-content: oklch(94% 0.02 96);
+  --color-primary: oklch(70.3% 0.132 160);
+  --color-primary-content: oklch(20% 0.035 170);
+  --color-secondary: oklch(70% 0.15 290);
+  --color-secondary-content: oklch(20% 0.03 290);
+  --color-accent: oklch(72% 0.16 30);
+  --color-accent-content: oklch(20% 0.04 30);
+  --color-neutral: oklch(30% 0.03 185);
+  --color-neutral-content: oklch(94% 0.02 96);
+  --color-info: oklch(72% 0.1 230);
+  --color-info-content: oklch(20% 0.03 230);
+  --color-success: oklch(72% 0.13 155);
+  --color-success-content: oklch(20% 0.03 155);
+  --color-warning: oklch(84% 0.13 85);
+  --color-warning-content: oklch(25% 0.05 85);
+  --color-error: oklch(70% 0.17 25);
+  --color-error-content: oklch(20% 0.03 25);
+
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/*
+ * Tailwind's `dark:` variant tracks the Carver dark theme rather than the raw
+ * `prefers-color-scheme` media query, so the screenshot swap stays in lockstep
+ * with the DaisyUI theme selected by the toggle.
+ */
+@custom-variant dark (&:where([data-theme="carver-dark"], [data-theme="carver-dark"] *));
+
+@theme {
+  --font-sans:
+    'Inter Variable', 'Adwaita Sans', Cantarell, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Adwaita Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+@layer components {
+  /* Soft brand glow behind the hero, tinted from the theme's primary color. */
+  .hero-glow {
+    background: radial-gradient(
+      60% 60% at 50% 0%,
+      color-mix(in oklab, var(--color-primary) 20%, transparent) 0%,
+      transparent 70%
+    );
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

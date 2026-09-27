@@ -1,0 +1,75 @@
+---
+interface Props {
+  /** Text placed on the clipboard when the button is pressed. */
+  value: string;
+  label?: string;
+  class?: string;
+}
+
+const { value, label = 'Copy', class: className = '' } = Astro.props;
+---
+
+<button
+  type="button"
+  class={`btn btn-ghost btn-xs gap-1.5 ${className}`}
+  data-copy={value}
+  data-copy-label-original={label}
+  aria-label={label}
+>
+  <svg
+    class="size-3.5"
+    data-copy-icon
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+    <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+  </svg>
+  <svg
+    class="hidden size-3.5"
+    data-copy-done
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="m20 6-11 11-5-5"></path>
+  </svg>
+  <span data-copy-label>{label}</span>
+</button>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+    button.addEventListener('click', async () => {
+      const value = button.dataset.copy ?? '';
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch {
+        // Clipboard access can be denied; leave the button unchanged.
+        return;
+      }
+
+      const icon = button.querySelector('[data-copy-icon]');
+      const done = button.querySelector('[data-copy-done]');
+      const label = button.querySelector('[data-copy-label]');
+
+      icon?.classList.add('hidden');
+      done?.classList.remove('hidden');
+      if (label) label.textContent = 'Copied';
+
+      window.setTimeout(() => {
+        icon?.classList.remove('hidden');
+        done?.classList.add('hidden');
+        if (label) label.textContent = button.dataset.copyLabelOriginal ?? 'Copy';
+      }, 1600);
+    });
+  }
+</script>

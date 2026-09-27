@@ -1,0 +1,60 @@
+---
+import { Picture } from 'astro:assets';
+
+import type { Shot } from '../data/screenshots';
+
+interface Props {
+  shot: Shot;
+  /** Loading strategy; the hero passes "eager". */
+  loading?: 'eager' | 'lazy';
+  /** Responsive sizes hint for the rendered layout. */
+  sizes?: string;
+  class?: string;
+}
+
+const {
+  shot,
+  loading = 'lazy',
+  sizes = '(min-width: 1024px) 720px, 100vw',
+  class: className = '',
+} = Astro.props;
+
+const widths = [640, 960, 1280, 1600];
+---
+
+<figure
+  class={`overflow-hidden rounded-2xl border border-base-300/70 bg-base-200 shadow-xl shadow-base-content/5 ${className}`}
+>
+  {/*
+    Both theme variants are rendered and one is hidden with the `dark:` variant,
+    so the image follows the site theme with no JavaScript and no wrong-theme
+    flash. Only the visible variant is exposed to assistive technology.
+  */}
+  <span class="block dark:hidden">
+    <Picture
+      src={shot.light}
+      formats={['avif', 'webp']}
+      widths={widths}
+      sizes={sizes}
+      alt={shot.alt}
+      loading={loading}
+      decoding="async"
+      class="block h-auto w-full"
+    />
+  </span>
+  <span class="hidden dark:block">
+    <Picture
+      src={shot.dark}
+      formats={['avif', 'webp']}
+      widths={widths}
+      sizes={sizes}
+      alt={shot.alt}
+      loading={loading}
+      decoding="async"
+      class="block h-auto w-full"
+    />
+  </span>
+  <figcaption class="border-t border-base-300/60 px-4 py-3 text-sm text-base-content/70">
+    {shot.caption}
+  </figcaption>
+</figure>

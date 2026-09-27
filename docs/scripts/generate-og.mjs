@@ -1,0 +1,48 @@
+// Generates the social preview card committed as `public/og.png`.
+//
+// The card is typographic on purpose so it never goes stale the way a
+// screenshot would. Run with `npm run og` and commit the result; the build
+// itself does not depend on this script.
+import { access, readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+import sharp from 'sharp';
+
+const iconPath = fileURLToPath(new URL('../public/carver-icon.svg', import.meta.url));
+const outputPath = fileURLToPath(new URL('../public/og.png', import.meta.url));
+
+const WIDTH = 1200;
+const HEIGHT = 630;
+
+const background = `
+<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b3c37"/>
+      <stop offset="1" stop-color="#081311"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.12" cy="-0.05" r="0.9">
+      <stop offset="0" stop-color="#42b883" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#42b883" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)"/>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
+  <text x="96" y="392" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="92" font-weight="700" fill="#fff9df">Carver</text>
+  <text x="100" y="452" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="34" fill="#fff9df" fill-opacity="0.78">A native GNOME home for notes that last</text>
+  <text x="100" y="524" font-family="Inter, 'DejaVu Sans', 'Liberation Sans', sans-serif" font-size="24" letter-spacing="2" fill="#42b883" fill-opacity="0.9">RUST · GTK4 · OPEN SOURCE</text>
+</svg>`;
+
+await access(iconPath);
+
+const icon = await sharp(await readFile(iconPath))
+  .resize(128, 128)
+  .png()
+  .toBuffer();
+
+await sharp(Buffer.from(background))
+  .composite([{ input: icon, top: 108, left: 96 }])
+  .png()
+  .toFile(outputPath);
+
+console.log(`Wrote ${outputPath}`);

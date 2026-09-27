@@ -1,0 +1,79 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+
+import Footer from '../components/Footer.astro';
+import Nav from '../components/Nav.astro';
+import { base } from '../utils/base';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = new URL(`${base}og.png`, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="apple-touch-icon" href={`${base}carver-icon.svg`} />
+    <meta name="generator" content={Astro.generator} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Carver" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <meta name="theme-color" content="#fdfcf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c1b18" media="(prefers-color-scheme: dark)" />
+
+    {/*
+      Resolve the theme before first paint. The stored preference wins; without
+      one the OS preference is applied so the data-theme attribute (and with it
+      the dark: variant used for the screenshot swap) always reflects reality.
+    */}
+    <script is:inline>
+      (() => {
+        const root = document.documentElement;
+        const stored = localStorage.getItem('carver-theme');
+        if (stored === 'carver' || stored === 'carver-dark') {
+          root.dataset.theme = stored;
+          return;
+        }
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = prefersDark ? 'carver-dark' : 'carver';
+      })();
+    </script>
+    <slot name="head" />
+  </head>
+  <body class="flex min-h-dvh flex-col bg-base-100 text-base-content">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-content"
+    >
+      Skip to content
+    </a>
+    <Nav />
+    <main id="main" class="flex-1">
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

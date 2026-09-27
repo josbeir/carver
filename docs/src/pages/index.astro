@@ -1,0 +1,122 @@
+---
+import AgentAccess from '../components/AgentAccess.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import FeatureGrid from '../components/FeatureGrid.astro';
+import Hero from '../components/Hero.astro';
+import InstallBlock from '../components/InstallBlock.astro';
+import ScreenshotSection from '../components/ScreenshotSection.astro';
+import { shots } from '../data/screenshots';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const title = 'Carver — A native GNOME home for notes that last';
+const description =
+  'Carver is a native GNOME note-taking app written in Rust: rich-text and Carve source editing, saved Bases, managed images, and optional local agent access. Your notes stay on your machine.';
+
+const carveSample = `# Weekly review
+
+- [x] Triage the inbox
+- [ ] Draft the release notes
+
+> Aim for a *calm* week: fewer, sharper tasks.
+
+| Day | Focus   |
+| --- | ------- |
+| Mon | Writing |
+| Tue | Reviews |`;
+
+const guarantees = [
+  {
+    title: 'Your files stay yours',
+    body: 'Notes live in an XDG-scoped SQLite library on your machine, with images kept as managed assets next to the source. No account, no sync service, no telemetry.',
+  },
+  {
+    title: 'Built with Rust and GTK',
+    body: 'A real desktop application that follows GNOME: responsive Libadwaita layouts, light and dark themes, and accessible, keyboard-friendly controls.',
+  },
+  {
+    title: 'Open source, MIT licensed',
+    body: 'Read the code, build it yourself, or package it for your distribution. Canonical Carve source means your writing is never locked in.',
+  },
+];
+---
+
+<BaseLayout title={title} description={description}>
+  <Hero shot={shots.editor} />
+  <FeatureGrid />
+
+  <ScreenshotSection
+    id="carve"
+    eyebrow="Carve source"
+    title="A writing space and its source, in step"
+    shot={shots.carve}
+  >
+    <p>
+      Edit in a rich text view, drop into Carve source whenever you want full control, or keep both
+      open in a synchronized split view. Switching modes never discards your formatting or block
+      structure.
+    </p>
+    <CodeBlock label="week.crv" code={carveSample} />
+    <p>
+      Markdown imports convert to canonical Carve, so what you keep is one consistent format rather
+      than a pile of drifted syntax.
+    </p>
+  </ScreenshotSection>
+
+  <ScreenshotSection
+    id="bases"
+    eyebrow="Saved Bases"
+    title="Turn scattered notes into a view"
+    shot={shots.bases}
+    reverse
+  >
+    <p>
+      Saved note Bases build database-style views from the frontmatter already in your notes: choose
+      the columns, filter and sort the rows, and search across the result. It is the same notes,
+      arranged the way the work needs them.
+    </p>
+  </ScreenshotSection>
+
+  <AgentAccess shot={shots.agent} />
+
+  <ScreenshotSection
+    id="library"
+    eyebrow="Library"
+    title="Organized, and hard to lose"
+    shot={shots.library}
+  >
+    <p>
+      Group notes into categories, jump back in through recently opened notes, and recover anything
+      you removed from the Trash. Deleting a note soft deletes it and offers an Undo, so a slip
+      never costs you writing.
+    </p>
+  </ScreenshotSection>
+
+  <ScreenshotSection
+    id="settings"
+    eyebrow="Preferences"
+    title="Set it up to match how you work"
+    shot={shots.settings}
+    reverse
+  >
+    <p>
+      Choose your default editing mode, how source presentation behaves, whether remote images load,
+      and which formatting controls appear. Preferences are a plain TOML file under your XDG config
+      directory.
+    </p>
+  </ScreenshotSection>
+
+  <section class="scroll-mt-24 border-t border-base-300/60 py-20 sm:py-24">
+    <div class="mx-auto max-w-6xl px-4">
+      <ul class="grid gap-10 sm:grid-cols-3">
+        {guarantees.map((item) => (
+          <li>
+            <h2 class="text-lg font-semibold">{item.title}</h2>
+            <p class="mt-2 text-sm/6 text-base-content/70">{item.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <InstallBlock />
+</BaseLayout>

@@ -1,0 +1,65 @@
+---
+import { base } from '../utils/base';
+
+const repo = 'https://github.com/josbeir/carver';
+const releases = `${repo}/releases/latest`;
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-base-300/70 bg-base-200/60">
+  <div class="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="sm:col-span-2">
+      <a class="flex items-center gap-2 text-lg font-semibold tracking-tight" href={base}>
+        <img src={`${base}carver-icon.svg`} alt="" class="size-8 rounded-lg" />
+        <span>Carver</span>
+      </a>
+      <p class="mt-3 max-w-sm text-sm text-base-content/70">
+        A native GNOME home for notes that last. Written in Rust with GTK4 and Libadwaita, and
+        licensed under MIT.
+      </p>
+    </div>
+
+    <nav aria-label="Project">
+      <h2 class="footer-title mb-3 text-xs font-semibold uppercase tracking-wider text-base-content/60">
+        Project
+      </h2>
+      <ul class="space-y-2 text-sm">
+        <li>
+          <a class="link link-hover" href={repo}>
+            Source code
+          </a>
+        </li>
+        <li>
+          <a class="link link-hover" href={releases}>
+            Latest release
+          </a>
+        </li>
+        <li>
+          <a class="link link-hover" href={`${repo}/blob/main/LICENSE`}>
+            MIT license
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div>
+      <h2 class="footer-title mb-3 text-xs font-semibold uppercase tracking-wider text-base-content/60">
+        Data stays local
+      </h2>
+      <ul class="space-y-2 text-sm text-base-content/70">
+        <li>
+          <code class="text-xs">$XDG_DATA_HOME/carver</code>
+        </li>
+        <li>Notes and images never leave your machine.</li>
+        <li>Agent access is local and stdio-only.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="border-t border-base-300/60">
+    <p class="mx-auto max-w-6xl px-4 py-6 text-xs text-base-content/60">
+      © {year} Carver contributors. Carve is a markup format from the Carve project; Carver and
+      Carve are independent.
+    </p>
+  </div>
+</footer>

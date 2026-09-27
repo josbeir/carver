@@ -10,8 +10,8 @@ connection lets an AI agent work with the plans, ideas, and project notes you al
 Carver—turning them into a useful, organized project context instead of an isolated chat.
 
 <p align="center">
-  <img src="docs/Screenshot From 2026-09-08 19-36-38.png" alt="Carver editing in light mode" />
-  <img src="docs/Screenshot From 2026-09-08 19-41-07.png" alt="Carver editing in dark mode" />
+  <img src="docs/src/assets/screenshots/editor-light.png" alt="Carver editing in light mode" />
+  <img src="docs/src/assets/screenshots/editor-dark.png" alt="Carver editing in dark mode" />
 </p>
 
 ## Noteworthy features
