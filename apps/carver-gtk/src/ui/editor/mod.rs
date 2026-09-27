@@ -1728,7 +1728,9 @@ pub(crate) fn export_rendered_snapshot(
             return;
         }
         let settings = gtk::PrintSettings::new();
-        settings.set(gtk::PRINT_SETTINGS_PRINTER, Some("Print to File"));
+        let printer_name =
+            print_to_file_printer_name().unwrap_or_else(|| String::from("Print to File"));
+        settings.set(gtk::PRINT_SETTINGS_PRINTER, Some(printer_name.as_str()));
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI, Some(&target_uri));
         settings.set(gtk::PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
         operation.set_print_settings(&settings);
@@ -1768,6 +1770,56 @@ pub(crate) fn export_rendered_snapshot(
     load_preview(&preview, &source, allow_remote_images, html_profile);
 }
 
+/// Returns the GTK file print backend's printer name for print-to-PDF export.
+///
+/// GTK registers its file backend under a localized display name (`_("Print to File")`), so
+/// selecting it by the English name fails on every non-English system: `WebKit` then reports
+/// "printer not found" and no PDF is written. Enumerate the printers and pick the one owned by
+/// GTK's file backend. `gtk4-rs` generates no accessor for the backend, but `GtkPrinter` exposes
+/// it as a `backend` object property, whose `GType` name is the same discriminator `WebKit` uses.
+/// Returns `None` when no file-backend printer is available, leaving the caller to keep the
+/// previous English-name behavior.
+#[cfg(target_os = "linux")]
+pub(crate) fn print_to_file_printer_name() -> Option<String> {
+    let name = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let name_for_enumeration = std::sync::Arc::clone(&name);
+    gtk::enumerate_printers(
+        move |printer| {
+            if is_file_print_backend(printer) {
+                if let Ok(mut slot) = name_for_enumeration.lock() {
+                    *slot = Some(printer.name().to_string());
+                }
+                true
+            } else {
+                false
+            }
+        },
+        true,
+    );
+    name.lock().ok().and_then(|slot| slot.clone())
+}
+
+/// Returns whether `printer` belongs to GTK's file print backend.
+///
+/// The file backend's `GType` name changed from `GtkPrintBackendFileBuiltin` to
+/// `GtkPrintBackendFile` in GTK 4.19.3, which is older than this crate's minimum GTK, but both
+/// are accepted so the lookup keeps working if the older backend is ever present.
+#[cfg(target_os = "linux")]
+fn is_file_print_backend(printer: &gtk::Printer) -> bool {
+    printer
+        .property::<Option<glib::Object>>("backend")
+        .is_some_and(|backend| {
+            let backend_type = backend.type_().name();
+            backend_type == "GtkPrintBackendFile" || backend_type == "GtkPrintBackendFileBuiltin"
+        })
+}
+
+/// Non-Linux builds cannot enumerate GTK printers, so they keep the English backend name.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn print_to_file_printer_name() -> Option<String> {
+    None
+}
+
 pub(crate) fn pdf_page_setup() -> gtk::PageSetup {
     let page_setup = gtk::PageSetup::new();
     page_setup.set_paper_size(&gtk::PaperSize::new(Some("iso_a4")));
@@ -1786,80 +1838,61 @@ fn run_native_print_dialog(
     dispatcher: &AppDispatcher,
     request_id: u64,
 ) {
-    // WebKitGTK's GTK4 `run_dialog` path destroys a non-window object when the dialog is
-    // cancelled. Use GTK's supported print dialog to collect the native settings, then let
-    // WebKit render the accepted document with those settings.
-    let native_dialog = gtk::PrintOperation::new();
-    let page_setup = pdf_page_setup();
-    native_dialog.set_default_page_setup(Some(&page_setup));
-    native_dialog.set_embed_page_setup(true);
-    native_dialog.set_n_pages(1);
-    let accepted = Rc::new(Cell::new(false));
-    let accepted_for_begin_print = Rc::clone(&accepted);
-    native_dialog.connect_begin_print(move |native_dialog, _| {
-        accepted_for_begin_print.set(true);
-        // GTK has delivered the selected settings. It must not render a second, empty document;
-        // the WebKit operation below owns rendering Carve's HTML snapshot.
-        native_dialog.cancel();
-    });
-    let response = native_dialog.run(gtk::PrintOperationAction::PrintDialog, Some(print_window));
-    if response.is_err() {
-        complete_native_print_failure(print_window, dispatcher, request_id);
-        return;
-    }
-    if !accepted.get() {
-        if !reported.replace(true) {
-            let _ =
-                dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }));
-        }
-        print_window.destroy();
-        return;
-    }
+    // Use WebKitGTK's own dialog so one operation owns the print job. Collecting the GTK settings
+    // and then printing through WebKit starts a second job for the same output URI; the cancelled
+    // GTK job races it, which can leave no usable file.
+    operation.set_page_setup(&pdf_page_setup());
 
-    if let Some(settings) = native_dialog.print_settings() {
-        operation.set_print_settings(&settings);
-    }
-    operation.set_page_setup(&native_dialog.default_page_setup());
-
-    // The native GTK operation was deliberately cancelled after its dialog supplied the
-    // settings. Retain the WebKit operation and realized host until its own render completes.
+    // `run_dialog` returns once the dialog closes, while the print job it starts keeps running
+    // asynchronously. Retain the operation until it reports completion.
     let retained_operation = Rc::new(RefCell::new(Some(operation.clone())));
     let retained_for_finished = Rc::clone(&retained_operation);
     let reported_for_finished = Rc::clone(reported);
     let dispatcher_for_finished = dispatcher.clone();
-    let print_window_for_finished = print_window.clone();
+    let print_window_for_finished = print_window.downgrade();
     operation.connect_finished(move |_| {
         let _ = retained_for_finished.borrow_mut().take();
         if reported_for_finished.replace(true) {
             return;
         }
-        print_window_for_finished.destroy();
+        if let Some(window) = print_window_for_finished.upgrade() {
+            window.destroy();
+        }
         let _ = dispatcher_for_finished
             .dispatch(AppMsg::Editor(EditorMsg::PdfExportCompleted { request_id }));
     });
     let retained_for_failed = Rc::clone(&retained_operation);
     let reported_for_failed = Rc::clone(reported);
     let dispatcher_for_failed = dispatcher.clone();
-    let print_window_for_failed = print_window.clone();
+    let print_window_for_failed = print_window.downgrade();
     operation.connect_failed(move |_, _| {
         let _ = retained_for_failed.borrow_mut().take();
         if reported_for_failed.replace(true) {
             return;
         }
-        print_window_for_failed.destroy();
+        if let Some(window) = print_window_for_failed.upgrade() {
+            window.destroy();
+        }
         let _ = dispatcher_for_failed
             .dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
     });
-    operation.print();
-}
 
-fn complete_native_print_failure(
-    print_window: &gtk::Window,
-    dispatcher: &AppDispatcher,
-    request_id: u64,
-) {
-    print_window.destroy();
-    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportFailed { request_id }));
+    if operation.run_dialog(Some(print_window)) == webkit6::PrintOperationResponse::Print {
+        return;
+    }
+
+    let _ = retained_operation.borrow_mut().take();
+    if !reported.replace(true) {
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }));
+    }
+    // WebKit unwinds its dialog inside `run_dialog`; destroying the realized host on that stack
+    // can double-destroy a GTK window, so defer cleanup to the next main-loop turn.
+    let print_window_for_cleanup = print_window.downgrade();
+    glib::idle_add_local_once(move || {
+        if let Some(window) = print_window_for_cleanup.upgrade() {
+            window.destroy();
+        }
+    });
 }
 
 fn connect_source_preview(

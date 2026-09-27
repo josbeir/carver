@@ -90,7 +90,7 @@ pub struct ViewRefs {
     trash_status: adw::StatusPage,
     toast_overlay: Option<adw::ToastOverlay>,
     dispatcher: Option<AppDispatcher>,
-    last_notice: RefCell<Option<String>>,
+    last_notice_revision: Cell<u64>,
     external_change_toast: RefCell<Option<(crate::mvu::EditorSessionId, adw::Toast)>>,
     last_editor_save_error: RefCell<Option<String>>,
     last_undo_move: RefCell<Option<MoveUndo>>,
@@ -134,7 +134,7 @@ impl ViewRefs {
             trash_status,
             toast_overlay: None,
             dispatcher: None,
-            last_notice: RefCell::new(None),
+            last_notice_revision: Cell::new(0),
             external_change_toast: RefCell::new(None),
             last_editor_save_error: RefCell::new(None),
             last_undo_move: RefCell::new(None),
@@ -853,15 +853,14 @@ impl ViewRefs {
 
     fn render_notice(&self, model: &AppModel) {
         let Some(error) = &model.notice else {
-            self.last_notice.replace(None);
             return;
         };
-        if self.last_notice.borrow().as_deref() == Some(error.message.as_str()) {
+        if self.last_notice_revision.get() == model.notice_revision {
             return;
         }
         if let Some(toast_overlay) = &self.toast_overlay {
             toast_overlay.add_toast(adw::Toast::new(&error.message));
-            self.last_notice.replace(Some(error.message.clone()));
+            self.last_notice_revision.set(model.notice_revision);
         }
     }
 

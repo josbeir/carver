@@ -69,6 +69,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::rich_changes_should_be_ignored_while_another_mode_is_active()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
+    #[cfg(target_os = "linux")]
+    assert_print_to_file_printer_resolves()?;
     shell::assert_sidebar_reload_preserves_rows()?;
     bases::assert_base_reload_preserves_buttons()?;
     bases::assert_base_loading_delay()?;
@@ -168,6 +170,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     editor_shell::editor_options_should_adapt_to_layout(&fixture)?;
     rich_mode::rich_table_selection_should_update_the_picker(&fixture)?;
     export::export_dialogs_should_validate_and_print(&fixture, &note)?;
+    #[cfg(target_os = "linux")]
+    assert_native_print_dialog_should_print_to_file(
+        &fixture.window.clone().upcast::<gtk::Window>(),
+    )?;
     find::find_bar_and_shortcuts_should_navigate_matches(&fixture, &note)?;
     source_mode::formatting_controls_should_edit_carve(&fixture, &note)?;
     source_mode::highlighting_should_mark_carve_constructs(&fixture)?;

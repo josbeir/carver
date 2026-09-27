@@ -754,6 +754,11 @@ pub struct AppModel {
     pub trash: Resource<TrashContents>,
     /// The most recent mutation error for the view to surface.
     pub notice: Option<UiError>,
+    /// Monotonic revision that advances whenever `notice` is set.
+    ///
+    /// Views compare it against the last notice they surfaced so two consecutive identical
+    /// notices each raise a toast instead of the second being suppressed as a duplicate.
+    pub notice_revision: u64,
     /// Mutations currently admitted by the reducer.
     pub pending_actions: BTreeSet<ActionKey>,
     /// The latest successful move that can be undone.
@@ -812,6 +817,7 @@ impl AppModel {
             bases: BasesModel::default(),
             trash: Resource::default(),
             notice: None,
+            notice_revision: 0,
             pending_actions: BTreeSet::new(),
             undo_move: None,
             undo_trash_note: None,
@@ -884,6 +890,17 @@ impl AppModel {
         let request_id = self.next_editor_export_request_id;
         self.next_editor_export_request_id = self.next_editor_export_request_id.wrapping_add(1);
         request_id
+    }
+
+    /// Records a user-visible notice, advancing the revision views use to detect repeats.
+    pub(super) fn set_notice(&mut self, notice: UiError) {
+        self.notice_revision = self.notice_revision.wrapping_add(1);
+        self.notice = Some(notice);
+    }
+
+    /// Clears the current user-visible notice.
+    pub(super) fn clear_notice(&mut self) {
+        self.notice = None;
     }
 }
 
