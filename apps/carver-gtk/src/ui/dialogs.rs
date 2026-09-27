@@ -1752,6 +1752,21 @@ fn connect_move_picker_new_category(
     });
 }
 
+/// Builds one move-picker row. Category names are user data, not Pango markup.
+fn move_category_row(category_id: CategoryId, name: &str) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_widget_name(&format!("move-note-category:{category_id}"));
+    row.set_use_markup(false);
+    row.set_title(name);
+    row.add_prefix(&gtk::Image::from_icon_name("folder-symbolic"));
+    row
+}
+
+#[cfg(test)]
+pub(crate) fn move_category_row_for_test(name: &str) -> adw::ActionRow {
+    move_category_row(CategoryId::new(), name)
+}
+
 fn populate_move_categories(
     list: &gtk::ListBox,
     categories: &[CategorySummary],
@@ -1772,10 +1787,7 @@ fn populate_move_categories(
             continue;
         }
         matching_categories += 1;
-        let row = adw::ActionRow::new();
-        row.set_widget_name(&format!("move-note-category:{}", category.id));
-        row.set_title(&category.name);
-        row.add_prefix(&gtk::Image::from_icon_name("folder-symbolic"));
+        let row = move_category_row(category.id, &category.name);
         if category.id == source_category_id {
             let current = gtk::Label::new(Some(&gettext("Current")));
             current.add_css_class("dim-label");

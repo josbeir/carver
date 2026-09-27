@@ -46,6 +46,10 @@ use window::*;
 
 #[test]
 #[ignore = "requires a graphical display; CI runs it under headless Weston"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one display-backed entry point sequences scenarios that share GTK state"
+)]
 fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult {
     gtk::disable_portals();
     glib::set_application_name("Carver test");
@@ -120,6 +124,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     let fixture = window_fixture()?;
     dialogs::about_and_agent_setup_should_expose_shared_metadata(&fixture)?;
+    dialogs::move_picker_rows_should_render_names_with_markup_characters();
     preferences::document_appearance_should_persist(&fixture)?;
     preferences::source_preferences_should_toggle_gutter_and_font(&fixture)?;
     preferences::document_properties_preferences_should_persist(&fixture)?;
