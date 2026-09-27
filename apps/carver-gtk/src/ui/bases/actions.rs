@@ -167,7 +167,7 @@ fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
     icon.set_pixel_size(14);
     button.set_child(Some(&icon));
     button.set_tooltip_text(Some(tooltip));
-    button.add_css_class("flat");
+    button.add_css_class("circular");
     button
 }
 
