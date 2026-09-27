@@ -39,14 +39,94 @@
   --carve-danger: color-mix(in srgb, #e01b24 72%, var(--document-foreground));
 }
 
+/* editor.css styles ordinary document elements as well as its own chrome:
+ * fixed-layout tables, zebra rows, accent-coloured links, bordered blockquotes,
+ * grid task items. Carver renders Preview from Carve's own HTML through
+ * document.css, so the editable projection has to stay on document.css's values
+ * or Edit and Preview drift apart. These selectors match editor.css's
+ * specificity and win on order; the shared properties are document.css's
+ * values, restated so the editor keeps them. Position offsets are deliberately
+ * not reset: `position: relative` with `auto` offsets has no visual effect but
+ * anchors ProseMirror's cell-selection overlay. */
+.ProseMirror table {
+  table-layout: auto;
+  margin: 0 0 1rem;
+  outline: none;
+  border-radius: 0;
+  overflow: visible;
+}
+.ProseMirror th,
+.ProseMirror td {
+  min-width: 4rem;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  vertical-align: revert;
+}
+.ProseMirror th {
+  background: var(--table-header-background);
+}
+.ProseMirror tr:nth-child(2n) td {
+  background: revert;
+}
+.ProseMirror blockquote {
+  margin: 0 0 1rem;
+  padding-inline-start: 0;
+  border-inline-start: 0;
+  color: inherit;
+}
+.ProseMirror blockquote:focus-within {
+  border-inline-start-color: currentColor;
+}
+.ProseMirror blockquote > :last-child {
+  margin-block-end: 1rem;
+}
+.ProseMirror a,
+.ProseMirror a:visited,
+.ProseMirror a:hover {
+  color: inherit;
+}
+.ProseMirror a {
+  text-decoration-thickness: auto;
+  text-underline-offset: auto;
+}
+.ProseMirror ul[data-type="taskList"] > li[data-checked] {
+  display: flex;
+  align-items: flex-start;
+  column-gap: normal;
+}
+.ProseMirror ul[data-type="taskList"] > li[data-checked] > label {
+  margin-block-start: 0.3rem;
+}
+.ProseMirror
+  ul[data-type="taskList"]
+  > li[data-checked]
+  > div
+  > ul[data-type="taskList"] {
+  margin-block-start: 0.4rem;
+}
+
 #editor {
   min-height: 100%;
 }
 /* CarveKit renders the language picker as a `.carve-code-block-chrome` row
  * after <pre>, so anchor it to the top-right of the block and reveal it on
- * hover or keyboard focus instead of letting it take a row of its own. */
+ * hover or keyboard focus instead of letting it take a row of its own.
+ * editor.css would otherwise turn the wrapper into a bordered card and strip
+ * the inner <pre> back to square corners, so keep the wrapper layout-neutral
+ * and the <pre> on document.css's values: Edit must match Preview. */
 .ProseMirror .carve-code-block {
   position: relative;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: none;
+}
+.ProseMirror .carve-code-block > pre {
+  margin: 0 0 1rem;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
 }
 .ProseMirror .carve-code-block-chrome {
   position: absolute;
@@ -54,6 +134,9 @@
   z-index: 1;
   display: flex;
   align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out;
