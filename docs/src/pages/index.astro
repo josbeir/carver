@@ -23,10 +23,32 @@ const heroShots = heroOrder
 
 const title = 'Carver: A little space for big ideas';
 const description =
-  'Local-first notes for Linux. Carver is a native GNOME app with rich-text and Carve source editing, categories, saved views, and optional assistant access. Your library stays on your machine.';
+  'Local-first notes for Linux: rich-text and Carve source editing, categories, saved views, and optional assistant access, all on your machine.';
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Carver',
+  applicationCategory: 'ProductivityApplication',
+  operatingSystem: 'Linux',
+  description,
+  url: 'https://josbeir.github.io/carver/',
+  codeRepository: 'https://github.com/josbeir/carver',
+  downloadUrl: 'https://github.com/josbeir/carver/releases/latest',
+  license: 'https://github.com/josbeir/carver/blob/main/LICENSE',
+  isAccessibleForFree: true,
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+};
 ---
 
 <BaseLayout title={title} description={description} backdrop>
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+  </Fragment>
   <Hero shots={heroShots} />
   <FeatureShowcase />
   <CarveSection />

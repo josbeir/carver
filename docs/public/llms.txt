@@ -1,0 +1,35 @@
+# Carver
+
+> Carver is a local-first note-taking app for Linux, built with Rust, GTK4, and
+> Libadwaita. Notes are stored as canonical Carve source in a SQLite library
+> under the XDG data directory, with managed image assets kept beside it.
+
+- Native GNOME desktop application, free and open source under the MIT license.
+- Canonical Carve (`.crv`) source, with a rich-text editor, a syntax-highlighted
+  source editor, and a live preview.
+- Markdown import, "Paste as Markdown", and Markdown export when you need to
+  meet another tool halfway.
+- Saved Bases: database-style views over the notes' frontmatter properties,
+  editable from the grid.
+- Full-text search backed by SQLite FTS5, plus find inside the open note.
+- Optional local MCP server (`carver-mcp`) for AI assistants, read-only by
+  default and limited to reversible changes with `--allow-write`.
+- Media and attachments are listed in a document sidebar, so images travel with
+  the note instead of living in a database column.
+- Library at `$XDG_DATA_HOME/carver/` (SQLite database and `assets/`); settings
+  at `$XDG_CONFIG_HOME/carver/config.toml`.
+
+## Links
+
+- [Website](https://josbeir.github.io/carver/)
+- [Source code](https://github.com/josbeir/carver)
+- [Latest release](https://github.com/josbeir/carver/releases/latest)
+- [Issues](https://github.com/josbeir/carver/issues)
+- [MIT license](https://github.com/josbeir/carver/blob/main/LICENSE)
+
+## Documentation
+
+- [Carve markup format](https://markup-carve.github.io/carve/)
+- [README](https://github.com/josbeir/carver#readme)
+- [AppImage packaging notes](https://github.com/josbeir/carver/blob/main/packaging/appimage/README.md)
+- [Contributor guide](https://github.com/josbeir/carver/blob/main/AGENTS.md)

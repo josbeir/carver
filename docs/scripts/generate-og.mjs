@@ -45,4 +45,10 @@ await sharp(Buffer.from(background))
   .png()
   .toFile(outputPath);
 
+// iOS ignores SVG favicons, so also write the PNG it expects.
+await sharp(await readFile(iconPath))
+  .resize(180, 180)
+  .png()
+  .toFile(fileURLToPath(new URL('../public/apple-touch-icon.png', import.meta.url)));
+
 console.log(`Wrote ${outputPath}`);

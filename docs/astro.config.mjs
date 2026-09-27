@@ -9,7 +9,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://josbeir.github.io',
   base: '/carver',
-  trailingSlash: 'ignore',
+  // One canonical URL form: GitHub Pages serves `/carver/`, so keep the trailing
+  // slash everywhere and the sitemap will only carry that URL.
+  trailingSlash: 'always',
   integrations: [sitemap()],
   vite: {
     plugins: [tailwindcss()],
