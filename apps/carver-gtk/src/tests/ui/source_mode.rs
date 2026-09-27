@@ -147,9 +147,9 @@ pub(super) fn assert_shared_toolbar_controls(root: &gtk::Widget) -> TestResult {
 pub(super) fn assert_split_preview_tracks_source_scroll(
     editor: &gtk::Widget,
     source: &gtk::TextView,
-    source_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
 ) -> TestResult {
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     source.buffer().set_text(
         &(0..180)
             .map(|index| format!("Paragraph {index}"))
@@ -370,16 +370,14 @@ pub(super) fn rendered_preview_and_split_should_track_source(
 ) -> TestResult {
     let root = fixture.root()?;
     let source = fixture.source()?;
-    let source_mode = fixture.source_mode()?;
+    let editor_stack = fixture.editor_mode_stack()?;
     let source_path = fixture.source_path()?;
     let toolbar = fixture.toolbar()?;
     let find_bar = fixture.find_bar()?;
     source
         .buffer()
         .set_text("![First](assets/first.png){width=\"50%\"}");
-    let rendered_mode =
-        widget_as::<gtk::ToggleButton>(&root, "editor-mode-rendered").ok_or("rendered mode")?;
-    rendered_mode.set_active(true);
+    editor_stack.set_visible_child_name("rendered");
     assert!(run_main_context_until(|| !toolbar.is_sensitive()
         && !source_path.is_visible()
         && !find_bar.is_search_mode()));
@@ -393,8 +391,8 @@ pub(super) fn rendered_preview_and_split_should_track_source(
         &rendered_preview,
         "(() => { const image = document.querySelector('body > img'); const body = document.body; const style = getComputedStyle(body); const contentWidth = body.clientWidth - parseFloat(style.paddingInlineStart) - parseFloat(style.paddingInlineEnd); return image && Math.abs(image.getBoundingClientRect().width - contentWidth / 2) < 1; })()",
     );
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     assert!(run_main_context_until(|| toolbar.is_sensitive()));
-    assert_split_preview_tracks_source_scroll(&root, &source, &source_mode)?;
+    assert_split_preview_tracks_source_scroll(&root, &source, &editor_stack)?;
     Ok(())
 }

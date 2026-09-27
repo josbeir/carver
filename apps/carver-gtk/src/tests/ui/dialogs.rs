@@ -60,3 +60,12 @@ pub(super) fn about_and_agent_setup_should_expose_shared_metadata(
     );
     Ok(())
 }
+
+/// Category names are user data, so `&` must render literally instead of as Pango markup.
+pub(super) fn move_picker_rows_should_render_names_with_markup_characters() {
+    let row = crate::ui::dialogs::move_category_row_for_test("Work & Play");
+    assert!(
+        find_label(row.upcast_ref::<gtk::Widget>(), "Work & Play").is_some(),
+        "a category name containing '&' must render literally"
+    );
+}

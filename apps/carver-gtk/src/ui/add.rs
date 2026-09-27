@@ -41,19 +41,22 @@ pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
 }
 
 fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWindow {
-    let stack = gtk::Stack::builder()
-        .transition_type(gtk::StackTransitionType::SlideLeftRight)
-        .transition_duration(180)
-        .vhomogeneous(false)
-        .hhomogeneous(false)
-        .build();
-    stack.set_widget_name("add-pages");
+    let navigation = adw::NavigationView::new();
+    navigation.set_widget_name("add-navigation");
+    navigation.set_hhomogeneous(true);
+    navigation.set_vhomogeneous(true);
+    // The chooser is shorter than the category form; center it in the shared page
+    // size so the dialog does not resize when the two pages swap.
+    let chooser_frame = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let chooser = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    chooser.set_valign(gtk::Align::Center);
+    chooser_frame.append(&chooser);
     let heading = gtk::Label::new(Some(&gettext("What would you like to add?")));
     heading.add_css_class("heading");
     heading.set_wrap(true);
     chooser.append(&heading);
-    stack.add_named(&chooser, Some("choose"));
+    let chooser_page = adw::NavigationPage::with_tag(&chooser_frame, &gettext("Add"), "choose");
+    navigation.add(&chooser_page);
     let category = category_form("", CategoryAppearance::default());
     let submitted = Rc::new(Cell::new(false));
     let category_choice = choice_card(
@@ -66,10 +69,11 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
     chooser.append(&category_choice);
     let (category_page, category_back, category_create) =
         form_page("category", &gettext("New Category"), &category.content);
-    stack.add_named(&category_page, Some("category"));
+    let category_navigation_page =
+        adw::NavigationPage::with_tag(&category_page, &gettext("New Category"), "category");
+    navigation.add(&category_navigation_page);
     connect_form_navigation(
-        &stack,
-        "category",
+        &navigation,
         &category_choice,
         &category_back,
         &category.entry,
@@ -123,20 +127,20 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .propagate_natural_height(true)
         .propagate_natural_width(true)
-        .child(&stack)
+        .child(&navigation)
         .build();
     scroll.add_css_class("sidebar-add-panel");
     scroll
 }
 
 fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button, gtk::Button) {
-    let page = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 10);
     page.set_widget_name(&format!("add-{name}-page"));
     let back = gtk::Button::from_icon_name("go-previous-symbolic");
     back.set_widget_name(&format!("add-{name}-back"));
     back.set_tooltip_text(Some(&gettext("Back")));
     back.add_css_class("flat");
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     header.append(&back);
     let title = gtk::Label::new(Some(title));
     title.add_css_class("heading");
@@ -152,26 +156,25 @@ fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button
 }
 
 fn connect_form_navigation(
-    stack: &gtk::Stack,
-    name: &'static str,
+    navigation: &adw::NavigationView,
     choice: &gtk::Button,
     back: &gtk::Button,
-    entry: &gtk::Entry,
+    entry: &adw::EntryRow,
     create: &gtk::Button,
 ) {
-    let weak_stack = stack.downgrade();
+    let weak_navigation = navigation.downgrade();
     let entry_for_focus = entry.clone();
     choice.connect_clicked(move |_| {
-        if let Some(stack) = weak_stack.upgrade() {
-            stack.set_visible_child_name(name);
+        if let Some(navigation) = weak_navigation.upgrade() {
+            navigation.push_by_tag("category");
         }
         entry_for_focus.grab_focus();
     });
-    let weak_stack = stack.downgrade();
+    let weak_navigation = navigation.downgrade();
     let weak_choice = choice.downgrade();
     back.connect_clicked(move |_| {
-        if let Some(stack) = weak_stack.upgrade() {
-            stack.set_visible_child_name("choose");
+        if let Some(navigation) = weak_navigation.upgrade() {
+            navigation.pop();
         }
         if let Some(choice) = weak_choice.upgrade() {
             choice.grab_focus();
@@ -184,7 +187,7 @@ fn connect_form_navigation(
         }
     });
     let weak_create = create.downgrade();
-    entry.connect_activate(move |_| {
+    entry.connect_entry_activated(move |_| {
         if let Some(create) = weak_create.upgrade().filter(WidgetExt::is_sensitive) {
             create.emit_clicked();
         }

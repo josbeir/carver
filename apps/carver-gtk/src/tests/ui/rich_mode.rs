@@ -3,14 +3,13 @@ use super::*;
 
 pub(super) fn assert_rich_selection_copy_should_publish_portable_content(
     source: &gtk::TextView,
-    source_mode: &gtk::ToggleButton,
-    rich_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
     rich: &webkit6::WebView,
 ) -> TestResult {
     for text in ["first projection", "# Portable selection"] {
-        source_mode.set_active(true);
+        editor_stack.set_visible_child_name("source");
         source.buffer().set_text(text);
-        rich_mode.set_active(true);
+        editor_stack.set_visible_child_name("rich");
         assert_web_script_should_be_true(
             rich,
             &format!(
@@ -49,14 +48,14 @@ pub(super) fn assert_rich_selection_copy_should_publish_portable_content(
 
 pub(super) fn assert_native_file_drop_should_insert_an_ordered_batch(
     source: &gtk::TextView,
-    source_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
 ) -> TestResult {
     let directory = tempfile::tempdir()?;
     let first = directory.path().join("first.txt");
     let second = directory.path().join("second.txt");
     std::fs::write(&first, b"first contents")?;
     std::fs::write(&second, b"second contents")?;
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     let buffer = source.buffer();
     buffer.set_text("Before replace After");
     buffer.select_range(&buffer.iter_at_offset(7), &buffer.iter_at_offset(14));
@@ -86,14 +85,13 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
 ) -> TestResult {
     let root = fixture.root()?;
     let source = fixture.source()?;
-    let source_mode = fixture.source_mode()?;
-    let rich_mode = fixture.rich_mode()?;
+    let editor_stack = fixture.editor_mode_stack()?;
     let find_bar = fixture.find_bar()?;
     let find_entry = fixture.find_entry()?;
     let find_count = fixture.find_count()?;
     let find_close = widget_as::<gtk::Button>(&root, "editor-find-close").ok_or("find close")?;
     source.buffer().set_text("rich find target");
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
     let rich_source = std::rc::Rc::new(std::cell::RefCell::new(None));
     let rich_source_for_callback = std::rc::Rc::clone(&rich_source);
@@ -125,12 +123,12 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
     assert!(run_main_context_until(|| {
         !bold.is_active() && widget_is_window_focus(rich.upcast_ref())
     }));
-    assert_native_file_drop_should_insert_an_ordered_batch(&source, &source_mode)?;
-    source_mode.set_active(true);
+    assert_native_file_drop_should_insert_an_ordered_batch(&source, &editor_stack)?;
+    editor_stack.set_visible_child_name("source");
     source
         .buffer()
         .set_text("![First](assets/first.png){width=\"50%\"}");
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     let image_width = std::rc::Rc::new(std::cell::RefCell::new(None));
     let image_width_callback = std::rc::Rc::clone(&image_width);
     rich.evaluate_javascript(
@@ -159,11 +157,6 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
             false
         )
         .contains("assets/second.png")));
-    assert_rich_selection_copy_should_publish_portable_content(
-        &source,
-        &source_mode,
-        &rich_mode,
-        &rich,
-    )?;
+    assert_rich_selection_copy_should_publish_portable_content(&source, &editor_stack, &rich)?;
     Ok(())
 }

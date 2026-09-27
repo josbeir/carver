@@ -6,6 +6,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use adw::prelude::*;
 use gettextrs::{gettext, ngettext, pgettext};
 use gtk::prelude::*;
 use libadwaita as adw;
@@ -1022,80 +1023,45 @@ fn append_section_heading_widget(list: &gtk::ListBox, child: &impl IsA<gtk::Widg
     list.append(&row);
 }
 
-fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
+fn trashed_category_row(category: &carver_sdk::TrashedCategorySummary) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
     row.set_widget_name(&format!("trashed-category:{}", category.category.id));
     row.add_css_class("card");
     row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    content.set_margin_start(12);
-    content.set_margin_end(12);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    details.set_hexpand(true);
-    let title = gtk::Label::new(Some(&category.category.name));
-    title.set_xalign(0.0);
-    title.add_css_class("note-card-title");
-    details.append(&title);
-    let recovery_count = gtk::Label::new(Some(&tr_fmt!(
+    row.set_use_markup(false);
+    row.set_title(&category.category.name);
+    row.set_subtitle(&tr_fmt!(
         ngettext(
             "{count} recoverable note",
             "{count} recoverable notes",
             u32::try_from(category.recoverable_note_count).unwrap_or(u32::MAX),
         ),
         count = category.recoverable_note_count
-    )));
-    recovery_count.set_xalign(0.0);
-    recovery_count.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    recovery_count.set_single_line_mode(true);
-    recovery_count.add_css_class("note-card-updated");
-    details.append(&recovery_count);
-    content.append(&details);
-    content.append(&restore_button(
+    ));
+    row.add_suffix(&restore_button(
         &format!("restore-category:{}", category.category.id),
         "trash.restore-category",
         &category.category.id.to_string(),
     ));
-    row.set_child(Some(&content));
     row
 }
 
-fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
+fn trashed_note_row(note: &carver_sdk::TrashedNoteSummary) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
     row.set_widget_name(&format!("trashed-note:{}", note.id));
     row.add_css_class("card");
     row.add_css_class("note-card");
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    content.set_margin_start(12);
-    content.set_margin_end(12);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    details.set_hexpand(true);
-    let title = gtk::Label::new(Some(&note.title));
-    title.set_xalign(0.0);
-    title.add_css_class("note-card-title");
-    title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    title.set_single_line_mode(true);
-    details.append(&title);
+    row.set_use_markup(false);
+    row.set_title(&note.title);
     let excerpt_text = crate::ui::browser::compact_note_excerpt(&note.title, &note.excerpt);
     if !excerpt_text.is_empty() {
-        let excerpt = gtk::Label::new(Some(&excerpt_text));
-        excerpt.set_widget_name(&format!("trashed-note-excerpt:{}", note.id));
-        excerpt.set_xalign(0.0);
-        excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        excerpt.set_single_line_mode(true);
-        excerpt.add_css_class("note-card-excerpt");
-        details.append(&excerpt);
+        row.set_subtitle(&excerpt_text);
     }
-    content.append(&details);
-    content.append(&restore_button(
+    row.add_suffix(&restore_button(
         &format!("restore-note:{}", note.id),
         "trash.restore-note",
         &note.id.to_string(),
     ));
-    row.set_child(Some(&content));
     row
 }
 

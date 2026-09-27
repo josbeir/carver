@@ -95,16 +95,13 @@ pub(super) fn media_sidebar_should_show_file_details_in_an_isolated_editor() -> 
         source: String::new(),
     }));
     let source = widget_as::<gtk::TextView>(&fixture.surface, "source-editor").ok_or("source")?;
-    let source_mode = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-source")
-        .ok_or("source mode")?;
-    let rich_mode =
-        widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich").ok_or("rich mode")?;
+    let editor_stack = widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?;
     let rich = widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich")?;
     assert_document_sidebar_should_focus_and_show_file_details(
         &fixture.surface,
         &source,
-        &source_mode,
-        &rich_mode,
+        &editor_stack,
         &rich,
         &fixture.client,
         note.id,
@@ -266,8 +263,9 @@ fn check_raw_preview_provenance(fixture: &SidebarFixture) -> TestResult {
 }
 
 fn check_rich_navigation(root: &gtk::Widget, outline: &gtk::ListView) -> TestResult {
-    let mode = widget_as::<gtk::ToggleButton>(root, "editor-mode-rich").ok_or("rich mode")?;
-    mode.set_active(true);
+    let editor_stack =
+        widget_as::<adw::ViewStack>(root, "editor-mode-stack").ok_or("editor mode stack")?;
+    editor_stack.set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(root, "rich-editor").ok_or("rich editor")?;
     assert_web_script_should_be_true(
         &rich,
@@ -526,23 +524,25 @@ fn assert_rich_focus_should_not_escape_mode_switch(
     let rich = widget_as::<webkit6::WebView>(root, "rich-editor").ok_or("rich editor")?;
     let source = widget_as::<sourceview5::View>(root, "source-editor").ok_or("source")?;
     click_heading(outline, 1)?;
-    widget_as::<gtk::ToggleButton>(root, "editor-mode-source")
-        .ok_or("source mode")?
-        .set_active(true);
+    let editor_stack =
+        widget_as::<adw::ViewStack>(root, "editor-mode-stack").ok_or("editor mode stack")?;
+    editor_stack.set_visible_child_name("source");
+    // Drain the queued navigation first: its native completion must not hand focus
+    // back to the now-hidden rich editor.
+    assert_web_script_should_be_true(&rich, "true");
+    assert!(!widget_is_window_focus(rich.upcast_ref()));
+    assert!(run_main_context_until(|| source.is_mapped()));
     source.grab_focus();
     if let Some(window) = source.root() {
         window.set_focus(Some(&source));
     }
-    // A round-trip after the queued navigation also drains its native completion callback.
-    assert_web_script_should_be_true(&rich, "true");
     assert!(widget_is_window_focus(source.upcast_ref()));
     Ok(())
 }
 pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
     root: &gtk::Widget,
     source: &gtk::TextView,
-    source_mode: &gtk::ToggleButton,
-    rich_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
     rich: &webkit6::WebView,
     client: &super::super::support::TestLibraryClient,
     note_id: carver_sdk::NoteId,
@@ -553,7 +553,7 @@ pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
     let bytes = image.save_to_bufferv("png", &[])?;
     let path = client.store_asset(note_id, "png", &bytes)?;
     let text = format!("Before\n\n![Diagram]({path})\n\nAfter");
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     source.buffer().set_text(&text);
     let toggle = widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
@@ -608,7 +608,7 @@ pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
         .buffer()
         .place_cursor(&source.buffer().iter_at_offset(10));
     assert!(list.selected_row().is_some());
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     assert!(run_main_context_until(|| rich.is_visible()));
     assert_web_script_should_be_true(rich, "Boolean(document.querySelector('#editor img'))");
     let button = widget_as::<gtk::Button>(root, "editor-media-item").ok_or("media button")?;
@@ -637,8 +637,7 @@ pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
     assert_attachment_card_should_focus_in_edit_and_preview(
         root,
         source,
-        source_mode,
-        rich_mode,
+        editor_stack,
         rich,
         client,
         note_id,
@@ -665,15 +664,14 @@ pub(super) fn assert_rich_media_selection_should_update_sidebar(
 pub(super) fn assert_attachment_card_should_focus_in_edit_and_preview(
     root: &gtk::Widget,
     source: &gtk::TextView,
-    source_mode: &gtk::ToggleButton,
-    rich_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
     rich: &webkit6::WebView,
     client: &super::super::support::TestLibraryClient,
     note_id: carver_sdk::NoteId,
 ) -> TestResult {
     let bytes = vec![b'x'; 4096];
     let path = client.store_asset(note_id, "pdf", &bytes)?;
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     let text = format!("[External](https://example.test/{path})\n\n[Brief]({path})");
     source.buffer().set_text(&text);
     assert!(run_main_context_until(|| widget_as::<gtk::Label>(
@@ -691,12 +689,10 @@ pub(super) fn assert_attachment_card_should_focus_in_edit_and_preview(
         icon.gicon().is_some(),
         "attachments should display a file type icon"
     );
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     button.emit_clicked();
     assert_web_script_should_be_true(rich, "window.getSelection().toString() === 'Brief'");
-    let rendered_mode =
-        widget_as::<gtk::ToggleButton>(root, "editor-mode-rendered").ok_or("preview mode")?;
-    rendered_mode.set_active(true);
+    editor_stack.set_visible_child_name("rendered");
     let preview =
         widget_as::<webkit6::WebView>(root, "editor-rendered-preview").ok_or("preview")?;
     assert!(run_main_context_until(|| !preview.is_loading()));

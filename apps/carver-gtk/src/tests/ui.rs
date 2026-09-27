@@ -46,6 +46,10 @@ use window::*;
 
 #[test]
 #[ignore = "requires a graphical display; CI runs it under headless Weston"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one display-backed entry point sequences scenarios that share GTK state"
+)]
 fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult {
     gtk::disable_portals();
     glib::set_application_name("Carver test");
@@ -108,7 +112,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     trash::trash_contents_should_use_one_page_scroller()?;
     bases::base_header_sort_should_persist_from_native_controls()?;
     add::add_dialog_should_create_category_and_configure_new_base()?;
-    add::add_dialog_should_resize_for_the_active_form()?;
+    add::add_dialog_should_balance_page_sizes()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
     bases::base_search_should_open_and_clear_from_native_controls()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
@@ -120,6 +124,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     );
     let fixture = window_fixture()?;
     dialogs::about_and_agent_setup_should_expose_shared_metadata(&fixture)?;
+    dialogs::move_picker_rows_should_render_names_with_markup_characters();
     preferences::document_appearance_should_persist(&fixture)?;
     preferences::source_preferences_should_toggle_gutter_and_font(&fixture)?;
     preferences::document_properties_preferences_should_persist(&fixture)?;

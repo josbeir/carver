@@ -244,26 +244,6 @@ textview text {
   margin: 6px 4px;
 }
 
-#editor-mode-switcher {
-  background: @headerbar_bg_color;
-  border: 1px solid alpha(currentColor, 0.14);
-  border-radius: 10px;
-  box-shadow: 0 1px 3px alpha(black, 0.16);
-  padding: 2px;
-}
-
-#editor-mode-switcher button {
-  background: @headerbar_bg_color;
-  font-size: 0.9em;
-  min-height: 28px;
-  padding: 0 8px;
-}
-
-#editor-mode-switcher button:checked {
-  background: @accent_bg_color;
-  color: @accent_fg_color;
-}
-
 #formatting-toolbar-bar {
   border-top: 1px solid alpha(currentColor, 0.12);
 }
@@ -354,7 +334,7 @@ popover button:checked {
 
 .sidebar-add-panel { padding: 8px 18px 18px; }
 #add-base-page { padding: 12px; }
-.add-choice { padding: 14px; border-radius: 12px; border: 1px solid alpha(currentColor, 0.12); background: alpha(currentColor, 0.025); font-weight: normal; }
+.add-choice { padding: 14px; min-height: 120px; border-radius: 12px; border: 1px solid alpha(currentColor, 0.12); background: alpha(currentColor, 0.025); font-weight: normal; }
 .add-choice .heading { font-weight: 700; }
 .add-choice:hover, .add-choice:focus-visible { background: alpha(@accent_bg_color, 0.09); }
 .add-choice-icon { padding: 10px; border-radius: 10px; background: alpha(@accent_bg_color, 0.12); color: @accent_color; }

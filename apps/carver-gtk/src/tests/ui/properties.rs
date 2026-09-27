@@ -19,29 +19,25 @@ pub(super) fn document_properties_button_should_follow_mode_and_setting() -> Tes
         !button.has_css_class("osd") && !button.has_css_class("flat"),
         "the floating button should use the theme background so it adapts to the color scheme"
     );
-    let source_mode =
-        widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-source").ok_or("source")?;
-    let rich_mode =
-        widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rich").ok_or("rich")?;
-    let rendered_mode = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-mode-rendered")
-        .ok_or("rendered")?;
+    let editor_stack = widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?;
 
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     assert!(
         run_main_context_until(|| button.is_visible()),
         "the floating button should be visible in Source mode"
     );
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     assert!(
         run_main_context_until(|| button.is_visible()),
         "the floating button should be visible in Edit mode"
     );
-    rendered_mode.set_active(true);
+    editor_stack.set_visible_child_name("rendered");
     assert!(
         run_main_context_until(|| !button.is_visible()),
         "the floating button should be hidden in Preview mode"
     );
-    rich_mode.set_active(true);
+    editor_stack.set_visible_child_name("rich");
     assert!(run_main_context_until(|| button.is_visible()));
 
     fixture

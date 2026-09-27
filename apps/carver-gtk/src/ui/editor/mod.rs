@@ -71,13 +71,10 @@ pub(crate) struct EditorViewRefs {
     favorite: gtk::ToggleButton,
     favorite_options: gtk::gio::Menu,
     sidebar: document_sidebar::DocumentSidebar,
-    rich_mode: gtk::ToggleButton,
-    source_mode: gtk::ToggleButton,
-    rendered_mode: gtk::ToggleButton,
     find: FindController,
     toolbar: Toolbar,
     toolbar_bar: gtk::Box,
-    editor_stack: gtk::Stack,
+    editor_stack: adw::ViewStack,
     document_properties: gtk::Button,
     split_toggle: gtk::ToggleButton,
     rich: RichEditor,
@@ -206,20 +203,17 @@ impl EditorViewRefs {
         );
         match document.mode {
             EditorMode::Source => {
-                self.source_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("source");
                 self.toolbar.set_mode(EditorMode::Source);
                 self.split_toggle
                     .set_active(model.preferences.source_split_view);
             }
             EditorMode::Rendered => {
-                self.rendered_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("rendered");
                 self.toolbar.set_mode(EditorMode::Rendered);
                 self.split_toggle.set_active(false);
             }
             EditorMode::Rich => {
-                self.rich_mode.set_active(true);
                 self.editor_stack.set_visible_child_name("rich");
                 self.toolbar.set_mode(EditorMode::Rich);
                 self.split_toggle.set_active(false);
@@ -352,13 +346,15 @@ impl EditorViewRefs {
         if self.loaded_session.borrow().as_ref() != Some(&session) {
             return;
         }
-        if self.source_mode.is_active() {
-            self.source_editor.view().grab_focus();
-            if let Some(root) = self.source_editor.view().root() {
-                root.set_focus(Some(self.source_editor.view()));
+        match view_mode(&self.editor_stack) {
+            EditorMode::Source => {
+                self.source_editor.view().grab_focus();
+                if let Some(root) = self.source_editor.view().root() {
+                    root.set_focus(Some(self.source_editor.view()));
+                }
             }
-        } else if self.rich_mode.is_active() {
-            self.rich.focus();
+            EditorMode::Rich => self.rich.focus(),
+            EditorMode::Rendered => {}
         }
     }
 
@@ -375,34 +371,36 @@ impl EditorViewRefs {
         {
             return;
         }
-        if self.source_mode.is_active() {
-            let mut start = self
-                .source_buffer
-                .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
-            let end = self
-                .source_buffer
-                .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
-            if selection.is_empty() {
-                self.source_buffer.place_cursor(&start);
-            } else {
-                self.source_buffer.select_range(&start, &end);
+        match view_mode(&self.editor_stack) {
+            EditorMode::Source => {
+                let mut start = self
+                    .source_buffer
+                    .iter_at_offset(i32::try_from(selection.start).unwrap_or(i32::MAX));
+                let end = self
+                    .source_buffer
+                    .iter_at_offset(i32::try_from(selection.end).unwrap_or(i32::MAX));
+                if selection.is_empty() {
+                    self.source_buffer.place_cursor(&start);
+                } else {
+                    self.source_buffer.select_range(&start, &end);
+                }
+                self.source_editor.view().grab_focus();
+                if let Some(root) = self.source_editor.view().root() {
+                    root.set_focus(Some(self.source_editor.view()));
+                }
+                self.source_editor
+                    .view()
+                    .scroll_to_iter(&mut start, 0.2, false, 0.0, 0.0);
+                if self.split_toggle.is_active() {
+                    self.split_navigation
+                        .focus(target, &buffer_text(&self.source_buffer), false);
+                }
             }
-            self.source_editor.view().grab_focus();
-            if let Some(root) = self.source_editor.view().root() {
-                root.set_focus(Some(self.source_editor.view()));
+            EditorMode::Rich => self.rich.focus_document_target(target),
+            EditorMode::Rendered => {
+                self.rendered_navigation
+                    .focus(target, &buffer_text(&self.source_buffer), true);
             }
-            self.source_editor
-                .view()
-                .scroll_to_iter(&mut start, 0.2, false, 0.0, 0.0);
-            if self.split_toggle.is_active() {
-                self.split_navigation
-                    .focus(target, &buffer_text(&self.source_buffer), false);
-            }
-        } else if self.rich_mode.is_active() {
-            self.rich.focus_document_target(target);
-        } else {
-            self.rendered_navigation
-                .focus(target, &buffer_text(&self.source_buffer), true);
         }
     }
 
@@ -581,33 +579,10 @@ pub(crate) fn build_editor(
         AppMsg::Editor(EditorMsg::BackRequested),
     );
     header.pack_start(&back);
-    let mode_group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    mode_group.add_css_class("linked");
+    let mode_group = adw::InlineViewSwitcher::new();
     mode_group.set_widget_name("editor-mode-group");
-    let (rich_mode, rich_mode_label) = editor_mode_button(
-        "editor-mode-rich",
-        "document-edit-symbolic",
-        &pgettext("editor mode", "Edit"),
-        &gettext("Edit with rich text"),
-    );
-    rich_mode.set_active(true);
-    let (source_mode, source_mode_label) = editor_mode_button(
-        "editor-mode-source",
-        "text-x-generic-symbolic",
-        &pgettext("editor mode", "Source"),
-        &gettext("Edit Carve markup"),
-    );
-    source_mode.set_group(Some(&rich_mode));
-    let (rendered_mode, rendered_mode_label) = editor_mode_button(
-        "editor-mode-rendered",
-        "view-reveal-symbolic",
-        &pgettext("editor mode", "Preview"),
-        &gettext("Read-only preview"),
-    );
-    rendered_mode.set_group(Some(&rich_mode));
-    mode_group.append(&rich_mode);
-    mode_group.append(&source_mode);
-    mode_group.append(&rendered_mode);
+    mode_group.set_display_mode(adw::InlineViewSwitcherDisplayMode::Both);
+    mode_group.set_can_shrink(true);
     let favorite = gtk::ToggleButton::new();
     favorite.set_icon_name("starred-symbolic");
     favorite.set_widget_name("favorite-note-button");
@@ -630,15 +605,15 @@ pub(crate) fn build_editor(
     split_toggle.set_tooltip_text(Some(&gettext("Show rendered preview")));
     split_toggle.set_sensitive(false);
     let mode_controls = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    mode_controls.set_widget_name("editor-mode-switcher");
-    mode_controls.add_css_class("editor-mode-switcher");
     mode_controls.set_size_request(0, -1);
     mode_controls.set_halign(gtk::Align::Center);
     mode_controls.append(&mode_group);
     mode_controls.append(&split_toggle);
     header.set_title_widget(Some(&mode_controls));
 
-    let editor_stack = gtk::Stack::new();
+    let editor_stack = adw::ViewStack::new();
+    editor_stack.set_widget_name("editor-mode-stack");
+    mode_group.set_stack(Some(&editor_stack));
     let rendering = Rc::new(Cell::new(false));
     let source_editor = SourceEditor::new(source_syntax_dir)?;
     let source_buffer = source_editor.buffer().clone();
@@ -712,7 +687,6 @@ pub(crate) fn build_editor(
             split_navigation: &split_navigation,
         },
         &split_toggle,
-        &source_mode,
         &split_preview_state,
         &remote_images,
         &document_appearance,
@@ -755,15 +729,11 @@ pub(crate) fn build_editor(
         &split_toggle,
         &rich,
         &source_buffer,
-        &rich_mode,
-        &source_mode,
+        &editor_stack,
     );
 
-    connect_mode_buttons(
+    connect_mode_stack(
         dispatcher,
-        &rich_mode,
-        &source_mode,
-        &rendered_mode,
         &editor_stack,
         &toolbar,
         &rich,
@@ -784,9 +754,7 @@ pub(crate) fn build_editor(
     );
     let editor_compact = Rc::new(Cell::new(false));
     let refresh_split_visibility = connect_split_availability(
-        &rich_mode,
-        &source_mode,
-        &rendered_mode,
+        &editor_stack,
         &split_toggle,
         &split_preview_state.supported,
         &editor_compact,
@@ -799,7 +767,7 @@ pub(crate) fn build_editor(
         dispatcher,
         &sidebar.add_files,
         &source_buffer,
-        &source_mode,
+        &editor_stack,
         &rich,
     );
     connect_source_preview(dispatcher, &source_buffer, &rendering);
@@ -815,9 +783,11 @@ pub(crate) fn build_editor(
         COMPACT_EDITOR_WIDTH,
         adw::LengthUnit::Px,
     ));
-    compact_breakpoint.add_setters(&[(&rich_mode_label, "visible", false)]);
-    compact_breakpoint.add_setters(&[(&source_mode_label, "visible", false)]);
-    compact_breakpoint.add_setters(&[(&rendered_mode_label, "visible", false)]);
+    compact_breakpoint.add_setters(&[(
+        &mode_group,
+        "display-mode",
+        adw::InlineViewSwitcherDisplayMode::Icons,
+    )]);
     compact_breakpoint.add_setters(&[(&favorite, "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.desktop_widget(), "visible", false)]);
     compact_breakpoint.add_setters(&[(toolbar.compact_widget(), "visible", true)]);
@@ -844,9 +814,6 @@ pub(crate) fn build_editor(
         favorite,
         favorite_options: options.favorites.clone(),
         sidebar,
-        rich_mode,
-        source_mode,
-        rendered_mode,
         find,
         toolbar,
         toolbar_bar,
@@ -897,16 +864,25 @@ fn connect_document_sidebar_toggle(
     });
 }
 
+/// Derives the editor mode from the active view-stack page.
+fn view_mode(editor_stack: &adw::ViewStack) -> EditorMode {
+    match editor_stack.visible_child_name().as_deref() {
+        Some("source") => EditorMode::Source,
+        Some("rendered") => EditorMode::Rendered,
+        _ => EditorMode::Rich,
+    }
+}
+
 fn connect_add_files(
     dispatcher: &AppDispatcher,
     button: &gtk::Button,
     source_buffer: &gtk::TextBuffer,
-    source_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
     rich: &RichEditor,
 ) {
     let dispatcher = dispatcher.clone();
     let source_buffer = source_buffer.clone();
-    let source_mode = source_mode.clone();
+    let editor_stack = editor_stack.clone();
     let rich = rich.clone();
     button.connect_clicked(move |button| {
         if !button.is_sensitive() {
@@ -915,8 +891,7 @@ fn connect_add_files(
         let Some(session) = rich.document_session() else {
             return;
         };
-        let source = source_mode
-            .is_active()
+        let source = (view_mode(&editor_stack) == EditorMode::Source)
             .then(|| source_commands::image_target_from_buffer(&source_buffer));
         super::formatting::choose_managed_files(
             button,
@@ -935,24 +910,6 @@ fn connect_rich_fallback(dispatcher: &AppDispatcher, rich: &RichEditor) {
             EditorMode::Rendered,
         )));
     });
-}
-
-fn editor_mode_button(
-    name: &str,
-    icon_name: &str,
-    label: &str,
-    tooltip: &str,
-) -> (gtk::ToggleButton, gtk::Label) {
-    let button = gtk::ToggleButton::new();
-    button.set_widget_name(name);
-    button.set_tooltip_text(Some(tooltip));
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    content.append(&gtk::Image::from_icon_name(icon_name));
-    let label = gtk::Label::new(Some(label));
-    label.set_widget_name(&format!("{name}-label"));
-    content.append(&label);
-    button.set_child(Some(&content));
-    (button, label)
 }
 
 fn connect_source_context(
@@ -1005,10 +962,9 @@ impl SplitPreviewState {
 }
 
 fn add_editor_pages(
-    editor_stack: &gtk::Stack,
+    editor_stack: &adw::ViewStack,
     views: &EditorPageViews<'_>,
     split_toggle: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
     split_preview_state: &SplitPreviewState,
     remote_images: &Rc<Cell<bool>>,
     document_appearance: &DocumentAppearanceCache,
@@ -1050,7 +1006,7 @@ fn add_editor_pages(
     let split_supported_for_unapply = Rc::clone(&split_preview_state.supported);
     let split_scroll_for_unapply = split_scroll.clone();
     let split_toggle_for_unapply = split_toggle.clone();
-    let source_mode_for_unapply = source_mode.clone();
+    let editor_stack_for_unapply = editor_stack.clone();
     let split_preview_for_unapply = views.split_preview.clone();
     let split_preview_source_for_unapply = Rc::clone(&split_preview_state.loaded_source);
     let latest_split_preview_source_for_unapply = Rc::clone(&split_preview_state.latest_source);
@@ -1060,7 +1016,7 @@ fn add_editor_pages(
     let navigation = views.split_navigation.clone();
     breakpoint.connect_unapply(move |_| {
         split_supported_for_unapply.set(true);
-        let source_active = source_mode_for_unapply.is_active();
+        let source_active = view_mode(&editor_stack_for_unapply) == EditorMode::Source;
         split_toggle_for_unapply.set_sensitive(source_active);
         let split_visible = source_active && split_toggle_for_unapply.is_active();
         split_scroll_for_unapply.set_visible(split_visible);
@@ -1083,9 +1039,24 @@ fn add_editor_pages(
     source_container.add_breakpoint(breakpoint);
     let rendered_scroll = gtk::ScrolledWindow::new();
     rendered_scroll.set_child(Some(views.rendered_preview));
-    editor_stack.add_named(&rich_scroll, Some("rich"));
-    editor_stack.add_named(&source_container, Some("source"));
-    editor_stack.add_named(&rendered_scroll, Some("rendered"));
+    editor_stack.add_titled_with_icon(
+        &rich_scroll,
+        Some("rich"),
+        &pgettext("editor mode", "Edit"),
+        "document-edit-symbolic",
+    );
+    editor_stack.add_titled_with_icon(
+        &source_container,
+        Some("source"),
+        &pgettext("editor mode", "Source"),
+        "text-x-generic-symbolic",
+    );
+    editor_stack.add_titled_with_icon(
+        &rendered_scroll,
+        Some("rendered"),
+        &pgettext("editor mode", "Preview"),
+        "view-reveal-symbolic",
+    );
     editor_stack.set_visible_child_name("rich");
     EditorPages { source_scroll }
 }
@@ -1100,14 +1071,11 @@ fn default_document_appearance() -> web::DocumentAppearance {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "one place wires the three mode controls to their shared editor surfaces"
+    reason = "one place wires the mode switcher to its shared editor surfaces"
 )]
-fn connect_mode_buttons(
+fn connect_mode_stack(
     dispatcher: &AppDispatcher,
-    rich_mode: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
-    rendered_mode: &gtk::ToggleButton,
-    editor_stack: &gtk::Stack,
+    editor_stack: &adw::ViewStack,
     toolbar: &Toolbar,
     rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
@@ -1116,60 +1084,46 @@ fn connect_mode_buttons(
     rendering: &Rc<Cell<bool>>,
     find: &FindController,
 ) {
-    let connect = |button: &gtk::ToggleButton, surface: EditorMode| {
-        let dispatcher = dispatcher.clone();
-        let stack = editor_stack.clone();
-        let toolbar = toolbar.clone();
-        let rich = rich.clone();
-        let source = source_buffer.clone();
-        let split_toggle = split_toggle.clone();
-        let split_supported = Rc::clone(split_supported);
-        let rendering = Rc::clone(rendering);
-        let find = find.clone();
-        button.connect_toggled(move |button| {
-            if !button.is_active() {
-                return;
+    let dispatcher = dispatcher.clone();
+    let toolbar = toolbar.clone();
+    let rich = rich.clone();
+    let source = source_buffer.clone();
+    let split_toggle = split_toggle.clone();
+    let split_supported = Rc::clone(split_supported);
+    let rendering = Rc::clone(rendering);
+    let find = find.clone();
+    editor_stack.connect_visible_child_name_notify(move |stack| {
+        if rendering.get() {
+            return;
+        }
+        let mode = view_mode(stack);
+        let was_rendering = rendering.replace(true);
+        match mode {
+            EditorMode::Source => {
+                toolbar.set_mode(EditorMode::Source);
+                split_toggle.set_sensitive(split_supported.get());
             }
-            let persist_selection = !rendering.get();
-            let was_rendering = rendering.replace(true);
-            match surface {
-                EditorMode::Source => {
-                    stack.set_visible_child_name("source");
-                    toolbar.set_mode(EditorMode::Source);
-                    split_toggle.set_sensitive(split_supported.get());
-                }
-                EditorMode::Rendered => {
-                    stack.set_visible_child_name("rendered");
-                    toolbar.set_mode(EditorMode::Rendered);
-                    split_toggle.set_active(false);
-                    split_toggle.set_sensitive(false);
-                }
-                EditorMode::Rich => {
-                    let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
-                    rich.load_source(&source_text);
-                    stack.set_visible_child_name("rich");
-                    toolbar.set_mode(EditorMode::Rich);
-                    split_toggle.set_active(false);
-                    split_toggle.set_sensitive(false);
-                }
+            EditorMode::Rendered => {
+                toolbar.set_mode(EditorMode::Rendered);
+                split_toggle.set_active(false);
+                split_toggle.set_sensitive(false);
             }
-            find.set_mode(surface);
-            rendering.set(was_rendering);
-            if persist_selection {
-                let _ = dispatcher
-                    .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(surface)));
+            EditorMode::Rich => {
+                let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
+                rich.load_source(&source_text);
+                toolbar.set_mode(EditorMode::Rich);
+                split_toggle.set_active(false);
+                split_toggle.set_sensitive(false);
             }
-        });
-    };
-    connect(rich_mode, EditorMode::Rich);
-    connect(source_mode, EditorMode::Source);
-    connect(rendered_mode, EditorMode::Rendered);
+        }
+        find.set_mode(mode);
+        rendering.set(was_rendering);
+        let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)));
+    });
 }
 
 fn connect_split_availability(
-    rich_mode: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
-    rendered_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
     split_toggle: &gtk::ToggleButton,
     split_supported: &Rc<Cell<bool>>,
     compact: &Rc<Cell<bool>>,
@@ -1179,27 +1133,20 @@ fn connect_split_availability(
     // returned callback re-evaluates visibility when the compact breakpoint flips.
     let apply: Rc<dyn Fn()> = Rc::new({
         let split = split_toggle.clone();
-        let source = source_mode.clone();
+        let stack = editor_stack.clone();
         let split_supported = Rc::clone(split_supported);
         let compact = Rc::clone(compact);
         move || {
-            let source_active = source.is_active();
+            let source_active = view_mode(&stack) == EditorMode::Source;
+            if !source_active {
+                split.set_active(false);
+            }
             split.set_visible(source_active && !compact.get());
             split.set_sensitive(source_active && split_supported.get());
         }
     });
-    let apply_for_source = Rc::clone(&apply);
-    source_mode.connect_toggled(move |_| apply_for_source());
-    for mode in [rich_mode, rendered_mode] {
-        let split = split_toggle.clone();
-        let apply = Rc::clone(&apply);
-        mode.connect_toggled(move |button| {
-            if button.is_active() {
-                split.set_active(false);
-            }
-            apply();
-        });
-    }
+    let apply_for_mode = Rc::clone(&apply);
+    editor_stack.connect_visible_child_name_notify(move |_| apply_for_mode());
     apply();
     apply
 }
@@ -1207,7 +1154,7 @@ fn connect_split_availability(
 fn connect_split_toggle(
     dispatcher: &AppDispatcher,
     toggle: &gtk::ToggleButton,
-    editor_stack: &gtk::Stack,
+    editor_stack: &adw::ViewStack,
     source: &gtk::TextView,
     preview: &webkit6::WebView,
     rendering: &Rc<Cell<bool>>,
@@ -1464,8 +1411,7 @@ fn install_compact_editor_actions(
     split_toggle: &gtk::ToggleButton,
     rich: &RichEditor,
     source_buffer: &gtk::TextBuffer,
-    rich_mode: &gtk::ToggleButton,
-    source_mode: &gtk::ToggleButton,
+    editor_stack: &adw::ViewStack,
 ) {
     let actions = gtk::gio::SimpleActionGroup::new();
     let copy_note = gtk::gio::SimpleAction::new("copy-note", None);
@@ -1502,16 +1448,16 @@ fn install_compact_editor_actions(
     let paste_dispatcher = dispatcher.clone();
     let paste_rich = rich.clone();
     let paste_buffer = source_buffer.clone();
-    let paste_rich_mode = rich_mode.clone();
-    let paste_source_mode = source_mode.clone();
+    let paste_editor_stack = editor_stack.clone();
     paste_markdown.connect_activate(move |_, _| {
-        if !paste_rich_mode.is_active() && !paste_source_mode.is_active() {
+        let mode = view_mode(&paste_editor_stack);
+        if mode == EditorMode::Rendered {
             return;
         }
         let Some(session) = paste_rich.document_session() else {
             return;
         };
-        let source_mode = paste_source_mode.is_active();
+        let source_mode = mode == EditorMode::Source;
         let source_target =
             source_mode.then(|| source_commands::image_target_from_buffer(&paste_buffer));
         let clipboard = paste_rich.view().display().clipboard();

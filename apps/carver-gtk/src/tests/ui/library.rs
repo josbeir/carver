@@ -224,28 +224,19 @@ pub(super) fn move_picker_should_filter_and_move_notes(
     let move_search =
         widget_as::<gtk::SearchEntry>(&root, "move-note-search").ok_or("move picker search")?;
     let source_row = find_widget(&root, &format!("move-note-category:{}", category.id))
-        .and_downcast::<gtk::ListBoxRow>()
+        .and_downcast::<adw::ActionRow>()
         .ok_or("current move category")?;
-    assert!(
-        source_row
-            .child()
-            .and_downcast::<gtk::Button>()
-            .is_some_and(|button| !button.is_sensitive())
-    );
+    assert!(!source_row.is_sensitive());
     move_search.set_text("missing");
     assert!(run_main_context_until(|| {
         find_widget(&root, &format!("move-note-category:{}", destination.id)).is_none()
     }));
     move_search.set_text("pro");
     let destination_row = find_widget(&root, &format!("move-note-category:{}", destination.id))
-        .and_downcast::<gtk::ListBoxRow>()
+        .and_downcast::<adw::ActionRow>()
         .ok_or("filtered move destination")?;
-    let destination_button = destination_row
-        .child()
-        .and_downcast::<gtk::Button>()
-        .ok_or("move destination button")?;
-    assert!(destination_button.is_sensitive());
-    destination_button.emit_clicked();
+    assert!(destination_row.is_sensitive());
+    destination_row.emit_by_name::<()>("activate", &[]);
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
@@ -395,9 +386,9 @@ pub(super) fn browser_search_should_show_and_clear_empty_state(
     let root = fixture.root()?;
     let route_stack = fixture.route_stack()?;
     let source = fixture.source()?;
-    let source_mode = fixture.source_mode()?;
+    let editor_stack = fixture.editor_mode_stack()?;
     let sidebar_search_shortcut = fixture.sidebar_search_shortcut()?;
-    source_mode.set_active(true);
+    editor_stack.set_visible_child_name("source");
     source
         .buffer()
         .set_text("# Searchable note\n\nBrowser grouping");
