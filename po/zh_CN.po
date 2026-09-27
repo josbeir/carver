@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 17:14+0200\n"
+"POT-Creation-Date: 2026-09-27 17:23+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -103,21 +103,21 @@ msgstr "匹配此视图库的笔记将显示在此处。"
 msgid "Load more rows"
 msgstr "加载更多行"
 
-#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:791
+#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:794
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:622
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:711
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1484
 msgid "Title"
 msgstr "标题"
 
-#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:793
+#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:796
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:623
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:702
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:704
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:794
+#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:797
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:624
 msgid "Updated"
 msgstr "已更新"
@@ -126,7 +126,7 @@ msgstr "已更新"
 msgid "Edit document properties"
 msgstr "编辑文档属性"
 
-#: apps/carver-gtk/src/ui/bases.rs:735
+#: apps/carver-gtk/src/ui/bases.rs:738
 msgid "Edit title"
 msgstr "编辑标题"
 

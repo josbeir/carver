@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 17:14+0200\n"
+"POT-Creation-Date: 2026-09-27 17:23+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -107,21 +107,21 @@ msgstr ""
 msgid "Load more rows"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:791
+#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:794
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:622
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:711
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1484
 msgid "Title"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:793
+#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:796
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:623
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:702
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:704
 msgid "Category"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:794
+#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:797
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:624
 msgid "Updated"
 msgstr ""
@@ -130,7 +130,7 @@ msgstr ""
 msgid "Edit document properties"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs:735
+#: apps/carver-gtk/src/ui/bases.rs:738
 msgid "Edit title"
 msgstr ""
 
