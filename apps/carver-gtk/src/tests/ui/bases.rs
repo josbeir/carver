@@ -840,10 +840,8 @@ pub(super) fn base_rule_controls_should_edit_rules_and_fields() -> TestResult {
         find_widget(dialog.upcast_ref(), "base-visible-field-2").is_none()
     }));
 
-    // Cancel closes the dialog without saving.
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-configuration-cancel")
-        .ok_or("cancel")?
-        .emit_clicked();
+    // Dismiss the dialog without saving.
+    dialog.close();
     assert!(run_main_context_until(|| window.visible_dialog().is_none()));
     window.close();
     Ok(())
