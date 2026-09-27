@@ -1,0 +1,31 @@
+{
+  "name": "carver-docs",
+  "type": "module",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Landing site and future documentation for Carver.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "check": "astro check && prettier --check .",
+    "format": "prettier --write .",
+    "og": "node scripts/generate-og.mjs"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/sitemap": "^3.7.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.5",
+    "daisyui": "^5.7.46",
+    "sharp": "^0.35.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-astro": "^1.1.0"
+  }
+}

@@ -35,6 +35,8 @@ for directory in glib-2.0/schemas gtksourceview-5 icons/Adwaita icons/hicolor; d
   mkdir -p "$app_dir/usr/share/$(dirname "$directory")"
   cp -a "/usr/share/$directory" "$app_dir/usr/share/$directory"
 done
+install -Dm644 "$resources/icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg" \
+  "$app_dir/usr/share/icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg"
 glib-compile-schemas "$app_dir/usr/share/glib-2.0/schemas"
 # Retain distribution copyright notices for bundled libraries and data.
 if [[ -d /usr/share/doc ]]; then

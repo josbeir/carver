@@ -1,0 +1,142 @@
+---
+import { featureAreas, icons } from '../data/features';
+import CodeBlock from './CodeBlock.astro';
+import ThemedScreenshot from './ThemedScreenshot.astro';
+
+const groupName = 'feature-area';
+
+// The rail (radios) and the detail panels live in separate columns, so the
+// active panel is matched to the checked radio with :has(). Generated here to
+// keep a single source of truth in the feature list.
+const showPanels = featureAreas
+  .map((area) => `.feature-tabs:has(input[value="${area.id}"]:checked) [data-panel="${area.id}"]`)
+  .join(',');
+const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
+---
+
+<section
+  id="features"
+  class="scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-20 sm:py-28"
+>
+  <div class="mx-auto max-w-6xl px-4">
+    <div class="max-w-3xl">
+      <p class="mb-3 text-base font-semibold uppercase tracking-wider text-primary">Features</p>
+      <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        From first thought to something worth keeping
+      </h2>
+      <p class="mt-5 text-xl/9 text-base-content/75">
+        Jot down an idea, gather your research, or make a plan. Carver gives you room to write and
+        simple ways to keep it all together.
+      </p>
+    </div>
+
+    <Fragment set:html={`<style>${panelCss}</style>`} />
+
+    {/*
+      CSS-only disclosure: the radios make the panel switch with no JavaScript,
+      and hidden panels' images stay unloaded until first shown.
+    */}
+    <div class="feature-tabs mt-14 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10">
+      <div
+        class="rounded-2xl border border-base-300/70 bg-base-100 p-1.5 shadow-sm lg:sticky lg:top-20 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
+        role="radiogroup"
+        aria-label="Feature areas"
+      >
+        {featureAreas.map((area, index) => (
+          <label class="block cursor-pointer">
+            <input
+              type="radio"
+              name={groupName}
+              value={area.id}
+              checked={index === 0}
+              class="peer sr-only"
+            />
+            <span class="flex items-start gap-2.5 rounded-xl p-2.5 transition-colors hover:bg-base-200/70 peer-checked:bg-primary/10 peer-checked:ring-1 peer-checked:ring-primary/40 peer-focus-visible:ring-2 peer-focus-visible:ring-primary">
+              <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="size-4"
+                  aria-hidden="true"
+                  set:html={icons[area.icon]}
+                />
+              </span>
+              <span class="min-w-0">
+                <span class="block text-base leading-snug font-medium text-base-content">
+                  {area.label}
+                </span>
+                <span class="mt-0.5 block text-sm/5 text-base-content/60">{area.teaser}</span>
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div>
+        {featureAreas.map((area, index) => (
+          <div
+            data-panel={area.id}
+            class="rounded-2xl border border-base-300/70 bg-base-100 p-6 shadow-sm sm:p-8"
+          >
+            <h3 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+              {area.title}
+            </h3>
+
+            {area.shot && (
+              <div class="mt-6">
+                <ThemedScreenshot
+                  shot={area.shot}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  sizes="(min-width: 1024px) 720px, 100vw"
+                />
+              </div>
+            )}
+
+            <p class="mt-6 text-lg/8 text-base-content/75">{area.summary}</p>
+
+            <ul class="mt-6 space-y-3">
+              {area.points.map((point) => (
+                <li class="flex gap-3 text-base/7 text-base-content/75">
+                  <svg
+                    class="mt-1 size-5 shrink-0 text-primary"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m20 6-11 11-5-5" />
+                  </svg>
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+
+            {area.clients && (
+              <ul class="mt-7 flex flex-wrap gap-2">
+                {area.clients.map((client) => (
+                  <li class="inline-flex items-center gap-2 rounded-full border border-base-300/70 bg-base-100 px-3 py-1.5 text-sm font-medium">
+                    <span
+                      class="inline-flex size-4 items-center justify-center [&>svg]:size-full"
+                      aria-hidden="true"
+                      set:html={client.logo}
+                    />
+                    {client.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {area.code && <CodeBlock label={area.code.label} code={area.code.code} class="mt-7" />}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

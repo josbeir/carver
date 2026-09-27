@@ -9,6 +9,9 @@
 *.mo
 coverage/
 apps/carver-gtk/web/node_modules/
+docs/node_modules/
+docs/dist/
+docs/.astro/
 .agents/
 default_*
 AGENTS.md

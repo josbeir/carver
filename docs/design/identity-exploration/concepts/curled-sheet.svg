@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title"><title id="title">Carver — Curled sheet</title>
+<defs><linearGradient id="curl" x1="20" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#ded4b8"/><stop offset=".55" stop-color="#fff8e7"/><stop offset="1" stop-color="#fffdf5"/></linearGradient></defs>
+<g id="paper-profile"><path d="M108 28Q92 20 72 20C40 20 20 40 20 68S40 116 72 116Q92 116 108 108L96 84Q86 90 74 90C58 90 48 80 48 68S58 46 74 46Q86 46 96 52Z" fill="#14532e"/></g>
+<g id="curved-paper"><path d="M108 24Q92 16 72 16C40 16 20 36 20 64S40 112 72 112Q92 112 108 104L96 80Q86 86 74 86C58 86 48 76 48 64S58 42 74 42Q86 42 96 48Z" fill="#2ec27e"/></g>
+<g id="cream-underside"><path d="M72 16C40 16 20 36 20 64S40 112 72 112C52 102 42 86 42 64S52 26 72 16Z" fill="url(#curl)"/><path d="M72 16C52 26 42 42 42 64S52 102 72 112C56 96 52 82 52 64S56 32 72 16Z" fill="#26a269"/></g>
+</svg>

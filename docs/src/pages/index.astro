@@ -1,0 +1,56 @@
+---
+import CarveSection from '../components/CarveSection.astro';
+import FeatureShowcase from '../components/FeatureShowcase.astro';
+import Hero from '../components/Hero.astro';
+import InstallBlock from '../components/InstallBlock.astro';
+import { shots, type Shot, type ShotName } from '../data/screenshots';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const heroOrder: ShotName[] = [
+  'editor',
+  'media',
+  'focus',
+  'source',
+  'bases',
+  'agent',
+  'library',
+  'search',
+  'settings',
+];
+const heroShots = heroOrder
+  .map((name) => shots[name])
+  .filter((shot): shot is Shot => Boolean(shot));
+
+const title = 'Carver: A little space for big ideas';
+const description =
+  'Local-first notes for Linux: rich-text and Carve source editing, categories, saved views, and optional assistant access, all on your machine.';
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Carver',
+  applicationCategory: 'ProductivityApplication',
+  operatingSystem: 'Linux',
+  description,
+  url: 'https://josbeir.github.io/carver/',
+  codeRepository: 'https://github.com/josbeir/carver',
+  downloadUrl: 'https://github.com/josbeir/carver/releases/latest',
+  license: 'https://github.com/josbeir/carver/blob/main/LICENSE',
+  isAccessibleForFree: true,
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+};
+---
+
+<BaseLayout title={title} description={description} backdrop>
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+  </Fragment>
+  <Hero shots={heroShots} />
+  <FeatureShowcase />
+  <CarveSection />
+  <InstallBlock />
+</BaseLayout>

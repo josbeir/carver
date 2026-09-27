@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/io/github/josbeir/Carver/icons">
+    <file alias="scalable/apps/io.github.josbeir.Carver.svg">icons/hicolor/scalable/apps/io.github.josbeir.Carver.svg</file>
+    <file alias="symbolic/apps/io.github.josbeir.Carver-symbolic.svg">icons/hicolor/symbolic/apps/io.github.josbeir.Carver-symbolic.svg</file>
     <file alias="scalable/apps/carver-agent-codex-symbolic.svg">agent-icons/codex-openai.svg</file>
     <file alias="scalable/apps/carver-agent-claude-symbolic.svg">agent-icons/anthropic.svg</file>
     <file alias="scalable/apps/carver-agent-copilot-symbolic.svg">agent-icons/copilot.svg</file>

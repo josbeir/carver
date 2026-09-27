@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://josbeir.github.io/carver/sitemap-index.xml

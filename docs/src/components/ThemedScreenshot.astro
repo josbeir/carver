@@ -1,0 +1,77 @@
+---
+import { Picture } from 'astro:assets';
+
+import type { Shot } from '../data/screenshots';
+
+interface Props {
+  shot: Shot;
+  /** Loading strategy; the hero's first slide passes "eager". */
+  loading?: 'eager' | 'lazy';
+  /** Responsive sizes hint for the rendered layout. */
+  sizes?: string;
+  /** Depth under the capture; the hero prefers a lighter shadow than panels. */
+  shadow?: 'none' | 'subtle' | 'soft';
+  class?: string;
+}
+
+const {
+  shot,
+  loading = 'lazy',
+  sizes = '(min-width: 1024px) 720px, 100vw',
+  shadow = 'soft',
+  class: className = '',
+} = Astro.props;
+
+const widths = [640, 960, 1280, 1600, 2048, 2560];
+// Higher than the sharp defaults: screenshots carry lots of small text, where
+// AVIF/WebP artifacts read as softness.
+const quality = 84;
+// The captures already carry the window's rounded, anti-aliased corners. A
+// `filter: drop-shadow` on the image renders *through* that soft corner alpha,
+// which shows as a dark fringe, so the depth comes from a box-shadow on a
+// rounded, clipped wrapper instead.
+const shadows = {
+  none: '',
+  subtle: 'shadow-[0_4px_14px_rgba(0,0,0,0.10)] dark:shadow-[0_4px_14px_rgba(0,0,0,0.50)]',
+  soft: 'shadow-[0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[0_6px_18px_rgba(0,0,0,0.55)]',
+} as const;
+const figureClass = `overflow-hidden rounded-xl ${shadows[shadow]}`;
+const imageClass = 'block h-auto w-full';
+---
+
+<figure class={`${figureClass} ${className}`}>
+  {/*
+    Both theme variants are rendered and one is hidden with the `dark:` variant,
+    so the image follows the site theme with no JavaScript and no wrong-theme
+    flash. Only the visible variant is exposed to assistive technology.
+  */}
+  <span class="block dark:hidden">
+    <Picture
+      src={shot.light}
+      formats={['avif', 'webp']}
+      widths={widths}
+      sizes={sizes}
+      quality={quality}
+      alt={shot.alt}
+      loading={loading}
+      decoding="async"
+      class={imageClass}
+    />
+  </span>
+  <span class="hidden dark:block">
+    <Picture
+      src={shot.dark}
+      formats={['avif', 'webp']}
+      widths={widths}
+      sizes={sizes}
+      quality={quality}
+      alt={shot.alt}
+      loading={loading}
+      decoding="async"
+      class={imageClass}
+    />
+  </span>
+  {shot.caption && (
+    <figcaption class="mt-3 text-center text-base text-base-content/70">{shot.caption}</figcaption>
+  )}
+</figure>
