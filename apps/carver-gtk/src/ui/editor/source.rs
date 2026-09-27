@@ -96,6 +96,9 @@ fn write_asset(directory: &Path, name: &str, contents: &str) -> Result<(), io::E
 pub(crate) struct SourceEditor {
     buffer: sourceview5::Buffer,
     view: sourceview5::View,
+    // Keeps the grammar's owning manager alive for the lazily created highlighting engine.
+    _language_manager: sourceview5::LanguageManager,
+    language: sourceview5::Language,
     light_style: sourceview5::StyleScheme,
     dark_style: sourceview5::StyleScheme,
     writing_focus_light_style: sourceview5::StyleScheme,
@@ -109,6 +112,11 @@ pub(crate) struct SourceEditor {
 
 impl SourceEditor {
     /// Creates a Carve-configured source view from installed syntax assets.
+    ///
+    /// The grammar engine is not bound to the buffer here: constructing it costs over a hundred
+    /// milliseconds and the editor surface is built during window construction, before the user
+    /// can open a note. [`SourceEditor::render_preferences`] applies the language on the first
+    /// render that enables highlighting.
     pub(crate) fn new(syntax_dir: &Path) -> Result<Self, SourceSyntaxError> {
         let syntax_dir = syntax_dir
             .to_str()
@@ -141,9 +149,7 @@ impl SourceEditor {
             "dark writing-focus Carve style scheme",
         )?;
         let buffer = sourceview5::Buffer::builder()
-            .language(&language)
             .style_scheme(&light_style)
-            .highlight_syntax(true)
             .build();
         let view = sourceview5::View::with_buffer(&buffer);
         view.set_widget_name("source-editor");
@@ -178,6 +184,8 @@ impl SourceEditor {
         Ok(Self {
             buffer,
             view,
+            _language_manager: language_manager,
+            language,
             light_style,
             dark_style,
             writing_focus_light_style,
@@ -241,6 +249,12 @@ impl SourceEditor {
             ),
         };
         self.buffer.set_highlight_syntax(highlight_syntax);
+        // The Carve grammar engine is expensive to construct, so it is bound
+        // lazily on the first render that actually wants highlighting rather
+        // than during window construction. See `SourceEditor::new`.
+        if highlight_syntax && self.buffer.language().is_none() {
+            self.buffer.set_language(Some(&self.language));
+        }
         self.buffer.set_style_scheme(Some(style_scheme));
         let custom_font = preferences.font.clone();
         if self.custom_font.borrow().as_ref() != custom_font.as_ref() {

@@ -1,6 +1,6 @@
 //! External-consumer contract tests for `carver-config`.
 
-use carver_config::{Config, load, save};
+use carver_config::{Config, load, save, save_if_changed};
 
 #[test]
 fn save_should_round_trip_a_public_configuration() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,6 +12,28 @@ fn save_should_round_trip_a_public_configuration() -> Result<(), Box<dyn std::er
     save(&path, &config)?;
 
     assert_eq!(load(&path)?, config);
+    Ok(())
+}
+
+#[test]
+fn save_if_changed_should_create_and_migrate_without_rewriting_a_current_file()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+
+    save_if_changed(&path, &Config::default())?;
+    assert!(path.is_file());
+
+    std::fs::write(&path, "[editor]\ndefault_mode = 'source'\n")?;
+    let migrated = load(&path)?;
+    save_if_changed(&path, &migrated)?;
+    let source = std::fs::read_to_string(&path)?;
+    assert!(source.contains("last_mode = \"source\""));
+    assert!(!source.contains("default_mode"));
+
+    let before = std::fs::read(&path)?;
+    save_if_changed(&path, &migrated)?;
+    assert_eq!(std::fs::read(&path)?, before);
     Ok(())
 }
 

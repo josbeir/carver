@@ -602,17 +602,45 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
 ///
 /// # Errors
 ///
-/// Returns an error when the parent directory or configuration file cannot be written.
+/// Returns an error when the configuration is invalid, or the parent directory or configuration
+/// file cannot be written.
 pub fn save(path: &Path, config: &Config) -> Result<(), ConfigError> {
+    let document = serialize(config)?;
+    write_document(path, &document)
+}
+
+/// Saves typed configuration atomically, skipping the write when the file already matches.
+///
+/// Startup uses this to persist legacy-key migrations without rewriting an already-current file,
+/// so an unchanged configuration no longer triggers an atomic temp-write and rename on every
+/// launch.
+///
+/// # Errors
+///
+/// Returns an error when the configuration is invalid, or the parent directory or configuration
+/// file cannot be written.
+pub fn save_if_changed(path: &Path, config: &Config) -> Result<(), ConfigError> {
+    let document = serialize(config)?;
+    if fs::read_to_string(path).is_ok_and(|existing| existing == document) {
+        return Ok(());
+    }
+    write_document(path, &document)
+}
+
+/// Serializes configuration after validating its document properties.
+fn serialize(config: &Config) -> Result<String, ConfigError> {
     config
         .document_properties
         .validate()
         .map_err(ConfigError::InvalidDocumentProperties)?;
+    toml::to_string_pretty(config).map_err(|error| ConfigError::InvalidToml(error.to_string()))
+}
+
+/// Writes a serialized document to `path` atomically, creating its parent directory.
+fn write_document(path: &Path, document: &str) -> Result<(), ConfigError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let document = toml::to_string_pretty(config)
-        .map_err(|error| ConfigError::InvalidToml(error.to_string()))?;
     let mut file = AtomicWriteFile::open(path)?;
     file.write_all(document.as_bytes())?;
     file.commit()?;
