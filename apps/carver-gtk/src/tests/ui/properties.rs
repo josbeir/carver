@@ -1113,6 +1113,20 @@ pub(super) fn complex_frontmatter_should_fall_back_to_raw_source() -> TestResult
             Some(expected_language.to_owned()),
             "source: {source}"
         );
+        // The raw view inherits the Carve schemes, so it follows the app color scheme.
+        let expected_scheme = if adw::StyleManager::default().is_dark() {
+            "carve-dark"
+        } else {
+            "carve-light"
+        };
+        assert_eq!(
+            buffer
+                .style_scheme()
+                .map(|scheme| scheme.id().to_string())
+                .as_deref(),
+            Some(expected_scheme),
+            "source: {source}"
+        );
         dialog.close();
         assert!(run_main_context_until(|| fixture
             .window

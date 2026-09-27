@@ -922,8 +922,13 @@ pub(crate) fn show(
     let save_source = if raw_mode {
         let group = adw::PreferencesGroup::new();
         group.set_title(&gettext("Raw frontmatter"));
-        // Highlight the block with the grammar for its declared format (YAML, TOML, or JSON).
-        let buffer = super::frontmatter_source::source_buffer(format, syntax_dir);
+        // Highlight the block with the grammar for its declared format (YAML, TOML, or JSON)
+        // and the Carve style scheme matching the app color scheme.
+        let buffer = super::frontmatter_source::source_buffer(
+            format,
+            syntax_dir,
+            adw::StyleManager::default().is_dark(),
+        );
         buffer.set_text(request.raw.as_deref().unwrap_or_default());
         let view = sourceview5::View::with_buffer(&buffer);
         view.set_widget_name("document-properties-raw");

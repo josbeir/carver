@@ -125,8 +125,7 @@ impl SourceEditor {
                 .ok_or(SourceSyntaxError::MissingAsset {
                     asset: "Carve grammar",
                 })?;
-        let style_manager = sourceview5::StyleSchemeManager::new();
-        style_manager.prepend_search_path(syntax_dir);
+        let style_manager = carve_style_manager(syntax_dir);
         let light_style =
             load_style_scheme(&style_manager, "carve-light", "light Carve style scheme")?;
         let dark_style =
@@ -254,6 +253,33 @@ impl SourceEditor {
             self.font_provider.load_from_string(&source_font_css(&font));
         }
     }
+}
+
+/// Creates a style-scheme manager that searches Carver's installed syntax assets first.
+fn carve_style_manager(syntax_dir: &str) -> sourceview5::StyleSchemeManager {
+    let style_manager = sourceview5::StyleSchemeManager::new();
+    style_manager.prepend_search_path(syntax_dir);
+    style_manager
+}
+
+/// Loads the Carve style scheme matching the current color scheme.
+///
+/// The schemes inherit from the matching Adwaita scheme, so grammars whose tags map to `def:`
+/// styles (such as the frontmatter grammars) also follow the application theme.
+pub(crate) fn frontmatter_style_scheme(
+    syntax_dir: &Path,
+    dark: bool,
+) -> Result<sourceview5::StyleScheme, SourceSyntaxError> {
+    let syntax_dir = syntax_dir
+        .to_str()
+        .ok_or_else(|| SourceSyntaxError::NonUtf8Directory(syntax_dir.to_owned()))?;
+    let style_manager = carve_style_manager(syntax_dir);
+    let (id, asset) = if dark {
+        ("carve-dark", "dark Carve style scheme")
+    } else {
+        ("carve-light", "light Carve style scheme")
+    };
+    load_style_scheme(&style_manager, id, asset)
 }
 
 fn load_style_scheme(

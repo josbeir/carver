@@ -19,11 +19,14 @@ pub(crate) fn language_id(format: FrontmatterFormat) -> &'static str {
 /// Builds a syntax-highlighting buffer for a frontmatter format.
 ///
 /// `syntax_dir` is Carver's installed syntax directory; the default `GtkSourceView` search paths
-/// stay available as a fallback. A missing grammar degrades to an unhighlighted buffer.
+/// stay available as a fallback. The buffer uses the Carve style scheme matching the app color
+/// scheme, so highlighting follows dark and light modes. A missing grammar or scheme degrades to
+/// an unhighlighted buffer.
 #[must_use]
 pub(crate) fn source_buffer(
     format: FrontmatterFormat,
     syntax_dir: Option<&Path>,
+    dark: bool,
 ) -> sourceview5::Buffer {
     let manager = sourceview5::LanguageManager::new();
     if let Some(directory) = syntax_dir.and_then(Path::to_str) {
@@ -36,6 +39,11 @@ pub(crate) fn source_buffer(
     let mut builder = sourceview5::Buffer::builder().highlight_syntax(true);
     if let Some(language) = manager.language(language_id(format)) {
         builder = builder.language(&language);
+    }
+    if let Some(directory) = syntax_dir
+        && let Ok(scheme) = super::source::frontmatter_style_scheme(directory, dark)
+    {
+        builder = builder.style_scheme(&scheme);
     }
     builder.build()
 }
