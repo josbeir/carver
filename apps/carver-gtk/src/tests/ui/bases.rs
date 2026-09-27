@@ -16,7 +16,11 @@ pub(super) fn delete_base_should_require_confirmation_and_keep_notes() -> TestRe
     let base = glib::MainContext::default()
         .block_on(client.create_base_async("Projects".to_owned(), Vec::new()))?;
     let dispatcher = AppDispatcher::default();
-    let sidebar = crate::ui::sidebar::build_sidebar(&dispatcher, &adw::NavigationSplitView::new());
+    let sidebar = crate::ui::sidebar::build_sidebar(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        std::rc::Rc::new(std::cell::RefCell::new(None)),
+    );
     let sidebar_for_view = sidebar.clone();
     let mut model = AppModel::new(&carver_config::Config::default());
     model.sidebar.state = LoadState::Ready(Vec::new());
@@ -312,8 +316,17 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .visible_dialog()
         .and_downcast::<adw::Dialog>()
         .ok_or("configuration dialog")?;
-    assert!(dialog.follows_content_size());
-    assert!(dialog.content_width() >= 560);
+    assert_eq!(dialog.content_width(), 640);
+    let content = dialog.child().ok_or("configuration content")?;
+    assert!(run_main_context_until(|| content.height() > 200));
+    let round = widget_as::<gtk::Button>(dialog.upcast_ref(), "base-visible-field-move-up-1")
+        .ok_or("reorder button")?;
+    assert!(
+        run_main_context_until(|| round.width() > 0 && round.width() == round.height()),
+        "row controls should be circular, not stretched: {}x{}",
+        round.width(),
+        round.height()
+    );
     assert!(
         widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-visible-fields-section")
             .is_some()
@@ -355,6 +368,18 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     widget_as::<gtk::Button>(dialog.upcast_ref(), "base-rule-sort-rule-up-1")
         .ok_or("move added sort rule up")?
         .emit_clicked();
+    assert!(
+        !widget_as::<adw::ExpanderRow>(dialog.upcast_ref(), "base-filter-rule-0")
+            .ok_or("filter rule")?
+            .uses_markup(),
+        "filter summaries carry user field labels and operators as plain text"
+    );
+    assert!(
+        !widget_as::<adw::ExpanderRow>(dialog.upcast_ref(), "base-sort-rule-1")
+            .ok_or("sort rule")?
+            .uses_markup(),
+        "sort summaries carry user field labels as plain text"
+    );
     add_field.emit_clicked();
     assert!(super::find_label(dialog.upcast_ref(), "Category").is_some());
     assert!(super::find_label(dialog.upcast_ref(), "priority").is_none());
@@ -460,11 +485,11 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(runtime.model().notice.is_some());
     assert!(failed_dialog.can_close());
     assert!(
-        failed_dialog
-            .child()
+        widget_as::<adw::EntryRow>(failed_dialog.upcast_ref(), "base-configuration-name")
             .ok_or("preserved draft")?
             .is_sensitive()
     );
+    assert!(save.is_sensitive());
     assert!(window.visible_dialog().is_some());
     failed_dialog.close();
     assert!(run_main_context_until(|| runtime
@@ -487,7 +512,7 @@ pub(super) fn base_field_picker_should_add_a_valid_custom_path() -> TestResult {
         vec![carver_sdk::BaseColumn::Category],
         carver_sdk::Revision(1),
     );
-    let dialog = crate::ui::bases::actions::show_configuration_dialog(
+    let (dialog, _form) = crate::ui::bases::actions::show_configuration_dialog(
         &gtk_parent,
         &AppDispatcher::default(),
         RequestId(1),
@@ -638,6 +663,7 @@ pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
     let sidebar = crate::ui::sidebar::build_sidebar(
         &crate::mvu::AppDispatcher::default(),
         &adw::NavigationSplitView::new(),
+        std::rc::Rc::new(std::cell::RefCell::new(None)),
     );
     let base = carver_sdk::BaseDefinition {
         id: carver_sdk::BaseId::new(),
@@ -814,10 +840,8 @@ pub(super) fn base_rule_controls_should_edit_rules_and_fields() -> TestResult {
         find_widget(dialog.upcast_ref(), "base-visible-field-2").is_none()
     }));
 
-    // Cancel closes the dialog without saving.
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "base-configuration-cancel")
-        .ok_or("cancel")?
-        .emit_clicked();
+    // Dismiss the dialog without saving.
+    dialog.close();
     assert!(run_main_context_until(|| window.visible_dialog().is_none()));
     window.close();
     Ok(())

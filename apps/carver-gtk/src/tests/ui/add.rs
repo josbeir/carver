@@ -1,6 +1,13 @@
 //! Display-backed unified creation tests, run on the shared GTK test thread.
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
+
 use crate::mvu::{AppDispatcher, AppModel, AppRuntime};
-use crate::ui::tests::support::{TestResult, run_main_context_until, test_state, widget_as};
+use crate::ui::tests::support::{
+    TestResult, run_main_context_until, run_main_context_until_for, test_state, widget_as,
+};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
@@ -17,11 +24,12 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         Some("browser"),
     );
     let split_view = adw::NavigationSplitView::new();
-    let compact_navigation = std::rc::Rc::new(std::cell::Cell::new(false));
+    let compact_navigation = Rc::new(Cell::new(false));
     let (base, base_refs) =
         crate::ui::bases::build_base(&dispatcher, &split_view, &compact_navigation);
     routes.add_named(&base, Some("base"));
     routes.set_visible_child_name("browser");
+    let add_dialog: crate::ui::add::AddDialogSlot = Rc::new(RefCell::new(None));
     let runtime = AppRuntime::new(
         client.clone(),
         AppModel::new(&carver_config::Config::default()),
@@ -31,14 +39,15 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
             adw::StatusPage::new(),
         )
         .with_dispatcher(dispatcher.clone())
+        .with_add_dialog(Rc::clone(&add_dialog))
         .with_base(base_refs),
     );
     runtime.bind_dispatcher(&dispatcher);
-    let button = crate::ui::add::button(&dispatcher);
+    let button = crate::ui::add::button(&dispatcher, Rc::clone(&add_dialog));
     button.set_halign(gtk::Align::Start);
     button.set_valign(gtk::Align::Start);
     let window = adw::Window::new();
-    window.set_default_size(360, 640);
+    window.set_default_size(400, 900);
     let window_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     window_content.append(&routes);
     window_content.append(&button);
@@ -47,21 +56,26 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     assert!(run_main_context_until(|| button.is_mapped()));
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
-    let root = dialog.upcast_ref();
+    let root = dialog.upcast_ref::<gtk::Widget>();
     assert!(run_main_context_until(
         || dialog.width() > 0 && dialog.height() > 250
     ));
-    assert!(
-        dialog.width() >= 360,
-        "chooser should keep enough room for its explanatory cards: {}",
-        dialog.width()
+    capture_dialog(&dialog, "tabs-category")?;
+    let stack = widget_as::<adw::ViewStack>(root, "add-stack").ok_or("tabs")?;
+    assert_eq!(stack.visible_child_name().as_deref(), Some("category"));
+    let switcher = widget_as::<adw::ViewSwitcher>(root, "add-switcher").ok_or("switcher")?;
+    assert_eq!(switcher.policy(), adw::ViewSwitcherPolicy::Wide);
+    let category_page = stack.child_by_name("category").ok_or("category tab")?;
+    assert_eq!(
+        stack.page(&category_page).icon_name().as_deref(),
+        Some("folder-symbolic")
     );
-    capture_dialog(&dialog, "chooser")?;
-    let navigation = widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("pages")?;
-    assert_eq!(navigation.visible_page_tag().as_deref(), Some("choose"));
-    widget_as::<gtk::Button>(root, "add-category-choice")
-        .ok_or("category choice")?
-        .emit_clicked();
+    let base_page = stack.child_by_name("base").ok_or("base tab")?;
+    assert_eq!(
+        stack.page(&base_page).icon_name().as_deref(),
+        Some("carver-database-symbolic")
+    );
+
     let entry = widget_as::<adw::EntryRow>(root, "category-name-entry").ok_or("category name")?;
     let create = widget_as::<gtk::Button>(root, "add-category-create").ok_or("create category")?;
     entry.set_text("  ");
@@ -70,15 +84,8 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     widget_as::<gtk::ToggleButton>(root, "category-icon-book")
         .ok_or("book icon")?
         .set_active(true);
-    widget_as::<gtk::Button>(root, "add-category-back")
-        .ok_or("back")?
-        .emit_clicked();
-    widget_as::<gtk::Button>(root, "add-category-choice")
-        .ok_or("category choice")?
-        .emit_clicked();
-    assert_eq!(entry.text(), "  Work  ");
+    // Pressing Enter must create the category without touching the Create button.
     entry.emit_by_name::<()>("entry-activated", &[]);
-    create.emit_clicked();
     assert!(run_main_context_until(|| client
         .categories()
         .is_ok_and(|items| items.len() == 1)));
@@ -87,34 +94,52 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         client.categories()?[0].appearance.icon,
         carver_sdk::CategoryIcon::Book
     );
+
+    // The Base tab prepares its form lazily, only once it has been selected.
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
-    let root = dialog.upcast_ref();
-    let navigation =
-        widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("fresh pages")?;
-    assert_eq!(navigation.visible_page_tag().as_deref(), Some("choose"));
-    widget_as::<gtk::Button>(root, "add-base-choice")
-        .ok_or("base choice")?
-        .emit_clicked();
+    let root = dialog.upcast_ref::<gtk::Widget>();
+    let stack = widget_as::<adw::ViewStack>(root, "add-stack").ok_or("fresh tabs")?;
+    assert_eq!(stack.visible_child_name().as_deref(), Some("category"));
+    assert!(run_main_context_until(|| dialog.height() > 250));
+    let content = dialog.child().ok_or("dialog content")?;
+    assert!(run_main_context_until(
+        || content.width() > 0 && content.height() > 0
+    ));
+    let category_height = content.height();
+    let category_width = content.width();
+    stack.set_visible_child_name("base");
     assert!(
         run_main_context_until(|| {
-            window.visible_dialog().is_some_and(|dialog| {
-                dialog.widget_name() == "base-configuration-dialog" && dialog.is_mapped()
-            })
+            widget_as::<adw::EntryRow>(dialog.upcast_ref(), "base-configuration-name").is_some()
         }),
-        "visible dialog: {:?}; model: {:?}",
-        window.visible_dialog().map(|dialog| (
-            dialog.widget_name().clone(),
-            dialog.title().clone(),
-            dialog.is_mapped(),
-        )),
+        "model: {:?}",
         runtime.model().notice,
     );
-    let dialog = window.visible_dialog().ok_or("new Base configuration")?;
-    let root = dialog.upcast_ref();
-    assert!(widget_as::<adw::PreferencesGroup>(root, "base-visible-fields-section").is_some());
-    assert!(widget_as::<adw::PreferencesGroup>(root, "base-filters-section").is_some());
-    assert!(widget_as::<adw::PreferencesGroup>(root, "base-sort-section").is_some());
+    capture_dialog(&dialog, "tabs-base")?;
+    assert!(
+        run_main_context_until(|| content.width() == category_width),
+        "both tabs should share the dialog width: {category_width} -> {}",
+        content.width()
+    );
+    assert!(
+        run_main_context_until(|| content.height() > category_height + 50),
+        "the Base tab should grow the dialog: {category_height} -> {}",
+        content.height()
+    );
+    let base_height = content.height();
+    // Returning to Category must restore the compact size instead of keeping the
+    // largest page's dimensions.
+    stack.set_visible_child_name("category");
+    assert!(
+        run_main_context_until(|| content.height() <= category_height + 20),
+        "returning to Category should shrink the dialog back: {category_height} -> {}",
+        content.height()
+    );
+    stack.set_visible_child_name("base");
+    assert!(run_main_context_until(
+        || content.height() >= base_height - 20
+    ));
     let entry =
         widget_as::<adw::EntryRow>(root, "base-configuration-name").ok_or("new Base name")?;
     assert!(entry.text().is_empty());
@@ -127,19 +152,17 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         crate::mvu::LoadState::Ready(items) if items.len() == 1 && items[0].name == "Reading list")
     ));
     assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+
+    // A duplicate name keeps the Add dialog open and preserves the draft.
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
-    let root = dialog.upcast_ref();
-    widget_as::<gtk::Button>(root, "add-base-choice")
-        .ok_or("base choice")?
-        .emit_clicked();
+    let root = dialog.upcast_ref::<gtk::Widget>();
+    widget_as::<adw::ViewStack>(root, "add-stack")
+        .ok_or("tabs")?
+        .set_visible_child_name("base");
     assert!(run_main_context_until(|| {
-        window.visible_dialog().is_some_and(|dialog| {
-            dialog.widget_name() == "base-configuration-dialog" && dialog.is_mapped()
-        })
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "base-configuration-name").is_some()
     }));
-    let dialog = window.visible_dialog().ok_or("duplicate configuration")?;
-    let root = dialog.upcast_ref();
     let duplicate_name =
         widget_as::<adw::EntryRow>(root, "base-configuration-name").ok_or("new Base name")?;
     duplicate_name.set_text("Reading list");
@@ -147,28 +170,26 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         .ok_or("create duplicate Base")?
         .emit_clicked();
     assert!(run_main_context_until(|| runtime.model().notice.is_some()));
-    assert!(dialog.can_close());
     assert!(
-        dialog
-            .child()
+        widget_as::<adw::EntryRow>(root, "base-configuration-name")
             .ok_or("preserved duplicate Base draft")?
             .is_sensitive()
     );
     assert_eq!(duplicate_name.text(), "Reading list");
     dialog.close();
+
+    // Reopening starts from a fresh Base draft.
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
-    widget_as::<gtk::Button>(dialog.upcast_ref(), "add-base-choice")
-        .ok_or("base choice")?
-        .emit_clicked();
+    let root = dialog.upcast_ref::<gtk::Widget>();
+    widget_as::<adw::ViewStack>(root, "add-stack")
+        .ok_or("tabs")?
+        .set_visible_child_name("base");
     assert!(run_main_context_until(|| {
-        window.visible_dialog().is_some_and(|dialog| {
-            dialog.widget_name() == "base-configuration-dialog" && dialog.is_mapped()
-        })
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "base-configuration-name").is_some()
     }));
-    let dialog = window.visible_dialog().ok_or("fresh Base configuration")?;
     assert!(
-        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "base-configuration-name")
+        widget_as::<adw::EntryRow>(root, "base-configuration-name")
             .ok_or("reset new Base name")?
             .text()
             .is_empty()
@@ -181,7 +202,8 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
 pub(super) fn add_dialog_should_balance_page_sizes() -> TestResult {
     let window = adw::Window::new();
     window.set_default_size(1120, 900);
-    let button = crate::ui::add::button(&AppDispatcher::default());
+    let add_dialog: crate::ui::add::AddDialogSlot = Rc::new(RefCell::new(None));
+    let button = crate::ui::add::button(&AppDispatcher::default(), add_dialog);
     button.set_halign(gtk::Align::Start);
     button.set_valign(gtk::Align::Start);
     window.set_content(Some(&button));
@@ -189,35 +211,83 @@ pub(super) fn add_dialog_should_balance_page_sizes() -> TestResult {
     assert!(run_main_context_until(|| button.is_mapped()));
     button.emit_clicked();
     let dialog = window.visible_dialog().ok_or("dialog")?;
-    assert!(dialog.follows_content_size());
-    let root = dialog.upcast_ref();
-    let navigation = widget_as::<adw::NavigationView>(root, "add-navigation").ok_or("pages")?;
-    assert!(navigation.is_hhomogeneous());
-    assert!(navigation.is_vhomogeneous());
+    assert_eq!(dialog.content_width(), 560);
+    let root = dialog.upcast_ref::<gtk::Widget>();
+    let stack = widget_as::<adw::ViewStack>(root, "add-stack").ok_or("tabs")?;
     assert!(run_main_context_until(|| dialog.height() > 250));
-    let chooser_height = dialog.height();
-    capture_dialog(&dialog, "chooser-desktop")?;
-    widget_as::<gtk::Button>(root, "add-category-choice")
-        .ok_or("category choice")?
-        .emit_clicked();
-    assert!(run_main_context_until(|| {
-        navigation.visible_page_tag().as_deref() == Some("category")
-    }));
-    let category_height = dialog.height();
-    assert!(
-        (category_height - chooser_height).abs() <= 80,
-        "the chooser and category form should stay close in size: {chooser_height} -> {category_height}"
-    );
-    let scroll = navigation
-        .parent()
-        .and_then(|parent| parent.parent())
-        .and_downcast::<gtk::ScrolledWindow>()
-        .ok_or("scroll")?;
+    let content = dialog.child().ok_or("dialog content")?;
     assert!(run_main_context_until(
-        || scroll.vadjustment().upper() <= scroll.vadjustment().page_size() + 1.0
+        || content.width() > 0 && content.height() > 0
     ));
-    capture_dialog(&dialog, "category-desktop")?;
+    let category_height = content.height();
+    let category_width = content.width();
+    capture_dialog(&dialog, "tabs-category-desktop")?;
+    stack.set_visible_child_name("base");
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Spinner>(root, "add-base-spinner").is_some()
+    }));
+    assert!(
+        run_main_context_until(|| content.width() == category_width),
+        "the Base tab should keep the dialog width: {category_width} -> {}",
+        content.width()
+    );
+    capture_dialog(&dialog, "tabs-base-loading-desktop")?;
+    stack.set_visible_child_name("category");
+    assert!(
+        run_main_context_until(|| {
+            (content.height() - category_height).abs() <= 4
+                && (content.width() - category_width).abs() <= 4
+        }),
+        "the dialog should return to the category size: {}x{} -> {}x{}",
+        category_width,
+        category_height,
+        content.width(),
+        content.height()
+    );
     dialog.close();
+    window.close();
+    Ok(())
+}
+
+pub(super) fn add_dialog_should_cancel_base_setup_when_closed_while_loading() -> TestResult {
+    let (_temporary, client) = test_state()?;
+    let dispatcher = AppDispatcher::default();
+    let routes = gtk::Stack::new();
+    routes.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("browser"),
+    );
+    let add_dialog: crate::ui::add::AddDialogSlot = Rc::new(RefCell::new(None));
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&carver_config::Config::default()),
+        crate::view::ViewRefs::new(
+            routes.clone(),
+            adw::StatusPage::new(),
+            adw::StatusPage::new(),
+        )
+        .with_dispatcher(dispatcher.clone())
+        .with_add_dialog(Rc::clone(&add_dialog)),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    let button = crate::ui::add::button(&dispatcher, Rc::clone(&add_dialog));
+    let window = adw::Window::new();
+    window.set_default_size(400, 900);
+    window.set_content(Some(&button));
+    window.present();
+    assert!(run_main_context_until(|| button.is_mapped()));
+    button.emit_clicked();
+    let dialog = window.visible_dialog().ok_or("dialog")?;
+    let stack = widget_as::<adw::ViewStack>(dialog.upcast_ref(), "add-stack").ok_or("tabs")?;
+    stack.set_visible_child_name("base");
+    // The descriptor load is still pending, so dismiss the workflow now.
+    dialog.close();
+    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+    assert!(runtime.model().bases.configuration_request.is_none());
+    // A late descriptor reply must not resurrect the standalone dialog.
+    let _ = run_main_context_until_for(std::time::Duration::from_millis(300), || false);
+    assert!(window.visible_dialog().is_none());
+    assert!(runtime.model().bases.configuration_dialog.is_none());
     window.close();
     Ok(())
 }

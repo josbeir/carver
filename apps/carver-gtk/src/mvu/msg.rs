@@ -93,6 +93,8 @@ pub enum BasesMsg {
     Configure,
     /// Prepare the shared configuration dialog for a new Base.
     ConfigureNew,
+    /// Cancel a new-Base configuration that has not been presented yet.
+    CancelNewConfiguration,
     /// Delete a saved Base after user confirmation; notes are retained.
     Delete(BaseId),
     /// Show loading feedback only if this request is still pending.

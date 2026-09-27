@@ -16,7 +16,7 @@ use libadwaita::{self as adw, prelude::*};
 use super::field_picker::{FieldCatalog, FieldPicker, FieldPickerOptions, field_label};
 
 #[derive(Clone, Copy)]
-enum BaseConfigurationMode {
+pub(crate) enum BaseConfigurationMode {
     Create,
     Update {
         base_id: carver_sdk::BaseId,
@@ -162,9 +162,14 @@ fn remove_rule<T: RuleWidgets>(
 }
 
 fn rule_button(icon_name: &str, tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::from_icon_name(icon_name);
+    let button = gtk::Button::new();
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(14);
+    button.set_child(Some(&icon));
     button.set_tooltip_text(Some(tooltip));
-    button.add_css_class("flat");
+    button.add_css_class("circular");
+    button.set_size_request(30, 30);
+    button.set_valign(gtk::Align::Center);
     button
 }
 
@@ -572,10 +577,8 @@ fn rebuild_visible_columns(
                     }
                 });
             }
-            let remove = gtk::Button::from_icon_name("list-remove-symbolic");
+            let remove = rule_button("list-remove-symbolic", &gettext("Remove field"));
             remove.set_widget_name(&format!("base-visible-field-remove-{index}"));
-            remove.set_tooltip_text(Some(&gettext("Remove field")));
-            remove.add_css_class("flat");
             remove.update_property(&[gtk::accessible::Property::Label(&gettext("Remove field"))]);
             let selected = Rc::clone(selected);
             let group = group.clone();
@@ -647,7 +650,7 @@ pub(crate) fn show_configuration_dialog(
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
-) -> adw::Dialog {
+) -> (adw::Dialog, BaseConfigurationForm) {
     show_base_configuration_dialog(
         parent,
         dispatcher,
@@ -661,19 +664,24 @@ pub(crate) fn show_configuration_dialog(
     )
 }
 
+/// The starter definition used when creating a Base.
+pub(crate) fn new_base_definition() -> BaseDefinition {
+    BaseDefinition::defaults(
+        carver_sdk::BaseId::new(),
+        String::new(),
+        vec![BaseColumn::Category, BaseColumn::Updated],
+        carver_sdk::Revision(0),
+    )
+}
+
 /// Presents the shared Base settings pane before a new Base has been persisted.
 pub(crate) fn show_new_configuration_dialog(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     dialog_id: RequestId,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
-) -> adw::Dialog {
-    let definition = BaseDefinition::defaults(
-        carver_sdk::BaseId::new(),
-        String::new(),
-        vec![BaseColumn::Category, BaseColumn::Updated],
-        carver_sdk::Revision(0),
-    );
+) -> (adw::Dialog, BaseConfigurationForm) {
+    let definition = new_base_definition();
     show_base_configuration_dialog(
         parent,
         dispatcher,
@@ -684,57 +692,37 @@ pub(crate) fn show_new_configuration_dialog(
     )
 }
 
+/// The embeddable Base configuration form, shared by the standalone dialog and
+/// the tabbed Add dialog.
+pub(crate) struct BaseConfigurationForm {
+    pub(crate) page: adw::PreferencesPage,
+    pub(crate) name: adw::EntryRow,
+    pub(crate) save: gtk::Button,
+}
+
+impl BaseConfigurationForm {
+    /// Enables or disables the form while a save is in flight.
+    pub(crate) fn set_busy(&self, busy: bool) {
+        self.page.set_sensitive(!busy);
+        if !busy {
+            self.save.set_sensitive(!self.name.text().trim().is_empty());
+        }
+    }
+}
+
 // CONTEXT: Create and update share one settings presentation; only persistence differs.
 #[expect(
     clippy::too_many_lines,
-    reason = "Base configuration form is kept together for modal state"
+    reason = "the Base configuration form is kept together for its shared modal state"
 )]
-fn show_base_configuration_dialog(
-    parent: &gtk::Window,
+pub(crate) fn build_base_configuration_form(
     dispatcher: &AppDispatcher,
     dialog_id: RequestId,
     definition: &BaseDefinition,
     property_descriptors: &[carver_sdk::PropertyDescriptor],
     mode: BaseConfigurationMode,
-) -> adw::Dialog {
-    let dialog = adw::Dialog::builder()
-        .title(if matches!(mode, BaseConfigurationMode::Create) {
-            gettext("New Base")
-        } else {
-            gettext("Configure Base")
-        })
-        .content_width(560)
-        .follows_content_size(true)
-        .build();
-    dialog.set_widget_name("base-configuration-dialog");
-    let dismiss_dispatcher = dispatcher.clone();
-    dialog.connect_closed(move |_| {
-        let _ =
-            dismiss_dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
-    });
-
-    let header = adw::HeaderBar::new();
-    let cancel = gtk::Button::with_label(&gettext("Cancel"));
-    cancel.set_widget_name("base-configuration-cancel");
-    let save = gtk::Button::with_label(&if matches!(mode, BaseConfigurationMode::Create) {
-        gettext("Create")
-    } else {
-        gettext("Save")
-    });
-    save.set_widget_name("base-configuration-save");
-    save.add_css_class("suggested-action");
-    save.set_sensitive(!definition.name.trim().is_empty());
-    header.pack_start(&cancel);
-    header.pack_end(&save);
-    let cancel_dialog = dialog.clone();
-    cancel.connect_clicked(move |_| {
-        let _ = cancel_dialog.close();
-    });
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-
+) -> BaseConfigurationForm {
     let page = adw::PreferencesPage::new();
-    page.set_width_request(560);
 
     let name_group = adw::PreferencesGroup::new();
     name_group.set_title(&gettext("Name"));
@@ -962,43 +950,40 @@ fn show_base_configuration_dialog(
     }
     refresh_preview();
 
+    let save = gtk::Button::with_label(&if matches!(mode, BaseConfigurationMode::Create) {
+        gettext("Create")
+    } else {
+        gettext("Save")
+    });
+    save.set_widget_name("base-configuration-save");
+    save.add_css_class("suggested-action");
+    save.set_sensitive(!definition.name.trim().is_empty());
     {
         let save = save.clone();
         name.connect_changed(move |entry| save.set_sensitive(!entry.text().trim().is_empty()));
     }
-    toolbar.set_content(Some(&page));
-    dialog.set_child(Some(&toolbar));
-
-    let dispatcher = dispatcher.clone();
-    let name_for_save = name.clone();
-    let dialog_for_save = dialog.clone();
-    save.connect_clicked(move |_| {
-        if !dialog_for_save.can_close() {
-            return;
-        }
-        let columns = selected_columns.borrow().clone();
-        let filters = selected_filters(&filter_widgets.borrow());
-        let sorts = selected_sorts(&sort_widgets.borrow());
-        let message = match mode {
-            BaseConfigurationMode::Create => {
-                dialog_for_save.set_can_close(false);
-                if let Some(child) = dialog_for_save.child() {
-                    child.set_sensitive(false);
-                }
-                BasesMsg::CreateConfigured {
+    {
+        let page = page.clone();
+        let dispatcher = dispatcher.clone();
+        let name_for_save = name.clone();
+        save.connect_clicked(move |save| {
+            if !save.is_sensitive() {
+                return;
+            }
+            save.set_sensitive(false);
+            page.set_sensitive(false);
+            let columns = selected_columns.borrow().clone();
+            let filters = selected_filters(&filter_widgets.borrow());
+            let sorts = selected_sorts(&sort_widgets.borrow());
+            let message = match mode {
+                BaseConfigurationMode::Create => BasesMsg::CreateConfigured {
                     name: name_for_save.text().to_string(),
                     columns,
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
-                }
-            }
-            BaseConfigurationMode::Update { base_id, revision } => {
-                dialog_for_save.set_can_close(false);
-                if let Some(child) = dialog_for_save.child() {
-                    child.set_sensitive(false);
-                }
-                BasesMsg::Update {
+                },
+                BaseConfigurationMode::Update { base_id, revision } => BasesMsg::Update {
                     base_id,
                     revision,
                     name: name_for_save.text().to_string(),
@@ -1006,22 +991,61 @@ fn show_base_configuration_dialog(
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
-                }
-            }
-        };
-        let _ = dispatcher.dispatch(AppMsg::Bases(message));
-    });
-    name.grab_focus();
-    dialog.present(Some(parent));
-    dialog
+                },
+            };
+            let _ = dispatcher.dispatch(AppMsg::Bases(message));
+        });
+    }
+    BaseConfigurationForm { page, name, save }
 }
 
-/// Updates the matching-note count shown by an open configuration dialog.
-pub(crate) fn render_preview(dialog: &adw::Dialog, count: usize) {
-    let Some(root) = dialog.child() else {
-        return;
-    };
-    let Some(row) = find_widget(&root, "base-filter-mode").and_downcast::<adw::ComboRow>() else {
+/// Presents the Base configuration form in its standalone dialog (used to edit a Base).
+fn show_base_configuration_dialog(
+    parent: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    dialog_id: RequestId,
+    definition: &BaseDefinition,
+    property_descriptors: &[carver_sdk::PropertyDescriptor],
+    mode: BaseConfigurationMode,
+) -> (adw::Dialog, BaseConfigurationForm) {
+    let form = build_base_configuration_form(
+        dispatcher,
+        dialog_id,
+        definition,
+        property_descriptors,
+        mode,
+    );
+    let dialog = adw::Dialog::builder()
+        .title(if matches!(mode, BaseConfigurationMode::Create) {
+            gettext("New Base")
+        } else {
+            gettext("Configure Base")
+        })
+        .content_width(640)
+        .build();
+    dialog.set_widget_name("base-configuration-dialog");
+    let dismiss_dispatcher = dispatcher.clone();
+    dialog.connect_closed(move |_| {
+        let _ =
+            dismiss_dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
+    });
+    let header = adw::HeaderBar::new();
+    header.pack_end(&form.save);
+    let busy_dialog = dialog.clone();
+    form.save
+        .connect_clicked(move |_| busy_dialog.set_can_close(false));
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+    toolbar.set_content(Some(&form.page));
+    dialog.set_child(Some(&toolbar));
+    form.name.grab_focus();
+    dialog.present(Some(parent));
+    (dialog, form)
+}
+
+/// Updates the matching-note count shown by an open configuration form.
+pub(crate) fn render_preview(root: &gtk::Widget, count: usize) {
+    let Some(row) = find_widget(root, "base-filter-mode").and_downcast::<adw::ComboRow>() else {
         return;
     };
     row.set_subtitle(&preview_count_text(count));
@@ -1052,11 +1076,13 @@ fn find_widget(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
     None
 }
 
-pub(crate) fn finish_configuration(dialog: &adw::Dialog, success: bool) {
+pub(crate) fn finish_configuration(
+    form: &BaseConfigurationForm,
+    dialog: &adw::Dialog,
+    success: bool,
+) {
+    form.set_busy(false);
     dialog.set_can_close(true);
-    if let Some(child) = dialog.child() {
-        child.set_sensitive(true);
-    }
     if success {
         dialog.close();
     }

@@ -113,6 +113,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_header_sort_should_persist_from_native_controls()?;
     add::add_dialog_should_create_category_and_configure_new_base()?;
     add::add_dialog_should_balance_page_sizes()?;
+    add::add_dialog_should_cancel_base_setup_when_closed_while_loading()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
     bases::base_search_should_open_and_clear_from_native_controls()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;

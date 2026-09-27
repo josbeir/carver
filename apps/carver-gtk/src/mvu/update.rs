@@ -192,6 +192,18 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             }
             request_base_configuration(model, PendingBaseConfiguration::New)
         }
+        BasesMsg::CancelNewConfiguration => {
+            if model.bases.configuration_dialog.is_none()
+                && !matches!(
+                    model.bases.pending_configuration,
+                    Some(PendingBaseConfiguration::Existing(_))
+                )
+            {
+                model.bases.configuration_request = None;
+                model.bases.pending_configuration = None;
+            }
+            Vec::new()
+        }
         BasesMsg::Configure => {
             if model.bases.saving_configuration
                 || model.bases.configuration_dialog.is_some()

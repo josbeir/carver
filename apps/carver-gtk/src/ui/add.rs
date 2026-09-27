@@ -1,14 +1,60 @@
-//! Shared sidebar creation chooser and transient forms.
+//! Shared sidebar creation dialog and transient forms.
+
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use super::dialogs::category_form;
-use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BasesMsg};
+use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BasesMsg, RequestId};
 use carver_sdk::CategoryAppearance;
 use gettextrs::{gettext, pgettext};
 use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
-use std::{cell::Cell, rc::Rc};
 
-pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
+/// The open Add dialog, shared with the view so Base-configuration effects can
+/// mount the Base form into its dedicated tab.
+pub(crate) struct AddDialogHost {
+    pub(crate) dialog: adw::Dialog,
+    pub(crate) stack: adw::ViewStack,
+    pub(crate) base_slot: gtk::Box,
+    pub(crate) base_footer: gtk::Box,
+    pub(crate) base_requested: Cell<bool>,
+    pub(crate) base_ready: Cell<bool>,
+    pub(crate) base_dialog_id: Cell<Option<RequestId>>,
+    pub(crate) form: RefCell<Option<crate::ui::bases::actions::BaseConfigurationForm>>,
+}
+
+impl AddDialogHost {
+    /// Keeps the dialog width fixed while matching the visible tab's height.
+    ///
+    /// `AdwDialog` cannot follow only the content height once `content-width` is
+    /// set, so the preferred height is measured from the visible page instead.
+    pub(crate) fn sync_height(&self) {
+        let Some(page) = self.stack.visible_child() else {
+            return;
+        };
+        let width = if page.width() > 0 {
+            page.width()
+        } else {
+            self.dialog.content_width().max(1)
+        };
+        let (_, natural, _, _) = page.measure(gtk::Orientation::Vertical, width);
+        let available = self
+            .dialog
+            .root()
+            .and_downcast::<gtk::Window>()
+            .map_or(natural, |window| window.height());
+        self.dialog
+            .set_content_height(natural.clamp(1, i32::max(available - 48, 1)));
+    }
+}
+
+/// Slot holding the currently open Add dialog, if any.
+pub(crate) type AddDialogSlot = Rc<RefCell<Option<Rc<AddDialogHost>>>>;
+
+/// Builds the sidebar's Add button and its tabbed creation dialog.
+pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Button {
     let button = gtk::Button::builder()
         .icon_name("list-add-symbolic")
         .tooltip_text(gettext("Add"))
@@ -22,13 +68,43 @@ pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
         };
         let dialog = adw::Dialog::builder()
             .title(gettext("Add"))
-            .follows_content_size(true)
+            .content_width(560)
             .build();
         dialog.set_widget_name("sidebar-add-dialog");
-        let toolbar = adw::ToolbarView::new();
-        toolbar.add_top_bar(&adw::HeaderBar::new());
-        toolbar.set_content(Some(&content(&dialog, &dispatcher)));
-        dialog.set_child(Some(&toolbar));
+        let stack = adw::ViewStack::new();
+        stack.set_widget_name("add-stack");
+        stack.set_hhomogeneous(true);
+        stack.set_vhomogeneous(false);
+        let host = Rc::new(AddDialogHost {
+            dialog: dialog.clone(),
+            stack: stack.clone(),
+            base_slot: gtk::Box::new(gtk::Orientation::Vertical, 0),
+            base_footer: gtk::Box::new(gtk::Orientation::Horizontal, 0),
+            base_requested: Cell::new(false),
+            base_ready: Cell::new(false),
+            base_dialog_id: Cell::new(None),
+            form: RefCell::new(None),
+        });
+        dialog.set_child(Some(&dialog_content(&dispatcher, &host)));
+        *slot.borrow_mut() = Some(Rc::clone(&host));
+
+        let slot_for_close = Rc::clone(&slot);
+        let dispatcher_for_close = dispatcher.clone();
+        dialog.connect_closed(move |_| {
+            let host = slot_for_close.borrow_mut().take();
+            let Some(host) = host else {
+                return;
+            };
+            if let Some(dialog_id) = host.base_dialog_id.get() {
+                let _ = dispatcher_for_close
+                    .dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
+            } else if host.base_requested.get() {
+                // The Base tab was still loading; drop its pending request so it
+                // cannot reappear as the standalone dialog.
+                let _ =
+                    dispatcher_for_close.dispatch(AppMsg::Bases(BasesMsg::CancelNewConfiguration));
+            }
+        });
         let weak_button = button.downgrade();
         dialog.connect_closed(move |_| {
             if let Some(button) = weak_button.upgrade() {
@@ -40,45 +116,71 @@ pub(crate) fn button(dispatcher: &AppDispatcher) -> gtk::Button {
     button
 }
 
-fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWindow {
-    let navigation = adw::NavigationView::new();
-    navigation.set_widget_name("add-navigation");
-    navigation.set_hhomogeneous(true);
-    navigation.set_vhomogeneous(true);
-    // The chooser is shorter than the category form; center it in the shared page
-    // size so the dialog does not resize when the two pages swap.
-    let chooser_frame = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let chooser = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    chooser.set_valign(gtk::Align::Center);
-    chooser_frame.append(&chooser);
-    let heading = gtk::Label::new(Some(&gettext("What would you like to add?")));
-    heading.add_css_class("heading");
-    heading.set_wrap(true);
-    chooser.append(&heading);
-    let chooser_page = adw::NavigationPage::with_tag(&chooser_frame, &gettext("Add"), "choose");
-    navigation.add(&chooser_page);
-    let category = category_form("", CategoryAppearance::default());
-    let submitted = Rc::new(Cell::new(false));
-    let category_choice = choice_card(
-        "category",
+fn dialog_content(dispatcher: &AppDispatcher, host: &Rc<AddDialogHost>) -> adw::ToolbarView {
+    let stack = &host.stack;
+    let switcher = adw::ViewSwitcher::new();
+    switcher.set_widget_name("add-switcher");
+    switcher.set_policy(adw::ViewSwitcherPolicy::Wide);
+    switcher.set_stack(Some(stack));
+
+    let category = category_page(&host.dialog, dispatcher);
+    stack.add_titled(
+        &category,
+        Some("category"),
         &pgettext("add dialog", "Category"),
-        "folder-symbolic",
-        &gettext("Keep related notes together in one place."),
-        &gettext("Examples: Work, Personal, Research"),
     );
-    chooser.append(&category_choice);
-    let (category_page, category_back, category_create) =
-        form_page("category", &gettext("New Category"), &category.content);
-    let category_navigation_page =
-        adw::NavigationPage::with_tag(&category_page, &gettext("New Category"), "category");
-    navigation.add(&category_navigation_page);
-    connect_form_navigation(
-        &navigation,
-        &category_choice,
-        &category_back,
-        &category.entry,
-        &category_create,
-    );
+    stack.page(&category).set_icon_name(Some("folder-symbolic"));
+    let base = base_page(host);
+    stack.add_titled(&base, Some("base"), &pgettext("add dialog", "Base"));
+    stack
+        .page(&base)
+        .set_icon_name(Some("carver-database-symbolic"));
+
+    let weak_host = Rc::downgrade(host);
+    let dispatcher_for_tab = dispatcher.clone();
+    stack.connect_visible_child_name_notify(move |stack| {
+        if stack.visible_child_name().as_deref() == Some("base")
+            && let Some(host) = weak_host.upgrade()
+            && !host.base_requested.get()
+        {
+            host.base_requested.set(true);
+            let _ = dispatcher_for_tab.dispatch(AppMsg::Bases(BasesMsg::ConfigureNew));
+        }
+        if let Some(host) = weak_host.upgrade() {
+            host.sync_height();
+        }
+    });
+
+    let header = adw::HeaderBar::new();
+    header.set_title_widget(Some(&switcher));
+
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+    toolbar.set_content(Some(stack));
+    toolbar
+}
+
+/// Builds the New Category tab with its Create action.
+fn category_page(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> adw::ToolbarView {
+    let category = category_form("", CategoryAppearance::default());
+    category.content.add_css_class("sidebar-add-panel");
+    let submitted = Rc::new(Cell::new(false));
+    let create = gtk::Button::with_label(&gettext("Create"));
+    create.set_widget_name("add-category-create");
+    create.add_css_class("suggested-action");
+    create.set_sensitive(!category.entry.text().trim().is_empty());
+    {
+        let create = create.clone();
+        category.entry.connect_changed(move |entry| {
+            create.set_sensitive(!entry.text().trim().is_empty());
+        });
+    }
+    {
+        let create = create.clone();
+        category.entry.connect_entry_activated(move |_| {
+            create.emit_clicked();
+        });
+    }
     {
         let entry = category.entry.clone();
         let icon = Rc::clone(&category.icon);
@@ -86,7 +188,7 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
         let submitted = Rc::clone(&submitted);
         let dispatcher = dispatcher.clone();
         let weak_dialog = dialog.downgrade();
-        category_create.connect_clicked(move |_| {
+        create.connect_clicked(move |_| {
             let name = entry.text().trim().to_owned();
             if name.is_empty() || submitted.replace(true) {
                 return;
@@ -103,134 +205,39 @@ fn content(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> gtk::ScrolledWin
             }));
         });
     }
-
-    let base_choice = choice_card(
-        "base",
-        &pgettext("add dialog", "Base"),
-        "carver-database-symbolic",
-        &gettext(
-            "Build a custom view of your notes with chosen fields, a query, and a sort order.",
-        ),
-        &gettext("Examples: Project tracker, Reading list"),
-    );
-    chooser.append(&base_choice);
-    let dispatcher = dispatcher.clone();
-    let weak_dialog = dialog.downgrade();
-    base_choice.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::ConfigureNew));
-        if let Some(dialog) = weak_dialog.upgrade() {
-            dialog.close();
-        }
-    });
-    let scroll = gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Never)
-        .vscrollbar_policy(gtk::PolicyType::Automatic)
-        .propagate_natural_height(true)
-        .propagate_natural_width(true)
-        .child(&navigation)
-        .build();
-    scroll.add_css_class("sidebar-add-panel");
-    scroll
+    let toolbar = adw::ToolbarView::new();
+    toolbar.set_content(Some(&category.content));
+    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    footer.set_halign(gtk::Align::End);
+    footer.set_margin_top(6);
+    footer.set_margin_bottom(6);
+    footer.set_margin_start(12);
+    footer.set_margin_end(12);
+    footer.append(&create);
+    toolbar.add_bottom_bar(&footer);
+    toolbar
 }
 
-fn form_page(name: &str, title: &str, form: &gtk::Box) -> (gtk::Box, gtk::Button, gtk::Button) {
-    let page = gtk::Box::new(gtk::Orientation::Vertical, 10);
-    page.set_widget_name(&format!("add-{name}-page"));
-    let back = gtk::Button::from_icon_name("go-previous-symbolic");
-    back.set_widget_name(&format!("add-{name}-back"));
-    back.set_tooltip_text(Some(&gettext("Back")));
-    back.add_css_class("flat");
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    header.append(&back);
-    let title = gtk::Label::new(Some(title));
-    title.add_css_class("heading");
-    header.append(&title);
-    page.append(&header);
-    page.append(form);
-    let create = gtk::Button::with_label(&gettext("Create"));
-    create.set_widget_name(&format!("add-{name}-create"));
-    create.add_css_class("suggested-action");
-    create.set_sensitive(false);
-    page.append(&create);
-    (page, back, create)
-}
-
-fn connect_form_navigation(
-    navigation: &adw::NavigationView,
-    choice: &gtk::Button,
-    back: &gtk::Button,
-    entry: &adw::EntryRow,
-    create: &gtk::Button,
-) {
-    let weak_navigation = navigation.downgrade();
-    let entry_for_focus = entry.clone();
-    choice.connect_clicked(move |_| {
-        if let Some(navigation) = weak_navigation.upgrade() {
-            navigation.push_by_tag("category");
-        }
-        entry_for_focus.grab_focus();
-    });
-    let weak_navigation = navigation.downgrade();
-    let weak_choice = choice.downgrade();
-    back.connect_clicked(move |_| {
-        if let Some(navigation) = weak_navigation.upgrade() {
-            navigation.pop();
-        }
-        if let Some(choice) = weak_choice.upgrade() {
-            choice.grab_focus();
-        }
-    });
-    let weak_create = create.downgrade();
-    entry.connect_changed(move |entry| {
-        if let Some(create) = weak_create.upgrade() {
-            create.set_sensitive(!entry.text().trim().is_empty());
-        }
-    });
-    let weak_create = create.downgrade();
-    entry.connect_entry_activated(move |_| {
-        if let Some(create) = weak_create.upgrade().filter(WidgetExt::is_sensitive) {
-            create.emit_clicked();
-        }
-    });
-}
-
-fn choice_card(
-    name: &str,
-    title: &str,
-    icon: &str,
-    description: &str,
-    example: &str,
-) -> gtk::Button {
-    let button = gtk::Button::new();
-    button.set_widget_name(&format!("add-{name}-choice"));
-    button.add_css_class("add-choice");
-    button.update_property(&[
-        gtk::accessible::Property::Label(title),
-        gtk::accessible::Property::Description(description),
-    ]);
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    let image = gtk::Image::from_icon_name(icon);
-    image.set_pixel_size(24);
-    image.set_valign(gtk::Align::Start);
-    image.add_css_class("add-choice-icon");
-    row.append(&image);
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 6);
-    text.set_hexpand(true);
-    for (value, class) in [
-        (title, "heading"),
-        (description, "add-description"),
-        (example, "dim-label"),
-    ] {
-        let label = gtk::Label::new(Some(value));
-        label.set_xalign(0.0);
-        label.set_wrap(true);
-        label.set_wrap_mode(gtk::pango::WrapMode::WordChar);
-        label.set_max_width_chars(34);
-        label.add_css_class(class);
-        text.append(&label);
-    }
-    row.append(&text);
-    row.append(&gtk::Image::from_icon_name("go-next-symbolic"));
-    button.set_child(Some(&row));
-    button
+/// Builds the New Base tab, which shows a spinner until its form is mounted.
+fn base_page(host: &Rc<AddDialogHost>) -> adw::ToolbarView {
+    let spinner = gtk::Spinner::new();
+    spinner.set_widget_name("add-base-spinner");
+    spinner.start();
+    let placeholder = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    placeholder.set_height_request(360);
+    placeholder.set_vexpand(true);
+    placeholder.set_valign(gtk::Align::Center);
+    placeholder.set_halign(gtk::Align::Center);
+    placeholder.append(&spinner);
+    host.base_slot.set_widget_name("add-base-slot");
+    host.base_slot.append(&placeholder);
+    let toolbar = adw::ToolbarView::new();
+    toolbar.set_content(Some(&host.base_slot));
+    host.base_footer.set_halign(gtk::Align::End);
+    host.base_footer.set_margin_top(6);
+    host.base_footer.set_margin_bottom(6);
+    host.base_footer.set_margin_start(12);
+    host.base_footer.set_margin_end(12);
+    toolbar.add_bottom_bar(&host.base_footer);
+    toolbar
 }

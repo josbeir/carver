@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 12:08+0200\n"
+"POT-Creation-Date: 2026-09-27 12:17+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -37,115 +37,86 @@ msgstr "Una casa nativa GNOME per note che durano"
 msgid "Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control."
 msgstr "Carver è una casa nativa GNOME per note che durano. Cattura le idee in uno spazio di scrittura curato, mantienile organizzate senza cerimonie e accedi al sorgente ogni volta che vuoi il pieno controllo."
 
-#: apps/carver-gtk/src/app.rs:106
+#: apps/carver-gtk/src/app.rs:110
 msgid "Carver could not open its library"
 msgstr "Carver non ha potuto aprire la sua libreria"
 
-#: apps/carver-gtk/src/app.rs:144
+#: apps/carver-gtk/src/app.rs:149
 msgid "Categories"
 msgstr "Categorie"
 
-#: apps/carver-gtk/src/app.rs:145
+#: apps/carver-gtk/src/app.rs:150
 msgid "Notes"
 msgstr "Note"
 
-#: apps/carver-gtk/src/ui/add.rs:14 apps/carver-gtk/src/ui/add.rs:17
-#: apps/carver-gtk/src/ui/add.rs:24 apps/carver-gtk/src/ui/add.rs:58
+#: apps/carver-gtk/src/ui/add.rs:60 apps/carver-gtk/src/ui/add.rs:63
+#: apps/carver-gtk/src/ui/add.rs:70
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:447
 msgid "Add"
 msgstr "Aggiungi"
 
-#: apps/carver-gtk/src/ui/add.rs:54
-msgid "What would you like to add?"
-msgstr "Cosa vuoi aggiungere?"
-
-#: apps/carver-gtk/src/ui/add.rs:64
+#: apps/carver-gtk/src/ui/add.rs:130
 msgctxt "add dialog"
 msgid "Category"
 msgstr "Categoria"
 
-#: apps/carver-gtk/src/ui/add.rs:66
-msgid "Keep related notes together in one place."
-msgstr "Tieni insieme le note correlate in un unico posto."
-
-#: apps/carver-gtk/src/ui/add.rs:67
-msgid "Examples: Work, Personal, Research"
-msgstr "Esempi: Lavoro, Personale, Ricerca"
-
-#: apps/carver-gtk/src/ui/add.rs:71 apps/carver-gtk/src/ui/add.rs:73
-#: apps/carver-gtk/src/ui/dialogs.rs:1745
-msgid "New Category"
-msgstr "Nuova categoria"
-
-#: apps/carver-gtk/src/ui/add.rs:109
+#: apps/carver-gtk/src/ui/add.rs:134
 msgctxt "add dialog"
 msgid "Base"
 msgstr "Base"
 
-#: apps/carver-gtk/src/ui/add.rs:112
-msgid "Build a custom view of your notes with chosen fields, a query, and a sort order."
-msgstr "Crea una vista personalizzata delle tue note con campi scelti, una query e un ordinamento."
-
-#: apps/carver-gtk/src/ui/add.rs:114
-msgid "Examples: Project tracker, Reading list"
-msgstr "Esempi: Monitor progetti, Lista di lettura"
-
-#: apps/carver-gtk/src/ui/add.rs:141
-msgid "Back"
-msgstr "Indietro"
-
-#: apps/carver-gtk/src/ui/add.rs:150
-#: apps/carver-gtk/src/ui/bases/actions.rs:720
+#: apps/carver-gtk/src/ui/add.rs:168
+#: apps/carver-gtk/src/ui/bases/actions.rs:954
 msgid "Create"
 msgstr "Crea"
 
-#: apps/carver-gtk/src/ui/bases.rs:61
+#: apps/carver-gtk/src/ui/bases.rs:67
 msgid "Search this Base"
 msgstr "Cerca in questa base"
 
-#: apps/carver-gtk/src/ui/bases.rs:62
+#: apps/carver-gtk/src/ui/bases.rs:68
 msgid "Search this Base (Ctrl+F)"
 msgstr "Cerca in questa base (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases.rs:65
+#: apps/carver-gtk/src/ui/bases.rs:71
 msgid "Base"
 msgstr "Base"
 
-#: apps/carver-gtk/src/ui/bases.rs:71
+#: apps/carver-gtk/src/ui/bases.rs:77
 #: apps/carver-gtk/src/ui/bases/actions.rs:52
 msgid "Delete Base"
 msgstr "Elimina base"
 
-#: apps/carver-gtk/src/ui/bases.rs:74
+#: apps/carver-gtk/src/ui/bases.rs:80
 msgid "Configure"
 msgstr "Configura"
 
-#: apps/carver-gtk/src/ui/bases.rs:103 apps/carver-gtk/src/ui/browser.rs:492
+#: apps/carver-gtk/src/ui/bases.rs:109 apps/carver-gtk/src/ui/browser.rs:492
 msgid "No matching notes"
 msgstr "Nessuna nota corrispondente"
 
-#: apps/carver-gtk/src/ui/bases.rs:104
+#: apps/carver-gtk/src/ui/bases.rs:110
 msgid "Notes that match this Base will appear here."
 msgstr "Le note che corrispondono a questa base appariranno qui."
 
-#: apps/carver-gtk/src/ui/bases.rs:107 apps/carver-gtk/src/view/mod.rs:319
+#: apps/carver-gtk/src/ui/bases.rs:113 apps/carver-gtk/src/view/mod.rs:328
 msgid "Load more rows"
 msgstr "Carica altre righe"
 
-#: apps/carver-gtk/src/ui/bases.rs:238
-#: apps/carver-gtk/src/ui/bases/actions.rs:740
-#: apps/carver-gtk/src/ui/bases/actions.rs:743
+#: apps/carver-gtk/src/ui/bases.rs:244
+#: apps/carver-gtk/src/ui/bases/actions.rs:728
+#: apps/carver-gtk/src/ui/bases/actions.rs:731
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
 msgid "Name"
 msgstr "Nome"
 
-#: apps/carver-gtk/src/ui/bases.rs:249
+#: apps/carver-gtk/src/ui/bases.rs:255
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:565
 msgid "Category"
 msgstr "Categoria"
 
-#: apps/carver-gtk/src/ui/bases.rs:258
+#: apps/carver-gtk/src/ui/bases.rs:264
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:566
 msgid "Updated"
 msgstr "Aggiornata"
@@ -160,7 +131,6 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "Verrà eliminata solo questa base. Le tue note e le loro proprietà non saranno modificate."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
-#: apps/carver-gtk/src/ui/bases/actions.rs:717
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
@@ -172,191 +142,191 @@ msgstr "Verrà eliminata solo questa base. Le tue note e le loro proprietà non 
 #: apps/carver-gtk/src/ui/editor/web.rs:532
 #: apps/carver-gtk/src/ui/formatting.rs:96
 #: apps/carver-gtk/src/ui/formatting.rs:352 apps/carver-gtk/src/ui/trash.rs:88
-#: apps/carver-gtk/src/view/mod.rs:504
+#: apps/carver-gtk/src/view/mod.rs:562
 msgid "Cancel"
 msgstr "Annulla"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:187
+#: apps/carver-gtk/src/ui/bases/actions.rs:192
 #, rust-format
 msgid "Move {noun} up"
 msgstr "Sposta {noun} su"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:191
+#: apps/carver-gtk/src/ui/bases/actions.rs:196
 #, rust-format
 msgid "Move {noun} down"
 msgstr "Sposta {noun} giù"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:195
+#: apps/carver-gtk/src/ui/bases/actions.rs:200
 #, rust-format
 msgid "Remove {noun}"
 msgstr "Rimuovi {noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:268
+#: apps/carver-gtk/src/ui/bases/actions.rs:273
 msgid "is"
 msgstr "è"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:269
+#: apps/carver-gtk/src/ui/bases/actions.rs:274
 msgid "is not"
 msgstr "non è"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:270
+#: apps/carver-gtk/src/ui/bases/actions.rs:275
 msgid "contains"
 msgstr "contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:271
+#: apps/carver-gtk/src/ui/bases/actions.rs:276
 msgid "starts with"
 msgstr "inizia con"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:272
+#: apps/carver-gtk/src/ui/bases/actions.rs:277
 msgid ">"
 msgstr ">"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:273
+#: apps/carver-gtk/src/ui/bases/actions.rs:278
 msgid "<"
 msgstr "<"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:274
+#: apps/carver-gtk/src/ui/bases/actions.rs:279
 msgid "≥"
 msgstr "≥"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:275
+#: apps/carver-gtk/src/ui/bases/actions.rs:280
 msgid "≤"
 msgstr "≤"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:276
+#: apps/carver-gtk/src/ui/bases/actions.rs:281
 msgid "is present"
 msgstr "è presente"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:277
+#: apps/carver-gtk/src/ui/bases/actions.rs:282
 msgid "is missing"
 msgstr "manca"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:278
+#: apps/carver-gtk/src/ui/bases/actions.rs:283
 msgid "list contains"
 msgstr "la lista contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:279
+#: apps/carver-gtk/src/ui/bases/actions.rs:284
 msgid "list does not contain"
 msgstr "la lista non contiene"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:302
+#: apps/carver-gtk/src/ui/bases/actions.rs:307
 msgid "Operator"
 msgstr "Operatore"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:384
-#: apps/carver-gtk/src/ui/bases/actions.rs:390
-#: apps/carver-gtk/src/ui/bases/actions.rs:544
+#: apps/carver-gtk/src/ui/bases/actions.rs:389
+#: apps/carver-gtk/src/ui/bases/actions.rs:395
+#: apps/carver-gtk/src/ui/bases/actions.rs:549
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:537
 msgid "Field"
 msgstr "Campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:434
+#: apps/carver-gtk/src/ui/bases/actions.rs:439
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
 msgid "Value"
 msgstr "Valore"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:478
+#: apps/carver-gtk/src/ui/bases/actions.rs:483
 msgid "Direction"
 msgstr "Direzione"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:480
-#: apps/carver-gtk/src/ui/bases/actions.rs:487
-#: apps/carver-gtk/src/ui/bases/actions.rs:494
+#: apps/carver-gtk/src/ui/bases/actions.rs:485
+#: apps/carver-gtk/src/ui/bases/actions.rs:492
+#: apps/carver-gtk/src/ui/bases/actions.rs:499
 msgid "Ascending"
 msgstr "Crescente"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:481
-#: apps/carver-gtk/src/ui/bases/actions.rs:489
-#: apps/carver-gtk/src/ui/bases/actions.rs:496
+#: apps/carver-gtk/src/ui/bases/actions.rs:486
+#: apps/carver-gtk/src/ui/bases/actions.rs:494
+#: apps/carver-gtk/src/ui/bases/actions.rs:501
 msgid "Descending"
 msgstr "Decrescente"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:547
+#: apps/carver-gtk/src/ui/bases/actions.rs:552
 msgid "Move field up"
 msgstr "Sposta campo su"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:549
+#: apps/carver-gtk/src/ui/bases/actions.rs:554
 msgid "Move field down"
 msgstr "Sposta campo giù"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:577
-#: apps/carver-gtk/src/ui/bases/actions.rs:579
+#: apps/carver-gtk/src/ui/bases/actions.rs:580
+#: apps/carver-gtk/src/ui/bases/actions.rs:582
 msgid "Remove field"
 msgstr "Rimuovi campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:702
-msgid "New Base"
-msgstr "Nuova base"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:704
-msgid "Configure Base"
-msgstr "Configura base"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:722
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
-msgid "Save"
-msgstr "Salva"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:752
+#: apps/carver-gtk/src/ui/bases/actions.rs:740
 msgid "Visible fields"
 msgstr "Campi visibili"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:754
+#: apps/carver-gtk/src/ui/bases/actions.rs:742
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Scegli le colonne mostrate in questa base. Il nome è sempre incluso."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:763
+#: apps/carver-gtk/src/ui/bases/actions.rs:751
 msgid "Add field"
 msgstr "Aggiungi campo"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:814
+#: apps/carver-gtk/src/ui/bases/actions.rs:802
 msgid "Filters"
 msgstr "Filtri"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:816
+#: apps/carver-gtk/src/ui/bases/actions.rs:804
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "Usa le frecce per impostare la priorità delle regole, o rimuovi una regola che non ti serve più."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:821
+#: apps/carver-gtk/src/ui/bases/actions.rs:809
 #, fuzzy
 msgid "Matching"
 msgstr "Ricerca in corso…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:824
+#: apps/carver-gtk/src/ui/bases/actions.rs:812
 msgid "Match all filters"
 msgstr "Corrispondi a tutti i filtri"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:825
+#: apps/carver-gtk/src/ui/bases/actions.rs:813
 msgid "Match any filter"
 msgstr "Corrispondi a qualsiasi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:838
+#: apps/carver-gtk/src/ui/bases/actions.rs:826
 msgid "Sort"
 msgstr "Ordina"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:839
+#: apps/carver-gtk/src/ui/bases/actions.rs:827
 msgid "Sort rules are applied from top to bottom."
 msgstr "Le regole di ordinamento vengono applicate dall'alto verso il basso."
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:876
-#: apps/carver-gtk/src/ui/bases/actions.rs:904
+#: apps/carver-gtk/src/ui/bases/actions.rs:864
+#: apps/carver-gtk/src/ui/bases/actions.rs:892
 msgid "filter"
 msgstr "filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:887
+#: apps/carver-gtk/src/ui/bases/actions.rs:875
 msgid "Add filter"
 msgstr "Aggiungi filtro"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:926
-#: apps/carver-gtk/src/ui/bases/actions.rs:950
+#: apps/carver-gtk/src/ui/bases/actions.rs:914
+#: apps/carver-gtk/src/ui/bases/actions.rs:938
 msgid "sort rule"
 msgstr "regola di ordinamento"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:937
+#: apps/carver-gtk/src/ui/bases/actions.rs:925
 msgid "Add sort rule"
 msgstr "Aggiungi regola di ordinamento"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1033
+#: apps/carver-gtk/src/ui/bases/actions.rs:956
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
+msgid "Save"
+msgstr "Salva"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:1020
+msgid "New Base"
+msgstr "Nuova base"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:1022
+msgid "Configure Base"
+msgstr "Configura base"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs:1057
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
@@ -468,12 +438,12 @@ msgstr "Cerca note"
 msgid "Search notes (Ctrl+F)"
 msgstr "Cerca note (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:627
+#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:685
 msgid "No notes yet"
 msgstr "Nessuna nota"
 
 #: apps/carver-gtk/src/ui/browser.rs:376 apps/carver-gtk/src/ui/browser.rs:474
-#: apps/carver-gtk/src/view/mod.rs:629
+#: apps/carver-gtk/src/view/mod.rs:687
 msgid "Create a note to get started."
 msgstr "Crea una nota per iniziare."
 
@@ -524,7 +494,7 @@ msgstr "Esporta nota…"
 msgid "Move to Trash"
 msgstr "Sposta nel cestino"
 
-#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:288
+#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:289
 msgid "All notes"
 msgstr "Tutte le note"
 
@@ -536,7 +506,7 @@ msgstr "Modifica categoria"
 msgid "Move Category to Trash"
 msgstr "Sposta categoria nel cestino"
 
-#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:430
+#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:431
 #, rust-format
 msgid "{count} note"
 msgid_plural "{count} notes"
@@ -1005,7 +975,7 @@ msgstr "I contributori di Carver"
 msgid "A native GNOME notebook for Carve markup."
 msgstr "Un blocco note nativo GNOME per il markup Carve."
 
-#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:139
+#: apps/carver-gtk/src/ui/dialogs.rs:1302 apps/carver-gtk/src/ui/sidebar.rs:140
 msgid "Keyboard Shortcuts"
 msgstr "Scorciatoie da tastiera"
 
@@ -1116,6 +1086,10 @@ msgstr "Cerca categorie"
 #: apps/carver-gtk/src/ui/dialogs.rs:1660
 msgid "New Category…"
 msgstr "Nuova categoria…"
+
+#: apps/carver-gtk/src/ui/dialogs.rs:1745
+msgid "New Category"
+msgstr "Nuova categoria"
 
 #: apps/carver-gtk/src/ui/dialogs.rs:1796
 msgid "Current"
@@ -1605,35 +1579,35 @@ msgstr "{rows} righe × {columns} colonne"
 msgid "Back to notes"
 msgstr "Torna alle note"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:133
+#: apps/carver-gtk/src/ui/sidebar.rs:134
 msgid "Connect an agent"
 msgstr "Connetti un agente"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:137
+#: apps/carver-gtk/src/ui/sidebar.rs:138
 msgid "Preferences"
 msgstr "Preferenze"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:142
+#: apps/carver-gtk/src/ui/sidebar.rs:143
 msgid "About Carver"
 msgstr "Informazioni su Carver"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:147
+#: apps/carver-gtk/src/ui/sidebar.rs:148
 msgid "Settings"
 msgstr "Impostazioni"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:357 apps/carver-gtk/src/ui/sidebar.rs:390
+#: apps/carver-gtk/src/ui/sidebar.rs:358 apps/carver-gtk/src/ui/sidebar.rs:391
 msgid "Hide Categories"
 msgstr "Nascondi categorie"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:387
+#: apps/carver-gtk/src/ui/sidebar.rs:388
 msgid "Show Categories"
 msgstr "Mostra categorie"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:400
+#: apps/carver-gtk/src/ui/sidebar.rs:401
 msgid "Open Trash"
 msgstr "Apri cestino"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:408 apps/carver-gtk/src/ui/trash.rs:31
+#: apps/carver-gtk/src/ui/sidebar.rs:409 apps/carver-gtk/src/ui/trash.rs:31
 msgid "Trash"
 msgstr "Cestino"
 
@@ -1645,11 +1619,11 @@ msgstr "Ripristina note e categorie"
 msgid "Empty Trash"
 msgstr "Svuota cestino"
 
-#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:730
+#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:788
 msgid "Trash is empty"
 msgstr "Il cestino è vuoto"
 
-#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:732
+#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:790
 msgid "Deleted notes and categories can be restored here."
 msgstr "Le note e le categorie eliminate possono essere ripristinate qui."
 
@@ -1661,136 +1635,136 @@ msgstr "Svuotare il cestino?"
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
 msgstr "Tutte le note, le categorie e le immagini non referenziate nel cestino verranno eliminate definitivamente."
 
-#: apps/carver-gtk/src/view/mod.rs:254
+#: apps/carver-gtk/src/view/mod.rs:263
 msgid "Couldn’t load base"
 msgstr "Impossibile caricare la base"
 
-#: apps/carver-gtk/src/view/mod.rs:266
+#: apps/carver-gtk/src/view/mod.rs:275
 msgid "Loading base…"
 msgstr "Caricamento base…"
 
-#: apps/carver-gtk/src/view/mod.rs:267
+#: apps/carver-gtk/src/view/mod.rs:276
 msgid "Loading its definition."
 msgstr "Caricamento della sua definizione."
 
-#: apps/carver-gtk/src/view/mod.rs:282
+#: apps/carver-gtk/src/view/mod.rs:291
 msgid "Couldn’t load rows"
 msgstr "Impossibile caricare le righe"
 
-#: apps/carver-gtk/src/view/mod.rs:296
+#: apps/carver-gtk/src/view/mod.rs:305
 msgid "Loading rows…"
 msgstr "Caricamento righe…"
 
-#: apps/carver-gtk/src/view/mod.rs:297
+#: apps/carver-gtk/src/view/mod.rs:306
 msgid "Refreshing this base."
 msgstr "Aggiornamento di questa base."
 
-#: apps/carver-gtk/src/view/mod.rs:315
+#: apps/carver-gtk/src/view/mod.rs:324
 msgid "Loading more rows…"
 msgstr "Caricamento di altre righe…"
 
-#: apps/carver-gtk/src/view/mod.rs:317
+#: apps/carver-gtk/src/view/mod.rs:326
 msgid "Retry loading rows"
 msgstr "Riprova a caricare le righe"
 
-#: apps/carver-gtk/src/view/mod.rs:476
+#: apps/carver-gtk/src/view/mod.rs:534
 msgid "This note was deleted elsewhere. Your open text is preserved."
 msgstr "Questa nota è stata eliminata altrove. Il testo aperto è conservato."
 
-#: apps/carver-gtk/src/view/mod.rs:478
+#: apps/carver-gtk/src/view/mod.rs:536
 msgid "This note changed elsewhere. Your unsaved edits are preserved."
 msgstr "Questa nota è cambiata altrove. Le modifiche non salvate sono conservate."
 
-#: apps/carver-gtk/src/view/mod.rs:481
+#: apps/carver-gtk/src/view/mod.rs:539
 msgid "Close Note…"
 msgstr "Chiudi nota…"
 
-#: apps/carver-gtk/src/view/mod.rs:483
+#: apps/carver-gtk/src/view/mod.rs:541
 msgid "Reload…"
 msgstr "Ricarica…"
 
-#: apps/carver-gtk/src/view/mod.rs:492
+#: apps/carver-gtk/src/view/mod.rs:550
 msgid "Close deleted note?"
 msgstr "Chiudere la nota eliminata?"
 
-#: apps/carver-gtk/src/view/mod.rs:494
+#: apps/carver-gtk/src/view/mod.rs:552
 msgid "Reload note?"
 msgstr "Ricaricare la nota?"
 
-#: apps/carver-gtk/src/view/mod.rs:497
+#: apps/carver-gtk/src/view/mod.rs:555
 msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
 msgstr "La chiusura scarta la bozza locale e apre il cestino, dove puoi ripristinare la nota salvata. Annulla per conservare o esportare prima la bozza."
 
-#: apps/carver-gtk/src/view/mod.rs:499
+#: apps/carver-gtk/src/view/mod.rs:557
 msgid "Reloading replaces your unsaved edits with the latest saved note."
 msgstr "La ricarica sostituisce le modifiche non salvate con l'ultima nota salvata."
 
-#: apps/carver-gtk/src/view/mod.rs:506
+#: apps/carver-gtk/src/view/mod.rs:564
 msgid "Discard Draft and Open Trash"
 msgstr "Scarta bozza e apri cestino"
 
-#: apps/carver-gtk/src/view/mod.rs:508
+#: apps/carver-gtk/src/view/mod.rs:566
 msgid "Discard Edits and Reload"
 msgstr "Scarta modifiche e ricarica"
 
-#: apps/carver-gtk/src/view/mod.rs:740
+#: apps/carver-gtk/src/view/mod.rs:798
 msgctxt "Trash section"
 msgid "Categories"
 msgstr "Categorie"
 
-#: apps/carver-gtk/src/view/mod.rs:746
+#: apps/carver-gtk/src/view/mod.rs:804
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "Note"
 
-#: apps/carver-gtk/src/view/mod.rs:796
+#: apps/carver-gtk/src/view/mod.rs:854
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "Impossibile salvare la nota: {error}"
 
-#: apps/carver-gtk/src/view/mod.rs:799
+#: apps/carver-gtk/src/view/mod.rs:857
 msgid "Retry"
 msgstr "Riprova"
 
-#: apps/carver-gtk/src/view/mod.rs:815
+#: apps/carver-gtk/src/view/mod.rs:873
 msgid "Moved note"
 msgstr "Nota spostata"
 
-#: apps/carver-gtk/src/view/mod.rs:816 apps/carver-gtk/src/view/mod.rs:831
+#: apps/carver-gtk/src/view/mod.rs:874 apps/carver-gtk/src/view/mod.rs:889
 msgid "Undo"
 msgstr "Annulla"
 
-#: apps/carver-gtk/src/view/mod.rs:830
+#: apps/carver-gtk/src/view/mod.rs:888
 msgid "Moved note to Trash"
 msgstr "Nota spostata nel cestino"
 
-#: apps/carver-gtk/src/view/mod.rs:961
+#: apps/carver-gtk/src/view/mod.rs:1019
 msgid "Loading more notes…"
 msgstr "Caricamento di altre note…"
 
-#: apps/carver-gtk/src/view/mod.rs:963
+#: apps/carver-gtk/src/view/mod.rs:1021
 msgid "Retry loading notes"
 msgstr "Riprova a caricare le note"
 
-#: apps/carver-gtk/src/view/mod.rs:965
+#: apps/carver-gtk/src/view/mod.rs:1023
 msgid "Load more notes"
 msgstr "Carica altre note"
 
-#: apps/carver-gtk/src/view/mod.rs:995 apps/carver-gtk/src/view/mod.rs:1006
+#: apps/carver-gtk/src/view/mod.rs:1053 apps/carver-gtk/src/view/mod.rs:1064
 msgid "Loading…"
 msgstr "Caricamento…"
 
-#: apps/carver-gtk/src/view/mod.rs:997 apps/carver-gtk/src/view/mod.rs:1007
+#: apps/carver-gtk/src/view/mod.rs:1055 apps/carver-gtk/src/view/mod.rs:1065
 msgid "Could not load content"
 msgstr "Impossibile caricare i contenuti"
 
-#: apps/carver-gtk/src/view/mod.rs:1035
+#: apps/carver-gtk/src/view/mod.rs:1093
 #, rust-format
 msgid "{count} recoverable note"
 msgid_plural "{count} recoverable notes"
 msgstr[0] "{count} nota recuperabile"
 msgstr[1] "{count} note recuperabili"
 
-#: apps/carver-gtk/src/view/mod.rs:1072 apps/carver-gtk/src/view/mod.rs:1073
+#: apps/carver-gtk/src/view/mod.rs:1130 apps/carver-gtk/src/view/mod.rs:1131
 msgid "Restore"
 msgstr "Ripristina"

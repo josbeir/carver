@@ -63,11 +63,12 @@ pub(crate) fn back_to_notes_button(
 pub(crate) fn build_sidebar(
     dispatcher: &AppDispatcher,
     split_view: &adw::NavigationSplitView,
+    add_dialog: crate::ui::add::AddDialogSlot,
 ) -> SidebarSurface {
     let container = adw::ToolbarView::new();
     container.set_widget_name("sidebar-surface");
     let header = adw::HeaderBar::new();
-    header.pack_start(&super::add::button(dispatcher));
+    header.pack_start(&super::add::button(dispatcher, add_dialog));
     header.pack_end(&settings_menu_button());
     container.add_top_bar(&header);
     install_sidebar_search_shortcut(&container, dispatcher);
