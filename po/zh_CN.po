@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 11:57+0200\n"
+"POT-Creation-Date: 2026-09-27 12:08+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -95,7 +95,7 @@ msgid "Back"
 msgstr "返回"
 
 #: apps/carver-gtk/src/ui/add.rs:150
-#: apps/carver-gtk/src/ui/bases/actions.rs:718
+#: apps/carver-gtk/src/ui/bases/actions.rs:720
 msgid "Create"
 msgstr "创建"
 
@@ -133,8 +133,8 @@ msgid "Load more rows"
 msgstr "加载更多行"
 
 #: apps/carver-gtk/src/ui/bases.rs:238
-#: apps/carver-gtk/src/ui/bases/actions.rs:738
-#: apps/carver-gtk/src/ui/bases/actions.rs:741
+#: apps/carver-gtk/src/ui/bases/actions.rs:740
+#: apps/carver-gtk/src/ui/bases/actions.rs:743
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:564
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1278
 msgid "Name"
@@ -160,7 +160,7 @@ msgid "Only this Base will be deleted. Your notes and their properties will not 
 msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs:51
-#: apps/carver-gtk/src/ui/bases/actions.rs:715
+#: apps/carver-gtk/src/ui/bases/actions.rs:717
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:446
 #: apps/carver-gtk/src/ui/dialogs.rs:1340
 #: apps/carver-gtk/src/ui/dialogs.rs:1412
@@ -239,124 +239,124 @@ msgstr "列表包含"
 msgid "list does not contain"
 msgstr "列表不包含"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:301
+#: apps/carver-gtk/src/ui/bases/actions.rs:302
 msgid "Operator"
 msgstr "运算符"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:383
-#: apps/carver-gtk/src/ui/bases/actions.rs:389
-#: apps/carver-gtk/src/ui/bases/actions.rs:542
+#: apps/carver-gtk/src/ui/bases/actions.rs:384
+#: apps/carver-gtk/src/ui/bases/actions.rs:390
+#: apps/carver-gtk/src/ui/bases/actions.rs:544
 #: apps/carver-gtk/src/ui/bases/field_picker.rs:537
 msgid "Field"
 msgstr "字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:433
+#: apps/carver-gtk/src/ui/bases/actions.rs:434
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1310
 msgid "Value"
 msgstr "值"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:476
+#: apps/carver-gtk/src/ui/bases/actions.rs:478
 msgid "Direction"
 msgstr "方向"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:478
-#: apps/carver-gtk/src/ui/bases/actions.rs:485
-#: apps/carver-gtk/src/ui/bases/actions.rs:492
+#: apps/carver-gtk/src/ui/bases/actions.rs:480
+#: apps/carver-gtk/src/ui/bases/actions.rs:487
+#: apps/carver-gtk/src/ui/bases/actions.rs:494
 msgid "Ascending"
 msgstr "升序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:479
-#: apps/carver-gtk/src/ui/bases/actions.rs:487
-#: apps/carver-gtk/src/ui/bases/actions.rs:494
+#: apps/carver-gtk/src/ui/bases/actions.rs:481
+#: apps/carver-gtk/src/ui/bases/actions.rs:489
+#: apps/carver-gtk/src/ui/bases/actions.rs:496
 msgid "Descending"
 msgstr "降序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:545
+#: apps/carver-gtk/src/ui/bases/actions.rs:547
 msgid "Move field up"
 msgstr "字段上移"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:547
+#: apps/carver-gtk/src/ui/bases/actions.rs:549
 msgid "Move field down"
 msgstr "字段下移"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:575
 #: apps/carver-gtk/src/ui/bases/actions.rs:577
+#: apps/carver-gtk/src/ui/bases/actions.rs:579
 msgid "Remove field"
 msgstr "移除字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:700
+#: apps/carver-gtk/src/ui/bases/actions.rs:702
 msgid "New Base"
 msgstr "新建视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:702
+#: apps/carver-gtk/src/ui/bases/actions.rs:704
 msgid "Configure Base"
 msgstr "配置视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:720
+#: apps/carver-gtk/src/ui/bases/actions.rs:722
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs:894
 msgid "Save"
 msgstr "保存"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:750
+#: apps/carver-gtk/src/ui/bases/actions.rs:752
 msgid "Visible fields"
 msgstr "可见字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:752
+#: apps/carver-gtk/src/ui/bases/actions.rs:754
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "选择此视图库中显示的列。名称始终包含在内。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:761
+#: apps/carver-gtk/src/ui/bases/actions.rs:763
 msgid "Add field"
 msgstr "添加字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:812
+#: apps/carver-gtk/src/ui/bases/actions.rs:814
 msgid "Filters"
 msgstr "筛选"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:814
+#: apps/carver-gtk/src/ui/bases/actions.rs:816
 msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
 msgstr "使用箭头设置规则优先级，或移除不再需要的规则。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:819
+#: apps/carver-gtk/src/ui/bases/actions.rs:821
 #, fuzzy
 msgid "Matching"
 msgstr "正在搜索…"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:822
+#: apps/carver-gtk/src/ui/bases/actions.rs:824
 msgid "Match all filters"
 msgstr "匹配所有筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:823
+#: apps/carver-gtk/src/ui/bases/actions.rs:825
 msgid "Match any filter"
 msgstr "匹配任一筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:836
+#: apps/carver-gtk/src/ui/bases/actions.rs:838
 msgid "Sort"
 msgstr "排序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:837
+#: apps/carver-gtk/src/ui/bases/actions.rs:839
 msgid "Sort rules are applied from top to bottom."
 msgstr "排序规则按从上到下的顺序应用。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:874
-#: apps/carver-gtk/src/ui/bases/actions.rs:902
+#: apps/carver-gtk/src/ui/bases/actions.rs:876
+#: apps/carver-gtk/src/ui/bases/actions.rs:904
 msgid "filter"
 msgstr "筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:885
+#: apps/carver-gtk/src/ui/bases/actions.rs:887
 msgid "Add filter"
 msgstr "添加筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:924
-#: apps/carver-gtk/src/ui/bases/actions.rs:948
+#: apps/carver-gtk/src/ui/bases/actions.rs:926
+#: apps/carver-gtk/src/ui/bases/actions.rs:950
 msgid "sort rule"
 msgstr "排序规则"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:935
+#: apps/carver-gtk/src/ui/bases/actions.rs:937
 msgid "Add sort rule"
 msgstr "添加排序规则"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1031
+#: apps/carver-gtk/src/ui/bases/actions.rs:1033
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"

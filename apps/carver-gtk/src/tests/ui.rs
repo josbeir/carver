@@ -117,6 +117,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_search_should_open_and_clear_from_native_controls()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
     bases::base_field_picker_should_add_a_valid_custom_path()?;
+    bases::base_rule_controls_should_edit_rules_and_fields()?;
     icons::bundled_icons_should_be_discoverable()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;

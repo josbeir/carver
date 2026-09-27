@@ -296,8 +296,9 @@ fn operator_model() -> gtk::StringList {
     gtk::StringList::new(&labels)
 }
 
-fn operator_combo(initial: Option<BaseFilterOperator>) -> adw::ComboRow {
+fn operator_combo(initial: Option<BaseFilterOperator>, id: u64) -> adw::ComboRow {
     let combo = adw::ComboRow::new();
+    combo.set_widget_name(&format!("base-rule-filter-operator-{id}"));
     combo.set_title(&gettext("Operator"));
     combo.set_model(Some(&operator_model()));
     combo.set_selected(operator_index(
@@ -420,7 +421,7 @@ fn filter_row(
     );
     expander.set_title(&catalog_field_label(catalog, &initial_field));
     expander.add_row(&field_picker_row(&field));
-    let operator = operator_combo(initial.map(|filter| filter.operator));
+    let operator = operator_combo(initial.map(|filter| filter.operator), id);
     expander.set_subtitle(&operator_label(
         initial.map_or(BaseFilterOperator::Equals, |filter| filter.operator),
     ));
@@ -473,6 +474,7 @@ fn sort_row(
     expander.set_title(&catalog_field_label(catalog, &initial_field));
     expander.add_row(&field_picker_row(&field));
     let direction = adw::ComboRow::new();
+    direction.set_widget_name(&format!("base-rule-sort-direction-{id}"));
     direction.set_title(&gettext("Direction"));
     direction.set_model(Some(&gtk::StringList::new(&[
         gettext("Ascending").as_str(),
