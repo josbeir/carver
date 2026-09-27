@@ -121,22 +121,23 @@ infrastructure or GTK.
   user-facing text or pass it through a bare `format!`.
 - The literal `gettext("…")` must appear at the call site so `xgettext` can extract it. Do not
   route translated strings through variables or helpers that hide the literal.
-- The catalogs record a `#:` reference (`file:line`) for every message, so **any** edit that moves
-  lines in a file containing `gettext`/`ngettext`/`pgettext`/`tr_fmt!` calls makes them stale —
-  even a pure refactor that changes no string. Run `scripts/update-translations.sh` before every
-  commit that touches such a file and commit the regenerated `po/io.github.josbeir.Carver.pot` and
+- References are extracted at file granularity (`--add-location=file`) and CI ignores the `#:`
+  lines, so moving or reformatting lines never makes a catalog stale. Run
+  `scripts/update-translations.sh` only when a string is added, changed, or removed (or a message
+  moves to a different file), and commit the regenerated `po/io.github.josbeir.Carver.pot` and
   `po/*.po` in the same change.
 - When the string text itself is added, changed, or removed, also update the maintained
   translations (`nl`, `de`, `fr`, `es`, `it`, `zh_CN`). Never invent `msgid`s; always regenerate.
-- Run `cargo fmt` **before** regenerating catalogs: formatting shifts the same reference lines, so
-  the order is format → regenerate → commit. Formatting after a regeneration re-introduces drift.
+- Run `cargo fmt` before regenerating catalogs so the committed file set reflects the final
+  sources.
 - `scripts/check-translations.sh` reproduces CI's check locally: it regenerates the catalogs and
-  fails if the result is not already committed. Run it as part of the required checks.
+  fails if the message content is not already committed. Run it as part of the required checks.
 - Never edit `msgid`s in `po/*.po`; fix the English source and regenerate.
 - Localize dates and relative times with `glib::DateTime`/`ngettext`, not hardcoded English.
 - Keep MCP and library output English; localize only at the GTK boundary.
 - CI runs `scripts/update-translations.sh`, then `git diff --exit-code -I 'POT-Creation-Date:'
-  -I 'rust-format' po/`, then `msgfmt --check --strict`; any catalog drift fails the build.
+  -I 'rust-format' -I '^#:' po/`, then `msgfmt --check --strict`; any message drift fails the
+  build.
 
 ## Required checks
 
@@ -151,8 +152,7 @@ RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
 git diff --check
 ```
 
-Run `cargo fmt --all` before `check-translations.sh`; the catalog references track line numbers,
-so a formatting pass after the translation check makes it stale again.
+Run `cargo fmt --all` before `check-translations.sh`.
 
 CI's authoritative coverage tool is `cargo-llvm-cov`, not Tarpaulin. The coverage gate is
 85% line coverage and must include ignored GTK interaction tests:

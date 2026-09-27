@@ -38,8 +38,12 @@ rm -f "$probe" "$probe.pot"
 
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
 
+# References are file-level, not file:line: a line shift in a source file must not rewrite the
+# catalogs, or every refactor would make every open PR's PO files stale. The message text is the
+# contract; CI ignores the `#:` lines entirely (see scripts/check-translations.sh).
 common=(
   --from-code=UTF-8
+  --add-location=file
   --package-name=Carver
   --package-version="$version"
   --msgid-bugs-address="https://github.com/josbeir/carver/issues"

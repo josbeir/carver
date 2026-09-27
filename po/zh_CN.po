@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 19:56+0200\n"
+"POT-Creation-Date: 2026-09-27 20:02+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -17,1312 +17,1269 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop:2
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
 msgid "Carver"
 msgstr "Carver"
 
-#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop:3
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
 msgid "Notes that last"
 msgstr "历久弥新的笔记"
 
-#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop:9
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.desktop
 msgid "notes;markdown;writing;editor;"
 msgstr "笔记;markdown;写作;编辑器;"
 
-#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml:5
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
 msgid "A native GNOME home for notes that last"
 msgstr "为历久弥新的笔记打造的原生 GNOME 之家"
 
-#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml:14
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
 msgid "Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control."
 msgstr "Carver 是为历久弥新的笔记打造的原生 GNOME 之家。在精致的写作空间中捕捉灵感，轻松整理而无需繁琐操作，并随时切换到源码以获得完全的控制。"
 
-#: apps/carver-gtk/src/app.rs:110
+#: apps/carver-gtk/src/app.rs
 msgid "Carver could not open its library"
 msgstr "Carver 无法打开其笔记库"
 
-#: apps/carver-gtk/src/app.rs:149
+#: apps/carver-gtk/src/app.rs
 msgid "Categories"
 msgstr "分类"
 
-#: apps/carver-gtk/src/app.rs:150
+#: apps/carver-gtk/src/app.rs
 msgid "Notes"
 msgstr "笔记"
 
-#: apps/carver-gtk/src/ui/add.rs:60 apps/carver-gtk/src/ui/add.rs:63
-#: apps/carver-gtk/src/ui/add.rs:70
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:472
+#: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
 msgstr "添加"
 
-#: apps/carver-gtk/src/ui/add.rs:130
-msgctxt "add dialog"
-msgid "Category"
-msgstr "分类"
-
-#: apps/carver-gtk/src/ui/add.rs:134
+#: apps/carver-gtk/src/ui/add.rs
 msgctxt "add dialog"
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/add.rs:168
-#: apps/carver-gtk/src/ui/bases/actions.rs:963
+#: apps/carver-gtk/src/ui/add.rs
+msgctxt "add dialog"
+msgid "Category"
+msgstr "分类"
+
+#: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Create"
 msgstr "创建"
 
-#: apps/carver-gtk/src/ui/bases.rs:78
-msgid "Search this Base"
-msgstr "搜索此视图库"
-
-#: apps/carver-gtk/src/ui/bases.rs:79
-msgid "Search this Base (Ctrl+F)"
-msgstr "搜索此视图库 (Ctrl+F)"
-
-#: apps/carver-gtk/src/ui/bases.rs:82
+#: apps/carver-gtk/src/ui/bases.rs
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/bases.rs:88
-#: apps/carver-gtk/src/ui/bases/actions.rs:53
-msgid "Delete Base"
-msgstr "删除视图库"
-
-#: apps/carver-gtk/src/ui/bases.rs:91
-msgid "Configure"
-msgstr "配置"
-
-#: apps/carver-gtk/src/ui/bases.rs:120 apps/carver-gtk/src/ui/browser.rs:492
-msgid "No matching notes"
-msgstr "没有匹配的笔记"
-
-#: apps/carver-gtk/src/ui/bases.rs:121
-msgid "Notes that match this Base will appear here."
-msgstr "匹配此视图库的笔记将显示在此处。"
-
-#: apps/carver-gtk/src/ui/bases.rs:124 apps/carver-gtk/src/view/mod.rs:349
-msgid "Load more rows"
-msgstr "加载更多行"
-
-#: apps/carver-gtk/src/ui/bases.rs:285 apps/carver-gtk/src/ui/bases.rs:814
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:622
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:711
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1548
-msgid "Title"
-msgstr "标题"
-
-#: apps/carver-gtk/src/ui/bases.rs:294 apps/carver-gtk/src/ui/bases.rs:816
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:623
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:751
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:753
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
 msgstr "分类"
 
-#: apps/carver-gtk/src/ui/bases.rs:297 apps/carver-gtk/src/ui/bases.rs:817
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:624
-msgid "Updated"
-msgstr "已更新"
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Configure"
+msgstr "配置"
 
-#: apps/carver-gtk/src/ui/bases.rs:324
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Delete Base"
+msgstr "删除视图库"
+
+#: apps/carver-gtk/src/ui/bases.rs
 msgid "Edit document properties"
 msgstr "编辑文档属性"
 
-#: apps/carver-gtk/src/ui/bases.rs:754
+#: apps/carver-gtk/src/ui/bases.rs
 msgid "Edit title"
 msgstr "编辑标题"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:44
-#, rust-format
-msgid "Delete “{name}”?"
-msgstr "删除“{name}”？"
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
+msgid "Load more rows"
+msgstr "加载更多行"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:46
-msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
-msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/browser.rs
+msgid "No matching notes"
+msgstr "没有匹配的笔记"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:52
-#: apps/carver-gtk/src/ui/bases/editing.rs:426
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:471
-#: apps/carver-gtk/src/ui/dialogs.rs:1348
-#: apps/carver-gtk/src/ui/dialogs.rs:1420
-#: apps/carver-gtk/src/ui/dialogs.rs:1673
-#: apps/carver-gtk/src/ui/dialogs.rs:1861
-#: apps/carver-gtk/src/ui/editor/mod.rs:1567
-#: apps/carver-gtk/src/ui/editor/mod.rs:1657
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:712
-#: apps/carver-gtk/src/ui/editor/web.rs:532
-#: apps/carver-gtk/src/ui/formatting.rs:107
-#: apps/carver-gtk/src/ui/formatting.rs:450 apps/carver-gtk/src/ui/trash.rs:88
-#: apps/carver-gtk/src/view/mod.rs:593
-msgid "Cancel"
-msgstr "取消"
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Notes that match this Base will appear here."
+msgstr "匹配此视图库的笔记将显示在此处。"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:193
-#, rust-format
-msgid "Move {noun} up"
-msgstr "将{noun}上移"
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Search this Base"
+msgstr "搜索此视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:197
-#, rust-format
-msgid "Move {noun} down"
-msgstr "将{noun}下移"
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Search this Base (Ctrl+F)"
+msgstr "搜索此视图库 (Ctrl+F)"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:201
-#, rust-format
-msgid "Remove {noun}"
-msgstr "移除{noun}"
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Title"
+msgstr "标题"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:274
-msgid "is"
-msgstr "是"
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Updated"
+msgstr "已更新"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:275
-msgid "is not"
-msgstr "不是"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:276
-msgid "contains"
-msgstr "包含"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:277
-msgid "starts with"
-msgstr "开头为"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:278
-msgid ">"
-msgstr ">"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:279
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "<"
 msgstr "<"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:280
-msgid "≥"
-msgstr "≥"
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid ">"
+msgstr ">"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:281
-msgid "≤"
-msgstr "≤"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:282
-msgid "is present"
-msgstr "存在"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:283
-msgid "is missing"
-msgstr "缺失"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:284
-msgid "list contains"
-msgstr "列表包含"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:285
-msgid "list does not contain"
-msgstr "列表不包含"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:308
-msgid "Operator"
-msgstr "运算符"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:390
-#: apps/carver-gtk/src/ui/bases/actions.rs:396
-#: apps/carver-gtk/src/ui/bases/actions.rs:550
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:595
-msgid "Field"
-msgstr "字段"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:440
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1240
-msgid "Value"
-msgstr "值"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:484
-msgid "Direction"
-msgstr "方向"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:486
-#: apps/carver-gtk/src/ui/bases/actions.rs:493
-#: apps/carver-gtk/src/ui/bases/actions.rs:500
-msgid "Ascending"
-msgstr "升序"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:487
-#: apps/carver-gtk/src/ui/bases/actions.rs:495
-#: apps/carver-gtk/src/ui/bases/actions.rs:502
-msgid "Descending"
-msgstr "降序"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:553
-msgid "Move field up"
-msgstr "字段上移"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:555
-msgid "Move field down"
-msgstr "字段下移"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:581
-#: apps/carver-gtk/src/ui/bases/actions.rs:583
-msgid "Remove field"
-msgstr "移除字段"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:737
-#: apps/carver-gtk/src/ui/bases/actions.rs:740
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1199
-msgid "Name"
-msgstr "名称"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:749
-msgid "Visible fields"
-msgstr "可见字段"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:751
-msgid "Choose the columns shown in this Base. Name is always included."
-msgstr "选择此视图库中显示的列。名称始终包含在内。"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:760
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Add field"
 msgstr "添加字段"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:811
-msgid "Filters"
-msgstr "筛选"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:813
-msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
-msgstr "使用箭头设置规则优先级，或移除不再需要的规则。"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:818
-#, fuzzy
-msgid "Matching"
-msgstr "正在搜索…"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:821
-msgid "Match all filters"
-msgstr "匹配所有筛选条件"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:822
-msgid "Match any filter"
-msgstr "匹配任一筛选条件"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:835
-msgid "Sort"
-msgstr "排序"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:836
-msgid "Sort rules are applied from top to bottom."
-msgstr "排序规则按从上到下的顺序应用。"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:873
-#: apps/carver-gtk/src/ui/bases/actions.rs:901
-msgid "filter"
-msgstr "筛选条件"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:884
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Add filter"
 msgstr "添加筛选条件"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:923
-#: apps/carver-gtk/src/ui/bases/actions.rs:947
-msgid "sort rule"
-msgstr "排序规则"
-
-#: apps/carver-gtk/src/ui/bases/actions.rs:934
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Add sort rule"
 msgstr "添加排序规则"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:965
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:714
-msgid "Save"
-msgstr "保存"
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Ascending"
+msgstr "升序"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1031
-msgid "New Base"
-msgstr "新建视图库"
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/editing.rs
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+msgid "Cancel"
+msgstr "取消"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1033
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Choose the columns shown in this Base. Name is always included."
+msgstr "选择此视图库中显示的列。名称始终包含在内。"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Configure Base"
 msgstr "配置视图库"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs:1068
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #, rust-format
 msgid "Currently matches {count} note"
 msgid_plural "Currently matches {count} notes"
 msgstr[0] "当前匹配 {count} 条笔记"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:347
-#: apps/carver-gtk/src/ui/bases/editing.rs:792
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:134
-msgid "Not set"
-msgstr "未设置"
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#, rust-format
+msgid "Delete “{name}”?"
+msgstr "删除“{name}”？"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:421
-#: apps/carver-gtk/src/ui/property.rs:408
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Descending"
+msgstr "降序"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Direction"
+msgstr "方向"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Field"
+msgstr "字段"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Filters"
+msgstr "筛选"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Match all filters"
+msgstr "匹配所有筛选条件"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Match any filter"
+msgstr "匹配任一筛选条件"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#, fuzzy
+msgid "Matching"
+msgstr "正在搜索…"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Move field down"
+msgstr "字段下移"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Move field up"
+msgstr "字段上移"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#, rust-format
+msgid "Move {noun} down"
+msgstr "将{noun}下移"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#, rust-format
+msgid "Move {noun} up"
+msgstr "将{noun}上移"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Name"
+msgstr "名称"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "New Base"
+msgstr "新建视图库"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
+msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Operator"
+msgstr "运算符"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Remove field"
+msgstr "移除字段"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#, rust-format
+msgid "Remove {noun}"
+msgstr "移除{noun}"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Save"
+msgstr "保存"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Sort"
+msgstr "排序"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Sort rules are applied from top to bottom."
+msgstr "排序规则按从上到下的顺序应用。"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Use the arrows to set rule priority, or remove a rule you no longer need."
+msgstr "使用箭头设置规则优先级，或移除不再需要的规则。"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Value"
+msgstr "值"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Visible fields"
+msgstr "可见字段"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "contains"
+msgstr "包含"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "filter"
+msgstr "筛选条件"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "is"
+msgstr "是"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "is missing"
+msgstr "缺失"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "is not"
+msgstr "不是"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "is present"
+msgstr "存在"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "list contains"
+msgstr "列表包含"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "list does not contain"
+msgstr "列表不包含"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "sort rule"
+msgstr "排序规则"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "starts with"
+msgstr "开头为"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "≤"
+msgstr "≤"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "≥"
+msgstr "≥"
+
+#: apps/carver-gtk/src/ui/bases/editing.rs apps/carver-gtk/src/ui/property.rs
 msgid "Clear"
 msgstr "清除"
 
-#: apps/carver-gtk/src/ui/bases/editing.rs:429
-#: apps/carver-gtk/src/ui/property.rs:413
+#: apps/carver-gtk/src/ui/bases/editing.rs apps/carver-gtk/src/ui/property.rs
 msgid "Done"
 msgstr "完成"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:187
-msgid "Search fields"
-msgstr "搜索字段"
+#: apps/carver-gtk/src/ui/bases/editing.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Not set"
+msgstr "未设置"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:205
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Add custom field"
+msgstr "添加自定义字段"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add custom field…"
 msgstr "添加自定义字段…"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:347
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Boolean"
+msgstr "布尔值"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Built-in field"
+msgstr "内置字段"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Custom field"
+msgstr "自定义字段"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Empty"
+msgstr "空"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Enter a valid path such as /project/status."
+msgstr "请输入有效路径，例如 /project/status。"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/property.rs
+msgid "List"
+msgstr "列表"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Mixed"
+msgstr "混合"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "No matching fields"
 msgstr "没有匹配的字段"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:356
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Number"
+msgstr "数字"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Search fields"
+msgstr "搜索字段"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+msgid "Selected"
+msgstr "已选择"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/property.rs
+msgid "Text"
+msgstr "文本"
+
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
 #, rust-format
 msgid "Type to search {count} more field"
 msgid_plural "Type to search {count} more fields"
 msgstr[0] "输入以搜索另外 {count} 个字段"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:421
-msgid "Selected"
-msgstr "已选择"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:449
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Use a slash-prefixed JSON Pointer for nested fields."
 msgstr "嵌套字段请使用以斜杠开头的 JSON 指针。"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:454
-msgid "Enter a valid path such as /project/status."
-msgstr "请输入有效路径，例如 /project/status。"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:465
-msgid "Add custom field"
-msgstr "添加自定义字段"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:522
-msgid "Built-in field"
-msgstr "内置字段"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:524
-msgid "Custom field"
-msgstr "自定义字段"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:536
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:555
+#: apps/carver-gtk/src/ui/bases/field_picker.rs
 #, rust-format
 msgid "{label} · {value}"
 msgstr "{label} · {value}"
 
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:637
-#: apps/carver-gtk/src/ui/formatting.rs:440
-#: apps/carver-gtk/src/ui/property.rs:18
-msgid "Text"
-msgstr "文本"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:638
-#: apps/carver-gtk/src/ui/property.rs:20
-msgid "Number"
-msgstr "数字"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:639
-#: apps/carver-gtk/src/ui/property.rs:21
-msgid "Boolean"
-msgstr "布尔值"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:640
-#: apps/carver-gtk/src/ui/property.rs:22
-msgid "List"
-msgstr "列表"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:641
-msgid "Empty"
-msgstr "空"
-
-#: apps/carver-gtk/src/ui/bases/field_picker.rs:642
-msgid "Mixed"
-msgstr "混合"
-
-#: apps/carver-gtk/src/ui/browser.rs:85
-msgid "Today"
-msgstr "今天"
-
-#: apps/carver-gtk/src/ui/browser.rs:86 apps/carver-gtk/src/ui/browser.rs:1107
-msgid "Yesterday"
-msgstr "昨天"
-
-#: apps/carver-gtk/src/ui/browser.rs:87
-msgid "This Week"
-msgstr "本周"
-
-#: apps/carver-gtk/src/ui/browser.rs:88
-msgid "This Month"
-msgstr "本月"
-
-#: apps/carver-gtk/src/ui/browser.rs:89
-msgid "Earlier This Year"
-msgstr "今年早些时候"
-
-#: apps/carver-gtk/src/ui/browser.rs:325 apps/carver-gtk/src/ui/browser.rs:380
-#: apps/carver-gtk/src/ui/browser.rs:477
-msgid "New Note"
-msgstr "新建笔记"
-
-#: apps/carver-gtk/src/ui/browser.rs:335 apps/carver-gtk/src/ui/dialogs.rs:71
-msgid "Search notes"
-msgstr "搜索笔记"
-
-#: apps/carver-gtk/src/ui/browser.rs:336
-msgid "Search notes (Ctrl+F)"
-msgstr "搜索笔记 (Ctrl+F)"
-
-#: apps/carver-gtk/src/ui/browser.rs:375 apps/carver-gtk/src/view/mod.rs:716
-msgid "No notes yet"
-msgstr "还没有笔记"
-
-#: apps/carver-gtk/src/ui/browser.rs:376 apps/carver-gtk/src/ui/browser.rs:474
-#: apps/carver-gtk/src/view/mod.rs:718
-msgid "Create a note to get started."
-msgstr "创建一篇笔记即可开始。"
-
-#: apps/carver-gtk/src/ui/browser.rs:454
-msgid "Import Note"
-msgstr "导入笔记"
-
-#: apps/carver-gtk/src/ui/browser.rs:459
-msgid "More options"
-msgstr "更多选项"
-
-#: apps/carver-gtk/src/ui/browser.rs:471
-msgid "No notes in this category"
-msgstr "此分类中没有笔记"
-
-#: apps/carver-gtk/src/ui/browser.rs:495
-msgid "Try a different search term."
-msgstr "请尝试其他搜索词。"
-
-#: apps/carver-gtk/src/ui/browser.rs:646
-msgid "Favorites"
-msgstr "收藏"
-
-#: apps/carver-gtk/src/ui/browser.rs:724
-msgid "Note actions"
-msgstr "笔记操作"
-
-#: apps/carver-gtk/src/ui/browser.rs:729
-#: apps/carver-gtk/src/ui/editor/mod.rs:128
-msgid "Remove from Favorites"
-msgstr "从收藏中移除"
-
-#: apps/carver-gtk/src/ui/browser.rs:731
-msgid "Mark as Favorite"
-msgstr "添加到收藏"
-
-#: apps/carver-gtk/src/ui/browser.rs:749
-msgid "Move…"
-msgstr "移动…"
-
-#: apps/carver-gtk/src/ui/browser.rs:773
-#: apps/carver-gtk/src/ui/editor/mod.rs:1398
-msgid "Export note…"
-msgstr "导出笔记…"
-
-#: apps/carver-gtk/src/ui/browser.rs:785 apps/carver-gtk/src/ui/dialogs.rs:1862
-#: apps/carver-gtk/src/ui/editor/mod.rs:1405
-msgid "Move to Trash"
-msgstr "移到回收站"
-
-#: apps/carver-gtk/src/ui/browser.rs:838 apps/carver-gtk/src/ui/sidebar.rs:289
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/sidebar.rs
 msgid "All notes"
 msgstr "所有笔记"
 
-#: apps/carver-gtk/src/ui/browser.rs:906 apps/carver-gtk/src/ui/browser.rs:919
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
+msgid "Create a note to get started."
+msgstr "创建一篇笔记即可开始。"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Earlier This Year"
+msgstr "今年早些时候"
+
+#: apps/carver-gtk/src/ui/browser.rs
 msgid "Edit Category"
 msgstr "编辑分类"
 
-#: apps/carver-gtk/src/ui/browser.rs:934
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export note…"
+msgstr "导出笔记…"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Favorites"
+msgstr "收藏"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Import Note"
+msgstr "导入笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Mark as Favorite"
+msgstr "添加到收藏"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "More options"
+msgstr "更多选项"
+
+#: apps/carver-gtk/src/ui/browser.rs
 msgid "Move Category to Trash"
 msgstr "将分类移到回收站"
 
-#: apps/carver-gtk/src/ui/browser.rs:954 apps/carver-gtk/src/ui/sidebar.rs:431
-#, rust-format
-msgid "{count} note"
-msgid_plural "{count} notes"
-msgstr[0] "{count} 条笔记"
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Move to Trash"
+msgstr "移到回收站"
 
-#: apps/carver-gtk/src/ui/browser.rs:1003
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Move…"
+msgstr "移动…"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note"
+msgstr "新建笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "No notes in this category"
+msgstr "此分类中没有笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
+msgid "No notes yet"
+msgstr "还没有笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Note actions"
+msgstr "笔记操作"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Remove from Favorites"
+msgstr "从收藏中移除"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "Search notes"
+msgstr "搜索笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Search notes (Ctrl+F)"
+msgstr "搜索笔记 (Ctrl+F)"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "This Month"
+msgstr "本月"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "This Week"
+msgstr "本周"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Today"
+msgstr "今天"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Try a different search term."
+msgstr "请尝试其他搜索词。"
+
+#: apps/carver-gtk/src/ui/browser.rs
 #, rust-format
 msgid "Updated {time}"
 msgstr "更新于 {time}"
 
-#: apps/carver-gtk/src/ui/browser.rs:1075
-#, rust-format
-msgid "{amount} second ago"
-msgid_plural "{amount} seconds ago"
-msgstr[0] "{amount} 秒前"
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Yesterday"
+msgstr "昨天"
 
-#: apps/carver-gtk/src/ui/browser.rs:1086
-#, rust-format
-msgid "{amount} minute ago"
-msgid_plural "{amount} minutes ago"
-msgstr[0] "{amount} 分钟前"
-
-#: apps/carver-gtk/src/ui/browser.rs:1097
+#: apps/carver-gtk/src/ui/browser.rs
 #, rust-format
 msgid "{amount} hour ago"
 msgid_plural "{amount} hours ago"
 msgstr[0] "{amount} 小时前"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:51
-msgid "Keyboard shortcuts"
-msgstr "键盘快捷键"
+#: apps/carver-gtk/src/ui/browser.rs
+#, rust-format
+msgid "{amount} minute ago"
+msgid_plural "{amount} minutes ago"
+msgstr[0] "{amount} 分钟前"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:59
-msgid "New note"
-msgstr "新建笔记"
+#: apps/carver-gtk/src/ui/browser.rs
+#, rust-format
+msgid "{amount} second ago"
+msgid_plural "{amount} seconds ago"
+msgstr[0] "{amount} 秒前"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:63 apps/carver-gtk/src/ui/dialogs.rs:360
-msgid "Import note"
-msgstr "导入笔记"
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/sidebar.rs
+#, rust-format
+msgid "{count} note"
+msgid_plural "{count} notes"
+msgstr[0] "{count} 条笔记"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:78
-msgid "Search Base rows"
-msgstr "搜索视图库行"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "A native GNOME notebook for Carve markup."
+msgstr "用于 Carve 标记的原生 GNOME 笔记本。"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:86
-msgid "Toggle favorite"
-msgstr "切换收藏"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Add default properties to new notes"
+msgstr "为新笔记添加默认属性"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:90
-#: apps/carver-gtk/src/ui/editor/mod.rs:1559
-#: apps/carver-gtk/src/ui/editor/mod.rs:1622
-msgid "Export note"
-msgstr "导出笔记"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Adjust the space between lines in Edit and Preview."
+msgstr "调整编辑和预览中的行间距。"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:94
-msgid "Print note"
-msgstr "打印笔记"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Agent"
+msgstr "智能体"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:98
-msgid "Move note to Trash"
-msgstr "将笔记移到回收站"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Agents & MCP"
+msgstr "智能体与 MCP"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:102
-msgid "Toggle document sidebar"
-msgstr "切换文档侧边栏"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Allow note changes"
+msgstr "允许修改笔记"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:111 apps/carver-gtk/src/ui/dialogs.rs:205
-#: apps/carver-gtk/src/ui/editor/find.rs:49
-msgid "Find in note"
-msgstr "在笔记中查找"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Anthropic's terminal agent"
+msgstr "Anthropic 的终端智能体"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:115 apps/carver-gtk/src/ui/dialogs.rs:119
-msgid "Next result"
-msgstr "下一个结果"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Any client that supports stdio MCP"
+msgstr "任何支持 stdio MCP 的客户端"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:123 apps/carver-gtk/src/ui/dialogs.rs:127
-msgid "Previous result"
-msgstr "上一个结果"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Appearance"
+msgstr "外观"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:131
-msgid "Close search"
-msgstr "关闭搜索"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "category colour"
+msgid "Auto"
+msgstr "自动"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:140
-msgid "Bold"
-msgstr "粗体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:144
-msgid "Italic"
-msgstr "斜体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:148
-msgid "Strikethrough"
-msgstr "删除线"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:152
-msgid "Underline"
-msgstr "下划线"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:156
-msgid "Highlight"
-msgstr "高亮"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:160
-msgid "Superscript"
-msgstr "上标"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:164
-msgid "Subscript"
-msgstr "下标"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:168
-msgid "Bulleted list"
-msgstr "项目符号列表"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:172
-msgid "Numbered list"
-msgstr "编号列表"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:176
-msgid "Insert line break"
-msgstr "插入换行符"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:185
-msgid "General"
-msgstr "通用"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:189
-msgctxt "shortcut section"
-msgid "Notes"
-msgstr "笔记"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:193
-msgid "Browser"
-msgstr "浏览"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:197
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgctxt "shortcut section"
 msgid "Base"
 msgstr "视图库"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:201 apps/carver-gtk/src/ui/dialogs.rs:551
-msgid "Editor"
-msgstr "编辑器"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Blue"
+msgstr "蓝色"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:209
-msgid "Source formatting"
-msgstr "源码格式"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Bold"
+msgstr "粗体"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:353
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Book"
+msgstr "书"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Briefcase"
+msgstr "公文包"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Browser"
+msgstr "浏览"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Bulleted list"
+msgstr "项目符号列表"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Calendar"
+msgstr "日历"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Carve and Markdown documents"
 msgstr "Carve 和 Markdown 文档"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:361
-msgid "Import"
-msgstr "导入"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Carve cheat sheet"
+msgstr "Carve 速查表"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:380
-msgid "Select a Carve (.crv) or Markdown (.md) file."
-msgstr "选择 Carve (.crv) 或 Markdown (.md) 文件。"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Carver contributors"
+msgstr "Carver 贡献者"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:387
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Category name"
+msgstr "分类名称"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Choose Document Font"
+msgstr "选择文档字体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Choose Source Font"
+msgstr "选择源码字体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Choose how much markup colour appears in Source mode."
+msgstr "选择源码模式下标记颜色的显示程度。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Choose the reading width in Edit and Preview."
+msgstr "选择编辑和预览中的阅读宽度。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Choose your agent"
+msgstr "选择您的智能体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Claude Code"
+msgstr "Claude Code"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close search"
+msgstr "关闭搜索"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Codex"
+msgstr "Codex"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "category appearance"
+msgid "Colour"
+msgstr "颜色"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Comfortable"
+msgstr "舒适"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Configure VS Code's MCP server list"
+msgstr "配置 VS Code 的 MCP 服务器列表"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Content width"
+msgstr "内容宽度"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Copy setup configuration"
+msgstr "复制设置配置"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Could not read the selected file."
 msgstr "无法读取所选文件。"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:400
-msgid "The selected file is not valid UTF-8 text."
-msgstr "所选文件不是有效的 UTF-8 文本。"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current"
+msgstr "当前"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:512
-msgid "Editor controls"
-msgstr "编辑器控件"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:515
-msgid "Show formatting toolbar"
-msgstr "显示格式工具栏"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:516
-msgid "Show formatting controls at the bottom of the editor."
-msgstr "在编辑器底部显示格式控件。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:523
-msgid "Previews and exports"
-msgstr "预览和导出"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:526
-msgid "Enable enhanced Carve rendering"
-msgstr "启用增强的 Carve 渲染"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:528
-msgid "Render tables of contents, collapsible details, and automatic web links in previews and HTML/PDF exports."
-msgstr "在预览和 HTML/PDF 导出中渲染目录、可折叠详情和自动网页链接。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:541
-msgid "Load remote images automatically"
-msgstr "自动加载远程图片"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:542
-msgid "Download images referenced by notes when they are displayed."
-msgstr "显示笔记时下载其引用的图片。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:558
-msgid "Appearance"
-msgstr "外观"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:567
-msgid "Properties"
-msgstr "属性"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:608
-msgid "Edit and Preview"
-msgstr "编辑与预览"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:613
-msgid "Line spacing"
-msgstr "行距"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:615
-msgid "Adjust the space between lines in Edit and Preview."
-msgstr "调整编辑和预览中的行间距。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:625
-msgid "Reset appearance"
-msgstr "重置外观"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:627
-msgid "Use the system document font, comfortable width, and default line spacing."
-msgstr "使用系统文档字体、舒适宽度和默认行距。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:649
-msgid "New note properties"
-msgstr "新笔记属性"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:653
-msgid "Add default properties to new notes"
-msgstr "为新笔记添加默认属性"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:654
-msgid "Seed each new note with the default properties below."
-msgstr "用以下默认属性填充每个新笔记。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:661
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:937
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:948
+#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Default properties"
 msgstr "默认属性"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:676
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Detailed"
+msgstr "详细"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Document font"
+msgstr "文档字体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Download images referenced by notes when they are displayed."
+msgstr "显示笔记时下载其引用的图片。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Edit and Preview"
+msgstr "编辑与预览"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Editor"
+msgstr "编辑器"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Editor controls"
+msgstr "编辑器控件"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Enable enhanced Carve rendering"
+msgstr "启用增强的 Carve 渲染"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Enable reversible create, save, move, trash, and restore actions."
+msgstr "启用可撤销的创建、保存、移动、移入回收站和恢复操作。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export note"
+msgstr "导出笔记"
+
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/find.rs
+msgid "Find in note"
+msgstr "在笔记中查找"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Folder"
+msgstr "文件夹"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+#, rust-format
+msgid "Follow the desktop setting ({system_font})."
+msgstr "跟随桌面设置（{system_font}）。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Format"
 msgstr "格式"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:677
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Full width"
+msgstr "全宽"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "General"
+msgstr "通用"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Generic / Other"
+msgstr "通用 / 其他"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "GitHub Copilot CLI"
+msgstr "GitHub Copilot CLI"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "GitHub's terminal assistant"
+msgstr "GitHub 的终端助手"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Heart"
+msgstr "心形"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Highlight"
+msgstr "高亮"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Highlight current line"
+msgstr "高亮当前行"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Home"
+msgstr "主页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "category appearance"
+msgid "Icon"
+msgstr "图标"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Idea"
+msgstr "想法"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Import"
+msgstr "导入"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Import note"
+msgstr "导入笔记"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Insert line break"
+msgstr "插入换行符"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Italic"
+msgstr "斜体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "JSON"
 msgstr "JSON"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:677
-msgid "TOML"
-msgstr "TOML"
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/sidebar.rs
+msgid "Keyboard Shortcuts"
+msgstr "键盘快捷键"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:677
-msgid "YAML"
-msgstr "YAML"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Keyboard shortcuts"
+msgstr "键盘快捷键"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:721
-msgid "Show floating properties button"
-msgstr "显示浮动属性按钮"
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Line spacing"
+msgstr "行距"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:722
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Load remote images automatically"
+msgstr "自动加载远程图片"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "MCP setup"
+msgstr "MCP 设置"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move note to Trash"
+msgstr "将笔记移到回收站"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+#, rust-format
+msgid "Move “{category_name}” to Trash?"
+msgstr "将“{category_name}”移到回收站？"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+#, rust-format
+msgid "Move “{note_title}”"
+msgstr "移动“{note_title}”"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Narrow"
+msgstr "窄"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New Category"
+msgstr "新建分类"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New Category…"
+msgstr "新建分类…"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "新建笔记"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note properties"
+msgstr "新笔记属性"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next result"
+msgstr "下一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "No categories found"
+msgstr "未找到分类"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "No setup instruction is available."
+msgstr "没有可用的设置说明。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "shortcut section"
+msgid "Notes"
+msgstr "笔记"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Notes in this category will no longer appear in your library. You can restore the category from Trash later."
+msgstr "此分类中的笔记将不再显示在您的笔记库中。您可以稍后从回收站恢复该分类。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Numbered list"
+msgstr "编号列表"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Off"
+msgstr "关闭"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Olive"
+msgstr "橄榄"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "OpenAI's coding agent"
+msgstr "OpenAI 的编程智能体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "OpenCode"
+msgstr "OpenCode"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "OpenCode's terminal agent"
+msgstr "OpenCode 的终端智能体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "People"
+msgstr "人物"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previews and exports"
+msgstr "预览和导出"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous result"
+msgstr "上一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Print note"
+msgstr "打印笔记"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties"
+msgstr "属性"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Purple"
+msgstr "紫色"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Render tables of contents, collapsible details, and automatic web links in previews and HTML/PDF exports."
+msgstr "在预览和 HTML/PDF 导出中渲染目录、可折叠详情和自动网页链接。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Reset appearance"
+msgstr "重置外观"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Rose"
+msgstr "玫瑰"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "dialog"
+msgid "Save"
+msgstr "保存"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Search Base rows"
+msgstr "搜索视图库行"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Search categories"
+msgstr "搜索分类"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Seed each new note with the default properties below."
+msgstr "用以下默认属性填充每个新笔记。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Select a Carve (.crv) or Markdown (.md) file."
+msgstr "选择 Carve (.crv) 或 Markdown (.md) 文件。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Select a client to reveal its private, user-level MCP setup."
+msgstr "选择一个客户端以显示其私有的用户级 MCP 设置。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Setup command"
+msgstr "设置命令"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Shade the line containing the cursor in Source mode."
+msgstr "在源码模式下为光标所在行添加底色。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Show a button over the editor to edit document properties."
 msgstr "在编辑器上方显示按钮以编辑文档属性。"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:737
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Show floating properties button"
+msgstr "显示浮动属性按钮"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Show formatting controls at the bottom of the editor."
+msgstr "在编辑器底部显示格式控件。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Show formatting toolbar"
+msgstr "显示格式工具栏"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Show line numbers"
+msgstr "显示行号"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Show source line positions in the editor gutter."
+msgstr "在编辑器边栏中显示源码行位置。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "preferences group"
+msgid "Source"
+msgstr "源码"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Source font"
+msgstr "源码字体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Source formatting"
+msgstr "源码格式"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Star"
+msgstr "星标"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Strikethrough"
+msgstr "删除线"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Subscript"
+msgstr "下标"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Superscript"
+msgstr "上标"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Syntax style"
+msgstr "语法样式"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "TOML"
+msgstr "TOML"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tag"
+msgstr "标签"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tangerine"
+msgstr "橘色"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Teal"
+msgstr "青色"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "The selected file is not valid UTF-8 text."
+msgstr "所选文件不是有效的 UTF-8 文本。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Toggle document sidebar"
+msgstr "切换文档侧边栏"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Toggle favorite"
+msgstr "切换收藏"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Underline"
+msgstr "下划线"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Use system monospace font"
+msgstr "使用系统等宽字体"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Use the system document font, comfortable width, and default line spacing."
+msgstr "使用系统文档字体、舒适宽度和默认行距。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "VS Code Copilot"
+msgstr "VS Code Copilot"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Wide"
+msgstr "宽"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Writing focus"
+msgstr "写作专注"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "YAML"
+msgstr "YAML"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Yellow"
+msgstr "黄色"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "{count} default property"
 msgid_plural "{count} default properties"
 msgstr[0] "{count} 个默认属性"
 
-#: apps/carver-gtk/src/ui/dialogs.rs:748
-msgid "Document font"
-msgstr "文档字体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:766
-msgid "Narrow"
-msgstr "窄"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:767
-msgid "Comfortable"
-msgstr "舒适"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:768
-msgid "Wide"
-msgstr "宽"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:769
-msgid "Full width"
-msgstr "全宽"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:778
-msgid "Content width"
-msgstr "内容宽度"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:779
-msgid "Choose the reading width in Edit and Preview."
-msgstr "选择编辑和预览中的阅读宽度。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:818
-msgid "Choose Document Font"
-msgstr "选择文档字体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:882
-msgid "Agents & MCP"
-msgstr "智能体与 MCP"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:886
-msgid "MCP setup"
-msgstr "MCP 设置"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:890
-msgid "Agent"
-msgstr "智能体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:892 apps/carver-gtk/src/ui/dialogs.rs:976
-msgid "Codex"
-msgstr "Codex"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:893 apps/carver-gtk/src/ui/dialogs.rs:982
-msgid "Claude Code"
-msgstr "Claude Code"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:894 apps/carver-gtk/src/ui/dialogs.rs:988
-msgid "GitHub Copilot CLI"
-msgstr "GitHub Copilot CLI"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:895 apps/carver-gtk/src/ui/dialogs.rs:994
-msgid "VS Code Copilot"
-msgstr "VS Code Copilot"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:896 apps/carver-gtk/src/ui/dialogs.rs:1000
-msgid "OpenCode"
-msgstr "OpenCode"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:897 apps/carver-gtk/src/ui/dialogs.rs:1006
-msgid "Generic / Other"
-msgstr "通用 / 其他"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:905
-msgid "Allow note changes"
-msgstr "允许修改笔记"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:907
-msgid "Enable reversible create, save, move, trash, and restore actions."
-msgstr "启用可撤销的创建、保存、移动、移入回收站和恢复操作。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:913
-msgid "Setup command"
-msgstr "设置命令"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:916
-msgid "Copy setup configuration"
-msgstr "复制设置配置"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:944
-msgid "No setup instruction is available."
-msgstr "没有可用的设置说明。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:969
-msgid "Choose your agent"
-msgstr "选择您的智能体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:971
-msgid "Select a client to reveal its private, user-level MCP setup."
-msgstr "选择一个客户端以显示其私有的用户级 MCP 设置。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:977
-msgid "OpenAI's coding agent"
-msgstr "OpenAI 的编程智能体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:983
-msgid "Anthropic's terminal agent"
-msgstr "Anthropic 的终端智能体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:989
-msgid "GitHub's terminal assistant"
-msgstr "GitHub 的终端助手"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:995
-msgid "Configure VS Code's MCP server list"
-msgstr "配置 VS Code 的 MCP 服务器列表"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1001
-msgid "OpenCode's terminal agent"
-msgstr "OpenCode 的终端智能体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1007
-msgid "Any client that supports stdio MCP"
-msgstr "任何支持 stdio MCP 的客户端"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1043
-msgctxt "preferences group"
-msgid "Source"
-msgstr "源码"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1049
-msgid "Show line numbers"
-msgstr "显示行号"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1050
-msgid "Show source line positions in the editor gutter."
-msgstr "在编辑器边栏中显示源码行位置。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1056
-msgid "Highlight current line"
-msgstr "高亮当前行"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1057
-msgid "Shade the line containing the cursor in Source mode."
-msgstr "在源码模式下为光标所在行添加底色。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1073
-msgid "Source font"
-msgstr "源码字体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1089
-msgid "Use system monospace font"
-msgstr "使用系统等宽字体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1091
-#, rust-format
-msgid "Follow the desktop setting ({system_font})."
-msgstr "跟随桌面设置（{system_font}）。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1102
-msgid "Choose Source Font"
-msgstr "选择源码字体"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1147
-msgid "Detailed"
-msgstr "详细"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1148
-msgid "Writing focus"
-msgstr "写作专注"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1149
-msgid "Off"
-msgstr "关闭"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1158
-msgid "Syntax style"
-msgstr "语法样式"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1160
-msgid "Choose how much markup colour appears in Source mode."
-msgstr "选择源码模式下标记颜色的显示程度。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1292
-msgid "Carver contributors"
-msgstr "Carver 贡献者"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1293
-msgid "A native GNOME notebook for Carve markup."
-msgstr "用于 Carve 标记的原生 GNOME 笔记本。"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1297
-msgid "Carve cheat sheet"
-msgstr "Carve 速查表"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1310 apps/carver-gtk/src/ui/sidebar.rs:140
-msgid "Keyboard Shortcuts"
-msgstr "键盘快捷键"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1336
-#: apps/carver-gtk/src/ui/dialogs.rs:1383
-msgid "Category name"
-msgstr "分类名称"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1349
-#: apps/carver-gtk/src/ui/dialogs.rs:1421
-msgctxt "dialog"
-msgid "Save"
-msgstr "保存"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1453
-msgctxt "category appearance"
-msgid "Icon"
-msgstr "图标"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1482
-msgctxt "category appearance"
-msgid "Colour"
-msgstr "颜色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1570
-msgid "Folder"
-msgstr "文件夹"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1571
-msgid "Briefcase"
-msgstr "公文包"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1572
-msgid "Calendar"
-msgstr "日历"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1573
-msgid "Book"
-msgstr "书"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1574
-msgid "Heart"
-msgstr "心形"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1575
-msgid "Home"
-msgstr "主页"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1576
-msgid "People"
-msgstr "人物"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1577
-msgid "Star"
-msgstr "星标"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1578
-msgid "Tag"
-msgstr "标签"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1579
-msgid "Idea"
-msgstr "想法"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1598
-msgctxt "category colour"
-msgid "Auto"
-msgstr "自动"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1599
-msgid "Rose"
-msgstr "玫瑰"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1600
-msgid "Tangerine"
-msgstr "橘色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1601
-msgid "Yellow"
-msgstr "黄色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1602
-msgid "Olive"
-msgstr "橄榄"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1603
-msgid "Teal"
-msgstr "青色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1604
-msgid "Blue"
-msgstr "蓝色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1605
-msgid "Purple"
-msgstr "紫色"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1636
-#: apps/carver-gtk/src/ui/dialogs.rs:1649
-#, rust-format
-msgid "Move “{note_title}”"
-msgstr "移动“{note_title}”"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1657
-msgid "Search categories"
-msgstr "搜索分类"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1668
-msgid "New Category…"
-msgstr "新建分类…"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1753
-msgid "New Category"
-msgstr "新建分类"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1804
-msgid "Current"
-msgstr "当前"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1826
-msgid "No categories found"
-msgstr "未找到分类"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1852
-#, rust-format
-msgid "Move “{category_name}” to Trash?"
-msgstr "将“{category_name}”移到回收站？"
-
-#: apps/carver-gtk/src/ui/dialogs.rs:1856
-msgid "Notes in this category will no longer appear in your library. You can restore the category from Trash later."
-msgstr "此分类中的笔记将不再显示在您的笔记库中。您可以稍后从回收站恢复该分类。"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:46
-msgid "Add files…"
-msgstr "添加文件…"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:47
-#: apps/carver-gtk/src/ui/formatting.rs:178
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#: apps/carver-gtk/src/ui/formatting.rs
 msgid "Add files"
 msgstr "添加文件"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:50
-msgctxt "document sidebar"
-msgid "Outline"
-msgstr "大纲"
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Add files…"
+msgstr "添加文件…"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:52
-msgid "No headings yet"
-msgstr "还没有标题"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:53
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "Add headings to navigate your document."
 msgstr "添加标题以便在文档中导航。"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:63
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Hide document sidebar"
+msgstr "隐藏文档侧边栏"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Media"
 msgstr "媒体"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:65
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "No headings yet"
+msgstr "还没有标题"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "No media yet"
 msgstr "还没有媒体"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:66
-msgid "Use + to add files, or drag them into the document."
-msgstr "使用 + 添加文件，或将文件拖入文档。"
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Outline"
+msgstr "大纲"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:118
-msgid "Hide document sidebar"
-msgstr "隐藏文档侧边栏"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs:120
-#: apps/carver-gtk/src/ui/editor/mod.rs:595
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show document sidebar"
 msgstr "显示文档侧边栏"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs:55
-msgid "Unavailable"
-msgstr "不可用"
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Use + to add files, or drag them into the document."
+msgstr "使用 + 添加文件，或将文件拖入文档。"
 
-#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs:75
-#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs:76
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Preview file"
 msgstr "预览文件"
 
-#: apps/carver-gtk/src/ui/editor/find.rs:57
-msgid "Previous match"
-msgstr "上一个匹配项"
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
+msgid "Unavailable"
+msgstr "不可用"
 
-#: apps/carver-gtk/src/ui/editor/find.rs:60
-msgid "Next match"
-msgstr "下一个匹配项"
-
-#: apps/carver-gtk/src/ui/editor/find.rs:63
+#: apps/carver-gtk/src/ui/editor/find.rs
 msgid "Close find"
 msgstr "关闭查找"
 
-#: apps/carver-gtk/src/ui/editor/find.rs:330
-msgid "Searching…"
-msgstr "正在搜索…"
+#: apps/carver-gtk/src/ui/editor/find.rs
+msgid "Next match"
+msgstr "下一个匹配项"
 
-#: apps/carver-gtk/src/ui/editor/find.rs:331
+#: apps/carver-gtk/src/ui/editor/find.rs
 msgid "No matches"
 msgstr "没有匹配项"
 
-#: apps/carver-gtk/src/ui/editor/find.rs:334
+#: apps/carver-gtk/src/ui/editor/find.rs
+msgid "Previous match"
+msgstr "上一个匹配项"
+
+#: apps/carver-gtk/src/ui/editor/find.rs
+msgid "Searching…"
+msgstr "正在搜索…"
+
+#: apps/carver-gtk/src/ui/editor/find.rs
 #, rust-format
 msgid "{count} match"
 msgid_plural "{count} matches"
 msgstr[0] "{count} 个匹配项"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:130
-#: apps/carver-gtk/src/ui/editor/mod.rs:590
-#: apps/carver-gtk/src/ui/editor/mod.rs:1352
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Add to Favorites"
 msgstr "添加到收藏"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:606
-#: apps/carver-gtk/src/ui/editor/mod.rs:1357
-msgid "Show rendered preview"
-msgstr "显示渲染后的预览"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Carve documents"
+msgstr "Carve 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:711
-#: apps/carver-gtk/src/ui/editor/mod.rs:713
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Copy note"
+msgstr "复制笔记"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Create a portable ZIP archive with the document and its files."
+msgstr "创建包含文档及其文件的可移植 ZIP 压缩包。"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Document properties"
 msgstr "文档属性"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1046
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Document properties…"
+msgstr "文档属性…"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgctxt "editor mode"
 msgid "Edit"
 msgstr "编辑"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1052
-msgctxt "editor mode"
-msgid "Source"
-msgstr "源码"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export"
+msgstr "导出"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1058
-msgctxt "editor mode"
-msgid "Preview"
-msgstr "预览"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export anyway"
+msgstr "仍要导出"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1346
-msgid "Note options"
-msgstr "笔记选项"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export may lose content"
+msgstr "导出可能会丢失内容"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1384
-msgid "Copy note"
-msgstr "复制笔记"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export the current note, including any unsaved edits."
+msgstr "导出当前笔记，包括所有未保存的编辑。"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1386
-msgid "Paste as Markdown"
-msgstr "粘贴为 Markdown"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Export…"
+msgstr "导出…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1395
-msgid "Document properties…"
-msgstr "文档属性…"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1399
-msgid "Print…"
-msgstr "打印…"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1536
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgctxt "export dialog"
 msgid "Format"
 msgstr "格式"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1542
-msgid "Include managed files"
-msgstr "包含托管文件"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1544
-msgid "Create a portable ZIP archive with the document and its files."
-msgstr "创建包含文档及其文件的可移植 ZIP 压缩包。"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1561
-msgid "Export the current note, including any unsaved edits."
-msgstr "导出当前笔记，包括所有未保存的编辑。"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1568
-msgid "Export…"
-msgstr "导出…"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1599
-msgid "Carve documents"
-msgstr "Carve 文档"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1600
-msgid "Markdown documents"
-msgstr "Markdown 文档"
-
-#: apps/carver-gtk/src/ui/editor/mod.rs:1601
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "HTML documents"
 msgstr "HTML 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1602
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Include managed files"
+msgstr "包含托管文件"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Markdown documents"
+msgstr "Markdown 文档"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Note options"
+msgstr "笔记选项"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "PDF documents"
 msgstr "PDF 文档"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1603
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Paste as Markdown"
+msgstr "粘贴为 Markdown"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Portable ZIP archives"
 msgstr "可移植 ZIP 压缩包"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1623
-msgid "Export"
-msgstr "导出"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgctxt "editor mode"
+msgid "Preview"
+msgstr "预览"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1649
-msgid "Export may lose content"
-msgstr "导出可能会丢失内容"
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Print…"
+msgstr "打印…"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1651
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Show rendered preview"
+msgstr "显示渲染后的预览"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgctxt "editor mode"
+msgid "Source"
+msgstr "源码"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #, rust-format
 msgid ""
 "{details}\n"
@@ -1333,476 +1290,463 @@ msgstr ""
 "\n"
 "仍要导出吗？"
 
-#: apps/carver-gtk/src/ui/editor/mod.rs:1658
-msgid "Export anyway"
-msgstr "仍要导出"
-
-#: apps/carver-gtk/src/ui/editor/preview.rs:134
+#: apps/carver-gtk/src/ui/editor/preview.rs
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:559
-msgid "Not managed by this dialog"
-msgstr "不由该对话框管理"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:705
-msgid "Document Properties"
-msgstr "文档属性"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:775
-msgid "Raw frontmatter"
-msgstr "原始 frontmatter"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:788
-msgid "Content"
-msgstr "内容"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:798
-msgid "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences."
-msgstr "此笔记的属性存储在其 frontmatter 中。可在“首选项”中配置新笔记的默认属性。"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:807
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:953
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Add property"
 msgstr "添加属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:950
-msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
-msgstr "这些属性会出现在每个文档属性对话框中，并在启用时为新建笔记填充默认值。"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1205
-msgid "Type"
-msgstr "类型"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1222
-msgid "New notes use today's date"
-msgstr "新建笔记使用今天的日期"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1224
-msgid "New notes use the current date and time"
-msgstr "新建笔记使用当前日期和时间"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1233
-msgid "Options"
-msgstr "选项"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1260
-msgid "Comma-separated values offered as a dropdown."
-msgstr "以逗号分隔并作为下拉列表提供的值。"
-
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1271
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Allow multiple values"
 msgstr "允许多个值"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1296
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Comma-separated values offered as a dropdown."
+msgstr "以逗号分隔并作为下拉列表提供的值。"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Content"
+msgstr "内容"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Document Properties"
+msgstr "文档属性"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "New notes use the current date and time"
+msgstr "新建笔记使用当前日期和时间"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "New notes use today's date"
+msgstr "新建笔记使用今天的日期"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "New property"
 msgstr "新属性"
 
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1356
-#: apps/carver-gtk/src/ui/editor/properties_dialog.rs:1358
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Not managed by this dialog"
+msgstr "不由该对话框管理"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Options"
+msgstr "选项"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Raw frontmatter"
+msgstr "原始 frontmatter"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Remove property"
 msgstr "移除属性"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:60
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "These properties are offered in every document-properties dialog and, when enabled, seed new notes."
+msgstr "这些属性会出现在每个文档属性对话框中，并在启用时为新建笔记填充默认值。"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "This note's properties are stored in its frontmatter. Configure default properties for new notes in Preferences."
+msgstr "此笔记的属性存储在其 frontmatter 中。可在“首选项”中配置新笔记的默认属性。"
+
+#: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+msgid "Type"
+msgstr "类型"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Bold (Ctrl+B)"
 msgstr "粗体 (Ctrl+B)"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:61
-msgid "Italic (Ctrl+I)"
-msgstr "斜体 (Ctrl+I)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:62
-msgid "Strikethrough (Ctrl+Shift+X)"
-msgstr "删除线 (Ctrl+Shift+X)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:63
-msgid "Underline (Ctrl+U)"
-msgstr "下划线 (Ctrl+U)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:64
-msgid "Highlight (Ctrl+Shift+H)"
-msgstr "高亮 (Ctrl+Shift+H)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:65
-msgid "Superscript (Ctrl+Shift+.)"
-msgstr "上标 (Ctrl+Shift+.)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:66
-msgid "Subscript (Ctrl+Shift+,)"
-msgstr "下标 (Ctrl+Shift+,)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:67
-msgid "Inline code"
-msgstr "行内代码"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:68
-msgid "Code block"
-msgstr "代码块"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:69
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Bulleted list (Ctrl+Shift+8)"
 msgstr "项目符号列表 (Ctrl+Shift+8)"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:70
-msgid "Numbered list (Ctrl+Shift+7)"
-msgstr "编号列表 (Ctrl+Shift+7)"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:71
-msgid "Task list"
-msgstr "任务列表"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:72
-msgid "Insert link"
-msgstr "插入链接"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:473
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Carve AST context"
 msgstr "Carve AST 上下文"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:485
-msgid "More formatting"
-msgstr "更多格式"
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Code block"
+msgstr "代码块"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:633
-msgid "Text style"
-msgstr "文本样式"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:638
-msgid "Normal text"
-msgstr "正文"
-
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:639
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 1"
 msgstr "标题 1"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:640
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 2"
 msgstr "标题 2"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:641
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 3"
 msgstr "标题 3"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:642
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 4"
 msgstr "标题 4"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:643
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 5"
 msgstr "标题 5"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:644
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Heading 6"
 msgstr "标题 6"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:678
-msgid "Insert or resize image"
-msgstr "插入或调整图片大小"
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Highlight (Ctrl+Shift+H)"
+msgstr "高亮 (Ctrl+Shift+H)"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:681
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Inline code"
+msgstr "行内代码"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Insert image…"
 msgstr "插入图片…"
 
-#: apps/carver-gtk/src/ui/editor/toolbar.rs:689
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Insert link"
+msgstr "插入链接"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Insert or resize image"
+msgstr "插入或调整图片大小"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Italic (Ctrl+I)"
+msgstr "斜体 (Ctrl+I)"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "More formatting"
+msgstr "更多格式"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Normal text"
+msgstr "正文"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Numbered list (Ctrl+Shift+7)"
+msgstr "编号列表 (Ctrl+Shift+7)"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Original size"
 msgstr "原始大小"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:363
-#, rust-format
-msgid "This note cannot be edited safely{detail}. Showing Preview instead."
-msgstr "此笔记无法安全编辑{detail}。改为显示预览。"
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Strikethrough (Ctrl+Shift+X)"
+msgstr "删除线 (Ctrl+Shift+X)"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:378
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Subscript (Ctrl+Shift+,)"
+msgstr "下标 (Ctrl+Shift+,)"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Superscript (Ctrl+Shift+.)"
+msgstr "上标 (Ctrl+Shift+.)"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Task list"
+msgstr "任务列表"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Text style"
+msgstr "文本样式"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
+msgid "Underline (Ctrl+U)"
+msgstr "下划线 (Ctrl+U)"
+
+#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
+msgid "Address"
+msgstr "地址"
+
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
 msgstr "无法读取粘贴的图片"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:516
-#: apps/carver-gtk/src/ui/formatting.rs:433
+#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert"
+msgstr "插入"
+
+#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert Link"
+msgstr "插入链接"
+
+#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
 msgid "Link text"
 msgstr "链接文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:522
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgctxt "link dialog"
 msgid "Text"
 msgstr "文本"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:524
-#: apps/carver-gtk/src/ui/formatting.rs:442
-msgid "Address"
-msgstr "地址"
+#: apps/carver-gtk/src/ui/editor/web.rs
+#, rust-format
+msgid "This note cannot be edited safely{detail}. Showing Preview instead."
+msgstr "此笔记无法安全编辑{detail}。改为显示预览。"
 
-#: apps/carver-gtk/src/ui/editor/web.rs:527
-#: apps/carver-gtk/src/ui/formatting.rs:445
-msgid "Insert Link"
-msgstr "插入链接"
-
-#: apps/carver-gtk/src/ui/editor/web.rs:533
-#: apps/carver-gtk/src/ui/formatting.rs:108
-#: apps/carver-gtk/src/ui/formatting.rs:451
-msgid "Insert"
-msgstr "插入"
-
-#: apps/carver-gtk/src/ui/formatting.rs:49
-msgid "Insert Image"
-msgstr "插入图片"
-
-#: apps/carver-gtk/src/ui/formatting.rs:97
+#: apps/carver-gtk/src/ui/formatting.rs
 msgid "Description (optional)"
 msgstr "描述（可选）"
 
-#: apps/carver-gtk/src/ui/formatting.rs:99
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Header row"
+msgstr "表头行"
+
+#: apps/carver-gtk/src/ui/formatting.rs
 msgid "Image description"
 msgstr "图片描述"
 
-#: apps/carver-gtk/src/ui/formatting.rs:101
-msgid "Used as alternative text when the image cannot be displayed."
-msgstr "在图片无法显示时用作替代文本。"
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert Image"
+msgstr "插入图片"
 
-#: apps/carver-gtk/src/ui/formatting.rs:120
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert table"
+msgstr "插入表格"
+
+#: apps/carver-gtk/src/ui/formatting.rs
 msgid "Unsupported image format"
 msgstr "不支持的图片格式"
 
-#: apps/carver-gtk/src/ui/formatting.rs:284
-#: apps/carver-gtk/src/ui/formatting.rs:349
-#: apps/carver-gtk/src/ui/formatting.rs:375
-#, rust-format
-msgid "{rows} × {columns}"
-msgstr "{rows} × {columns}"
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Used as alternative text when the image cannot be displayed."
+msgstr "在图片无法显示时用作替代文本。"
 
-#: apps/carver-gtk/src/ui/formatting.rs:318
+#: apps/carver-gtk/src/ui/formatting.rs
 #, rust-format
 msgid "{rows} rows × {columns} columns"
 msgstr "{rows} 行 × {columns} 列"
 
-#: apps/carver-gtk/src/ui/formatting.rs:338
-msgid "Insert table"
-msgstr "插入表格"
+#: apps/carver-gtk/src/ui/formatting.rs
+#, rust-format
+msgid "{rows} × {columns}"
+msgstr "{rows} × {columns}"
 
-#: apps/carver-gtk/src/ui/formatting.rs:360
-msgid "Header row"
-msgstr "表头行"
-
-#: apps/carver-gtk/src/ui/property.rs:19
-msgid "Long text"
-msgstr "长文本"
-
-#: apps/carver-gtk/src/ui/property.rs:23
-msgid "Date"
-msgstr "日期"
-
-#: apps/carver-gtk/src/ui/property.rs:24
-msgid "Date & time"
-msgstr "日期和时间"
-
-#: apps/carver-gtk/src/ui/property.rs:122
+#: apps/carver-gtk/src/ui/property.rs
 msgid "AM or PM"
 msgstr "上午或下午"
 
-#: apps/carver-gtk/src/ui/property.rs:149
-msgid "Increase hours"
-msgstr "增加小时"
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Date"
+msgstr "日期"
 
-#: apps/carver-gtk/src/ui/property.rs:164
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Date & time"
+msgstr "日期和时间"
+
+#: apps/carver-gtk/src/ui/property.rs
 msgid "Decrease hours"
 msgstr "减少小时"
 
-#: apps/carver-gtk/src/ui/property.rs:185
-msgid "Increase minutes"
-msgstr "增加分钟"
-
-#: apps/carver-gtk/src/ui/property.rs:200
+#: apps/carver-gtk/src/ui/property.rs
 msgid "Decrease minutes"
 msgstr "减少分钟"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:54 apps/carver-gtk/src/ui/trash.rs:24
-msgid "Back to notes"
-msgstr "返回笔记"
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Increase hours"
+msgstr "增加小时"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:134
-msgid "Connect an agent"
-msgstr "连接智能体"
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Increase minutes"
+msgstr "增加分钟"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:138
-msgid "Preferences"
-msgstr "首选项"
+#: apps/carver-gtk/src/ui/property.rs
+msgid "Long text"
+msgstr "长文本"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:143
+#: apps/carver-gtk/src/ui/sidebar.rs
 msgid "About Carver"
 msgstr "关于 Carver"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:148
-msgid "Settings"
-msgstr "设置"
+#: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+msgid "Back to notes"
+msgstr "返回笔记"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:358 apps/carver-gtk/src/ui/sidebar.rs:391
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Connect an agent"
+msgstr "连接智能体"
+
+#: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Hide Categories"
 msgstr "隐藏分类"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:388
-msgid "Show Categories"
-msgstr "显示分类"
-
-#: apps/carver-gtk/src/ui/sidebar.rs:401
+#: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Open Trash"
 msgstr "打开回收站"
 
-#: apps/carver-gtk/src/ui/sidebar.rs:409 apps/carver-gtk/src/ui/trash.rs:31
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Preferences"
+msgstr "首选项"
+
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Settings"
+msgstr "设置"
+
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Show Categories"
+msgstr "显示分类"
+
+#: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 msgid "Trash"
 msgstr "回收站"
 
-#: apps/carver-gtk/src/ui/trash.rs:32
-msgid "Restore notes and categories"
-msgstr "恢复笔记和分类"
-
-#: apps/carver-gtk/src/ui/trash.rs:34 apps/carver-gtk/src/ui/trash.rs:89
-msgid "Empty Trash"
-msgstr "清空回收站"
-
-#: apps/carver-gtk/src/ui/trash.rs:42 apps/carver-gtk/src/view/mod.rs:819
-msgid "Trash is empty"
-msgstr "回收站为空"
-
-#: apps/carver-gtk/src/ui/trash.rs:44 apps/carver-gtk/src/view/mod.rs:821
-msgid "Deleted notes and categories can be restored here."
-msgstr "已删除的笔记和分类可在此恢复。"
-
-#: apps/carver-gtk/src/ui/trash.rs:82
-msgid "Empty Trash?"
-msgstr "清空回收站？"
-
-#: apps/carver-gtk/src/ui/trash.rs:84
+#: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
 msgstr "回收站中的所有笔记、分类以及未被引用的图片都将被永久删除。"
 
-#: apps/carver-gtk/src/view/mod.rs:273
-msgid "Couldn’t load base"
-msgstr "无法加载视图库"
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+msgid "Deleted notes and categories can be restored here."
+msgstr "已删除的笔记和分类可在此恢复。"
 
-#: apps/carver-gtk/src/view/mod.rs:285
-msgid "Loading base…"
-msgstr "正在加载视图库…"
+#: apps/carver-gtk/src/ui/trash.rs
+msgid "Empty Trash"
+msgstr "清空回收站"
 
-#: apps/carver-gtk/src/view/mod.rs:286
-msgid "Loading its definition."
-msgstr "正在加载其定义。"
+#: apps/carver-gtk/src/ui/trash.rs
+msgid "Empty Trash?"
+msgstr "清空回收站？"
 
-#: apps/carver-gtk/src/view/mod.rs:301
-msgid "Couldn’t load rows"
-msgstr "无法加载行"
+#: apps/carver-gtk/src/ui/trash.rs
+msgid "Restore notes and categories"
+msgstr "恢复笔记和分类"
 
-#: apps/carver-gtk/src/view/mod.rs:315
-msgid "Loading rows…"
-msgstr "正在加载行…"
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+msgid "Trash is empty"
+msgstr "回收站为空"
 
-#: apps/carver-gtk/src/view/mod.rs:316
-msgid "Refreshing this base."
-msgstr "正在刷新此视图库。"
-
-#: apps/carver-gtk/src/view/mod.rs:345
-msgid "Loading more rows…"
-msgstr "正在加载更多行…"
-
-#: apps/carver-gtk/src/view/mod.rs:347
-msgid "Retry loading rows"
-msgstr "重试加载行"
-
-#: apps/carver-gtk/src/view/mod.rs:565
-msgid "This note was deleted elsewhere. Your open text is preserved."
-msgstr "此笔记已在别处被删除。您打开的文本已保留。"
-
-#: apps/carver-gtk/src/view/mod.rs:567
-msgid "This note changed elsewhere. Your unsaved edits are preserved."
-msgstr "此笔记已在别处更改。您未保存的编辑已保留。"
-
-#: apps/carver-gtk/src/view/mod.rs:570
-msgid "Close Note…"
-msgstr "关闭笔记…"
-
-#: apps/carver-gtk/src/view/mod.rs:572
-msgid "Reload…"
-msgstr "重新加载…"
-
-#: apps/carver-gtk/src/view/mod.rs:581
-msgid "Close deleted note?"
-msgstr "关闭已删除的笔记？"
-
-#: apps/carver-gtk/src/view/mod.rs:583
-msgid "Reload note?"
-msgstr "重新加载笔记？"
-
-#: apps/carver-gtk/src/view/mod.rs:586
-msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
-msgstr "关闭将丢弃您的本地草稿并打开回收站，您可以在此恢复已保存的笔记。取消可先保留或导出草稿。"
-
-#: apps/carver-gtk/src/view/mod.rs:588
-msgid "Reloading replaces your unsaved edits with the latest saved note."
-msgstr "重新加载会用最新保存的笔记替换您未保存的编辑。"
-
-#: apps/carver-gtk/src/view/mod.rs:595
-msgid "Discard Draft and Open Trash"
-msgstr "丢弃草稿并打开回收站"
-
-#: apps/carver-gtk/src/view/mod.rs:597
-msgid "Discard Edits and Reload"
-msgstr "丢弃编辑并重新加载"
-
-#: apps/carver-gtk/src/view/mod.rs:829
+#: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"
 msgid "Categories"
 msgstr "分类"
 
-#: apps/carver-gtk/src/view/mod.rs:835
-msgctxt "Trash section"
-msgid "Notes"
-msgstr "笔记"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Close Note…"
+msgstr "关闭笔记…"
 
-#: apps/carver-gtk/src/view/mod.rs:885
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Close deleted note?"
+msgstr "关闭已删除的笔记？"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Closing discards your local draft and opens Trash, where you can restore the saved note. Cancel to keep or export your draft first."
+msgstr "关闭将丢弃您的本地草稿并打开回收站，您可以在此恢复已保存的笔记。取消可先保留或导出草稿。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Could not load content"
+msgstr "无法加载内容"
+
+#: apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "无法保存笔记：{error}"
 
-#: apps/carver-gtk/src/view/mod.rs:888
-msgid "Retry"
-msgstr "重试"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Couldn’t load base"
+msgstr "无法加载视图库"
 
-#: apps/carver-gtk/src/view/mod.rs:904
-msgid "Moved note"
-msgstr "已移动笔记"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Couldn’t load rows"
+msgstr "无法加载行"
 
-#: apps/carver-gtk/src/view/mod.rs:905 apps/carver-gtk/src/view/mod.rs:920
-msgid "Undo"
-msgstr "撤销"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Discard Draft and Open Trash"
+msgstr "丢弃草稿并打开回收站"
 
-#: apps/carver-gtk/src/view/mod.rs:919
-msgid "Moved note to Trash"
-msgstr "已将笔记移到回收站"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Discard Edits and Reload"
+msgstr "丢弃编辑并重新加载"
 
-#: apps/carver-gtk/src/view/mod.rs:1050
-msgid "Loading more notes…"
-msgstr "正在加载更多笔记…"
-
-#: apps/carver-gtk/src/view/mod.rs:1052
-msgid "Retry loading notes"
-msgstr "重试加载笔记"
-
-#: apps/carver-gtk/src/view/mod.rs:1054
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Load more notes"
 msgstr "加载更多笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:1084 apps/carver-gtk/src/view/mod.rs:1095
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Loading base…"
+msgstr "正在加载视图库…"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Loading its definition."
+msgstr "正在加载其定义。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Loading more notes…"
+msgstr "正在加载更多笔记…"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Loading more rows…"
+msgstr "正在加载更多行…"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Loading rows…"
+msgstr "正在加载行…"
+
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Loading…"
 msgstr "正在加载…"
 
-#: apps/carver-gtk/src/view/mod.rs:1086 apps/carver-gtk/src/view/mod.rs:1096
-msgid "Could not load content"
-msgstr "无法加载内容"
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Moved note"
+msgstr "已移动笔记"
 
-#: apps/carver-gtk/src/view/mod.rs:1124
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Moved note to Trash"
+msgstr "已将笔记移到回收站"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgctxt "Trash section"
+msgid "Notes"
+msgstr "笔记"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Refreshing this base."
+msgstr "正在刷新此视图库。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Reload note?"
+msgstr "重新加载笔记？"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Reloading replaces your unsaved edits with the latest saved note."
+msgstr "重新加载会用最新保存的笔记替换您未保存的编辑。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Reload…"
+msgstr "重新加载…"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Restore"
+msgstr "恢复"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Retry"
+msgstr "重试"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Retry loading notes"
+msgstr "重试加载笔记"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Retry loading rows"
+msgstr "重试加载行"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "This note changed elsewhere. Your unsaved edits are preserved."
+msgstr "此笔记已在别处更改。您未保存的编辑已保留。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "This note was deleted elsewhere. Your open text is preserved."
+msgstr "此笔记已在别处被删除。您打开的文本已保留。"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Undo"
+msgstr "撤销"
+
+#: apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "{count} recoverable note"
 msgid_plural "{count} recoverable notes"
 msgstr[0] "{count} 条可恢复的笔记"
-
-#: apps/carver-gtk/src/view/mod.rs:1161 apps/carver-gtk/src/view/mod.rs:1162
-msgid "Restore"
-msgstr "恢复"
