@@ -23,6 +23,215 @@ const WINDOW_HEIGHT: i32 = 800;
 /// Device scale for the captured PNGs.
 const SCALE: f32 = 2.0;
 
+/// The review note is the richest document, used by the editor and source scenes.
+const WEEKLY_REVIEW: &str = "---\nstatus: In progress\ndone: false\ndue: 2026-10-02\n---\n\n\
+    # Weekly review\n\n\
+    A calm week is a sequence of small, finished things.\n\n\
+    ## What moved forward\n\n\
+    - [x] Triage the inbox\n\
+    - [x] Ship the import fix\n\
+    - [ ] Draft the release notes\n\
+    - [ ] Review the Base columns\n\n\
+    ## Carried over\n\n\
+    - [ ] Answer the design review thread\n\
+    - [ ] Resize the hero images\n\
+      - light and dark variants\n\
+      - keep the aspect ratio\n\n\
+    ## Focus per day\n\n\
+    | Day | Focus   | Notes           |\n\
+    | --- | ------- | --------------- |\n\
+    | Mon | Writing | draft the post  |\n\
+    | Tue | Reviews | clear the queue |\n\
+    | Wed | Build   | cut the release |\n\n\
+    ## Useful commands\n\n\
+    ```sh\n\
+    cargo test --workspace --locked\n\
+    ```\n\n\
+    > Fewer, sharper tasks. Keep the list short enough to finish.\n";
+
+/// Which seeded category a showcase note belongs to.
+#[derive(Clone, Copy)]
+enum Group {
+    Notes,
+    Ideas,
+    Research,
+    Personal,
+}
+
+/// One seeded note: its content, frontmatter properties, and age.
+struct NoteSpec {
+    days: i64,
+    group: Group,
+    trashed: bool,
+    status: &'static str,
+    done: bool,
+    due: &'static str,
+    title: &'static str,
+    body: &'static str,
+}
+
+/// The showcase library. `status`, `done`, and `due` give the saved Bases text,
+/// boolean, and date columns, and `days` back-dates each note so the browser's
+/// relative timestamps and grouping look natural.
+const SHOWCASE_NOTES: &[NoteSpec] = &[
+    NoteSpec {
+        days: 1,
+        group: Group::Notes,
+        trashed: false,
+        status: "Planned",
+        done: false,
+        due: "2026-10-05",
+        title: "Release checklist",
+        body: "Cut the bundle, refresh the manifests, and verify the checksum before tagging.",
+    },
+    NoteSpec {
+        days: 2,
+        group: Group::Notes,
+        trashed: false,
+        status: "Done",
+        done: true,
+        due: "2026-09-22",
+        title: "Import fix",
+        body: "Carve and Markdown imports now keep the original line endings.",
+    },
+    NoteSpec {
+        days: 3,
+        group: Group::Notes,
+        trashed: false,
+        status: "Done",
+        done: true,
+        due: "2026-09-20",
+        title: "Meeting notes",
+        body: "Decisions from the design review, with the follow-ups we agreed to write down.",
+    },
+    NoteSpec {
+        days: 5,
+        group: Group::Notes,
+        trashed: false,
+        status: "In progress",
+        done: false,
+        due: "2026-10-01",
+        title: "Printer regression",
+        body: "Narrow down why the PDF export shifts the page margins.",
+    },
+    NoteSpec {
+        days: 40,
+        group: Group::Notes,
+        trashed: true,
+        status: "Done",
+        done: true,
+        due: "2026-09-10",
+        title: "Old draft",
+        body: "Superseded by newer work.",
+    },
+    NoteSpec {
+        days: 8,
+        group: Group::Ideas,
+        trashed: false,
+        status: "In progress",
+        done: false,
+        due: "2026-10-12",
+        title: "Ideas backlog",
+        body: "Rough ideas worth keeping, so they stop living only in a chat transcript.",
+    },
+    NoteSpec {
+        days: 10,
+        group: Group::Ideas,
+        trashed: false,
+        status: "Planned",
+        done: false,
+        due: "2026-10-18",
+        title: "Base redesign",
+        body: "Try a denser grid and a clearer property picker.",
+    },
+    NoteSpec {
+        days: 44,
+        group: Group::Ideas,
+        trashed: true,
+        status: "Done",
+        done: true,
+        due: "2026-09-05",
+        title: "Parked idea",
+        body: "Revisit if the scope changes.",
+    },
+    NoteSpec {
+        days: 16,
+        group: Group::Research,
+        trashed: false,
+        status: "Done",
+        done: true,
+        due: "2026-09-28",
+        title: "Reading list",
+        body: "Papers and posts to come back to when there is a quiet hour.",
+    },
+    NoteSpec {
+        days: 19,
+        group: Group::Research,
+        trashed: false,
+        status: "In progress",
+        done: false,
+        due: "2026-10-09",
+        title: "Carve spec notes",
+        body: "Notes written while re-reading the source format specification.",
+    },
+    NoteSpec {
+        days: 24,
+        group: Group::Research,
+        trashed: false,
+        status: "Done",
+        done: true,
+        due: "2026-09-15",
+        title: "Paper highlights",
+        body: "Passages worth keeping from the search paper.",
+    },
+    NoteSpec {
+        days: 30,
+        group: Group::Personal,
+        trashed: false,
+        status: "Planned",
+        done: false,
+        due: "2026-11-02",
+        title: "Trip planning",
+        body: "Cabin, train times, and a short packing list.",
+    },
+    NoteSpec {
+        days: 33,
+        group: Group::Personal,
+        trashed: false,
+        status: "In progress",
+        done: false,
+        due: "2026-10-25",
+        title: "Home projects",
+        body: "Fix the shelf, hang the mirror, sort the cables.",
+    },
+];
+
+/// The seeded category ids a showcase note can belong to.
+#[derive(Clone, Copy)]
+struct Groups {
+    notes: carver_sdk::CategoryId,
+    ideas: carver_sdk::CategoryId,
+    research: carver_sdk::CategoryId,
+    personal: carver_sdk::CategoryId,
+}
+
+impl Groups {
+    fn category(self, group: Group) -> carver_sdk::CategoryId {
+        match group {
+            Group::Notes => self.notes,
+            Group::Ideas => self.ideas,
+            Group::Research => self.research,
+            Group::Personal => self.personal,
+        }
+    }
+}
+
+/// Ids the capture scenes need from the seeded library.
+struct Showcase {
+    review: carver_sdk::NoteId,
+    base: carver_sdk::BaseId,
+}
+
 #[test]
 #[ignore = "captures docs screenshots; set CARVER_SCREENSHOT_DIR and run under a display"]
 fn capture_docs_screenshots() -> TestResult {
@@ -36,85 +245,106 @@ fn capture_docs_screenshots() -> TestResult {
     crate::app::load_styles();
     std::fs::create_dir_all(&directory)?;
 
-    let review = std::cell::RefCell::new(None);
+    let showcase = std::cell::RefCell::new(None);
     let fixture = window_fixture_seeded(
         "io.github.josbeir.Carver.Screenshots",
         |client, category| {
-            *review.borrow_mut() = Some(seed_showcase(client, category)?);
+            *showcase.borrow_mut() = Some(seed_showcase(client, category)?);
             Ok(())
         },
         // Screenshots should show the application's default document font, not
         // the deterministic font the interaction suite configures.
         |_| {},
     )?;
-    let review = review.into_inner().ok_or("review note")?;
-    capture_scenes(&fixture, &directory, &review)
+    let showcase = showcase.into_inner().ok_or("showcase")?;
+    capture_scenes(&fixture, &directory, &showcase)
 }
 
 /// Seeds a small, neutral library so every view has consistent content.
-///
-/// Notes are back-dated so the browser's relative timestamps and grouping look
-/// natural instead of all reading "just now".
 fn seed_showcase(
     client: &TestLibraryClient,
-    category: carver_sdk::CategoryId,
-) -> Result<carver_sdk::NoteId, Box<dyn std::error::Error>> {
-    let review = seed_note(
-        client,
-        category,
-        "---\nstatus: In progress\n---\n\n# Weekly review\n\n\
-         A calm week is a sequence of small, finished things.\n\n\
-         - [x] Triage the inbox\n\
-         - [ ] Draft the release notes\n\
-         - [ ] Review the Base columns\n\n\
-         | Day | Focus   |\n| --- | ------- |\n| Mon | Writing |\n| Tue | Reviews |\n\n\
-         > Fewer, sharper tasks.\n",
-        0,
-    )?;
-
-    for (days, status, title, body) in [
-        (
-            1,
-            "Planned",
-            "Release checklist",
-            "Cut the bundle, refresh the manifests, and verify the checksum before tagging.",
-        ),
-        (
-            3,
-            "Done",
-            "Meeting notes",
-            "Decisions from the design review, with the follow-ups we agreed to write down.",
-        ),
-        (
-            8,
-            "In progress",
-            "Ideas backlog",
-            "Rough ideas worth keeping, so they stop living only in a chat transcript.",
-        ),
-        (
-            16,
-            "Done",
-            "Reading list",
-            "Papers and posts to come back to when there is a quiet hour.",
-        ),
-    ] {
-        seed_note(
+    notes: carver_sdk::CategoryId,
+) -> Result<Showcase, Box<dyn std::error::Error>> {
+    let groups = Groups {
+        notes,
+        ideas: seed_category(
             client,
-            category,
-            &format!("---\nstatus: {status}\n---\n\n# {title}\n\n{body}\n"),
-            days,
-        )?;
+            "Ideas",
+            carver_sdk::CategoryIcon::Lightbulb,
+            carver_sdk::CategoryColor::Yellow,
+        )?,
+        research: seed_category(
+            client,
+            "Research",
+            carver_sdk::CategoryIcon::Book,
+            carver_sdk::CategoryColor::Teal,
+        )?,
+        personal: seed_category(
+            client,
+            "Personal",
+            carver_sdk::CategoryIcon::Heart,
+            carver_sdk::CategoryColor::Purple,
+        )?,
+    };
+
+    let review = seed_note(client, groups.notes, WEEKLY_REVIEW, 0)?;
+
+    for spec in SHOWCASE_NOTES {
+        let source = note_source(spec.status, spec.done, spec.due, spec.title, spec.body);
+        let note = seed_note(client, groups.category(spec.group), &source, spec.days)?;
+        if spec.trashed {
+            client.trash_note(note.id)?;
+        }
     }
 
-    let trashed = seed_note(
-        client,
-        category,
-        "---\nstatus: Done\n---\n\n# Old draft\n\nSuperseded by the weekly review.\n",
-        24,
-    )?;
-    client.trash_note(trashed.id)?;
+    Ok(Showcase {
+        review: review.id,
+        base: seed_bases(client)?.id,
+    })
+}
 
-    Ok(review.id)
+/// Creates the saved Bases; the roadmap's text, boolean, and date columns are
+/// the ones the site shows.
+fn seed_bases(
+    client: &TestLibraryClient,
+) -> Result<carver_sdk::BaseDefinition, Box<dyn std::error::Error>> {
+    let roadmap = glib::MainContext::default().block_on(client.create_base_async(
+        "Roadmap".to_owned(),
+        vec![
+            carver_sdk::BaseColumn::Name,
+            carver_sdk::BaseColumn::Category,
+            carver_sdk::BaseColumn::Updated,
+            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/status".to_owned())),
+            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned())),
+            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/due".to_owned())),
+        ],
+    ))?;
+    let _ = glib::MainContext::default().block_on(client.create_base_async(
+        "Reading list".to_owned(),
+        vec![
+            carver_sdk::BaseColumn::Name,
+            carver_sdk::BaseColumn::Category,
+            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned())),
+        ],
+    ))?;
+    Ok(roadmap)
+}
+
+/// Creates a category with an explicit icon and accent colour.
+fn seed_category(
+    client: &TestLibraryClient,
+    name: &str,
+    icon: carver_sdk::CategoryIcon,
+    color: carver_sdk::CategoryColor,
+) -> Result<carver_sdk::CategoryId, Box<dyn std::error::Error>> {
+    Ok(client
+        .create_category_with_appearance(name, carver_sdk::CategoryAppearance { icon, color })?
+        .id)
+}
+
+/// Builds canonical Carve with the shared showcase frontmatter properties.
+fn note_source(status: &str, done: bool, due: &str, title: &str, body: &str) -> String {
+    format!("---\nstatus: {status}\ndone: {done}\ndue: {due}\n---\n\n# {title}\n\n{body}\n")
 }
 
 /// Creates one note and back-dates both timestamps by `days_ago`.
@@ -135,11 +365,7 @@ fn seed_note(
     Ok(saved)
 }
 
-fn capture_scenes(
-    fixture: &WindowFixture,
-    directory: &Path,
-    review: &carver_sdk::NoteId,
-) -> TestResult {
+fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase) -> TestResult {
     let window = fixture.window.clone();
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
@@ -158,14 +384,14 @@ fn capture_scenes(
     assert!(sidebar_select(&sidebar, "all-notes-count"));
     let note_list = fixture.note_list()?;
     assert!(
-        run_main_context_until(|| note_list.model().is_some_and(|model| model.n_items() >= 4)),
+        run_main_context_until(|| note_list.model().is_some_and(|model| model.n_items() >= 8)),
         "note list items: {}",
         note_list.model().map_or(0, |model| model.n_items())
     );
     capture_theme_pair(fixture, directory, "library")?;
 
     // Rich editor: open the review note and wait for the web surface.
-    assert!(activate_browser_note(&note_list, *review));
+    assert!(activate_browser_note(&note_list, showcase.review));
     assert!(run_main_context_until(|| route_stack
         .visible_child_name()
         .as_deref()
@@ -173,6 +399,7 @@ fn capture_scenes(
     editor_stack.set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
     assert_web_script_should_be_true(&rich, "document.body.innerText.includes('Weekly review')");
+    scroll_web_view_to_top(&rich);
     capture_theme_pair(fixture, directory, "editor")?;
 
     // Carve source with the live preview split.
@@ -180,20 +407,28 @@ fn capture_scenes(
     let split =
         widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
     split.set_active(true);
+    if let Some(scroll) = fixture
+        .source()?
+        .parent()
+        .and_downcast::<gtk::ScrolledWindow>()
+    {
+        scroll.vadjustment().set_value(0.0);
+    }
     let split_preview =
         widget_as::<webkit6::WebView>(&root, "source-split-preview").ok_or("split preview")?;
     assert_web_script_should_be_true(&split_preview, "document.body.innerText.length > 0");
+    scroll_web_view_to_top(&split_preview);
     capture_theme_pair(fixture, directory, "source")?;
 
-    // Saved Base grid.
+    // Saved Base grid with text, boolean, and date columns.
     assert!(sidebar_select(
         &sidebar,
-        &format!("base-count:{}", fixture.base.id)
+        &format!("base-count:{}", showcase.base)
     ));
     let bases_grid = widget_as::<gtk::ColumnView>(&root, "bases-grid").ok_or("bases grid")?;
     assert!(run_main_context_until(|| bases_grid
         .model()
-        .is_some_and(|model| model.n_items() >= 3)));
+        .is_some_and(|model| model.n_items() >= 8)));
     capture_theme_pair(fixture, directory, "bases")?;
 
     // Return to the notes browser so dialogs sit over a familiar surface.
@@ -232,6 +467,20 @@ fn capture_theme_pair(fixture: &WindowFixture, directory: &Path, name: &str) -> 
         capture_widget(&window, &directory.join(format!("{name}-{suffix}.png")))?;
     }
     Ok(())
+}
+
+/// Scrolls an embedded web view back to the top of its document.
+fn scroll_web_view_to_top(view: &webkit6::WebView) {
+    assert_web_script_should_be_true(
+        view,
+        "(() => { \
+            let node = document.querySelector('.ProseMirror'); \
+            while (node) { node.scrollTop = 0; node = node.parentElement; } \
+            window.scrollTo(0, 0); \
+            if (document.scrollingElement) { document.scrollingElement.scrollTop = 0; } \
+            return true; \
+        })()",
+    );
 }
 
 /// Renders a widget to a PNG at `SCALE`, matching the on-screen presentation.
