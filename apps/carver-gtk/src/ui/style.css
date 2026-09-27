@@ -352,14 +352,21 @@ popover button:checked {
 }
 
 /* Keep inline selects as text-like cells rather than raised buttons. */
-.bases-grid dropdown > button {
-  background: transparent;
+.bases-grid dropdown,
+.bases-grid dropdown button,
+.bases-grid dropdown button box,
+.bases-grid dropdown button label {
+  background: none;
+  background-image: none;
   box-shadow: none;
   border: none;
-  padding: 0 4px;
 }
 
-.bases-grid dropdown > button:hover {
+.bases-grid dropdown button {
+  padding: 0 2px;
+}
+
+.bases-grid dropdown button:hover {
   background: alpha(currentColor, 0.07);
 }
 

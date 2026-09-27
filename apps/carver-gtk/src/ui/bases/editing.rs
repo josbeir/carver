@@ -307,7 +307,6 @@ pub(crate) fn build_select_cell(
     dropdown.set_widget_name(name);
     dropdown.set_hexpand(true);
     dropdown.set_cursor_from_name(Some("pointer"));
-    dropdown.add_css_class("flat");
     // Match the padding of the read-only value labels so text aligns across columns.
     dropdown.set_margin_start(6);
     dropdown.set_margin_end(6);
