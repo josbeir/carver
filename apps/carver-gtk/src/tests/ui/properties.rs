@@ -522,6 +522,41 @@ pub(super) fn ad_hoc_date_property_should_reopen_as_date() -> TestResult {
     Ok(())
 }
 
+/// Picking a day from the collapsed custom date picker persists it on save.
+pub(super) fn ad_hoc_collapsed_date_picker_should_save_the_picked_value() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "---\nmydate: 2026-09-16\n---\nBody\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    // Open the picker from the collapsed suffix, choose another day, and save.
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    picker.popup();
+    let calendar =
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
+    calendar.set_day(20);
+    calendar.emit_by_name::<()>("day-selected", &[]);
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    assert!(source.contains("2026-09-20"), "source: {source}");
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn changing_a_property_type_should_keep_the_row_expanded() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     let category = fixture.client.create_category("Properties")?;
