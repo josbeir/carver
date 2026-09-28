@@ -133,7 +133,11 @@ impl EditorViewRefs {
         self.favorite_options.remove(0);
         self.favorite_options
             .insert(0, Some(&favorite_label), Some("editor.toggle-favorite"));
-        self.sidebar.render(document, &self.dispatcher);
+        self.sidebar.render(
+            document,
+            model.config.editor.document_sidebar_page,
+            &self.dispatcher,
+        );
         self.favorite.set_tooltip_text(Some(&favorite_label));
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
         let remote_images_changed = self

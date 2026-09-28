@@ -615,6 +615,8 @@ pub enum PreferencesMsg {
     SetDocumentLineHeightPercent(u16),
     /// Set the formatted-surface maximum readable measure.
     SetDocumentWidth(DocumentWidth),
+    /// Set the document-sidebar page restored for every note.
+    SetDocumentSidebarPage(carver_config::DocumentSidebarPage),
     /// Whether new notes are seeded with the configured default properties.
     SetDocumentPropertiesEnabled(bool),
     /// Whether the editor shows the floating document-properties button.

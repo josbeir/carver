@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 16:34+0200\n"
+"POT-Creation-Date: 2026-09-28 17:28+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -1121,10 +1121,6 @@ msgid "Add files…"
 msgstr "Dateien hinzufügen…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Add headings to navigate your document."
-msgstr "Füge Überschriften hinzu, um in deinem Dokument zu navigieren."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Backlinks"
 msgstr "Backlinks"
@@ -1134,13 +1130,14 @@ msgid "Hide document sidebar"
 msgstr "Dokument-Seitenleiste ausblenden"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Insert a link to another note to see it here."
-msgstr "Füge einen Link zu einer anderen Notiz hinzu, um sie hier zu sehen."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Linked notes"
 msgstr "Verknüpfte Notizen"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Links"
+msgstr "Links"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1160,12 +1157,9 @@ msgid "No linked notes yet"
 msgstr "Noch keine verknüpften Notizen"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#, fuzzy
 msgid "No media yet"
-msgstr "Noch keine Medien"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Notes that link here will appear in this list."
-msgstr "Notizen, die hierher verlinken, erscheinen in dieser Liste."
+msgstr "Noch keine Überschriften"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1176,10 +1170,6 @@ msgstr "Gliederung"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show document sidebar"
 msgstr "Dokument-Seitenleiste anzeigen"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Use + to add files, or drag them into the document."
-msgstr "Verwende +, um Dateien hinzuzufügen, oder ziehe sie in das Dokument."
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Preview file"

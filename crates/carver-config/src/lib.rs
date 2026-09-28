@@ -193,6 +193,9 @@ pub struct EditorConfig {
     /// Maximum readable measure for formatted editing and previews.
     #[serde(default)]
     pub document_width: DocumentWidth,
+    /// Document-sidebar page restored for every note.
+    #[serde(default)]
+    pub document_sidebar_page: DocumentSidebarPage,
 }
 
 const fn default_document_line_height_percent() -> u16 {
@@ -232,6 +235,19 @@ pub enum DocumentWidth {
     Wide,
     /// Use all available horizontal space.
     Full,
+}
+
+/// A document-sidebar page a user can select.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DocumentSidebarPage {
+    /// Document headings.
+    #[default]
+    Outline,
+    /// Managed media and attachments.
+    Media,
+    /// Outgoing note links and backlinks.
+    Links,
 }
 
 /// Visual density of Carve syntax highlighting in the source editor.
@@ -542,6 +558,7 @@ impl Default for EditorConfig {
             document_font: None,
             document_line_height_percent: default_document_line_height_percent(),
             document_width: DocumentWidth::default(),
+            document_sidebar_page: DocumentSidebarPage::default(),
         }
     }
 }

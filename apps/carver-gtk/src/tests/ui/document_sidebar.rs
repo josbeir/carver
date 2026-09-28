@@ -68,6 +68,13 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     })
 }
 
+/// Selects one document-sidebar page (outline, media, or links).
+pub(super) fn show_sidebar_page(root: &gtk::Widget, name: &str) {
+    if let Some(stack) = widget_as::<adw::ViewStack>(root, "editor-sidebar-stack") {
+        stack.set_visible_child_name(name);
+    }
+}
+
 pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
     let fixture = fixture()?;
 
@@ -564,6 +571,8 @@ pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
     let toggle = widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
     toggle.set_active(true);
+    // The media list lives on its own switcher page.
+    show_sidebar_page(root, "media");
     assert!(run_main_context_until_for(Duration::from_secs(10), || {
         widget_as::<gtk::Label>(root, "editor-media-size")
             .is_some_and(|label| label.text() == glib::format_size(bytes.len() as u64))
@@ -857,6 +866,7 @@ pub(super) fn assert_missing_media_preview_should_report_error(
     runtime: &crate::mvu::AppRuntime<carver_storage_sqlite::SqliteLibrary>,
 ) -> TestResult {
     let before = runtime.model().editor.ok_or("document")?.source;
+    show_sidebar_page(surface, "media");
     let button =
         widget_as::<gtk::Button>(surface, "editor-media-preview").ok_or("preview action")?;
     button.emit_clicked();

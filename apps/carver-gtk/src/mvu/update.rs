@@ -970,6 +970,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
             model.preferences.document.width = width;
             model.config.editor.document_width = width;
         }
+        PreferencesMsg::SetDocumentSidebarPage(page) => {
+            model.config.editor.document_sidebar_page = page;
+        }
         PreferencesMsg::SetDocumentPropertiesEnabled(enabled) => {
             model.config.document_properties.enabled = enabled;
         }

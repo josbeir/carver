@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 16:34+0200\n"
+"POT-Creation-Date: 2026-09-28 17:28+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -1121,10 +1121,6 @@ msgid "Add files…"
 msgstr "Aggiungi file…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Add headings to navigate your document."
-msgstr "Aggiungi titoli per navigare il documento."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Backlinks"
 msgstr "Collegamenti in entrata"
@@ -1134,13 +1130,14 @@ msgid "Hide document sidebar"
 msgstr "Nascondi barra laterale del documento"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Insert a link to another note to see it here."
-msgstr "Inserisci un collegamento a un'altra nota per vederla qui."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Linked notes"
 msgstr "Note collegate"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Links"
+msgstr "Collegamenti"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1160,12 +1157,9 @@ msgid "No linked notes yet"
 msgstr "Nessuna nota collegata"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#, fuzzy
 msgid "No media yet"
-msgstr "Nessun elemento multimediale"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Notes that link here will appear in this list."
-msgstr "Le note che rimandano qui appariranno in questo elenco."
+msgstr "Nessun titolo"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1176,10 +1170,6 @@ msgstr "Struttura"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show document sidebar"
 msgstr "Mostra barra laterale del documento"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Use + to add files, or drag them into the document."
-msgstr "Usa + per aggiungere file, o trascinali nel documento."
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Preview file"

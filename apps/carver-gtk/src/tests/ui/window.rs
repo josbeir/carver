@@ -1,6 +1,20 @@
 //! Shared display-backed window fixture and cross-scenario widget helpers.
 use super::*;
 
+/// Returns the first note id in a browser feed list.
+pub(crate) fn first_note_id(list: &gtk::ListView) -> Option<carver_sdk::NoteId> {
+    let model = list.model()?;
+    (0..model.n_items()).find_map(|position| {
+        let item = model
+            .item(position)
+            .and_downcast::<glib::BoxedAnyObject>()?;
+        match &*item.borrow::<crate::ui::browser::BrowserFeedItem>() {
+            crate::ui::browser::BrowserFeedItem::Note(note) => Some(note.id),
+            _ => None,
+        }
+    })
+}
+
 /// Returns whether a note tab (rather than the pinned Notes list) is active.
 pub(crate) fn note_tab_is_active(root: &gtk::Widget) -> bool {
     widget_as::<adw::TabView>(root, "workspace-tabs")
