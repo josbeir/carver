@@ -261,7 +261,9 @@ impl ViewRefs {
             .map(|dialog| dialog.candidates.state.clone());
         if candidates.is_none() {
             self.last_link_candidates.replace(None);
-            if let Some(handle) = self.link_dialog.borrow_mut().take() {
+            // Drop the borrow before closing: closing can emit a response that re-renders.
+            let handle = self.link_dialog.borrow_mut().take();
+            if let Some(handle) = handle {
                 handle.close();
             }
             return;

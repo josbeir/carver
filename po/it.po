@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 14:16+0200\n"
+"POT-Creation-Date: 2026-09-28 15:18+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -394,6 +394,7 @@ msgid "Selected"
 msgstr "Selezionato"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/property.rs
 msgid "Text"
 msgstr "Testo"
@@ -1229,17 +1230,12 @@ msgid "Insert Link"
 msgstr "Inserisci link"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
-msgid "Link text"
-msgstr "Testo del link"
+msgid "Link"
+msgstr "Collegamento"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
-msgid "Search notes or enter a URL"
-msgstr "Cerca note o inserisci un URL"
-
-#: apps/carver-gtk/src/ui/editor/link_dialog.rs
-msgctxt "link dialog"
-msgid "Text"
-msgstr "Testo"
+msgid "Suggestions"
+msgstr "Suggerimenti"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Add to Favorites"

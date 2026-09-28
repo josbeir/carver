@@ -2,22 +2,6 @@
 use super::*;
 use crate::mvu::{AppMsg, EditorMsg};
 
-fn entry(root: &gtk::Widget, placeholder: &str) -> Option<gtk::Entry> {
-    if let Some(entry) = root.downcast_ref::<gtk::Entry>()
-        && entry.placeholder_text().as_deref() == Some(placeholder)
-    {
-        return Some(entry.clone());
-    }
-    let mut child = root.first_child();
-    while let Some(widget) = child {
-        if let Some(entry) = entry(&widget, placeholder) {
-            return Some(entry);
-        }
-        child = widget.next_sibling();
-    }
-    None
-}
-
 pub(super) fn source_link_should_keep_the_captured_selection() -> TestResult {
     let fixture = document_sidebar::fixture()?;
     fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
@@ -31,27 +15,32 @@ pub(super) fn source_link_should_keep_the_captured_selection() -> TestResult {
     buffer.select_range(&buffer.iter_at_offset(5), &buffer.iter_at_offset(11));
     let link = widget_as::<gtk::Button>(&fixture.surface, "format-link-button").ok_or("link")?;
     link.emit_clicked();
-    assert!(run_main_context_until(|| find_alert(
+    assert!(run_main_context_until(|| find_link_dialog(
         fixture.window.upcast_ref()
     )
     .is_some()));
-    let dialog = find_alert(fixture.window.upcast_ref()).ok_or("link dialog")?;
+    let dialog = find_link_dialog(fixture.window.upcast_ref()).ok_or("link dialog")?;
     assert_eq!(
-        entry(dialog.upcast_ref(), "Link text")
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-text")
             .ok_or("text")?
-            .text(),
+            .text()
+            .to_string(),
         "Carver"
     );
-    entry(dialog.upcast_ref(), "https://example.com")
-        .ok_or("url")?
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-address")
+        .ok_or("address")?
         .set_text("https://example.com");
     buffer.place_cursor(&buffer.end_iter());
-    dialog.emit_by_name::<()>("response", &[&"insert"]);
-    dialog.force_close();
-    assert_eq!(
-        fixture.runtime.model().editor.ok_or("editor")?.source,
-        "Read [Carver](https://example.com) now"
-    );
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "link-dialog-insert")
+        .ok_or("insert")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .runtime
+        .model()
+        .editor
+        .is_some_and(
+            |doc| doc.source == "Read [Carver](https://example.com) now"
+        )));
     fixture.window.close();
     Ok(())
 }
@@ -74,19 +63,20 @@ pub(super) fn rich_link_should_update_canonical_source() -> TestResult {
     widget_as::<gtk::Button>(&fixture.surface, "format-link-button")
         .ok_or("link")?
         .emit_clicked();
-    assert!(run_main_context_until(|| find_alert(
+    assert!(run_main_context_until(|| find_link_dialog(
         fixture.window.upcast_ref()
     )
     .is_some()));
-    let dialog = find_alert(fixture.window.upcast_ref()).ok_or("dialog")?;
-    entry(dialog.upcast_ref(), "Link text")
+    let dialog = find_link_dialog(fixture.window.upcast_ref()).ok_or("dialog")?;
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-text")
         .ok_or("text")?
         .set_text("Carver");
-    entry(dialog.upcast_ref(), "https://example.com")
-        .ok_or("url")?
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-address")
+        .ok_or("address")?
         .set_text("https://example.com");
-    dialog.emit_by_name::<()>("response", &[&"insert"]);
-    dialog.force_close();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "link-dialog-insert")
+        .ok_or("insert")?
+        .emit_clicked();
     assert!(run_main_context_until(|| fixture
         .runtime
         .model()
@@ -242,6 +232,31 @@ pub(crate) fn find_alert(root: &gtk::Widget) -> Option<adw::AlertDialog> {
     })
 }
 
+/// Finds the unified link dialog by its widget name across the window and its toplevels.
+pub(crate) fn find_link_dialog(root: &gtk::Widget) -> Option<adw::Dialog> {
+    link_dialog_descendant(root).or_else(|| {
+        gtk::Window::list_toplevels()
+            .iter()
+            .find_map(link_dialog_descendant)
+    })
+}
+
+fn link_dialog_descendant(root: &gtk::Widget) -> Option<adw::Dialog> {
+    if let Some(dialog) = root.downcast_ref::<adw::Dialog>()
+        && dialog.widget_name() == "link-dialog"
+    {
+        return Some(dialog.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(dialog) = link_dialog_descendant(&widget) {
+            return Some(dialog);
+        }
+        child = widget.next_sibling();
+    }
+    None
+}
+
 fn alert_descendant(root: &gtk::Widget) -> Option<adw::AlertDialog> {
     if let Some(dialog) = root.downcast_ref::<adw::AlertDialog>() {
         return Some(dialog.clone());
@@ -266,19 +281,20 @@ pub(super) fn cancelled_source_link_should_leave_the_document_unchanged() -> Tes
     widget_as::<gtk::Button>(&fixture.surface, "format-link-button")
         .ok_or("link")?
         .emit_clicked();
-    assert!(run_main_context_until(|| find_alert(
+    assert!(run_main_context_until(|| find_link_dialog(
         fixture.window.upcast_ref()
     )
     .is_some()));
-    let dialog = find_alert(fixture.window.upcast_ref()).ok_or("dialog")?;
-    entry(dialog.upcast_ref(), "Link text")
+    let dialog = find_link_dialog(fixture.window.upcast_ref()).ok_or("dialog")?;
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-text")
         .ok_or("text")?
         .set_text("Replacement");
-    entry(dialog.upcast_ref(), "https://example.com")
-        .ok_or("url")?
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "link-dialog-address")
+        .ok_or("address")?
         .set_text("https://example.com");
-    dialog.emit_by_name::<()>("response", &[&"cancel"]);
-    dialog.force_close();
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "link-dialog-cancel")
+        .ok_or("cancel")?
+        .emit_clicked();
     assert_eq!(
         fixture.runtime.model().editor.ok_or("editor")?.source,
         "Keep this"
