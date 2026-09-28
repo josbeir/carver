@@ -117,6 +117,22 @@ fn rewriting_should_leave_a_literal_scheme_in_code_untouched() {
 }
 
 #[test]
+fn rewriting_should_resolve_links_after_multibyte_text() {
+    // Carve positions are codepoint offsets, so a multibyte character before the link must not
+    // shift the destination lookup into the middle of a UTF-8 sequence.
+    let source = format!(
+        "🚀 emoji 👋 then [A]({NOTE_LINK_SCHEME}{TARGET}) and [B][ref].\n\n[ref]: {NOTE_LINK_SCHEME}{OTHER}\n"
+    );
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert(note_id(TARGET), "release-checklist".to_owned());
+    replacements.insert(note_id(OTHER), "roadmap".to_owned());
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(rewritten.contains("[A](release-checklist)"));
+    assert!(rewritten.contains("[ref]: roadmap"));
+    assert!(!rewritten.contains(NOTE_LINK_SCHEME));
+}
+
+#[test]
 fn rewriting_a_reference_definition_should_resolve_its_links() {
     let source = format!("See [A][ref].\n\n[ref]: {NOTE_LINK_SCHEME}{TARGET}\n");
     let mut replacements = std::collections::BTreeMap::new();

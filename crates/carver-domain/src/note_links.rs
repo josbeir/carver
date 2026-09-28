@@ -161,6 +161,7 @@ fn find_inline_destination(
     range: Range<usize>,
     target: NoteId,
 ) -> Option<Range<usize>> {
+    let range = byte_range(source, range)?;
     let slice = source.get(range.clone())?;
     let needle = note_link_destination(target);
     let mut search = 0;
@@ -181,10 +182,31 @@ fn find_definition_destination(
     range: Range<usize>,
     target: NoteId,
 ) -> Option<Range<usize>> {
+    let range = byte_range(source, range)?;
     let slice = source.get(range.clone())?;
     let needle = note_link_destination(target);
     let offset = slice.rfind(&needle)?;
     Some(range.start + offset..range.start + offset + needle.len())
+}
+
+/// Converts a Carve `Pos` codepoint range into a byte range of `source`.
+///
+/// The parser records columns and offsets in Unicode codepoints, so they must be converted
+/// before slicing UTF-8 text; otherwise a multibyte character before a link shifts the range
+/// into the middle of a sequence and the destination is missed.
+fn byte_range(source: &str, range: Range<usize>) -> Option<Range<usize>> {
+    Some(byte_offset(source, range.start)?..byte_offset(source, range.end)?)
+}
+
+fn byte_offset(source: &str, codepoints: usize) -> Option<usize> {
+    if codepoints == 0 {
+        return Some(0);
+    }
+    source
+        .char_indices()
+        .nth(codepoints)
+        .map(|(index, _)| index)
+        .or_else(|| (source.chars().count() == codepoints).then_some(source.len()))
 }
 
 fn collect_reference_definitions(blocks: &[BlockNode], out: &mut Vec<(Range<usize>, NoteId)>) {
