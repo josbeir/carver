@@ -1146,6 +1146,99 @@ fn a_saved_cell_edit_should_reload_an_open_note_tab() {
 }
 
 #[test]
+fn a_base_reload_should_keep_a_tab_edited_before_the_reply() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(4),
+            source: String::from("---\nstatus: open\n---\n"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    let (load_request, tab_id) = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            } => Some((*request_id, *tab_id)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("an open note tab should reload after a Base inline edit"));
+
+    // The user returns to the tab and types before the reload reply arrives.
+    let _ = update(
+        &mut model,
+        AppMsg::Tabs(crate::mvu::TabsMsg::Activate(tab_id)),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from(
+            "---\nstatus: done\n---\n\nEdited.",
+        ))),
+    );
+    let session = model.editor.as_ref().map(|document| document.session);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id: load_request,
+            tab_id,
+            result: Ok(Note {
+                id: note_id,
+                category_id: CategoryId::new(),
+                source: String::from("---\nstatus: done\n---\n"),
+                title: String::from("Note"),
+                plain_text: String::new(),
+                revision: Revision(5),
+                is_favorite: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should remain open");
+    };
+    assert_eq!(
+        document.session,
+        session.unwrap_or_else(|| panic!("session"))
+    );
+    assert!(
+        document.source.contains("Edited."),
+        "the reload must not discard edits made before its reply"
+    );
+}
+
+#[test]
 fn a_failed_cell_edit_should_reload_and_keep_a_notice() {
     let (mut model, base_id) = base_route_model();
     let note_id = NoteId::new();

@@ -16,6 +16,22 @@ fn load_note(model: &mut AppModel, note_id: NoteId) -> crate::mvu::TabId {
     }
 }
 
+/// A loaded note summary value, as the library would return it.
+fn loaded_note(id: NoteId) -> Note {
+    Note {
+        id,
+        category_id: CategoryId::new(),
+        source: String::from("# Note"),
+        title: String::from("Note"),
+        plain_text: String::from("Note"),
+        revision: Revision(1),
+        is_favorite: false,
+        created_at: OffsetDateTime::UNIX_EPOCH,
+        updated_at: OffsetDateTime::UNIX_EPOCH,
+        trashed_at: None,
+    }
+}
+
 #[test]
 fn loading_a_second_note_should_open_a_new_tab_and_stash_the_first() {
     let mut model = AppModel::new(&Config::default());
@@ -451,6 +467,146 @@ fn reactivating_a_note_tab_after_showing_notes_should_restore_the_editor() {
         effects
             .iter()
             .any(|effect| matches!(effect, Effect::FocusEditor { .. }))
+    );
+}
+
+#[test]
+fn closing_a_tab_with_an_unresolved_external_change_should_keep_it_open() {
+    let mut model = AppModel::new(&Config::default());
+    let tab = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.editor.as_mut() {
+        document.external_change = Some(crate::mvu::model::ExternalChange::Edited(Revision(2)));
+    }
+
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Close(tab)));
+
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ShowExternalEdit { .. }))
+    );
+    assert!(model.note_tab(tab).is_some());
+    assert_eq!(model.active_tab, Some(tab));
+}
+
+#[test]
+fn a_failed_favorite_on_a_background_tab_should_clear_its_in_flight_state() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let first = open_and_load(&mut model, note_id);
+    let _second = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.background_documents.get_mut(&first) {
+        document.favorite_mutation_in_flight = true;
+    }
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::FavoriteChanged {
+            action: ActionKey::SetNoteFavorite(note_id),
+            result: Err(UiError::new("failed")),
+        }),
+    );
+
+    assert!(
+        model
+            .background_documents
+            .get(&first)
+            .is_some_and(|document| !document.favorite_mutation_in_flight)
+    );
+}
+
+#[test]
+fn storing_an_asset_for_a_background_tab_should_schedule_its_save() {
+    let mut model = AppModel::new(&Config::default());
+    let _first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+    let Some(session) = model
+        .background_documents
+        .values()
+        .next()
+        .map(|document| document.session)
+    else {
+        panic!("first tab should be background");
+    };
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
+            session,
+            alt: "Photo".to_owned(),
+            source_target: None,
+            result: Ok("assets/photo.png".to_owned()),
+        }),
+    );
+
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::ScheduleEditorSave { session: scheduled, .. } if *scheduled == session
+    )));
+}
+
+#[test]
+fn a_link_reply_for_a_background_tab_should_settle_its_loading_state() {
+    let mut model = AppModel::new(&Config::default());
+    let first_id = NoteId::new();
+    let first_tab = open_and_load(&mut model, first_id);
+
+    // Open a second note in the background so its links start idle.
+    let second_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: second_id,
+            intent: NoteOpenIntent::Background,
+        }),
+    );
+    let (load_request, second_tab) = match effects.as_slice() {
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
+        _ => panic!("a background open should start one load"),
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id: load_request,
+            tab_id: second_tab,
+            result: Ok(loaded_note(second_id)),
+        }),
+    );
+
+    // Activating the tab starts its link load, then switching away leaves it in flight.
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Activate(second_tab)));
+    let request_id = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::LoadNoteLinks {
+                request_id,
+                note_id,
+            } if *note_id == second_id => Some(*request_id),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("activating a tab should load its links"));
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::Activate(first_tab)));
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::NoteLinksLoaded {
+            request_id,
+            note_id: second_id,
+            result: Ok(carver_sdk::NoteLinks::default()),
+        }),
+    );
+
+    let Some(document) = model.document_for_note(second_id) else {
+        panic!("background document should remain");
+    };
+    assert!(
+        matches!(document.links.state, LoadState::Ready(_)),
+        "a reply for an inactive tab must still settle its loading state"
     );
 }
 

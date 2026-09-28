@@ -367,6 +367,25 @@ impl EditorViewRefs {
         }
     }
 
+    /// Returns keyboard focus to the editable surface after a dialog or popover closes.
+    pub(crate) fn restore_focus_later(&self) {
+        let mode = view_mode(&self.editor_stack);
+        let source = self.source_editor.view().clone();
+        let rich = self.rich.view().clone();
+        glib::idle_add_local_once(move || match mode {
+            EditorMode::Source => {
+                source.grab_focus();
+                if let Some(root) = source.root() {
+                    root.set_focus(Some(&source));
+                }
+            }
+            EditorMode::Rich => {
+                rich.grab_focus();
+            }
+            EditorMode::Rendered => {}
+        });
+    }
+
     /// Focuses a validated occurrence while retaining the current editor mode.
     pub(crate) fn focus_document_target(
         &self,

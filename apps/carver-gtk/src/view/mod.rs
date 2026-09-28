@@ -674,8 +674,13 @@ impl ViewRefs {
             self.last_link_candidates.replace(None);
             // Drop the borrow before closing: closing can emit a response that re-renders.
             let handle = self.link_dialog.borrow_mut().take();
+            let editor = self.editor.borrow().clone();
             if let Some(handle) = handle {
                 handle.close();
+                // Return focus to the editor after Insert or Cancel, like the old dialog did.
+                if let Some(editor) = editor {
+                    editor.restore_focus_later();
+                }
             }
             return;
         }

@@ -746,6 +746,11 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
         return Vec::new();
     };
     let was_active = model.active_tab == Some(tab_id);
+    // A document with an unresolved external change cannot autosave; keep the tab open and let
+    // the user resolve it instead of parking the draft somewhere with no way back.
+    if was_active && let Some(effects) = editor_external_change_effects(model) {
+        return effects;
+    }
     let document = if was_active {
         model.editor.take()
     } else {
@@ -2936,10 +2941,7 @@ fn update_favorite_changed(
         }
         Err(error) => {
             if let ActionKey::SetNoteFavorite(note_id) = action
-                && let Some(document) = model
-                    .editor
-                    .as_mut()
-                    .filter(|document| document.note_id == note_id)
+                && let Some(document) = model.document_for_note_mut(note_id)
             {
                 document.favorite_mutation_in_flight = false;
                 document.pending_favorite = None;
@@ -3015,14 +3017,19 @@ fn update_editor_asset_stored(
                 return Vec::new();
             }
             let source = document.source.clone();
-            [
-                schedule_preview(model),
-                schedule_editor_save(model),
-                Some(Effect::ReloadRichEditor { session, source }),
-            ]
-            .into_iter()
-            .flatten()
-            .collect()
+            // Asset storage can complete after the user leaves the tab; schedule the save on the
+            // document that owns the asset, and only preview the active one.
+            let mut effects = Vec::new();
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session)
+            {
+                effects.extend(schedule_preview(model));
+            }
+            effects.extend(schedule_editor_save_for(model, session));
+            effects.push(Effect::ReloadRichEditor { session, source });
+            effects
         }
         Err(error) => {
             model.set_notice(error);
@@ -3118,6 +3125,18 @@ fn update_editor_loaded(
                 tab.loading = false;
             }
             let is_active = model.active_tab == Some(tab_id);
+            // A Base-triggered reload is asynchronous. If the user edited the note before the
+            // reply arrived, keep the local draft instead of replacing it with the snapshot.
+            if model.document_for_note(note.id).is_some_and(|document| {
+                matches!(
+                    document.save_state,
+                    super::EditorSaveState::Dirty
+                        | super::EditorSaveState::Saving(_)
+                        | super::EditorSaveState::Failed(_)
+                )
+            }) {
+                return Vec::new();
+            }
             if !is_active {
                 let document = new_editor_document(
                     model,
@@ -3161,12 +3180,10 @@ fn update_note_links_loaded(
     result: Result<carver_sdk::NoteLinks, UiError>,
 ) -> Vec<Effect> {
     let reload = model
-        .editor
-        .as_mut()
-        .filter(|document| document.note_id == note_id)
+        .document_for_note_mut(note_id)
         .is_some_and(|document| document.links.finish(request_id, result));
     if reload {
-        reload_note_links(model).into_iter().collect()
+        reload_note_links_for(model, note_id).into_iter().collect()
     } else {
         Vec::new()
     }
@@ -3175,8 +3192,13 @@ fn update_note_links_loaded(
 /// Requests the active note's link index, coalescing reloads while one is in flight.
 fn reload_note_links(model: &mut AppModel) -> Option<Effect> {
     let note_id = model.editor.as_ref()?.note_id;
+    reload_note_links_for(model, note_id)
+}
+
+/// Requests one note's link index, active or background.
+fn reload_note_links_for(model: &mut AppModel, note_id: carver_sdk::NoteId) -> Option<Effect> {
     let request_id = model.next_request_id();
-    let document = model.editor.as_mut()?;
+    let document = model.document_for_note_mut(note_id)?;
     document
         .links
         .begin_reload(request_id)
@@ -3395,15 +3417,24 @@ fn character_byte_offset(source: &str, offset: usize) -> usize {
 }
 
 fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
+    let session = model.editor.as_ref()?.session;
+    schedule_editor_save_for(model, session)
+}
+
+/// Schedules a debounced save for one document, active or background.
+fn schedule_editor_save_for(
+    model: &mut AppModel,
+    session: super::EditorSessionId,
+) -> Option<Effect> {
     let timer_id = model.next_timer_id();
     let delay_ms = model.preferences.autosave_delay_ms;
-    let document = model.editor.as_mut()?;
+    let document = model.document_for_session_mut(session)?;
     if matches!(document.save_state, super::EditorSaveState::Saving(_)) {
         return None;
     }
     document.schedule_save(timer_id);
     Some(Effect::ScheduleEditorSave {
-        session: document.session,
+        session,
         timer_id,
         delay_ms,
     })
@@ -3646,6 +3677,9 @@ fn update_library_revision(
                         Vec::new()
                     };
                 effects.extend(refresh_open_editor(model, false));
+                // A library change by another writer can add or drop backlinks without changing
+                // the open note's own revision, so refresh its links too.
+                effects.extend(reload_note_links(model));
                 effects
             } else {
                 Vec::new()
