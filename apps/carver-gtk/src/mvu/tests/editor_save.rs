@@ -107,11 +107,14 @@ fn stale_editor_save_completion_should_not_replace_a_newer_document() {
         }),
     );
 
-    // The first note's save completes against its own background tab.
+    // The first note's save completes against its own background tab. It may refresh the
+    // active note's links (a new backlink), but must not replace the newer document.
     assert!(
-        effects
-            .iter()
-            .all(|effect| matches!(effect, Effect::LoadLibraryRevision { .. }))
+        effects.iter().all(|effect| matches!(
+            effect,
+            Effect::LoadLibraryRevision { .. } | Effect::LoadNoteLinks { .. }
+        )),
+        "a stale save should only refresh library metadata and note links"
     );
     let first = model
         .background_documents

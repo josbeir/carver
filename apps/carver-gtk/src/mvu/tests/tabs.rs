@@ -191,6 +191,38 @@ fn closing_a_dirty_tab_should_save_it_without_keeping_the_tab() {
 }
 
 #[test]
+fn a_failed_final_save_for_a_closed_tab_should_surface_a_notice() {
+    let mut model = AppModel::new(&Config::default());
+    let tab = open_and_load(&mut model, NoteId::new());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("Dirty"))),
+    );
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Close(tab)));
+    let Some(request) = effects.iter().find_map(|effect| match effect {
+        Effect::SaveNote { request } => Some(request.clone()),
+        _ => None,
+    }) else {
+        panic!("closing a dirty tab should start a save");
+    };
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Err(UiError::new("disk full")),
+            move_error: None,
+        }),
+    );
+
+    assert!(model.closing_documents.is_empty());
+    assert_eq!(
+        model.notice.as_ref().map(|error| error.message.as_str()),
+        Some("Could not save note: disk full")
+    );
+}
+
+#[test]
 fn reordering_tabs_should_update_the_model_order() {
     let mut model = AppModel::new(&Config::default());
     let first_tab = load_note(&mut model, NoteId::new());

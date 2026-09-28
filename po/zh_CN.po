@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 19:22+0200\n"
+"POT-Creation-Date: 2026-09-28 19:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -49,6 +49,11 @@ msgstr "分类"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "笔记"
+
+#: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not save note: {error}"
+msgstr "无法保存笔记：{error}"
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -1692,11 +1697,6 @@ msgstr "关闭将丢弃您的本地草稿并打开回收站，您可以在此恢
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
 msgstr "无法加载内容"
-
-#: apps/carver-gtk/src/view/mod.rs
-#, rust-format
-msgid "Could not save note: {error}"
-msgstr "无法保存笔记：{error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"

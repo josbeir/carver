@@ -1,5 +1,7 @@
 //! Pure state transitions for the application model.
 
+use gettextrs::gettext;
+
 use super::model::{
     ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingBaseConfiguration,
     PendingNavigation,
@@ -2586,15 +2588,31 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         } => {
             let session = request.session;
             let effects = update_editor_save(model, &request, move_error, result);
-            // A closed tab's document is dropped once its final save settles.
-            if model
+            // A closed tab's document is dropped once its final save succeeds. A failed save has
+            // no editor left to show it, so surface the error instead of losing it silently.
+            let failed = match model
                 .closing_documents
                 .get(&session)
-                .is_some_and(|document| {
-                    !matches!(document.save_state, super::EditorSaveState::Saving(_))
-                })
+                .map(|document| &document.save_state)
             {
+                Some(super::EditorSaveState::Failed(error)) => Some(error.clone()),
+                _ => None,
+            };
+            let clean = matches!(
+                model
+                    .closing_documents
+                    .get(&session)
+                    .map(|document| &document.save_state),
+                Some(super::EditorSaveState::Clean)
+            );
+            if clean || failed.is_some() {
                 model.closing_documents.remove(&session);
+            }
+            if let Some(error) = failed {
+                model.set_notice(UiError::new(tr_fmt!(
+                    gettext("Could not save note: {error}"),
+                    error = error.message
+                )));
             }
             effects
         }
@@ -3401,10 +3419,6 @@ fn update_editor_save(
     mut move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
-    let is_active = model
-        .editor
-        .as_ref()
-        .is_some_and(|document| document.session == request.session);
     let (close_requested, pending_favorite, move_notice, moved) = {
         let Some(document) = model.document_for_session_mut(request.session) else {
             return Vec::new();
@@ -3492,7 +3506,9 @@ fn update_editor_save(
             effects.extend(pending_effects);
         }
     }
-    if !close_requested && is_active {
+    // Refresh the visible note's links after any save: a background tab may have added or removed
+    // a backlink to the note currently on screen.
+    if !close_requested {
         effects.extend(reload_note_links(model));
     }
     effects.extend(request_library_revision(

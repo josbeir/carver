@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 19:22+0200\n"
+"POT-Creation-Date: 2026-09-28 19:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -49,6 +49,11 @@ msgstr "Categorías"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "Notas"
+
+#: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not save note: {error}"
+msgstr "No se pudo guardar la nota: {error}"
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -1700,11 +1705,6 @@ msgstr "Al cerrar se descarta tu borrador local y se abre la papelera, donde pue
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
 msgstr "No se pudo cargar el contenido"
-
-#: apps/carver-gtk/src/view/mod.rs
-#, rust-format
-msgid "Could not save note: {error}"
-msgstr "No se pudo guardar la nota: {error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"
