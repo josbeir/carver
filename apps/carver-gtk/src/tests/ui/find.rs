@@ -7,6 +7,7 @@ pub(super) fn find_bar_and_shortcuts_should_navigate_matches(
 ) -> TestResult {
     let client = &fixture.client;
     let root = fixture.root()?;
+    fixture.activate_note(note.id)?;
     let source = fixture.source()?;
     let find_bar = widget_as::<gtk::SearchBar>(&root, "editor-find-bar").ok_or("find bar")?;
     let find_entry =

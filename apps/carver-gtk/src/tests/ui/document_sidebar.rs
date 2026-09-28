@@ -176,7 +176,9 @@ pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResu
     assert!(run_main_context_until(
         || selected_position(&outline) == Some(1)
     ));
-    assert!(widget_is_window_focus(source.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        source.upcast_ref()
+    )));
     source
         .buffer()
         .place_cursor(&source.buffer().iter_at_offset(19));
@@ -294,7 +296,9 @@ fn check_rich_navigation(root: &gtk::Widget, outline: &gtk::ListView) -> TestRes
     assert!(run_main_context_until(
         || selected_position(outline) == Some(1)
     ));
-    assert!(widget_is_window_focus(rich.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        rich.upcast_ref()
+    )));
     assert_web_script_should_be_true(
         &rich,
         "(() => { const e=window.carverEditor.editor; let p=0; e.state.doc.descendants((n,i)=>{ if(n.type.name==='paragraph' && n.textContent==='Body') p=i+1; }); return e.commands.setTextSelection(p); })()",
@@ -402,7 +406,9 @@ fn check_tree_should_remain_expanded(
     assert!(run_main_context_until(
         || selected_position(outline) == Some(2)
     ));
-    assert!(widget_is_window_focus(source.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        source.upcast_ref()
+    )));
     Ok(())
 }
 

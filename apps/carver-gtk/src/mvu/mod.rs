@@ -18,12 +18,12 @@ pub use model::{
     EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest, EditorSaveRequest,
     EditorSaveState, EditorSessionId, FrontmatterEdit, LinkDialogOrigin, LoadState, MediaFile,
     MoveUndo, NoteTab, PendingBaseCellEdit, Preferences, PropertiesSave, RequestId, Resource,
-    Route, SidebarSelection, SourceEditorPreferences, TabId, TimerId, UiError,
+    Route, SidebarSelection, SourceEditorPreferences, TabId, TabOrigin, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,
-    ImportTarget, LibraryReply, NavigationMsg, PreferencesMsg, SidebarMsg, SourceImageTarget,
-    StoredMedia, TabsMsg, TrashMsg, TrashMutation, WindowMsg,
+    ImportTarget, LibraryReply, NavigationMsg, NoteOpenIntent, PreferencesMsg, SidebarMsg,
+    SourceImageTarget, StoredMedia, TabsMsg, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use source_edit::{SourceCommand, SourceEdit};

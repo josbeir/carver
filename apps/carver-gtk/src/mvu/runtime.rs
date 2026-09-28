@@ -1466,11 +1466,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
         category_id: carver_sdk::CategoryId,
     ) {
         let client = self.inner.client.clone();
-        self.complete_action(action, async move {
-            client
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
                 .move_note_async(note_id, category_id)
                 .await
-                .map(|_| ())
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::NoteMoved { action, result }));
         });
     }
 

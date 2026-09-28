@@ -467,7 +467,10 @@ pub(crate) fn build_browser(
                 _ => return,
             }
         };
-        let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+        let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: crate::mvu::NoteOpenIntent::Default,
+        }));
     });
 
     connect_search_controls(
@@ -597,16 +600,39 @@ fn connect_browser_actions(
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
 }
 
+/// Builds one reusable browser row container with modifier-aware note activation.
+fn setup_browser_row(dispatcher: &AppDispatcher, item: &gtk::ListItem) {
+    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    item.set_child(Some(&container));
+    let weak_item = item.downgrade();
+    crate::ui::intent::connect_modified_note_open_with(&container, dispatcher, move || {
+        feed_item_note_id(&weak_item)
+    });
+}
+
+/// Resolves the note bound to a recycled browser row.
+fn feed_item_note_id(item: &glib::WeakRef<gtk::ListItem>) -> Option<carver_sdk::NoteId> {
+    let item = item.upgrade()?;
+    let object = item.item().and_downcast::<glib::BoxedAnyObject>()?;
+    match &*object.borrow::<BrowserFeedItem>() {
+        BrowserFeedItem::Note(note) | BrowserFeedItem::Favorite(note) => Some(note.id),
+        _ => None,
+    }
+}
+
 fn browser_feed_factory(
     dispatcher: &AppDispatcher,
     context: Rc<RefCell<BrowserFeedContext>>,
 ) -> gtk::SignalListItemFactory {
     let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        item.set_child(Some(&gtk::Box::new(gtk::Orientation::Vertical, 0)));
+    factory.connect_setup({
+        let dispatcher = dispatcher.clone();
+        move |_, item| {
+            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                return;
+            };
+            setup_browser_row(&dispatcher, item);
+        }
     });
     let dispatcher = dispatcher.clone();
     factory.connect_bind(move |_, item| {
@@ -616,91 +642,97 @@ fn browser_feed_factory(
         let Some(container) = item.child().and_downcast::<gtk::Box>() else {
             return;
         };
-        while let Some(child) = container.first_child() {
-            container.remove(&child);
-        }
-        container.set_css_classes(&[]);
-        container.set_widget_name("");
-        container.set_margin_start(0);
-        container.set_margin_end(0);
-        container.set_margin_top(0);
-        container.set_margin_bottom(0);
-        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-            return;
-        };
-        let feed_item = object.borrow::<BrowserFeedItem>().clone();
-        container.set_margin_start(18);
-        container.set_margin_end(18);
-        match feed_item {
-            BrowserFeedItem::Hero => {
-                container.set_margin_top(18);
-                container.set_margin_bottom(2);
-                let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                hero.set_widget_name("browser-category-hero");
-                hero.add_css_class("category-hero");
-                render_category_hero(
-                    &hero,
-                    &context.borrow().sidebar,
-                    context.borrow().selected_category,
-                    Some(&dispatcher),
-                );
-                container.append(&hero);
-            }
-            BrowserFeedItem::FavoritesHeading => {
-                container.set_margin_top(12);
-                container.set_margin_bottom(2);
-                container.append(&favorites_heading());
-            }
-            BrowserFeedItem::Favorite(note) => {
-                let context = context.borrow().clone();
-                container.set_widget_name(&format!("favorite-note:{}", note.id));
-                container.set_css_classes(&["card", "activatable", "note-card"]);
-                container.set_margin_start(18);
-                container.set_margin_end(18);
-                container.set_margin_top(6);
-                container.set_margin_bottom(6);
-                populate_note_card(&container, &note, &context, Some(&dispatcher));
-            }
-            BrowserFeedItem::SearchEmpty => {
-                container.set_margin_top(12);
-                container.append(&build_search_empty_card());
-            }
-            BrowserFeedItem::CategoryEmpty => {
-                container.set_margin_top(12);
-                let (card, new_note) = build_category_empty_card();
-                card.set_visible(true);
-                connect_new_note_action(&dispatcher, &new_note);
-                container.append(&card);
-            }
-            BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
-            BrowserFeedItem::Note(note) => {
-                let context = context.borrow().clone();
-                container.set_widget_name(&format!("note:{}", note.id));
-                container.set_css_classes(&["card", "activatable", "note-card"]);
-                // All feed entries share the same horizontal reading measure.
-                container.set_margin_start(18);
-                container.set_margin_end(18);
-                container.set_margin_top(6);
-                container.set_margin_bottom(6);
-                populate_note_card(&container, &note, &context, Some(&dispatcher));
-            }
-            BrowserFeedItem::LoadMore { label, sensitive } => {
-                container.set_margin_top(8);
-                container.set_margin_bottom(18);
-                let button = gtk::Button::with_label(&label);
-                button.set_widget_name("browser-load-more");
-                button.add_css_class("flat");
-                button.set_halign(gtk::Align::Center);
-                button.set_sensitive(sensitive);
-                let dispatcher = dispatcher.clone();
-                button.connect_clicked(move |_| {
-                    let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
-                });
-                container.append(&button);
-            }
-        }
+        bind_browser_row(&container, item, &context, &dispatcher);
     });
     factory
+}
+
+/// Resets a recycled row and fills it for the bound feed item.
+fn bind_browser_row(
+    container: &gtk::Box,
+    item: &gtk::ListItem,
+    context: &Rc<RefCell<BrowserFeedContext>>,
+    dispatcher: &AppDispatcher,
+) {
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+    container.set_css_classes(&[]);
+    container.set_widget_name("");
+    container.set_margin_start(0);
+    container.set_margin_end(0);
+    container.set_margin_top(0);
+    container.set_margin_bottom(0);
+    let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+        return;
+    };
+    let feed_item = object.borrow::<BrowserFeedItem>().clone();
+    container.set_margin_start(18);
+    container.set_margin_end(18);
+    match feed_item {
+        BrowserFeedItem::Hero => {
+            container.set_margin_top(18);
+            container.set_margin_bottom(2);
+            let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            hero.set_widget_name("browser-category-hero");
+            hero.add_css_class("category-hero");
+            render_category_hero(
+                &hero,
+                &context.borrow().sidebar,
+                context.borrow().selected_category,
+                Some(dispatcher),
+            );
+            container.append(&hero);
+        }
+        BrowserFeedItem::FavoritesHeading => {
+            container.set_margin_top(12);
+            container.set_margin_bottom(2);
+            container.append(&favorites_heading());
+        }
+        BrowserFeedItem::Favorite(note) => {
+            let context = context.borrow().clone();
+            container.set_widget_name(&format!("favorite-note:{}", note.id));
+            container.set_css_classes(&["card", "activatable", "note-card"]);
+            container.set_margin_top(6);
+            container.set_margin_bottom(6);
+            populate_note_card(container, &note, &context, Some(dispatcher));
+        }
+        BrowserFeedItem::SearchEmpty => {
+            container.set_margin_top(12);
+            container.append(&build_search_empty_card());
+        }
+        BrowserFeedItem::CategoryEmpty => {
+            container.set_margin_top(12);
+            let (card, new_note) = build_category_empty_card();
+            card.set_visible(true);
+            connect_new_note_action(dispatcher, &new_note);
+            container.append(&card);
+        }
+        BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
+        BrowserFeedItem::Note(note) => {
+            let context = context.borrow().clone();
+            container.set_widget_name(&format!("note:{}", note.id));
+            container.set_css_classes(&["card", "activatable", "note-card"]);
+            // All feed entries share the same horizontal reading measure.
+            container.set_margin_top(6);
+            container.set_margin_bottom(6);
+            populate_note_card(container, &note, &context, Some(dispatcher));
+        }
+        BrowserFeedItem::LoadMore { label, sensitive } => {
+            container.set_margin_top(8);
+            container.set_margin_bottom(18);
+            let button = gtk::Button::with_label(&label);
+            button.set_widget_name("browser-load-more");
+            button.add_css_class("flat");
+            button.set_halign(gtk::Align::Center);
+            button.set_sensitive(sensitive);
+            let dispatcher = dispatcher.clone();
+            button.connect_clicked(move |_| {
+                let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
+            });
+            container.append(&button);
+        }
+    }
 }
 
 fn favorites_heading() -> gtk::Widget {

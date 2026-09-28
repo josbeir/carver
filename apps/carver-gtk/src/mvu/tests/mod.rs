@@ -13,8 +13,8 @@ use super::{
     ActionKey, ActionMsg, AppDispatcher, AppModel, AppMsg, AppRuntime, BasesMsg, BrowserMsg,
     EditorCopyScope, EditorExportFormat, EditorMsg, EditorSaveRequest, EditorSaveState,
     EditorSessionId, Effect, FrontmatterEdit, LibraryReply, LoadState, MoveUndo, NavigationMsg,
-    PreferencesMsg, RequestId, Route, SidebarMsg, SourceCommand, SourceImageTarget, TimerId,
-    TrashMsg, TrashMutation, UiError, WindowMsg, update,
+    NoteOpenIntent, PreferencesMsg, RequestId, Route, SidebarMsg, SourceCommand, SourceImageTarget,
+    TabOrigin, TimerId, TrashMsg, TrashMutation, UiError, WindowMsg, update,
 };
 
 mod bases;

@@ -66,6 +66,13 @@ static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
     ]
 });
 
+static TAB_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
+    vec![Shortcut {
+        title: gettext("Close tab"),
+        accelerator: "<Control>w",
+    }]
+});
+
 static BROWSER_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
     vec![Shortcut {
         title: gettext("Search notes"),
@@ -190,6 +197,10 @@ static SHORTCUT_SECTIONS: LazyLock<Vec<ShortcutSection>> = LazyLock::new(|| {
             shortcuts: NOTES_SHORTCUTS.as_slice(),
         },
         ShortcutSection {
+            title: gettext("Tabs"),
+            shortcuts: TAB_SHORTCUTS.as_slice(),
+        },
+        ShortcutSection {
             title: gettext("Browser"),
             shortcuts: BROWSER_SHORTCUTS.as_slice(),
         },
@@ -269,7 +280,16 @@ fn install_note_actions(
     let dispatcher_for_new_note = dispatcher.clone();
     let runtime_for_new_note = runtime.clone();
     new_note.connect_activate(move |_, _| {
-        if runtime_for_new_note.model().route == Route::Browser {
+        // Match the tab bar's new-note affordance: browsing, or an editor opened from it.
+        let allowed = {
+            let model = runtime_for_new_note.model();
+            match model.route {
+                Route::Browser => true,
+                Route::Editor => model.editor_return_route == Route::Browser,
+                Route::Base | Route::Trash => false,
+            }
+        };
+        if allowed {
             let _ = dispatcher_for_new_note.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
         }
     });
@@ -551,6 +571,7 @@ fn show_preferences_dialog(
     let editor_page = preferences_page("editor", &gettext("Editor"), "document-edit-symbolic");
     editor_page.add(&controls_group);
     editor_page.add(&previews_group);
+    editor_page.add(&tabs_preferences_group(dispatcher, config));
     dialog.add(&editor_page);
 
     let appearance_page = preferences_page(
@@ -637,6 +658,38 @@ fn document_preferences_group(
         &width,
         &reset,
     );
+    group
+}
+
+fn tabs_preferences_group(
+    dispatcher: &AppDispatcher,
+    config: &carver_config::Config,
+) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title(&gettext("Tabs"));
+    let open = adw::ComboRow::new();
+    open.set_widget_name("note-open-behavior-setting");
+    open.set_title(&gettext("Open notes in"));
+    open.set_subtitle(&gettext(
+        "Hold Ctrl and click a note to open it in a background tab.",
+    ));
+    let options = gtk::StringList::new(&[&gettext("New tab"), &gettext("Current tab")]);
+    open.set_model(Some(&options));
+    open.set_selected(match config.editor.note_open_behavior {
+        carver_config::NoteOpenBehavior::NewTab => 0,
+        carver_config::NoteOpenBehavior::CurrentTab => 1,
+    });
+    group.add(&open);
+    let dispatcher = dispatcher.clone();
+    open.connect_selected_notify(move |row| {
+        let behavior = match row.selected() {
+            1 => carver_config::NoteOpenBehavior::CurrentTab,
+            _ => carver_config::NoteOpenBehavior::NewTab,
+        };
+        let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetNoteOpenBehavior(
+            behavior,
+        )));
+    });
     group
 }
 

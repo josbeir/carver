@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 17:28+0200\n"
+"POT-Creation-Date: 2026-09-28 19:22+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -46,6 +46,7 @@ msgid "Categories"
 msgstr "Catégories"
 
 #: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "Notes"
 
@@ -67,7 +68,7 @@ msgstr "Catégorie"
 msgid "Create"
 msgstr "Créer"
 
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
 msgid "Base"
 msgstr "Base"
 
@@ -75,6 +76,15 @@ msgstr "Base"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
 msgstr "Catégorie"
+
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close note tabs opened from this Base"
+msgstr "Fermer les onglets de notes ouverts depuis cette base"
+
+#. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close tabs"
+msgstr "Fermer les onglets"
 
 #: apps/carver-gtk/src/ui/bases.rs
 msgid "Configure"
@@ -668,6 +678,10 @@ msgid "Close search"
 msgstr "Fermer la recherche"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close tab"
+msgstr "Fermer l’onglet"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Codex"
 msgstr "Codex"
 
@@ -699,6 +713,10 @@ msgstr "Impossible de lire le fichier sélectionné."
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Current"
 msgstr "Actuelle"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current tab"
+msgstr "Onglet actuel"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
@@ -791,6 +809,10 @@ msgid "Highlight current line"
 msgstr "Surligner la ligne actuelle"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Hold Ctrl and click a note to open it in a background tab."
+msgstr "Maintenez Ctrl et cliquez sur une note pour l’ouvrir dans un onglet en arrière-plan."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Home"
 msgstr "Maison"
 
@@ -874,6 +896,10 @@ msgid "New note properties"
 msgstr "Propriétés des nouvelles notes"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New tab"
+msgstr "Nouvel onglet"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "Résultat suivant"
 
@@ -905,6 +931,10 @@ msgstr "Désactivé"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Olive"
 msgstr "Olive"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Open notes in"
+msgstr "Ouvrir les notes dans"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "OpenAI's coding agent"
@@ -1047,6 +1077,10 @@ msgstr "Style de syntaxe"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "TOML"
 msgstr "TOML"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tabs"
+msgstr "Onglets"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Tag"
@@ -1618,6 +1652,7 @@ msgid "Show Categories"
 msgstr "Afficher les catégories"
 
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "Corbeille"
 
@@ -1731,6 +1766,11 @@ msgstr "Note"
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "Notes"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Opened from {context}"
+msgstr "Ouvert depuis {context}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Refreshing this base."

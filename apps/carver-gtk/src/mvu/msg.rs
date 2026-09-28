@@ -189,7 +189,12 @@ pub enum NavigationMsg {
     /// Show notes for a category, or all notes when absent.
     SelectCategory(Option<CategoryId>),
     /// Load a note into the editor.
-    OpenNote(NoteId),
+    OpenNote {
+        /// Note to open.
+        note_id: NoteId,
+        /// How the note should be opened in the workspace tabs.
+        intent: NoteOpenIntent,
+    },
     /// Load a note into the editor and open its export options.
     ExportNote(NoteId),
     /// Create a note in the selected category, or the first active category.
@@ -252,20 +257,34 @@ pub enum TrashMsg {
     Empty,
 }
 
+/// How a note should be opened in the workspace tabs.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum NoteOpenIntent {
+    /// Follow the configured default (new tab or current tab).
+    #[default]
+    Default,
+    /// Open in a background tab without switching to it.
+    Background,
+    /// Force a new foreground tab, regardless of the configured default.
+    NewTab,
+}
+
 /// Workspace tab intent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TabsMsg {
-    /// Open a note in a new tab, or focus its existing tab.
+    /// Open a note in a tab, or focus its existing tab.
     OpenNote {
         /// Note to open.
         note_id: NoteId,
-        /// Whether the tab opens in the background instead of becoming active.
-        background: bool,
+        /// How the note should be opened.
+        intent: NoteOpenIntent,
     },
     /// Make one note tab active.
     Activate(super::TabId),
     /// Close one note tab.
     Close(super::TabId),
+    /// Close the currently selected note tab, if any.
+    CloseActive,
     /// Apply a user-driven tab reorder.
     Reordered {
         /// Tab that moved.
@@ -273,6 +292,8 @@ pub enum TabsMsg {
         /// New zero-based position.
         position: usize,
     },
+    /// Close every note tab opened from one surface.
+    CloseOrigin(super::TabOrigin),
     /// Show the pinned Notes tab.
     ActivateNotes,
 }
@@ -617,6 +638,8 @@ pub enum PreferencesMsg {
     SetDocumentWidth(DocumentWidth),
     /// Set the document-sidebar page restored for every note.
     SetDocumentSidebarPage(carver_config::DocumentSidebarPage),
+    /// Set where activating a note opens it.
+    SetNoteOpenBehavior(carver_config::NoteOpenBehavior),
     /// Whether new notes are seeded with the configured default properties.
     SetDocumentPropertiesEnabled(bool),
     /// Whether the editor shows the floating document-properties button.
@@ -860,6 +883,13 @@ pub enum LibraryReply {
         action: ActionKey,
         /// Successful result or a displayable failure.
         result: Result<(), UiError>,
+    },
+    /// A note move that reconciles any open editor document for the note.
+    NoteMoved {
+        /// Identity of the mutation admitted by the reducer.
+        action: ActionKey,
+        /// Moved note or a displayable failure.
+        result: Result<carver_sdk::Note, UiError>,
     },
     /// Sidebar categories completed loading.
     SidebarLoaded {

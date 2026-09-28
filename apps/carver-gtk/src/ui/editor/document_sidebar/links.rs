@@ -32,9 +32,13 @@ pub(super) fn render_group(
             .activatable(true)
             .build();
         let note_id = note.id;
+        crate::ui::intent::connect_modified_note_open(&row, dispatcher, note_id);
         let dispatcher = dispatcher.clone();
         row.connect_activated(move |_| {
-            let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+            let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+                note_id,
+                intent: crate::mvu::NoteOpenIntent::Default,
+            }));
         });
         group.add(&row);
         rows.push(row);

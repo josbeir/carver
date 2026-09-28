@@ -51,7 +51,7 @@ fn opening_an_already_open_note_should_focus_its_tab() {
         &mut model,
         AppMsg::Tabs(TabsMsg::OpenNote {
             note_id: first,
-            background: false,
+            intent: NoteOpenIntent::Default,
         }),
     );
 
@@ -79,7 +79,7 @@ fn opening_a_note_in_the_background_should_keep_the_active_tab() {
         &mut model,
         AppMsg::Tabs(TabsMsg::OpenNote {
             note_id: second,
-            background: true,
+            intent: NoteOpenIntent::Background,
         }),
     );
     let (request_id, second_tab) = match effects.as_slice() {
@@ -216,7 +216,7 @@ fn open_and_load(model: &mut AppModel, note_id: NoteId) -> crate::mvu::TabId {
         model,
         AppMsg::Tabs(TabsMsg::OpenNote {
             note_id,
-            background: false,
+            intent: NoteOpenIntent::Default,
         }),
     );
     let (request_id, tab_id) = match effects.as_slice() {
@@ -315,4 +315,201 @@ fn closing_a_tab_should_drop_it_from_the_back_history() {
     assert_eq!(model.active_tab, None);
     assert_eq!(model.note_tabs.len(), 1);
     assert_eq!(model.note_tabs[0].id, second_tab);
+}
+
+#[test]
+fn default_intent_should_reuse_the_active_tab_when_configured() {
+    let mut config = Config::default();
+    config.editor.note_open_behavior = carver_config::NoteOpenBehavior::CurrentTab;
+    let mut model = AppModel::new(&config);
+    let first = NoteId::new();
+    let second = NoteId::new();
+    let _first_tab = open_and_load(&mut model, first);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: second,
+            intent: NoteOpenIntent::Default,
+        }),
+    );
+
+    // Replacing the active tab leaves a single tab showing the new note.
+    assert_eq!(model.note_tabs.len(), 1);
+    assert_eq!(model.note_tabs[0].note_id, second);
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadEditorNote { .. }))
+    );
+}
+
+#[test]
+fn default_intent_should_reuse_the_last_active_tab_from_the_notes_list() {
+    let mut config = Config::default();
+    config.editor.note_open_behavior = carver_config::NoteOpenBehavior::CurrentTab;
+    let mut model = AppModel::new(&config);
+    let first = NoteId::new();
+    let second = NoteId::new();
+    let first_tab = open_and_load(&mut model, first);
+    // Show the Notes list; the tab is remembered as the last active one.
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNotes));
+    assert_eq!(model.active_tab, None);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: second,
+            intent: NoteOpenIntent::Default,
+        }),
+    );
+
+    assert!(!model.note_tabs.iter().any(|tab| tab.id == first_tab));
+    assert_eq!(model.note_tabs.len(), 1);
+    assert_eq!(model.note_tabs[0].note_id, second);
+}
+
+#[test]
+fn forced_new_tab_intent_should_ignore_the_current_tab_preference() {
+    let mut config = Config::default();
+    config.editor.note_open_behavior = carver_config::NoteOpenBehavior::CurrentTab;
+    let mut model = AppModel::new(&config);
+    let first = NoteId::new();
+    let second = NoteId::new();
+    let first_tab = open_and_load(&mut model, first);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: second,
+            intent: NoteOpenIntent::NewTab,
+        }),
+    );
+
+    assert_eq!(model.note_tabs.len(), 2);
+    assert!(model.note_tabs.iter().any(|tab| tab.id == first_tab));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadEditorNote { .. }))
+    );
+}
+
+#[test]
+fn reactivating_a_note_tab_after_showing_notes_should_restore_the_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let note = NoteId::new();
+    let tab = open_and_load(&mut model, note);
+    // Showing the Notes list keeps the remembered active tab.
+    let _ = update(&mut model, AppMsg::Navigation(NavigationMsg::ShowBrowser));
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.active_tab, Some(tab));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: note,
+            intent: NoteOpenIntent::Default,
+        }),
+    );
+
+    assert_eq!(model.route, Route::Editor);
+    assert_eq!(model.active_tab, Some(tab));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::FocusEditor { .. }))
+    );
+}
+
+#[test]
+fn moving_an_open_note_should_rebase_its_document_revision() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _tab = open_and_load(&mut model, note_id);
+    let category_id = CategoryId::new();
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::NoteMoved {
+            action: ActionKey::MoveNote {
+                note_id,
+                source_category_id: CategoryId::new(),
+            },
+            result: Ok(Note {
+                id: note_id,
+                category_id,
+                source: String::from("# Note"),
+                title: String::from("Note"),
+                plain_text: String::from("Note"),
+                revision: Revision(2),
+                is_favorite: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    let document = model.editor.as_ref();
+    assert_eq!(
+        document.map(|document| document.revision),
+        Some(Revision(2))
+    );
+    assert_eq!(
+        document.map(|document| document.category_id),
+        Some(category_id)
+    );
+}
+
+#[test]
+fn closing_the_active_tab_message_should_close_it() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let second = open_and_load(&mut model, NoteId::new());
+    assert_eq!(model.active_tab, Some(second));
+
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::CloseActive));
+
+    assert!(model.note_tab(second).is_none());
+    assert!(model.note_tab(first).is_some());
+}
+
+#[test]
+fn opening_a_note_from_a_base_should_attribute_the_tab_to_that_base() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    let note_id = NoteId::new();
+
+    let tab_id = open_and_load(&mut model, note_id);
+
+    assert_eq!(
+        model.note_tab(tab_id).map(|tab| tab.origin),
+        Some(TabOrigin::Base(base_id))
+    );
+}
+
+#[test]
+fn closing_tabs_from_a_base_should_keep_tabs_from_other_surfaces() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Browser;
+    let browser_tab = open_and_load(&mut model, NoteId::new());
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    let base_tab = open_and_load(&mut model, NoteId::new());
+    assert_eq!(
+        model.note_tab(base_tab).map(|tab| tab.origin),
+        Some(TabOrigin::Base(base_id))
+    );
+
+    let _ = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::CloseOrigin(TabOrigin::Base(base_id))),
+    );
+
+    assert!(model.note_tab(base_tab).is_none());
+    assert!(model.note_tab(browser_tab).is_some());
 }

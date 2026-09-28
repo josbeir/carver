@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 17:28+0200\n"
+"POT-Creation-Date: 2026-09-28 19:22+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -50,6 +50,7 @@ msgid "Categories"
 msgstr ""
 
 #: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr ""
 
@@ -71,13 +72,22 @@ msgstr ""
 msgid "Create"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
 msgid "Base"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close note tabs opened from this Base"
+msgstr ""
+
+#. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close tabs"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases.rs
@@ -674,6 +684,10 @@ msgid "Close search"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close tab"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Codex"
 msgstr ""
 
@@ -704,6 +718,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Current"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current tab"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -797,6 +815,10 @@ msgid "Highlight current line"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Hold Ctrl and click a note to open it in a background tab."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Home"
 msgstr ""
 
@@ -880,6 +902,10 @@ msgid "New note properties"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New tab"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr ""
 
@@ -912,6 +938,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Olive"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Open notes in"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -1056,6 +1086,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "TOML"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tabs"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -1629,6 +1663,7 @@ msgid "Show Categories"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr ""
 
@@ -1745,6 +1780,11 @@ msgstr ""
 #: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"
 msgid "Notes"
+msgstr ""
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Opened from {context}"
 msgstr ""
 
 #: apps/carver-gtk/src/view/mod.rs

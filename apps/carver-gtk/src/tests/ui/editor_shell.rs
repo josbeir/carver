@@ -82,14 +82,12 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
 
 pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
     fixture: &WindowFixture,
+    note: &carver_sdk::NoteSummary,
 ) -> TestResult {
     let window = fixture.window.clone();
     let root = fixture.root()?;
-    // The editor may remain open in a background tab; bring it to the front.
-    let note_list = fixture.note_list()?;
-    let note_id = first_note_id(&note_list).ok_or("note in list")?;
-    assert!(activate_browser_note(&note_list, note_id));
-    assert!(run_main_context_until(|| note_tab_is_active(&root)));
+    // Editor lookups follow the active tab; keep the scenario's note in front.
+    fixture.activate_note(note.id)?;
     let editor_stack = fixture.editor_mode_stack()?;
     window.set_default_size(360, 640);
     let responsive_editor = widget_as::<adw::BreakpointBin>(&root, "editor-responsive-container")

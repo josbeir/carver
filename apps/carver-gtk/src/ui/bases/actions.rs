@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId};
+use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId, TabOrigin, TabsMsg};
 use carver_config::DocumentProperty;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
@@ -62,6 +62,30 @@ pub(crate) fn render_delete(
     }
     group.add_action(&action);
     button.insert_action_group("base", Some(&group));
+}
+
+/// Shows and wires the context-scoped "Close tabs" action for one Base.
+pub(crate) fn render_close_tabs(
+    button: &gtk::Button,
+    base: Option<&BaseDefinition>,
+    has_tabs: bool,
+    dispatcher: &AppDispatcher,
+) {
+    let group = gtk::gio::SimpleActionGroup::new();
+    let action = gtk::gio::SimpleAction::new("close-tabs", None);
+    let active = base.is_some() && has_tabs;
+    action.set_enabled(active);
+    if let Some(base) = base {
+        let base_id = base.id;
+        let dispatcher = dispatcher.clone();
+        action.connect_activate(move |_, _| {
+            let _ =
+                dispatcher.dispatch(AppMsg::Tabs(TabsMsg::CloseOrigin(TabOrigin::Base(base_id))));
+        });
+    }
+    group.add_action(&action);
+    button.insert_action_group("base", Some(&group));
+    button.set_visible(active);
 }
 
 struct FilterWidgets {

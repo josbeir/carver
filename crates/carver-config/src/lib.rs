@@ -196,6 +196,9 @@ pub struct EditorConfig {
     /// Document-sidebar page restored for every note.
     #[serde(default)]
     pub document_sidebar_page: DocumentSidebarPage,
+    /// Where activating a note opens it.
+    #[serde(default)]
+    pub note_open_behavior: NoteOpenBehavior,
 }
 
 const fn default_document_line_height_percent() -> u16 {
@@ -248,6 +251,17 @@ pub enum DocumentSidebarPage {
     Media,
     /// Outgoing note links and backlinks.
     Links,
+}
+
+/// Where activating a note opens it.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NoteOpenBehavior {
+    /// Open or focus a dedicated note tab.
+    #[default]
+    NewTab,
+    /// Replace the active note tab when one is open.
+    CurrentTab,
 }
 
 /// Visual density of Carve syntax highlighting in the source editor.
@@ -559,6 +573,7 @@ impl Default for EditorConfig {
             document_line_height_percent: default_document_line_height_percent(),
             document_width: DocumentWidth::default(),
             document_sidebar_page: DocumentSidebarPage::default(),
+            note_open_behavior: NoteOpenBehavior::default(),
         }
     }
 }

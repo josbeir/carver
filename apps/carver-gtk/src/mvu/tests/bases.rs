@@ -660,7 +660,10 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
 
     let _ = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     );
     let _ = update(
         &mut model,

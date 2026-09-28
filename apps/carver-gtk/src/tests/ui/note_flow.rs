@@ -80,6 +80,55 @@ pub(super) fn note_should_delete_restore_and_favorite_from_shortcuts(
                 .flatten()
                 .is_some_and(|saved| saved.is_favorite)
     }));
+    // Ctrl+N creates a note from the editor, and Ctrl+W closes the active tab.
+    tab_shortcuts_should_create_and_close_tabs(fixture, note, &editor_shortcuts)?;
     window.close();
+    Ok(())
+}
+
+/// Exercises the editor's tab shortcuts against the shared window.
+fn tab_shortcuts_should_create_and_close_tabs(
+    fixture: &WindowFixture,
+    note: &carver_sdk::NoteSummary,
+    editor_shortcuts: &gtk::EventControllerKey,
+) -> TestResult {
+    let root = fixture.root()?;
+    let sidebar = fixture.sidebar()?;
+    let note_list = fixture.note_list()?;
+    let route_stack = fixture.route_stack()?;
+    let tabs = widget_as::<adw::TabView>(&root, "workspace-tabs").ok_or("tabs")?;
+    // The note was moved out of the category the browser was showing.
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+    }));
+    assert!(run_main_context_until(|| activate_browser_note(
+        &note_list, note.id
+    )));
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
+
+    let pages_before = tabs.n_pages();
+    assert!(editor_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::n,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK
+        ],
+    ));
+    assert!(run_main_context_until(|| tabs.n_pages() == pages_before + 1));
+
+    let pages_with_new = tabs.n_pages();
+    assert!(editor_shortcuts.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::w,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK
+        ],
+    ));
+    assert!(run_main_context_until(|| {
+        tabs.n_pages() == pages_with_new - 1
+    }));
     Ok(())
 }

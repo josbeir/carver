@@ -150,7 +150,10 @@ fn opened_note_should_request_editor_focus() {
     let category_id = CategoryId::new();
     let (request_id, tab_id) = match update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     )
     .as_slice()
     {

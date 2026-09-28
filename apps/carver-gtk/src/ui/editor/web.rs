@@ -428,8 +428,11 @@ impl RichEditor {
                 }
                 EditorEvent::OpenLink { session, href } if session == editor.session.get() => {
                     if let Some(note_id) = carver_domain::parse_note_link_destination(&href) {
-                        let _ = dispatcher
-                            .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+                        // The rich editor emits this for modified clicks, so queue it.
+                        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+                            note_id,
+                            intent: crate::mvu::NoteOpenIntent::Background,
+                        }));
                     } else if super::preview::is_external_link(&href) {
                         let toast_overlay = toast_overlay.clone();
                         gtk::gio::AppInfo::launch_default_for_uri_async(

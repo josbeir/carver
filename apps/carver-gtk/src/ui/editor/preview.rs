@@ -128,7 +128,10 @@ fn connect_link_handler(
 
         if let Some(note_id) = carver_domain::parse_note_link_destination(uri.as_str()) {
             decision.ignore();
-            let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+            let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+                note_id,
+                intent: crate::mvu::NoteOpenIntent::Default,
+            }));
             return true;
         }
 

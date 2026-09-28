@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 17:28+0200\n"
+"POT-Creation-Date: 2026-09-28 19:22+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -46,6 +46,7 @@ msgid "Categories"
 msgstr "分类"
 
 #: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "笔记"
 
@@ -67,7 +68,7 @@ msgstr "分类"
 msgid "Create"
 msgstr "创建"
 
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
 msgid "Base"
 msgstr "视图库"
 
@@ -75,6 +76,15 @@ msgstr "视图库"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
 msgstr "分类"
+
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close note tabs opened from this Base"
+msgstr "关闭从此视图库打开的笔记标签页"
+
+#. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close tabs"
+msgstr "关闭标签页"
 
 #: apps/carver-gtk/src/ui/bases.rs
 msgid "Configure"
@@ -662,6 +672,10 @@ msgid "Close search"
 msgstr "关闭搜索"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close tab"
+msgstr "关闭标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Codex"
 msgstr "Codex"
 
@@ -693,6 +707,10 @@ msgstr "无法读取所选文件。"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Current"
 msgstr "当前"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current tab"
+msgstr "当前标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
@@ -785,6 +803,10 @@ msgid "Highlight current line"
 msgstr "高亮当前行"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Hold Ctrl and click a note to open it in a background tab."
+msgstr "按住 Ctrl 并点击笔记，可在后台标签页中打开。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Home"
 msgstr "主页"
 
@@ -868,6 +890,10 @@ msgid "New note properties"
 msgstr "新笔记属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New tab"
+msgstr "新标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "下一个结果"
 
@@ -899,6 +925,10 @@ msgstr "关闭"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Olive"
 msgstr "橄榄"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Open notes in"
+msgstr "打开笔记的位置"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "OpenAI's coding agent"
@@ -1041,6 +1071,10 @@ msgstr "语法样式"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "TOML"
 msgstr "TOML"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tabs"
+msgstr "标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Tag"
@@ -1610,6 +1644,7 @@ msgid "Show Categories"
 msgstr "显示分类"
 
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "回收站"
 
@@ -1723,6 +1758,11 @@ msgstr "笔记"
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "笔记"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Opened from {context}"
+msgstr "打开自 {context}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Refreshing this base."

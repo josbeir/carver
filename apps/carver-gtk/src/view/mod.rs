@@ -44,6 +44,7 @@ pub(crate) struct Workspace {
     syncing: Rc<Cell<bool>>,
     closing: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
     attached_bar_parent: RefCell<Option<gtk::Widget>>,
+    pinned_identity: RefCell<Option<(String, &'static str)>>,
 }
 
 impl Workspace {
@@ -64,6 +65,7 @@ impl Workspace {
             syncing: Rc::new(Cell::new(false)),
             closing: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
             attached_bar_parent: RefCell::new(None),
+            pinned_identity: RefCell::new(None),
         }
     }
 
@@ -191,13 +193,6 @@ impl Workspace {
             pages_for_destroy.borrow_mut().clear();
             editors_for_destroy.borrow_mut().clear();
         });
-        // Tear down embedded WebKit editors while the display is still alive.
-        let pages_for_unrealize = Rc::clone(&self.pages);
-        let editors_for_unrealize = Rc::clone(&self.editors);
-        self.tab_view.connect_unrealize(move |_| {
-            pages_for_unrealize.borrow_mut().clear();
-            editors_for_unrealize.borrow_mut().clear();
-        });
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -253,6 +248,115 @@ fn tab_display_title(tab: &crate::mvu::NoteTab) -> String {
     } else {
         tab.title.clone()
     }
+}
+
+/// The name shown for a tab origin, used to attribute note tabs to their surface.
+fn tab_origin_label(model: &AppModel, origin: crate::mvu::TabOrigin) -> String {
+    match origin {
+        crate::mvu::TabOrigin::Browser => gettext("Notes"),
+        crate::mvu::TabOrigin::Base(base_id) => base_display_name(model, base_id),
+    }
+}
+
+/// The saved name of a Base, or a generic label while it is still loading.
+fn base_display_name(model: &AppModel, base_id: carver_sdk::BaseId) -> String {
+    if let LoadState::Ready(definitions) = &model.bases.definitions.state
+        && let Some(base) = definitions.iter().find(|base| base.id == base_id)
+    {
+        return base.name.clone();
+    }
+    gettext("Base")
+}
+
+/// Title and icon for the pinned root tab, following the surface it hosts.
+fn pinned_tab_identity(model: &AppModel) -> (String, &'static str) {
+    let route = match model.route {
+        Route::Editor => model.editor_return_route,
+        route => route,
+    };
+    match route {
+        Route::Base => (
+            model.bases.selected.map_or_else(
+                || gettext("Base"),
+                |base_id| base_display_name(model, base_id),
+            ),
+            "carver-database-symbolic",
+        ),
+        Route::Trash => (gettext("Trash"), "user-trash-symbolic"),
+        Route::Browser | Route::Editor => (gettext("Notes"), "view-list-symbolic"),
+    }
+}
+
+/// Reflects the surface hosted by the pinned root tab in its title and icon.
+fn sync_pinned_tab(workspace: &Workspace, model: &AppModel) {
+    let identity = pinned_tab_identity(model);
+    if workspace.pinned_identity.borrow().as_ref() != Some(&identity) {
+        workspace.notes_page.set_title(&identity.0);
+        workspace
+            .notes_page
+            .set_icon(Some(&gtk::gio::ThemedIcon::new(identity.1)));
+        workspace.pinned_identity.replace(Some(identity));
+    }
+}
+
+/// Creates missing note pages and refreshes titles, loading state, and tooltips.
+fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
+    for tab in &model.note_tabs {
+        if workspace.pages.borrow().contains_key(&tab.id) {
+            continue;
+        }
+        match (workspace.factory)() {
+            Ok((widget, refs)) => {
+                let page = workspace.tab_view.append(&widget);
+                page.set_title(&tab_display_title(tab));
+                page.set_loading(tab.loading);
+                workspace.pages.borrow_mut().insert(tab.id, page);
+                workspace.editors.borrow_mut().insert(tab.id, Rc::new(refs));
+            }
+            Err(error) => {
+                eprintln!("Carver could not build an editor tab: {error}");
+            }
+        }
+    }
+    for tab in &model.note_tabs {
+        if let Some(page) = workspace.pages.borrow().get(&tab.id) {
+            let title = tab_display_title(tab);
+            if page.title() != title.as_str() {
+                page.set_title(&title);
+            }
+            page.set_loading(tab.loading);
+            let context = tab_origin_label(model, tab.origin);
+            page.set_tooltip(&tr_fmt!(
+                gettext("Opened from {context}"),
+                context = context
+            ));
+        }
+    }
+}
+
+/// Renders the Base header actions, including the context-scoped tab cleanup.
+fn render_base_header_actions(
+    model: &AppModel,
+    refs: &crate::ui::bases::BaseViewRefs,
+    base_id: carver_sdk::BaseId,
+    definition: Option<&carver_sdk::BaseDefinition>,
+    dispatcher: &AppDispatcher,
+) {
+    crate::ui::bases::actions::render_delete(
+        &refs.delete,
+        definition.filter(|base| !model.bases.deleting.contains(&base.id)),
+        dispatcher,
+    );
+    let has_tabs = model
+        .note_tabs
+        .iter()
+        .any(|tab| tab.origin == crate::mvu::TabOrigin::Base(base_id));
+    crate::ui::bases::actions::render_close_tabs(
+        &refs.close_tabs,
+        definition,
+        has_tabs,
+        dispatcher,
+    );
 }
 
 /// Finds the toolbar view that owns a surface so the tab bar can sit below its header.
@@ -496,6 +600,9 @@ impl ViewRefs {
             action.set_visible(show_new_note);
         }
 
+        // The pinned root tab reflects the surface it currently hosts.
+        sync_pinned_tab(workspace, model);
+
         let stale: Vec<crate::mvu::TabId> = workspace
             .pages
             .borrow()
@@ -515,33 +622,7 @@ impl ViewRefs {
             }
         }
 
-        for tab in &model.note_tabs {
-            if workspace.pages.borrow().contains_key(&tab.id) {
-                continue;
-            }
-            match (workspace.factory)() {
-                Ok((widget, refs)) => {
-                    let page = workspace.tab_view.append(&widget);
-                    page.set_title(&tab_display_title(tab));
-                    page.set_loading(tab.loading);
-                    workspace.pages.borrow_mut().insert(tab.id, page);
-                    workspace.editors.borrow_mut().insert(tab.id, Rc::new(refs));
-                }
-                Err(error) => {
-                    eprintln!("Carver could not build an editor tab: {error}");
-                }
-            }
-        }
-
-        for tab in &model.note_tabs {
-            if let Some(page) = workspace.pages.borrow().get(&tab.id) {
-                let title = tab_display_title(tab);
-                if page.title() != title.as_str() {
-                    page.set_title(&title);
-                }
-                page.set_loading(tab.loading);
-            }
-        }
+        sync_note_tabs(workspace, model);
 
         let selected = match model.route {
             Route::Editor => model
@@ -626,6 +707,7 @@ impl ViewRefs {
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
             crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
             crate::ui::bases::actions::render_configure(&refs.configure, None, dispatcher);
+            crate::ui::bases::actions::render_close_tabs(&refs.close_tabs, None, false, dispatcher);
             refs.grid.set_sensitive(false);
             if let LoadState::Failed(error) = &model.bases.definitions.state {
                 crate::ui::bases::render_base_status(
@@ -648,11 +730,7 @@ impl ViewRefs {
             return;
         };
         let definition = definitions.iter().find(|base| base.id == base_id);
-        crate::ui::bases::actions::render_delete(
-            &refs.delete,
-            definition.filter(|base| !model.bases.deleting.contains(&base.id)),
-            dispatcher,
-        );
+        render_base_header_actions(model, refs, base_id, definition, dispatcher);
         let rows = match &model.bases.rows.state {
             LoadState::Ready(rows) => rows,
             LoadState::Failed(error) => {

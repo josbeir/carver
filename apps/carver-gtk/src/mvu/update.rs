@@ -24,11 +24,17 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Navigation(NavigationMsg::SelectCategory(category_id)) => {
             select_category(model, category_id)
         }
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
-            open_note_tab(model, note_id, false, false)
+        AppMsg::Navigation(NavigationMsg::OpenNote { note_id, intent }) => {
+            open_note_tab(model, note_id, intent)
         }
         AppMsg::Navigation(NavigationMsg::ExportNote(note_id)) => {
-            open_note_tab(model, note_id, false, true)
+            if let Some(tab_id) = model.note_tab_for_note(note_id) {
+                let mut effects = activate_tab(model, tab_id);
+                effects.extend(request_editor_export_dialog(model));
+                effects
+            } else {
+                create_note_tab(model, note_id, current_tab_origin(model), false, true)
+            }
         }
         AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
@@ -429,20 +435,81 @@ fn resume_editor_refresh(model: &mut AppModel, effects: &mut Vec<Effect>) {
     }
 }
 
-/// Opens a note in a tab, focusing its existing tab when the note is already open.
+/// Opens a note according to the requested intent and the configured default.
 fn open_note_tab(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
+    intent: super::NoteOpenIntent,
+) -> Vec<Effect> {
+    // Focus an already open note unless a background open was requested.
+    if let Some(tab_id) = model.note_tab_for_note(note_id) {
+        return match intent {
+            super::NoteOpenIntent::Background => Vec::new(),
+            super::NoteOpenIntent::Default | super::NoteOpenIntent::NewTab => {
+                activate_tab(model, tab_id)
+            }
+        };
+    }
+    let origin = current_tab_origin(model);
+    if matches!(intent, super::NoteOpenIntent::Background) {
+        return create_note_tab(model, note_id, origin, true, false);
+    }
+    // The preference applies to a plain open; a forced new tab always wins.
+    if matches!(intent, super::NoteOpenIntent::Default)
+        && model.config.editor.note_open_behavior == carver_config::NoteOpenBehavior::CurrentTab
+        && let Some(tab_id) = reusable_note_tab(model)
+    {
+        // Closing saves a dirty note in the background and removes its tab.
+        let mut effects = close_tab(model, tab_id);
+        effects.extend(create_note_tab(model, note_id, origin, false, false));
+        return effects;
+    }
+    create_note_tab(model, note_id, origin, false, false)
+}
+
+/// The tab a "Current tab" open should replace.
+///
+/// Prefers the active note tab, then the most recently active one remembered
+/// while the Notes list was showing, then the newest open note tab.
+fn reusable_note_tab(model: &AppModel) -> Option<super::TabId> {
+    model
+        .active_tab
+        .filter(|tab_id| model.note_tab(*tab_id).is_some())
+        .or_else(|| {
+            model
+                .last_active_tab
+                .filter(|tab_id| model.note_tab(*tab_id).is_some())
+        })
+        .or_else(|| model.note_tabs.last().map(|tab| tab.id))
+}
+
+/// The surface a newly opened note tab belongs to.
+///
+/// Links and backlinks inherit the current editor's origin so a note opened
+/// from a Base session stays attributed to that Base.
+fn current_tab_origin(model: &AppModel) -> super::TabOrigin {
+    if model.route == super::Route::Editor
+        && let Some(tab) = model.active_tab.and_then(|tab_id| model.note_tab(tab_id))
+    {
+        return tab.origin;
+    }
+    match model.route {
+        super::Route::Base => model
+            .bases
+            .selected
+            .map_or(super::TabOrigin::Browser, super::TabOrigin::Base),
+        _ => super::TabOrigin::Browser,
+    }
+}
+
+/// Creates a new note tab and loads the note into it.
+fn create_note_tab(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    origin: super::TabOrigin,
     background: bool,
     export_after_load: bool,
 ) -> Vec<Effect> {
-    if let Some(tab_id) = model.note_tab_for_note(note_id) {
-        return if background {
-            Vec::new()
-        } else {
-            activate_tab(model, tab_id)
-        };
-    }
     let tab_id = model.next_tab_id();
     model.note_tabs.push(super::NoteTab {
         id: tab_id,
@@ -450,6 +517,7 @@ fn open_note_tab(
         title: String::new(),
         is_favorite: false,
         loading: true,
+        origin,
     });
     if model.route != super::Route::Editor {
         model.editor_return_route = model.route;
@@ -465,6 +533,7 @@ fn open_note_tab(
     stash_active_document(model);
     record_tab_history(model);
     model.active_tab = Some(tab_id);
+    model.last_active_tab = Some(tab_id);
     model.editor = None;
     model.editor_preview = None;
     model.preview_timer = None;
@@ -484,6 +553,7 @@ fn open_note_as_active_tab(
     model: &mut AppModel,
     note: &carver_sdk::Note,
 ) -> super::EditorSessionId {
+    let origin = current_tab_origin(model);
     if model.route != super::Route::Editor {
         model.editor_return_route = model.route;
     }
@@ -495,6 +565,7 @@ fn open_note_as_active_tab(
         title: note.title.clone(),
         is_favorite: note.is_favorite,
         loading: false,
+        origin,
     });
     stash_active_document(model);
     let session = open_editor(
@@ -506,6 +577,7 @@ fn open_note_as_active_tab(
         note.source.clone(),
     );
     model.active_tab = Some(tab_id);
+    model.last_active_tab = Some(tab_id);
     model.route = super::Route::Editor;
     session
 }
@@ -534,16 +606,24 @@ fn record_tab_history(model: &mut AppModel) {
 
 /// Makes one note tab active, recording the previous tab.
 fn activate_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
-    if model.note_tab(tab_id).is_none() || model.active_tab == Some(tab_id) {
+    if model.note_tab(tab_id).is_none() || tab_is_active(model, tab_id) {
         return Vec::new();
     }
     record_tab_history(model);
     show_tab(model, tab_id)
 }
 
+/// Whether a note tab is both selected and actually showing the editor.
+///
+/// Showing the Notes list keeps `active_tab` as the tab to return to, so a
+/// matching `active_tab` alone must not suppress switching back to it.
+fn tab_is_active(model: &AppModel, tab_id: super::TabId) -> bool {
+    model.active_tab == Some(tab_id) && model.route == super::Route::Editor
+}
+
 /// Makes one note tab active without touching the back history.
 fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
-    if model.note_tab(tab_id).is_none() || model.active_tab == Some(tab_id) {
+    if model.note_tab(tab_id).is_none() || tab_is_active(model, tab_id) {
         return Vec::new();
     }
     if model.route != super::Route::Editor {
@@ -552,6 +632,7 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     stash_active_document(model);
     model.editor = model.background_documents.remove(&tab_id);
     model.active_tab = Some(tab_id);
+    model.last_active_tab = Some(tab_id);
     model.route = super::Route::Editor;
     model.editor_preview = None;
     model.preview_timer = None;
@@ -629,15 +710,32 @@ fn show_notes(model: &mut AppModel) -> Vec<Effect> {
 )]
 fn update_tabs(model: &mut AppModel, message: super::TabsMsg) -> Vec<Effect> {
     match message {
-        super::TabsMsg::OpenNote {
-            note_id,
-            background,
-        } => open_note_tab(model, note_id, background, false),
+        super::TabsMsg::OpenNote { note_id, intent } => open_note_tab(model, note_id, intent),
         super::TabsMsg::Activate(tab_id) => activate_tab(model, tab_id),
         super::TabsMsg::Close(tab_id) => close_tab(model, tab_id),
+        super::TabsMsg::CloseActive => {
+            let active = model.active_tab;
+            active.map_or_else(Vec::new, |tab_id| close_tab(model, tab_id))
+        }
         super::TabsMsg::Reordered { tab_id, position } => reorder_tab(model, tab_id, position),
+        super::TabsMsg::CloseOrigin(origin) => close_tabs_from_origin(model, origin),
         super::TabsMsg::ActivateNotes => activate_notes_tab(model),
     }
+}
+
+/// Closes every note tab opened from one surface, saving dirty notes in the background.
+fn close_tabs_from_origin(model: &mut AppModel, origin: super::TabOrigin) -> Vec<Effect> {
+    let tab_ids: Vec<super::TabId> = model
+        .note_tabs
+        .iter()
+        .filter(|tab| tab.origin == origin)
+        .map(|tab| tab.id)
+        .collect();
+    let mut effects = Vec::new();
+    for tab_id in tab_ids {
+        effects.extend(close_tab(model, tab_id));
+    }
+    effects
 }
 
 /// Closes one note tab immediately; a dirty document keeps saving in the background.
@@ -972,6 +1070,9 @@ fn update_preferences(model: &mut AppModel, preference: PreferencesMsg) -> Vec<E
         }
         PreferencesMsg::SetDocumentSidebarPage(page) => {
             model.config.editor.document_sidebar_page = page;
+        }
+        PreferencesMsg::SetNoteOpenBehavior(behavior) => {
+            model.config.editor.note_open_behavior = behavior;
         }
         PreferencesMsg::SetDocumentPropertiesEnabled(enabled) => {
             model.config.document_properties.enabled = enabled;
@@ -1411,6 +1512,7 @@ fn update_editor_load(
     if model.route != super::Route::Editor {
         model.editor_return_route = model.route;
     }
+    let origin = current_tab_origin(model);
     let tab_id = if let Some(tab_id) = model.note_tab_for_note(note_id) {
         tab_id
     } else {
@@ -1421,6 +1523,7 @@ fn update_editor_load(
             title: String::new(),
             is_favorite: false,
             loading: false,
+            origin,
         });
         tab_id
     };
@@ -1437,6 +1540,7 @@ fn update_editor_load(
         source,
     );
     model.active_tab = Some(tab_id);
+    model.last_active_tab = Some(tab_id);
     model.route = super::Route::Editor;
     if let Some(tab) = model.note_tab_mut(tab_id) {
         tab.loading = false;
@@ -2404,6 +2508,7 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                 }
             }
         }
+        LibraryReply::NoteMoved { action, result } => update_note_moved(model, action, result),
         LibraryReply::SidebarLoaded { request_id, result } => {
             reload_sidebar_after(model.sidebar.finish(request_id, result), model)
         }
@@ -2825,6 +2930,49 @@ fn update_favorite_changed(
             Vec::new()
         }
     }
+}
+
+fn update_note_moved(
+    model: &mut AppModel,
+    action: ActionKey,
+    result: Result<carver_sdk::Note, UiError>,
+) -> Vec<Effect> {
+    model.finish_action(action);
+    match result {
+        Ok(note) => {
+            model.clear_notice();
+            update_undo_state(model, action);
+            // A move keeps the content but advances the revision, so reconcile any open
+            // editor document before its next autosave would conflict.
+            let rebased_save = reconcile_moved_document(model, &note);
+            let mut effects = rebased_save.map_or_else(Vec::new, save_note_effect);
+            effects.extend(reload_after_local_mutation(model));
+            effects
+        }
+        Err(error) => {
+            model.set_notice(error);
+            Vec::new()
+        }
+    }
+}
+
+/// Adopts a moved note's revision and category in an open editor document.
+fn reconcile_moved_document(
+    model: &mut AppModel,
+    note: &carver_sdk::Note,
+) -> Option<EditorSaveRequest> {
+    let document = model.document_for_note_mut(note.id)?;
+    let save_needs_rebase = matches!(
+        &document.save_state,
+        super::EditorSaveState::Saving(request) if request.expected_revision != note.revision
+    );
+    document.revision = note.revision;
+    document.category_id = note.category_id;
+    if save_needs_rebase {
+        document.save_state = super::EditorSaveState::Dirty;
+        return document.begin_save();
+    }
+    None
 }
 
 fn update_editor_asset_stored(

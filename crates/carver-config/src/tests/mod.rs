@@ -652,3 +652,23 @@ fn document_sidebar_page_should_round_trip_and_default_to_outline()
     );
     Ok(())
 }
+
+#[test]
+fn note_open_behavior_should_round_trip_and_default_to_new_tab()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[editor]\nnote_open_behavior = 'current-tab'\n")?;
+
+    assert_eq!(
+        load(&path)?.editor.note_open_behavior,
+        NoteOpenBehavior::CurrentTab
+    );
+    assert_eq!(
+        load(&directory.path().join("missing.toml"))?
+            .editor
+            .note_open_behavior,
+        NoteOpenBehavior::NewTab
+    );
+    Ok(())
+}

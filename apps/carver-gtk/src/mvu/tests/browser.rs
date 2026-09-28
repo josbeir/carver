@@ -292,7 +292,10 @@ fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
     let note_id = NoteId::new();
     let (request_id, tab_id) = match update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     )
     .as_slice()
     {
@@ -333,7 +336,10 @@ fn opening_a_note_should_ignore_an_older_load_completion() {
     let first_note_id = NoteId::new();
     let (first_request, first_tab) = match update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(first_note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: first_note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     )
     .as_slice()
     {
@@ -347,7 +353,10 @@ fn opening_a_note_should_ignore_an_older_load_completion() {
     let second_note_id = NoteId::new();
     let (second_request, _second_tab) = match update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(second_note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: second_note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     )
     .as_slice()
     {

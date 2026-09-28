@@ -73,7 +73,10 @@ fn opening_a_linked_note_with_a_clean_editor_should_load_it() {
 
     let effects = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: target,
+            intent: NoteOpenIntent::Default,
+        }),
     );
 
     assert!(matches!(
@@ -106,7 +109,10 @@ fn opening_a_linked_note_should_open_a_new_tab_and_keep_the_dirty_tab() {
 
     let effects = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: target,
+            intent: NoteOpenIntent::Default,
+        }),
     );
     assert!(matches!(
         effects.as_slice(),

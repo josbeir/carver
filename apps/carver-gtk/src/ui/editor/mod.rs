@@ -18,7 +18,10 @@ use libadwaita::prelude::{
 use webkit6::prelude::*;
 
 use super::{
-    dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
+    dialogs::{
+        EXPORT_NOTE_ACTION, NEW_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION,
+        TRASH_NOTE_ACTION,
+    },
     sidebar::{CompactNavigation, sidebar_toggle_button},
 };
 use crate::mvu::{
@@ -1515,7 +1518,12 @@ fn install_editor_window_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDisp
             return glib::Propagation::Proceed;
         }
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+        if key == gtk::gdk::Key::w && !shift {
+            let _ = dispatcher.dispatch(AppMsg::Tabs(crate::mvu::TabsMsg::CloseActive));
+            return glib::Propagation::Stop;
+        }
         let action = match (key, shift) {
+            (gtk::gdk::Key::n, false) => NEW_NOTE_ACTION,
             (gtk::gdk::Key::e, false) => EXPORT_NOTE_ACTION,
             (gtk::gdk::Key::p, false) => PRINT_NOTE_ACTION,
             (gtk::gdk::Key::d, false) => TRASH_NOTE_ACTION,

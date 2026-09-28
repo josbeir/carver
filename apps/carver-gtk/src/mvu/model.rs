@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use carver_config::{Config, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_domain::source_analysis::SourceAnalysis;
 use carver_sdk::{
-    CategoryId, CategorySummary, LibraryRevision, NoteId, NoteLinks, NoteSummary, Revision,
+    BaseId, CategoryId, CategorySummary, LibraryRevision, NoteId, NoteLinks, NoteSummary, Revision,
     TrashContents,
 };
 
@@ -20,6 +20,15 @@ pub struct EditorSessionId(pub u64);
 /// Identifies one open note tab in the workspace.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TabId(pub u64);
+
+/// The surface a note tab was opened from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TabOrigin {
+    /// Opened while browsing notes or managing the trash.
+    Browser,
+    /// Opened from a saved Base view.
+    Base(BaseId),
+}
 
 /// Lightweight metadata for one open note tab.
 ///
@@ -38,6 +47,8 @@ pub struct NoteTab {
     pub is_favorite: bool,
     /// Whether the note is still loading into the tab.
     pub loading: bool,
+    /// Surface this tab was opened from, for context-scoped tab actions.
+    pub origin: TabOrigin,
 }
 
 /// Identifies a scheduled UI timer such as a debounced search.
@@ -840,6 +851,8 @@ pub struct AppModel {
     pub note_tabs: Vec<NoteTab>,
     /// Active note tab, or `None` when the Notes list is showing.
     pub active_tab: Option<TabId>,
+    /// Most recently active note tab, remembered while the Notes list is showing.
+    pub(crate) last_active_tab: Option<TabId>,
     /// Previously active tabs, newest last, for browser-style Back.
     pub(crate) tab_history: Vec<Option<TabId>>,
     /// Documents for inactive note tabs, keyed by tab id.
@@ -905,6 +918,7 @@ impl AppModel {
             editor: None,
             note_tabs: Vec::new(),
             active_tab: None,
+            last_active_tab: None,
             tab_history: Vec::new(),
             background_documents: BTreeMap::new(),
             closing_documents: BTreeMap::new(),
