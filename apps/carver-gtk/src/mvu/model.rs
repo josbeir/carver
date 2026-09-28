@@ -30,6 +30,15 @@ pub enum TabOrigin {
     Base(BaseId),
 }
 
+/// Where an editor document's content came from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DocumentOrigin {
+    /// Loaded from the library, so external refreshes are meaningful.
+    Library,
+    /// Loaded directly by a test helper, with no library note behind it.
+    Synthetic,
+}
+
 /// Lightweight metadata for one open note tab.
 ///
 /// The active tab's full [`EditorDocument`] lives in `AppModel.editor`; inactive tabs keep their
@@ -485,6 +494,8 @@ pub struct EditorDocument {
     pub analysis: std::sync::Arc<SourceAnalysis>,
     /// Monotonic identity of the current source snapshot.
     pub source_generation: u64,
+    /// Whether this document came from the library or a synthetic test load.
+    pub(crate) origin: DocumentOrigin,
     /// Heading currently selected in the editor.
     pub selected_heading: Option<usize>,
     /// Source range of the media currently selected in the editor.
@@ -493,6 +504,8 @@ pub struct EditorDocument {
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Thumbnail requirements of in-flight and cached asset detail requests.
     pub media_file_kinds: std::collections::BTreeMap<String, bool>,
+    /// Managed-asset stores still in flight for this document.
+    pub(crate) pending_assets: usize,
     /// Outgoing internal-link targets and backlinks for this note.
     pub links: Resource<NoteLinks>,
     /// Current visibility of the editor's document navigation sidebar.
@@ -722,10 +735,12 @@ impl EditorDocument {
             mode,
             analysis,
             source_generation: 0,
+            origin: DocumentOrigin::Library,
             selected_heading: None,
             selected_media: None,
             media_files: std::collections::BTreeMap::new(),
             media_file_kinds: std::collections::BTreeMap::new(),
+            pending_assets: 0,
             links: Resource::default(),
             document_sidebar: DocumentSidebarVisibility::Hidden,
             pending_favorite: None,

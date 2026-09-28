@@ -668,38 +668,41 @@ fn date_cell_for(
     cell.append(&label);
     cell.append(picker.button());
 
-    // Seed from the row each time the calendar opens.
+    // Seed from the row each time the calendar opens. The picker invokes this from its own
+    // popover handler, so the grid never captures the picker and cannot create a cycle.
     {
-        let picker = picker.clone();
-        let popover = picker.popover().clone();
         let weak_item = item.downgrade();
         let column = column.clone();
-        popover.connect_show(move |_| {
+        picker.connect_seed(move || {
             let Some(item) = weak_item.upgrade() else {
-                return;
+                return FrontmatterValue::Null;
             };
             let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-                return;
+                return FrontmatterValue::Null;
             };
             let row = object.borrow::<BaseRow>();
-            picker.set_frontmatter(&cell_seed(&row, &column));
+            cell_seed(&row, &column)
         });
     }
     // Clear submits immediately: dismiss the popover so the close handler removes the property,
-    // rather than making the user press Clear and then Done.
+    // rather than making the user press Clear and then Done. The weak reference avoids keeping the
+    // popover alive from its own content.
     {
-        let popover = picker.popover().clone();
-        picker.connect_cleared(move || popover.popdown());
+        let weak_popover = picker.popover().downgrade();
+        picker.connect_cleared(move || {
+            if let Some(popover) = weak_popover.upgrade() {
+                popover.popdown();
+            }
+        });
     }
-    // Commit a changed value when the calendar closes.
+    // Commit a changed value when the calendar closes. The picker supplies the closed value, so
+    // this handler does not need to own the picker.
     {
-        let picker = picker.clone();
-        let popover = picker.popover().clone();
         let weak_item = item.downgrade();
         let column = column.clone();
         let editor = editor.clone();
         let dispatcher = dispatcher.clone();
-        popover.connect_closed(move |_| {
+        picker.connect_commit(move |value| {
             let Some(item) = weak_item.upgrade() else {
                 return;
             };
@@ -710,7 +713,7 @@ fn date_cell_for(
             let current = cell_seed(&row, &column);
             // An unset cell still shows a calendar selection, so confirming the picker commits
             // what is displayed even when the user did not move the calendar.
-            let value = picker.commit_value().map(serde_json::Value::String);
+            let value = value.map(serde_json::Value::String);
             if value != seed_value(&editor, &current) {
                 let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
                     note_id: row.note_id,

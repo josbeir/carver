@@ -209,9 +209,10 @@ fn closing_a_dirty_tab_should_save_it_without_keeping_the_tab() {
 }
 
 #[test]
-fn a_failed_final_save_for_a_closed_tab_should_surface_a_notice() {
+fn a_failed_final_save_for_a_closed_tab_should_reopen_the_draft() {
     let mut model = AppModel::new(&Config::default());
-    let tab = open_and_load(&mut model, NoteId::new());
+    let note_id = NoteId::new();
+    let tab = open_and_load(&mut model, note_id);
     let _ = update(
         &mut model,
         AppMsg::Editor(EditorMsg::SourceChanged(String::from("Dirty"))),
@@ -237,6 +238,11 @@ fn a_failed_final_save_for_a_closed_tab_should_surface_a_notice() {
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("Could not save note: disk full")
+    );
+    // The unsaved draft is reachable again rather than dropped.
+    assert!(
+        model.tabs.open.iter().any(|open| open.note_id == note_id),
+        "a failed close-time save should reopen the draft as a tab"
     );
 }
 
@@ -731,6 +737,100 @@ fn tab_history_should_be_capped() {
     assert!(
         model.tabs.history.len() <= 64,
         "tab history must stay bounded"
+    );
+}
+
+#[test]
+fn closing_a_conflicted_background_tab_should_show_the_resolver() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.tabs.background.get_mut(&first) {
+        document.external_change = Some(crate::mvu::model::ExternalChange::Edited(Revision(2)));
+    }
+
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Close(first)));
+
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ShowExternalEdit { .. }))
+    );
+    assert!(model.note_tab(first).is_some());
+    // The conflicted tab is brought forward so the resolver targets a live document.
+    assert_eq!(model.tabs.active, Some(first));
+}
+
+#[test]
+fn current_tab_intent_should_not_replace_a_tab_that_refuses_to_close() {
+    let mut config = Config::default();
+    config.editor.note_open_behavior = carver_config::NoteOpenBehavior::CurrentTab;
+    let mut model = AppModel::new(&config);
+    let first = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.editor.as_mut() {
+        document.external_change = Some(crate::mvu::model::ExternalChange::Edited(Revision(2)));
+    }
+
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: NoteId::new(),
+            intent: NoteOpenIntent::Default,
+        }),
+    );
+
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ShowExternalEdit { .. }))
+    );
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.active, Some(first));
+}
+
+#[test]
+fn closing_a_tab_with_a_pending_asset_should_keep_it_until_the_store_completes() {
+    let mut model = AppModel::new(&Config::default());
+    let tab = open_and_load(&mut model, NoteId::new());
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        panic!("editor session");
+    };
+    if let Some(document) = model.editor.as_mut() {
+        document.pending_assets = 1;
+    }
+
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::Close(tab)));
+    assert!(model.tabs.closing.contains_key(&session));
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
+            session,
+            alt: "Photo".to_owned(),
+            source_target: None,
+            result: Ok("assets/photo.png".to_owned()),
+        }),
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::ScheduleEditorSave { session: scheduled, .. } if *scheduled == session
+    )));
+}
+
+#[test]
+fn activating_a_background_tab_should_refresh_it() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Activate(first)));
+
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::RefreshEditorNote { .. })),
+        "restoring a background tab should refresh it from the library"
     );
 }
 

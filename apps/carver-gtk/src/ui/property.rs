@@ -68,6 +68,12 @@ pub(crate) fn parse_number(text: &str) -> Option<serde_json::Number> {
 /// The callback registered to observe picker changes.
 type ChangeCallback = Rc<RefCell<Option<Rc<dyn Fn()>>>>;
 
+/// The callback that supplies the value a picker seeds from when it opens.
+type SeedCallback = Rc<RefCell<Option<Rc<dyn Fn() -> FrontmatterValue>>>>;
+
+/// The callback that receives the value a picker commits when it closes.
+type CommitCallback = Rc<RefCell<Option<Rc<dyn Fn(Option<String>)>>>>;
+
 /// A GNOME-style hour/minute spinner with chevron controls.
 ///
 /// The displayed shape follows the system clock format: 24-hour (`17:24`) or 12-hour with an
@@ -79,6 +85,32 @@ pub(crate) struct TimeSpinner {
     minute: Rc<Cell<u8>>,
     refresh: Rc<dyn Fn()>,
     on_changed: ChangeCallback,
+}
+
+/// A cloneable view of a [`TimeSpinner`]'s value that does not retain its controls.
+///
+/// Signal handlers that only need to read or reseed the time capture this instead of the whole
+/// spinner, so a handler stored on a spinner control cannot keep that control alive through a
+/// reference cycle.
+#[derive(Clone)]
+struct TimeControl {
+    hour: Rc<Cell<u8>>,
+    minute: Rc<Cell<u8>>,
+    refresh: Rc<dyn Fn()>,
+}
+
+impl TimeControl {
+    /// Returns the current 24-hour time.
+    fn time(&self) -> (u8, u8) {
+        (self.hour.get(), self.minute.get())
+    }
+
+    /// Sets the 24-hour time and repaints the controls.
+    fn set_time(&self, hour: u8, minute: u8) {
+        self.hour.set(hour % 24);
+        self.minute.set(minute % 60);
+        (self.refresh)();
+    }
 }
 
 impl TimeSpinner {
@@ -238,21 +270,30 @@ impl TimeSpinner {
         self.container.upcast_ref::<gtk::Widget>()
     }
 
+    /// Returns a lightweight, cloneable view of the spinner's value.
+    fn control(&self) -> TimeControl {
+        TimeControl {
+            hour: Rc::clone(&self.hour),
+            minute: Rc::clone(&self.minute),
+            refresh: Rc::clone(&self.refresh),
+        }
+    }
+
     /// Registers a callback invoked after any time change.
     pub(crate) fn connect_changed(&self, callback: impl Fn() + 'static) {
         *self.on_changed.borrow_mut() = Some(Rc::new(callback));
     }
 
-    /// Sets the 24-hour time without notifying, used while reseeding.
+    /// Sets the 24-hour time without notifying, used by display tests.
+    #[cfg(test)]
     pub(crate) fn set_time(&self, hour: u8, minute: u8) {
-        self.hour.set(hour % 24);
-        self.minute.set(minute % 60);
-        (self.refresh)();
+        self.control().set_time(hour, minute);
     }
 
-    /// Returns the current 24-hour time.
+    /// Returns the current 24-hour time, used by display tests.
+    #[cfg(test)]
     pub(crate) fn time(&self) -> (u8, u8) {
-        (self.hour.get(), self.minute.get())
+        self.control().time()
     }
 }
 
@@ -360,20 +401,22 @@ fn meridiem_labels() -> (String, String) {
 ///
 /// The widget is a flat menu button whose popover holds a calendar, an optional time spinner, and
 /// Clear/Done actions. It is shared by the properties dialog (as an `ActionRow` suffix) and the
-/// Bases grid (as an inline cell editor).
+/// Bases grid (as an inline cell editor). The widgets live in the popover tree owned by
+/// [`Self::button`]; this handle keeps only the button, the popover, and shared state, so cloning
+/// it never retains the calendar or spinner.
 #[derive(Clone)]
 pub(crate) struct DatePicker {
     button: gtk::MenuButton,
     popover: gtk::Popover,
-    calendar: gtk::Calendar,
-    time: TimeSpinner,
-    field_type: PropertyType,
     state: Rc<RefCell<Option<String>>>,
     on_changed: ChangeCallback,
     /// Callback invoked when the user presses Clear, so a caller can submit the removal.
     on_cleared: ChangeCallback,
-    /// Set while programmatically reseeding, so widget signals do not write back mid-apply.
-    applying: Rc<Cell<bool>>,
+    /// Callback invoked as the picker opens, returning the value to seed. The grid uses it to
+    /// read the current row without capturing the picker in a popover handler.
+    on_seed: SeedCallback,
+    /// Callback invoked as the picker closes with the value to commit (`None` clears).
+    on_commit: CommitCallback,
     /// Whether the user explicitly cleared the value; an empty picker stays empty on commit.
     cleared: Rc<Cell<bool>>,
     date_only: bool,
@@ -381,6 +424,12 @@ pub(crate) struct DatePicker {
 
 impl DatePicker {
     /// Builds a picker for `field_type`, seeded from an existing frontmatter value.
+    // CONTEXT: The picker builds its controls and wires their signal handlers in one place so the
+    // weak references and callback slots stay visibly paired.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the picker builds its controls and handler wiring in one place"
+    )]
     pub(crate) fn new(field_type: PropertyType, value: &FrontmatterValue, name: &str) -> Self {
         let date_only = field_type == PropertyType::Date;
         let button = gtk::MenuButton::new();
@@ -425,13 +474,20 @@ impl DatePicker {
         let state = Rc::new(RefCell::new(picker_value(field_type, value)));
         let on_changed: ChangeCallback = Rc::new(RefCell::new(None));
         let on_cleared: ChangeCallback = Rc::new(RefCell::new(None));
+        let on_seed: SeedCallback = Rc::new(RefCell::new(None));
+        let on_commit: CommitCallback = Rc::new(RefCell::new(None));
         let applying = Rc::new(Cell::new(false));
         let cleared = Rc::new(Cell::new(false));
-        apply_picker_state(field_type, &state, &calendar, &time);
+        let time_control = time.control();
+        apply_picker_state(field_type, &state, &calendar, &time_control);
 
+        // Signal handlers keep weak references to the widgets and a lightweight value view, so a
+        // handler stored on a control can never keep that control (or the picker) alive through a
+        // reference cycle. The calendar and spinner handlers previously captured the widgets
+        // strongly, leaking one picker per grid rebuild.
         let update: Rc<dyn Fn()> = {
-            let calendar = calendar.clone();
-            let time = time.clone();
+            let calendar = calendar.downgrade();
+            let control = time_control.clone();
             let state = Rc::clone(&state);
             let on_changed = Rc::clone(&on_changed);
             let applying = Rc::clone(&applying);
@@ -440,9 +496,12 @@ impl DatePicker {
                 if applying.get() {
                     return;
                 }
+                let Some(calendar) = calendar.upgrade() else {
+                    return;
+                };
                 // A calendar or time interaction replaces any pending clear.
                 cleared.set(false);
-                *state.borrow_mut() = read_picker(field_type, &calendar, &time);
+                *state.borrow_mut() = read_picker(field_type, &calendar, &control);
                 notify_changed(&on_changed);
             })
         };
@@ -469,20 +528,65 @@ impl DatePicker {
             });
         }
         {
-            let popover = popover.clone();
-            done.connect_clicked(move |_| popover.popdown());
+            let popover = popover.downgrade();
+            done.connect_clicked(move |_| {
+                if let Some(popover) = popover.upgrade() {
+                    popover.popdown();
+                }
+            });
+        }
+        {
+            let calendar = calendar.downgrade();
+            let control = time_control.clone();
+            let state = Rc::clone(&state);
+            let applying = Rc::clone(&applying);
+            let cleared = Rc::clone(&cleared);
+            let on_seed = Rc::clone(&on_seed);
+            popover.connect_show(move |_| {
+                let Some(seed) = on_seed.borrow().clone() else {
+                    return;
+                };
+                let Some(calendar) = calendar.upgrade() else {
+                    return;
+                };
+                applying.set(true);
+                cleared.set(false);
+                *state.borrow_mut() = picker_value(field_type, &seed());
+                apply_picker_state(field_type, &state, &calendar, &control);
+                applying.set(false);
+            });
+        }
+        {
+            let calendar = calendar.downgrade();
+            let control = time_control.clone();
+            let state = Rc::clone(&state);
+            let cleared = Rc::clone(&cleared);
+            let on_commit = Rc::clone(&on_commit);
+            popover.connect_closed(move |_| {
+                let Some(commit) = on_commit.borrow().clone() else {
+                    return;
+                };
+                let value = if cleared.get() {
+                    None
+                } else {
+                    state.borrow().clone().or_else(|| {
+                        calendar
+                            .upgrade()
+                            .and_then(|calendar| read_picker(field_type, &calendar, &control))
+                    })
+                };
+                commit(value);
+            });
         }
 
         Self {
             button,
             popover,
-            calendar,
-            time,
-            field_type,
             state,
             on_changed,
             on_cleared,
-            applying,
+            on_seed,
+            on_commit,
             cleared,
             date_only,
         }
@@ -510,15 +614,19 @@ impl DatePicker {
         *self.on_cleared.borrow_mut() = Some(Rc::new(callback));
     }
 
-    /// Reseeds the picker from a frontmatter value and repaints its calendar and time controls.
+    /// Registers the callback that supplies the value to seed whenever the picker opens.
     ///
-    /// Used by a grid cell that opens the picker for a different row each time.
-    pub(crate) fn set_frontmatter(&self, value: &FrontmatterValue) {
-        self.applying.set(true);
-        self.cleared.set(false);
-        *self.state.borrow_mut() = picker_value(self.field_type, value);
-        apply_picker_state(self.field_type, &self.state, &self.calendar, &self.time);
-        self.applying.set(false);
+    /// A reused grid cell reads its current row here, so the popover handler never has to capture
+    /// the picker and create a reference cycle.
+    pub(crate) fn connect_seed(&self, callback: impl Fn() -> FrontmatterValue + 'static) {
+        *self.on_seed.borrow_mut() = Some(Rc::new(callback));
+    }
+
+    /// Registers the callback invoked when the picker closes, carrying the value to commit.
+    ///
+    /// The grid uses this to persist the closed value without owning the picker in the handler.
+    pub(crate) fn connect_commit(&self, callback: impl Fn(Option<String>) + 'static) {
+        *self.on_commit.borrow_mut() = Some(Rc::new(callback));
     }
 
     /// Returns the current ISO 8601 value, or `None` when cleared.
@@ -526,17 +634,13 @@ impl DatePicker {
         self.state.borrow().clone()
     }
 
-    /// Returns the value to commit when the picker closes.
+    /// Returns a lightweight reader for the value that does not retain the picker's widgets.
     ///
-    /// An unset picker still displays a calendar selection, so confirming it without touching the
-    /// controls commits the displayed date instead of dropping the input. A picker the user
-    /// explicitly cleared stays empty.
-    pub(crate) fn commit_value(&self) -> Option<String> {
-        if self.cleared.get() {
-            return None;
-        }
-        self.value()
-            .or_else(|| read_picker(self.field_type, &self.calendar, &self.time))
+    /// Callers that only observe changes (for example a subtitle) capture this instead of the
+    /// picker, so their callback cannot keep the picker alive through a reference cycle.
+    pub(crate) fn value_handle(&self) -> Rc<dyn Fn() -> Option<String>> {
+        let state = Rc::clone(&self.state);
+        Rc::new(move || state.borrow().clone())
     }
 
     /// Sets the current value and notifies, when a callback is registered.
@@ -590,7 +694,7 @@ fn apply_picker_state(
     field_type: PropertyType,
     state: &Rc<RefCell<Option<String>>>,
     calendar: &gtk::Calendar,
-    spinner: &TimeSpinner,
+    spinner: &TimeControl,
 ) {
     // Clone and drop the borrow before mutating widgets: setting the calendar emits
     // `day-selected`, whose handler writes back to the same state.
@@ -625,7 +729,7 @@ fn apply_picker_state(
 }
 
 /// Resets a calendar and time spinner to their fresh default: today at 00:00.
-fn reset_to_today(calendar: &gtk::Calendar, spinner: &TimeSpinner) {
+fn reset_to_today(calendar: &gtk::Calendar, spinner: &TimeControl) {
     if let Ok(now) = glib::DateTime::now_local() {
         calendar.set_year(now.year());
         calendar.set_month(now.month() - 1);
@@ -638,7 +742,7 @@ fn reset_to_today(calendar: &gtk::Calendar, spinner: &TimeSpinner) {
 fn read_picker(
     field_type: PropertyType,
     calendar: &gtk::Calendar,
-    spinner: &TimeSpinner,
+    spinner: &TimeControl,
 ) -> Option<String> {
     let selected = calendar.date();
     let date = time::Date::from_calendar_date(

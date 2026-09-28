@@ -488,12 +488,14 @@ fn connect_cell_actions(
     } = actions;
     clear.set_visible(clearable);
     let settled = Rc::new(Cell::new(false));
+    // These handlers live on controls inside the popover, so they hold it weakly: a strong clone
+    // would make the popover keep itself alive through its own content.
     {
         let settled = Rc::clone(&settled);
         let commit = Rc::clone(commit);
         let field = Rc::clone(field);
         let unchanged = unchanged.clone();
-        let popover = popover.clone();
+        let popover = popover.downgrade();
         done.connect_clicked(move |_| {
             let Ok(value) = field.value() else {
                 // Invalid input keeps the popover open so the user can correct it.
@@ -503,25 +505,31 @@ fn connect_cell_actions(
             if value != unchanged {
                 commit(value);
             }
-            popover.popdown();
+            if let Some(popover) = popover.upgrade() {
+                popover.popdown();
+            }
         });
     }
     {
         let settled = Rc::clone(&settled);
         let commit = Rc::clone(commit);
-        let popover = popover.clone();
+        let popover = popover.downgrade();
         clear.connect_clicked(move |_| {
             settled.set(true);
             commit(None);
-            popover.popdown();
+            if let Some(popover) = popover.upgrade() {
+                popover.popdown();
+            }
         });
     }
     {
         let settled = Rc::clone(&settled);
-        let popover = popover.clone();
+        let popover = popover.downgrade();
         cancel.connect_clicked(move |_| {
             settled.set(true);
-            popover.popdown();
+            if let Some(popover) = popover.upgrade() {
+                popover.popdown();
+            }
         });
     }
     {
@@ -539,14 +547,17 @@ fn connect_cell_actions(
             popover.unparent();
         });
     }
-    // Escape cancels rather than falling through to the click-away commit.
+    // Escape cancels rather than falling through to the click-away commit. The controller is
+    // parented to the popover, so it must not hold it strongly.
     let key = gtk::EventControllerKey::new();
     key.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let popover_for_key = popover.clone();
+    let popover_for_key = popover.downgrade();
     key.connect_key_pressed(move |_, key, _, _| {
         if key == gtk::gdk::Key::Escape {
             settled.set(true);
-            popover_for_key.popdown();
+            if let Some(popover) = popover_for_key.upgrade() {
+                popover.popdown();
+            }
             glib::Propagation::Stop
         } else {
             glib::Propagation::Proceed

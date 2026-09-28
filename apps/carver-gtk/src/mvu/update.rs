@@ -469,9 +469,12 @@ fn open_note_tab(
         && model.config.editor.note_open_behavior == carver_config::NoteOpenBehavior::CurrentTab
         && let Some(tab_id) = reusable_note_tab(model)
     {
-        // Closing saves a dirty note in the background and removes its tab.
+        // Closing saves a dirty note in the background and removes its tab. If it refuses to
+        // close (an unresolved external change), keep the old tab and do not open a replacement.
         let mut effects = close_tab(model, tab_id);
-        effects.extend(create_note_tab(model, note_id, origin, false, false));
+        if model.note_tab(tab_id).is_none() {
+            effects.extend(create_note_tab(model, note_id, origin, false, false));
+        }
         return effects;
     }
     create_note_tab(model, note_id, origin, false, false)
@@ -629,6 +632,7 @@ fn open_note_as_active_tab(
         note.revision,
         note.is_favorite,
         note.source.clone(),
+        super::model::DocumentOrigin::Library,
     )
 }
 
@@ -688,6 +692,10 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     model.preview_timer = None;
     model.editor_link_dialog = None;
     let mut effects = Vec::new();
+    let refresh_from_library = model
+        .editor
+        .as_ref()
+        .is_some_and(|document| document.origin == super::model::DocumentOrigin::Library);
     if let Some(session) = model.editor.as_ref().map(|document| document.session) {
         effects.push(Effect::FocusEditor { session });
         if model.editor.as_ref().is_some_and(|document| {
@@ -699,6 +707,10 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
             effects.extend(schedule_editor_save(model));
         }
         effects.extend(reload_note_links(model));
+        // A background tab may have changed externally while it was hidden; refresh it now.
+        if refresh_from_library {
+            effects.extend(refresh_open_editor(model, false));
+        }
     }
     effects
 }
@@ -795,9 +807,28 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
         return Vec::new();
     };
     let was_active = model.tabs.active == Some(tab_id);
-    // A document with an unresolved external change cannot autosave; keep the tab open and let
-    // the user resolve it instead of parking the draft somewhere with no way back.
-    if was_active && let Some(effects) = editor_external_change_effects(model) {
+    // A document with an unresolved external change cannot autosave; bring it to the front and show
+    // the resolver instead of parking the draft somewhere with no way back. This applies to a
+    // background tab too, where an earlier conflict may already be set.
+    let unresolved_change = if was_active {
+        model
+            .editor
+            .as_ref()
+            .and_then(|document| document.external_change)
+    } else {
+        model
+            .tabs
+            .background
+            .get(&tab_id)
+            .and_then(|document| document.external_change)
+    };
+    if unresolved_change.is_some() {
+        let mut effects = if was_active {
+            Vec::new()
+        } else {
+            show_tab(model, tab_id)
+        };
+        effects.extend(editor_external_change_effects(model).unwrap_or_default());
         return effects;
     }
     let document = if was_active {
@@ -809,18 +840,21 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     model.tabs.history.retain(|entry| *entry != Some(tab_id));
 
     let mut effects = Vec::new();
-    if let Some(mut document) = document
-        && matches!(
+    if let Some(mut document) = document {
+        let dirty = matches!(
             document.save_state,
             super::EditorSaveState::Dirty
                 | super::EditorSaveState::Saving(_)
                 | super::EditorSaveState::Failed(_)
-        )
-    {
-        if let Some(request) = document.begin_save() {
+        );
+        if dirty && let Some(request) = document.begin_save() {
             effects.push(Effect::SaveNote { request });
         }
-        model.tabs.closing.insert(document.session, document);
+        // Keep a clean document too while a managed-asset store is in flight, so its completion
+        // can still insert the markup and schedule the save.
+        if dirty || document.pending_assets > 0 {
+            model.tabs.closing.insert(document.session, document);
+        }
     }
 
     if !was_active {
@@ -1598,6 +1632,7 @@ fn update_editor_load(
         revision,
         false,
         source,
+        super::model::DocumentOrigin::Synthetic,
     );
     if let Some(tab) = model.note_tab_mut(tab_id) {
         tab.loading = false;
@@ -1999,6 +2034,7 @@ fn new_editor_document(
     revision: carver_sdk::Revision,
     is_favorite: bool,
     source: String,
+    origin: super::model::DocumentOrigin,
 ) -> super::EditorDocument {
     let session = model.next_editor_session_id();
     let mut document = super::EditorDocument::new(
@@ -2010,6 +2046,7 @@ fn new_editor_document(
         source,
         model.preferences.editor_mode,
     );
+    document.origin = origin;
     if model.config.editor.show_document_sidebar {
         document.document_sidebar = super::model::DocumentSidebarVisibility::Visible;
     }
@@ -2023,6 +2060,7 @@ fn open_editor(
     revision: carver_sdk::Revision,
     is_favorite: bool,
     source: String,
+    origin: super::model::DocumentOrigin,
 ) -> super::EditorSessionId {
     let document = new_editor_document(
         model,
@@ -2031,6 +2069,7 @@ fn open_editor(
         revision,
         is_favorite,
         source.clone(),
+        origin,
     );
     let session = document.session;
     model.editor_refresh_request = None;
@@ -2666,14 +2705,27 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
                     .map(|document| &document.save_state),
                 Some(super::EditorSaveState::Clean)
             );
-            if clean || failed.is_some() {
-                model.tabs.closing.remove(&session);
-            }
             if let Some(error) = failed {
+                // Reopen the draft as a tab so the unsaved source stays reachable and retryable
+                // instead of being dropped on exit.
+                if let Some(document) = model.tabs.closing.remove(&session) {
+                    let title = document.analysis.title().to_owned();
+                    let tab_id = push_note_tab(
+                        model,
+                        document.note_id,
+                        super::TabOrigin::Browser,
+                        title,
+                        document.is_favorite,
+                        false,
+                    );
+                    model.tabs.background.insert(tab_id, document);
+                }
                 model.set_notice(UiError::new(tr_fmt!(
                     gettext("Could not save note: {error}"),
                     error = error.message
                 )));
+            } else if clean {
+                model.tabs.closing.remove(&session);
             }
             effects
         }
@@ -3062,6 +3114,7 @@ fn update_editor_asset_stored(
     let Some(document) = model.document_for_session_mut(session) else {
         return Vec::new();
     };
+    document.pending_assets = document.pending_assets.saturating_sub(1);
     match result {
         Ok(path) => {
             let source = if image {
@@ -3201,6 +3254,7 @@ fn update_editor_loaded(
                     note.revision,
                     note.is_favorite,
                     note.source,
+                    super::model::DocumentOrigin::Library,
                 );
                 model.tabs.background.insert(tab_id, document);
                 return Vec::new();
@@ -3212,6 +3266,7 @@ fn update_editor_loaded(
                 note.revision,
                 note.is_favorite,
                 note.source,
+                super::model::DocumentOrigin::Library,
             );
             model.route = super::Route::Editor;
             let mut effects = if export_after_load {
@@ -3376,28 +3431,30 @@ fn update_default_category(model: &mut AppModel, result: Result<(), UiError>) ->
 }
 
 fn store_editor_asset_effect(
-    model: &AppModel,
+    model: &mut AppModel,
     extension: String,
     bytes: Vec<u8>,
     alt: String,
     source_target: Option<super::SourceImageTarget>,
     image: bool,
 ) -> Vec<Effect> {
-    model
+    let Some(document) = model
         .editor
-        .as_ref()
+        .as_mut()
         .filter(|document| document.mode != carver_config::EditorMode::Rendered)
-        .map(|document| Effect::StoreEditorAsset {
-            image,
-            session: document.session,
-            note_id: document.note_id,
-            extension,
-            bytes,
-            alt,
-            source_target,
-        })
-        .into_iter()
-        .collect()
+    else {
+        return Vec::new();
+    };
+    document.pending_assets += 1;
+    vec![Effect::StoreEditorAsset {
+        image,
+        session: document.session,
+        note_id: document.note_id,
+        extension,
+        bytes,
+        alt,
+        source_target,
+    }]
 }
 
 fn image_source(
