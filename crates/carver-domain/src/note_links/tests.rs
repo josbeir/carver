@@ -1,6 +1,6 @@
 use super::{
     NOTE_LINK_SCHEME, extract_note_link_targets, extract_note_links, note_link_destination,
-    parse_note_link_destination,
+    parse_note_link_destination, rewrite_note_link_destinations,
 };
 use crate::NoteId;
 use uuid::Uuid;
@@ -92,4 +92,16 @@ fn nested_links_should_be_found_in_emphasis_and_lists() {
 fn self_and_duplicate_targets_should_collapse() {
     let source = format!("[a]({NOTE_LINK_SCHEME}{TARGET}) [b]({NOTE_LINK_SCHEME}{TARGET})");
     assert_eq!(extract_note_link_targets(&source), vec![note_id(TARGET)]);
+}
+
+#[test]
+fn rewriting_destinations_should_remove_the_carver_scheme() {
+    let source = format!("See [A]({NOTE_LINK_SCHEME}{TARGET}) and [B]({NOTE_LINK_SCHEME}{OTHER}).");
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert(note_id(TARGET), "release-checklist".to_owned());
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(rewritten.contains("release-checklist"));
+    assert!(!rewritten.contains(NOTE_LINK_SCHEME));
+    // An unresolved target falls back to its bare identifier rather than the scheme.
+    assert!(rewritten.contains(OTHER));
 }

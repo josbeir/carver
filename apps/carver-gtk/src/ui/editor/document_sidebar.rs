@@ -35,6 +35,12 @@ pub(super) struct DocumentSidebar {
 }
 
 impl DocumentSidebar {
+    // CONTEXT: Construction wires four independent sidebar sections in one place so their
+    // shared split view, breakpoint, and ordered appends stay auditable.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the sidebar composition keeps its section ordering explicit"
+    )]
     pub fn new(
         content: &impl IsA<gtk::Widget>,
         toggle: gtk::ToggleButton,

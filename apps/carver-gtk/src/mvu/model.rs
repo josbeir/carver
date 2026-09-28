@@ -546,6 +546,45 @@ pub struct EditorPdfExportRequest {
     pub print_dialog: bool,
 }
 
+/// Where the unified link dialog writes its insert.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LinkDialogOrigin {
+    /// The rich editor owns the insert.
+    Rich {
+        /// Prefilled link label.
+        text: String,
+        /// Prefilled destination.
+        destination: String,
+    },
+    /// The source editor owns the insert over a captured selection.
+    Source {
+        /// Character range replaced by the inserted link.
+        selection: std::ops::Range<usize>,
+        /// Selected source text offered as the initial link label.
+        text: String,
+    },
+}
+
+/// State for the unified note-link dialog's asynchronous note search.
+///
+/// Entry contents remain ephemeral GTK state; only the search query and its results are modeled so
+/// the SDK boundary stays behind typed effects.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EditorLinkDialog {
+    /// Dialog identity used to reject stale search completions.
+    pub dialog_id: RequestId,
+    /// Editor lifetime that opened the dialog.
+    pub session: EditorSessionId,
+    /// Insert target and prefill captured when the dialog opened.
+    pub origin: LinkDialogOrigin,
+    /// Current note-search input.
+    pub query: String,
+    /// Debounce timer authorized to search for the latest query.
+    pub search_timer: Option<TimerId>,
+    /// Matching notes for the current query.
+    pub candidates: Resource<Vec<NoteSummary>>,
+}
+
 /// An active category offered for a note's category in the properties dialog.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CategoryChoice {
@@ -787,6 +826,8 @@ pub struct AppModel {
     pub editor_export_progress: Option<EditorExportProgress>,
     /// One-shot native PDF or print request for the current editor snapshot.
     pub editor_pdf_export_request: Option<EditorPdfExportRequest>,
+    /// Active unified link dialog, if one is open.
+    pub editor_link_dialog: Option<EditorLinkDialog>,
     /// Monotonic revision that asks editor projections to refresh their theme.
     pub editor_theme_revision: u64,
     pub(crate) preview_timer: Option<(EditorSessionId, TimerId)>,
@@ -835,6 +876,7 @@ impl AppModel {
             editor_export_warning_request: None,
             editor_export_progress: None,
             editor_pdf_export_request: None,
+            editor_link_dialog: None,
             editor_theme_revision: 0,
             preview_timer: None,
             editor_load_request: None,

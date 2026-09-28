@@ -100,6 +100,8 @@ pub struct ViewRefs {
     last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
     editor: Option<crate::ui::editor::EditorViewRefs>,
+    link_dialog: RefCell<Option<crate::ui::editor::link_dialog::LinkDialogHandle>>,
+    last_link_candidates: RefCell<Option<LoadState<Vec<carver_sdk::NoteSummary>>>>,
     source_syntax_dir: Option<PathBuf>,
     last_sidebar_snapshot: RefCell<Option<SidebarSnapshot>>,
     rendering: Cell<bool>,
@@ -144,6 +146,8 @@ impl ViewRefs {
             last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
             editor: None,
+            link_dialog: RefCell::new(None),
+            last_link_candidates: RefCell::new(None),
             source_syntax_dir: None,
             last_sidebar_snapshot: RefCell::new(None),
             rendering: Cell::new(false),
@@ -241,12 +245,36 @@ impl ViewRefs {
         self.render_base(model);
         self.render_trash(model);
         self.render_editor(model);
+        self.render_link_dialog(model);
         self.clear_resolved_external_notice(model);
         self.render_notice(model);
         self.render_editor_save_error(model);
         self.render_undo_move(model);
         self.render_undo_trash_note(model);
         self.rendering.set(false);
+    }
+
+    fn render_link_dialog(&self, model: &AppModel) {
+        let candidates = model
+            .editor_link_dialog
+            .as_ref()
+            .map(|dialog| dialog.candidates.state.clone());
+        if candidates.is_none() {
+            self.last_link_candidates.replace(None);
+            if let Some(handle) = self.link_dialog.borrow_mut().take() {
+                handle.close();
+            }
+            return;
+        }
+        if *self.last_link_candidates.borrow() == candidates {
+            return;
+        }
+        self.last_link_candidates.replace(candidates.clone());
+        if let (Some(handle), Some(LoadState::Ready(notes))) =
+            (self.link_dialog.borrow().as_ref(), candidates)
+        {
+            crate::ui::editor::link_dialog::render_candidates(handle, &notes);
+        }
     }
 
     fn render_base(&self, model: &AppModel) {
@@ -488,6 +516,27 @@ impl ViewRefs {
                 && let Some(root) = dialog.child()
             {
                 crate::ui::bases::actions::render_preview(&root, count);
+            }
+            return;
+        }
+        if let Effect::ShowLinkDialog {
+            dialog_id, origin, ..
+        } = &effect
+        {
+            let existing = self.link_dialog.borrow_mut().take();
+            if let Some(existing) = existing {
+                if existing.matches(*dialog_id) {
+                    self.link_dialog.replace(Some(existing));
+                    return;
+                }
+                existing.close();
+            }
+            if let Some(dispatcher) = &self.dispatcher
+                && let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>()
+            {
+                let handle =
+                    crate::ui::editor::link_dialog::show(&parent, dispatcher, *dialog_id, origin);
+                self.link_dialog.replace(Some(handle));
             }
             return;
         }

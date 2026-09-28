@@ -7,6 +7,7 @@
 //! no href and heading references resolve to an in-document `#slug`, so neither
 //! is collected.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use carve::{BlockNode, FigureTarget, InlineNode, Options, parse_with_options};
@@ -91,6 +92,27 @@ pub fn extract_note_link_targets(source: &str) -> Vec<NoteId> {
         .collect()
 }
 
+/// Replaces internal note-link destinations with portable targets for export.
+///
+/// Every extracted target is substituted with the value the caller resolved for it, so an export
+/// never carries the `carver:` scheme. Targets absent from `replacements` fall back to their bare
+/// identifier, which stays portable but is not a `carver:` URI.
+#[must_use]
+pub fn rewrite_note_link_destinations(
+    source: &str,
+    replacements: &BTreeMap<NoteId, String>,
+) -> String {
+    let mut resolved = source.to_owned();
+    for target in extract_note_link_targets(source) {
+        let replacement = replacements
+            .get(&target)
+            .cloned()
+            .unwrap_or_else(|| target.as_uuid().to_string());
+        resolved = resolved.replace(&note_link_destination(target), &replacement);
+    }
+    resolved
+}
+
 fn collect_blocks(blocks: &[BlockNode], out: &mut Vec<NoteLinkRef>) {
     for block in blocks {
         collect_block(block, out);
@@ -99,10 +121,6 @@ fn collect_blocks(blocks: &[BlockNode], out: &mut Vec<NoteLinkRef>) {
 
 // CONTEXT: Listing the inline-bearing containers explicitly keeps the walk
 // auditable and lets new Carve block variants stay inert until reviewed.
-#[expect(
-    clippy::too_many_lines,
-    reason = "explicit block container walk is easier to audit than a macro"
-)]
 fn collect_block(block: &BlockNode, out: &mut Vec<NoteLinkRef>) {
     match block {
         BlockNode::Heading(node) => collect_inlines(&node.children, out),

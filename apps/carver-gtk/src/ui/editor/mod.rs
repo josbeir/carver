@@ -32,6 +32,7 @@ mod find;
 pub(crate) mod focus;
 mod frontmatter_source;
 mod html;
+pub(crate) mod link_dialog;
 mod media_preview;
 #[cfg(test)]
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;

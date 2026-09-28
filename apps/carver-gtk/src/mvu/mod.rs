@@ -14,11 +14,11 @@ pub use effect::Effect;
 pub use model::{
     ActionKey, AppModel, BaseCellEdit, BasesModel, BrowserModel, CategoryChoice,
     DocumentPreferences, EditorCopyRequest, EditorCopyScope, EditorDocument,
-    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest,
+    EditorExportDialogRequest, EditorExportProgress, EditorExportWarningRequest, EditorLinkDialog,
     EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest, EditorSaveRequest,
-    EditorSaveState, EditorSessionId, FrontmatterEdit, LoadState, MediaFile, MoveUndo,
-    PendingBaseCellEdit, Preferences, PropertiesSave, RequestId, Resource, Route, SidebarSelection,
-    SourceEditorPreferences, TimerId, UiError,
+    EditorSaveState, EditorSessionId, FrontmatterEdit, LinkDialogOrigin, LoadState, MediaFile,
+    MoveUndo, PendingBaseCellEdit, Preferences, PropertiesSave, RequestId, Resource, Route,
+    SidebarSelection, SourceEditorPreferences, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,

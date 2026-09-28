@@ -59,6 +59,78 @@ fn completed_autosave_should_reload_browser_only_when_leaving_the_editor() {
 }
 
 #[test]
+fn opening_a_linked_note_with_a_clean_editor_should_load_it() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Current"),
+        }),
+    );
+    let target = NoteId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
+    );
+
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadEditorNote {
+            note_id,
+            ..
+        }] if *note_id == target
+    ));
+    assert!(model.editor.is_none());
+}
+
+#[test]
+fn opening_a_linked_note_should_save_a_dirty_editor_first() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("Initial"),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("Dirty"))),
+    );
+    let target = NoteId::new();
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
+    );
+    let request = match effects.as_slice() {
+        [Effect::SaveNote { request }] => request.clone(),
+        _ => panic!("opening a linked note should save the dirty document first"),
+    };
+    assert_eq!(
+        model.pending_navigation,
+        Some(PendingNavigation::Note(target))
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request,
+            result: Ok(Revision(2)),
+            move_error: None,
+        }),
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::LoadEditorNote { note_id, .. } if *note_id == target
+    )));
+}
+
+#[test]
 fn selecting_a_category_should_reload_that_category_after_closing_a_clean_editor() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();

@@ -7,13 +7,12 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use carver_config::DocumentWidth;
-use carver_editor_protocol::{EditorCommand, EditorEvent, LinkCommand, SelectionState};
-use gettextrs::{gettext, pgettext};
+use carver_editor_protocol::{EditorCommand, EditorEvent, SelectionState};
+use gettextrs::gettext;
 use gtk::prelude::*;
-use libadwaita::prelude::*;
 use webkit6::prelude::*;
 
-use crate::mvu::{AppDispatcher, AppMsg, DocumentPreferences, EditorMsg};
+use crate::mvu::{AppDispatcher, AppMsg, DocumentPreferences, EditorMsg, NavigationMsg};
 
 use super::focus::EditorFocusRestorer;
 
@@ -427,11 +426,18 @@ impl RichEditor {
                         handler(selection);
                     }
                 }
+                EditorEvent::OpenLink { session, href } if session == editor.session.get() => {
+                    if let Some(note_id) = carver_domain::parse_note_link_destination(&href) {
+                        let _ = dispatcher
+                            .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+                    }
+                }
                 EditorEvent::Selection { .. }
                 | EditorEvent::Changed { .. }
                 | EditorEvent::Unsupported { .. }
                 | EditorEvent::CopySelection { .. }
                 | EditorEvent::PasteImage { .. }
+                | EditorEvent::OpenLink { .. }
                 | EditorEvent::PasteText { .. } => {}
             }
         });
@@ -485,11 +491,10 @@ fn show_rich_link_dialog(
     button: &impl IsA<gtk::Widget>,
     editor: &RichEditor,
     dispatcher: &AppDispatcher,
-    focus: &EditorFocusRestorer,
+    _focus: &EditorFocusRestorer,
 ) {
-    let parent = button.root().and_downcast::<gtk::Window>();
+    let _ = button;
     let dispatcher = dispatcher.clone();
-    let focus_for_dialog = focus.clone();
     editor.view().evaluate_javascript(
         "JSON.stringify(window.carverEditor.linkContext());",
         None,
@@ -500,56 +505,14 @@ fn show_rich_link_dialog(
                 .ok()
                 .map(|value| parse_link_context(&value.to_str()))
                 .unwrap_or_default();
-            present_rich_link_dialog(parent.as_ref(), &dispatcher, &context, &focus_for_dialog);
+            let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::LinkDialogRequested {
+                origin: crate::mvu::LinkDialogOrigin::Rich {
+                    text: context.text,
+                    destination: context.destination,
+                },
+            }));
         },
     );
-}
-
-fn present_rich_link_dialog(
-    parent: Option<&gtk::Window>,
-    dispatcher: &AppDispatcher,
-    context: &LinkContext,
-    focus: &EditorFocusRestorer,
-) {
-    let fields = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    let text = gtk::Entry::new();
-    text.set_placeholder_text(Some(&gettext("Link text")));
-    text.set_text(&context.text);
-    let url = gtk::Entry::new();
-    url.set_placeholder_text(Some("https://example.com"));
-    url.set_input_purpose(gtk::InputPurpose::Url);
-    url.set_text(&context.destination);
-    fields.append(&gtk::Label::new(Some(&pgettext("link dialog", "Text"))));
-    fields.append(&text);
-    fields.append(&gtk::Label::new(Some(&gettext("Address"))));
-    fields.append(&url);
-    let dialog = libadwaita::AlertDialog::builder()
-        .heading(gettext("Insert Link"))
-        .extra_child(&fields)
-        .default_response("insert")
-        .close_response("cancel")
-        .build();
-    let cancel = gettext("Cancel");
-    let insert = gettext("Insert");
-    dialog.add_responses(&[("cancel", cancel.as_str()), ("insert", insert.as_str())]);
-    let dispatcher = dispatcher.clone();
-    let focus = focus.clone();
-    dialog.connect_response(None, move |_dialog, response| {
-        if response == "insert" {
-            let text = text.text();
-            let destination = url.text();
-            if !text.trim().is_empty() && !destination.trim().is_empty() {
-                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplyRichCommand(
-                    EditorCommand::InsertLink(LinkCommand {
-                        text: text.to_string(),
-                        destination: destination.to_string(),
-                    }),
-                )));
-            }
-        }
-        focus.restore_later();
-    });
-    dialog.present(parent);
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]

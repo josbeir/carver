@@ -359,6 +359,29 @@ pub enum EditorMsg {
     },
     /// Apply a rich-editor command through the runtime's GTK/WebKit adapter.
     ApplyRichCommand(EditorCommand),
+    /// Open the unified link dialog for the active editor.
+    LinkDialogRequested {
+        /// Insert target and prefill.
+        origin: super::LinkDialogOrigin,
+    },
+    /// The link dialog's note-search input changed.
+    LinkDialogQueryChanged(String),
+    /// The link dialog's search debounce timer fired.
+    LinkDialogSearchElapsed {
+        /// Timer identity used to reject superseded queries.
+        timer_id: TimerId,
+    },
+    /// The user confirmed the link dialog with its final text and destination.
+    LinkDialogConfirmed {
+        /// Dialog identity that produced the confirmation.
+        dialog_id: RequestId,
+        /// Link label entered by the user.
+        text: String,
+        /// Link destination entered by the user.
+        destination: String,
+    },
+    /// The link dialog was dismissed without inserting.
+    LinkDialogDismissed(RequestId),
     /// Debounce persistence after a source edit.
     AutosaveRequested,
     /// The latest editor autosave timer fired.
@@ -854,6 +877,13 @@ pub enum LibraryReply {
         note_id: NoteId,
         /// Link index or a displayable failure.
         result: Result<NoteLinks, UiError>,
+    },
+    /// Link-dialog note candidates finished loading.
+    LinkCandidatesLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Matching notes or a displayable failure.
+        result: Result<Vec<NoteSummary>, UiError>,
     },
     /// An external refresh completed for the open editor.
     EditorRefreshed {

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 20:02+0200\n"
+"POT-Creation-Date: 2026-09-28 14:16+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -152,10 +152,12 @@ msgstr ""
 #: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
-#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr ""
 
@@ -398,7 +400,7 @@ msgid "Selected"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/property.rs
+#: apps/carver-gtk/src/ui/property.rs
 msgid "Text"
 msgstr ""
 
@@ -1133,7 +1135,21 @@ msgid "Add headings to navigate your document."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Backlinks"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "Hide document sidebar"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Insert a link to another note to see it here."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Linked notes"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
@@ -1142,11 +1158,23 @@ msgid "Media"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "No backlinks yet"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "No headings yet"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "No linked notes yet"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "No media yet"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Notes that link here will appear in this list."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
@@ -1197,6 +1225,32 @@ msgid "{count} match"
 msgid_plural "{count} matches"
 msgstr[0] ""
 msgstr[1] ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Address"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Insert Link"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Link text"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Search notes or enter a URL"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgctxt "link dialog"
+msgid "Text"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Add to Favorites"
@@ -1478,29 +1532,8 @@ msgstr ""
 msgid "Underline (Ctrl+U)"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Address"
-msgstr ""
-
 #: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Insert"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Insert Link"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Link text"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/editor/web.rs
-msgctxt "link dialog"
-msgid "Text"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs

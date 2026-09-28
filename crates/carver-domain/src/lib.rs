@@ -33,7 +33,7 @@ pub use frontmatter::{
 };
 pub use note_links::{
     NOTE_LINK_SCHEME, NoteLinkRef, NoteLinks, extract_note_link_targets, extract_note_links,
-    note_link_destination, parse_note_link_destination,
+    note_link_destination, parse_note_link_destination, rewrite_note_link_destinations,
 };
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,
