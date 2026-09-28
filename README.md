@@ -1,12 +1,14 @@
-# Carver
-
-[![Quality](https://github.com/josbeir/carver/actions/workflows/quality.yml/badge.svg)](https://github.com/josbeir/carver/actions/workflows/quality.yml)
-[![codecov](https://codecov.io/gh/josbeir/carver/graph/badge.svg)](https://codecov.io/gh/josbeir/carver)
-[![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![MSRV: 1.98](https://img.shields.io/badge/MSRV-1.98-93450a.svg)](https://www.rust-lang.org/)
+<p align="center">
+  <img src="docs/public/carver-icon.svg" width="160" height="160" alt="Carver logo" />
+  <br />
+  <big><big><strong>Carver</strong></big></big>
+</p>
 
 <p align="center">
-  <img src="docs/public/carver-icon.svg" width="112" height="112" alt="Carver logo" />
+  <a href="https://github.com/josbeir/carver/actions/workflows/quality.yml"><img src="https://github.com/josbeir/carver/actions/workflows/quality.yml/badge.svg" alt="Quality" /></a>
+  <a href="https://codecov.io/gh/josbeir/carver"><img src="https://codecov.io/gh/josbeir/carver/graph/badge.svg" alt="codecov" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f.svg" alt="License: MIT" /></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/MSRV-1.98-93450a.svg" alt="MSRV: 1.98" /></a>
 </p>
 
 A little space for big ideas. Carver is a local-first GNOME note-taking app that stays
