@@ -136,8 +136,10 @@ fn migrate_note_links(transaction: &Transaction<'_>) -> rusqlite_migration::Hook
 
     for (id, source) in notes {
         for target in extract_note_link_targets(&source) {
+            // Skip dangling targets; the foreign key would otherwise abort the migration.
             transaction.execute(
-                "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id) VALUES (?1, ?2)",
+                "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id)
+                 SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?2)",
                 params![id, target.to_string()],
             )?;
         }

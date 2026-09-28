@@ -176,6 +176,60 @@ fn hard_deleting_a_note_should_cascade_its_links() {
 }
 
 #[test]
+fn creating_a_note_with_a_dangling_link_should_succeed_and_omit_it() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Links", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    // The target does not exist; indexing it must not violate the foreign key.
+    let source = library
+        .create_note_with_source(category.id, &linked_source(NoteId::new()), now)
+        .unwrap_or_else(|error| panic!("source failed: {error}"));
+
+    let links = library
+        .note_links(source.id)
+        .unwrap_or_else(|error| panic!("links failed: {error}"));
+    assert!(links.outgoing.is_empty());
+}
+
+#[test]
+fn saving_a_note_whose_link_was_hard_deleted_should_succeed() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Links", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let target = library
+        .create_note_with_source(category.id, "# Target", now)
+        .unwrap_or_else(|error| panic!("target failed: {error}"));
+    let source = library
+        .create_note_with_source(category.id, &linked_source(target.id), now)
+        .unwrap_or_else(|error| panic!("source failed: {error}"));
+
+    library
+        .trash_note(target.id, now)
+        .unwrap_or_else(|error| panic!("trash failed: {error}"));
+    library
+        .empty_trash()
+        .unwrap_or_else(|error| panic!("empty trash failed: {error}"));
+
+    // The source still links to the hard-deleted note; re-saving it must not fail.
+    let saved = library
+        .save_note(
+            source.id,
+            source.revision,
+            &format!("{}\nEdited.", linked_source(target.id)),
+            now,
+        )
+        .unwrap_or_else(|error| panic!("save failed: {error}"));
+    let links = library
+        .note_links(saved.id)
+        .unwrap_or_else(|error| panic!("links failed: {error}"));
+    assert!(links.outgoing.is_empty());
+}
+
+#[test]
 fn reference_links_should_be_indexed() {
     let (_directory, library) = library();
     let now = OffsetDateTime::UNIX_EPOCH;

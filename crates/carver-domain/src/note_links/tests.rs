@@ -105,3 +105,23 @@ fn rewriting_destinations_should_remove_the_carver_scheme() {
     // An unresolved target falls back to its bare identifier rather than the scheme.
     assert!(rewritten.contains(OTHER));
 }
+
+#[test]
+fn rewriting_should_leave_a_literal_scheme_in_code_untouched() {
+    let source = format!("See [A]({NOTE_LINK_SCHEME}{TARGET}) and `{NOTE_LINK_SCHEME}{TARGET}`.\n");
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert(note_id(TARGET), "release-checklist".to_owned());
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(rewritten.contains("[A](release-checklist)"));
+    assert!(rewritten.contains(&format!("`{NOTE_LINK_SCHEME}{TARGET}`")));
+}
+
+#[test]
+fn rewriting_a_reference_definition_should_resolve_its_links() {
+    let source = format!("See [A][ref].\n\n[ref]: {NOTE_LINK_SCHEME}{TARGET}\n");
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert(note_id(TARGET), "release-checklist".to_owned());
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(rewritten.contains("[ref]: release-checklist"));
+    assert!(!rewritten.contains(NOTE_LINK_SCHEME));
+}

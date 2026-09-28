@@ -1775,9 +1775,13 @@ fn replace_note_links(
         "DELETE FROM note_links WHERE source_note_id = ?1",
         [note_id.to_string()],
     )?;
+    // Only resolvable targets are indexed. A link to a note that does not exist (for example
+    // after a hard delete from the trash, or an imported cross-library link) is omitted rather
+    // than inserted, which would violate the foreign key and fail the whole save.
     for target in extract_note_link_targets(source) {
         transaction.execute(
-            "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id) VALUES (?1, ?2)",
+            "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id)
+             SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?2)",
             params![note_id.to_string(), target.to_string()],
         )?;
     }

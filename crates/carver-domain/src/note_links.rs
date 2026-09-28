@@ -94,23 +94,150 @@ pub fn extract_note_link_targets(source: &str) -> Vec<NoteId> {
 
 /// Replaces internal note-link destinations with portable targets for export.
 ///
-/// Every extracted target is substituted with the value the caller resolved for it, so an export
-/// never carries the `carver:` scheme. Targets absent from `replacements` fall back to their bare
-/// identifier, which stays portable but is not a `carver:` URI.
+/// Only the destination text of each internal link is rewritten, so a literal `carver:note/...`
+/// elsewhere (for example inside a code block) is left untouched. Every extracted target is
+/// substituted with the value the caller resolved for it, so an export never carries the `carver:`
+/// scheme. Targets absent from `replacements` fall back to their bare identifier, which stays
+/// portable but is not a `carver:` URI.
 #[must_use]
 pub fn rewrite_note_link_destinations(
     source: &str,
     replacements: &BTreeMap<NoteId, String>,
 ) -> String {
-    let mut resolved = source.to_owned();
-    for target in extract_note_link_targets(source) {
+    let spans = note_link_destination_spans(source);
+    if spans.is_empty() {
+        return source.to_owned();
+    }
+    let mut result = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (range, target) in spans {
+        if range.start < cursor || range.end > source.len() {
+            continue;
+        }
+        result.push_str(&source[cursor..range.start]);
         let replacement = replacements
             .get(&target)
             .cloned()
             .unwrap_or_else(|| target.as_uuid().to_string());
-        resolved = resolved.replace(&note_link_destination(target), &replacement);
+        result.push_str(&replacement);
+        cursor = range.end;
     }
-    resolved
+    result.push_str(&source[cursor..]);
+    result
+}
+
+/// Byte spans of the destination text for every internal note link, in source order.
+fn note_link_destination_spans(source: &str) -> Vec<(Range<usize>, NoteId)> {
+    let document = parse_with_options(source, &Options::default().with_positions(true));
+    let mut links = Vec::new();
+    collect_blocks(&document.children, &mut links);
+    for blocks in document.footnote_defs.values() {
+        collect_blocks(blocks, &mut links);
+    }
+    let mut definitions = Vec::new();
+    collect_reference_definitions(&document.children, &mut definitions);
+    for blocks in document.footnote_defs.values() {
+        collect_reference_definitions(blocks, &mut definitions);
+    }
+
+    let mut spans = Vec::new();
+    for link in links {
+        if let Some(range) = find_inline_destination(source, link.range, link.target) {
+            spans.push((range, link.target));
+        }
+    }
+    for (range, target) in definitions {
+        if let Some(found) = find_definition_destination(source, range, target) {
+            spans.push((found, target));
+        }
+    }
+    spans.sort_by_key(|(range, _)| range.start);
+    spans
+}
+
+/// Locates an inline link's destination, which follows the `(` or `<` delimiter.
+fn find_inline_destination(
+    source: &str,
+    range: Range<usize>,
+    target: NoteId,
+) -> Option<Range<usize>> {
+    let slice = source.get(range.clone())?;
+    let needle = note_link_destination(target);
+    let mut search = 0;
+    while let Some(offset) = slice.get(search..)?.find(&needle) {
+        let start = search + offset;
+        let delimiter = start == 0 || matches!(slice.as_bytes()[start - 1], b'(' | b'<');
+        if delimiter {
+            return Some(range.start + start..range.start + start + needle.len());
+        }
+        search = start + needle.len();
+    }
+    None
+}
+
+/// Locates a link reference definition's destination, which is the last occurrence on the line.
+fn find_definition_destination(
+    source: &str,
+    range: Range<usize>,
+    target: NoteId,
+) -> Option<Range<usize>> {
+    let slice = source.get(range.clone())?;
+    let needle = note_link_destination(target);
+    let offset = slice.rfind(&needle)?;
+    Some(range.start + offset..range.start + offset + needle.len())
+}
+
+fn collect_reference_definitions(blocks: &[BlockNode], out: &mut Vec<(Range<usize>, NoteId)>) {
+    for block in blocks {
+        collect_reference_definition(block, out);
+    }
+}
+
+// Mirrors the block containers walked by `collect_block` so reference-style note links have their
+// definition destination rewritten too; definitions render nothing and are otherwise inert.
+fn collect_reference_definition(block: &BlockNode, out: &mut Vec<(Range<usize>, NoteId)>) {
+    match block {
+        BlockNode::LinkReferenceDefinition(definition) => {
+            if let Some(pos) = &definition.pos
+                && let Some(target) = parse_note_link_destination(&definition.href)
+            {
+                out.push((pos.start_offset..pos.end_offset, target));
+            }
+        }
+        BlockNode::List(node) => {
+            for item in &node.items {
+                collect_reference_definitions(&item.children, out);
+            }
+        }
+        BlockNode::BlockQuote(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::Admonition(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::Div(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::LineBlock(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::DefinitionList(node) => {
+            for item in &node.items {
+                for definition in &item.definitions {
+                    collect_reference_definitions(&definition.children, out);
+                }
+            }
+        }
+        BlockNode::Figure(node) => {
+            if let FigureTarget::BlockQuote(quote) = &*node.target {
+                collect_reference_definitions(&quote.children, out);
+            }
+        }
+        BlockNode::FigureGroup(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::Heading(_)
+        | BlockNode::Paragraph(_)
+        | BlockNode::Table(_)
+        | BlockNode::CodeBlock(_)
+        | BlockNode::AbbreviationDef(_)
+        | BlockNode::CitationDefinition(_)
+        | BlockNode::RawBlock(_)
+        | BlockNode::Comment(_)
+        | BlockNode::Extension(_)
+        | BlockNode::BlockImage(_)
+        | BlockNode::ThematicBreak(_) => {}
+    }
 }
 
 fn collect_blocks(blocks: &[BlockNode], out: &mut Vec<NoteLinkRef>) {
