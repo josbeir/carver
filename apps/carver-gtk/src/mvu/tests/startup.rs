@@ -178,10 +178,16 @@ fn opened_note_should_request_editor_focus() {
     );
 
     assert_eq!(
-        effects,
-        vec![Effect::FocusEditor {
+        effects.first(),
+        Some(&Effect::FocusEditor {
             session: EditorSessionId(1)
-        }]
+        })
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadNoteLinks { .. })),
+        "opening a note should request its link index"
     );
 }
 

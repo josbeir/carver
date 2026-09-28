@@ -7,7 +7,7 @@ use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort,
     CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
-    NoteSummary, Revision, TrashContents, TrashPurgeResult,
+    NoteLinks, NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
 
 use super::{
@@ -845,6 +845,15 @@ pub enum LibraryReply {
         request_id: RequestId,
         /// Successful note or a displayable failure.
         result: Result<carver_sdk::Note, UiError>,
+    },
+    /// A note's outgoing internal links and backlinks finished loading.
+    NoteLinksLoaded {
+        /// Identity of the initiating request.
+        request_id: RequestId,
+        /// Note whose link index was requested.
+        note_id: NoteId,
+        /// Link index or a displayable failure.
+        result: Result<NoteLinks, UiError>,
     },
     /// An external refresh completed for the open editor.
     EditorRefreshed {

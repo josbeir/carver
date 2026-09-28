@@ -11,6 +11,8 @@ use carver_domain::rendering::HtmlProfile;
 use gettextrs::gettext;
 use webkit6::prelude::*;
 
+use crate::mvu::{AppDispatcher, AppMsg, NavigationMsg};
+
 mod heading_provenance;
 
 /// Tracks the note whose private asset directory a `carver-asset` scheme handler should read.
@@ -36,6 +38,7 @@ pub(super) fn build_preview(
     assets_dir: Option<&Path>,
     scope: &AssetScope,
     toast_overlay: &libadwaita::ToastOverlay,
+    dispatcher: &AppDispatcher,
 ) -> webkit6::WebView {
     let context = webkit6::WebContext::new();
     install_editor_asset_scheme(
@@ -75,7 +78,7 @@ pub(super) fn build_preview(
         .build();
     view.set_editable(false);
     view.set_widget_name("rendered-preview");
-    connect_external_link_handler(&view, toast_overlay);
+    connect_link_handler(&view, toast_overlay, dispatcher);
     view
 }
 
@@ -95,13 +98,15 @@ fn preview_document_style(
     )
 }
 
-/// Sends user-activated web links to the desktop browser instead of navigating
-/// the sandboxed preview view away from its current document.
-fn connect_external_link_handler(
+/// Routes user-activated links: internal note links open in the editor, web
+/// links open in the desktop browser, and everything else is left to `WebKit`.
+fn connect_link_handler(
     view: &webkit6::WebView,
     toast_overlay: &libadwaita::ToastOverlay,
+    dispatcher: &AppDispatcher,
 ) {
     let toast_overlay = toast_overlay.clone();
+    let dispatcher = dispatcher.clone();
     view.connect_decide_policy(move |_, decision, decision_type| {
         if !matches!(
             decision_type,
@@ -117,11 +122,19 @@ fn connect_external_link_handler(
             .navigation_action()
             .and_then(|action| action.request())
             .and_then(|request| request.uri())
-            .filter(|uri| is_external_link(uri))
         else {
             return false;
         };
 
+        if let Some(note_id) = carver_domain::parse_note_link_destination(uri.as_str()) {
+            decision.ignore();
+            let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+            return true;
+        }
+
+        if !is_external_link(uri.as_str()) {
+            return false;
+        }
         decision.ignore();
         let toast_overlay = toast_overlay.clone();
         gtk::gio::AppInfo::launch_default_for_uri_async(

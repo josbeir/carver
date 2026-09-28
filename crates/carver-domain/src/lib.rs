@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 pub mod bases;
 pub mod frontmatter;
+pub mod note_links;
 pub mod paste;
 pub mod properties;
 pub mod rendering;
@@ -29,6 +30,10 @@ pub use frontmatter::{
     frontmatter_raw, frontmatter_source, frontmatter_source_with_format, is_reserved_key,
     parse_frontmatter_document, render_frontmatter_document, replace_frontmatter,
     replace_frontmatter_raw, set_property, set_title,
+};
+pub use note_links::{
+    NOTE_LINK_SCHEME, NoteLinkRef, NoteLinks, extract_note_link_targets, extract_note_links,
+    note_link_destination, parse_note_link_destination,
 };
 pub use paste::{
     PasteIntent, PastedDocument, PastedFormat, detect_pasted_format, import_pasted_text,

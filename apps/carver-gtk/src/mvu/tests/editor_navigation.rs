@@ -42,9 +42,14 @@ fn completed_autosave_should_reload_browser_only_when_leaving_the_editor() {
             move_error: None,
         }),
     );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadNoteLinks { .. }))
+    );
     assert!(matches!(
-        effects.as_slice(),
-        [Effect::LoadLibraryRevision { .. }]
+        effects.last(),
+        Some(Effect::LoadLibraryRevision { .. })
     ));
     assert_eq!(model.route, Route::Editor);
 

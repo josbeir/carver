@@ -24,6 +24,7 @@ mod categories;
 mod compatibility;
 mod excerpts;
 mod migrations;
+mod note_links;
 mod notes;
 mod search;
 mod trash;

@@ -5,7 +5,8 @@ use std::collections::BTreeSet;
 use carver_config::{Config, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_domain::source_analysis::SourceAnalysis;
 use carver_sdk::{
-    CategoryId, CategorySummary, LibraryRevision, NoteId, NoteSummary, Revision, TrashContents,
+    CategoryId, CategorySummary, LibraryRevision, NoteId, NoteLinks, NoteSummary, Revision,
+    TrashContents,
 };
 
 /// Identifies one asynchronous resource request.
@@ -260,6 +261,8 @@ pub(crate) enum PendingNavigation {
     Browser(Option<CategoryId>),
     /// Show one saved base.
     Base(carver_sdk::BaseId),
+    /// Open one note in the editor.
+    Note(NoteId),
 }
 
 /// Browser-specific UI-neutral state.
@@ -438,6 +441,8 @@ pub struct EditorDocument {
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Thumbnail requirements of in-flight and cached asset detail requests.
     pub media_file_kinds: std::collections::BTreeMap<String, bool>,
+    /// Outgoing internal-link targets and backlinks for this note.
+    pub links: Resource<NoteLinks>,
     /// Current visibility of the editor's document navigation sidebar.
     pub document_sidebar: DocumentSidebarVisibility,
     /// Latest favorite state requested before the current mutation completes.
@@ -630,6 +635,7 @@ impl EditorDocument {
             selected_media: None,
             media_files: std::collections::BTreeMap::new(),
             media_file_kinds: std::collections::BTreeMap::new(),
+            links: Resource::default(),
             document_sidebar: DocumentSidebarVisibility::Hidden,
             pending_favorite: None,
             favorite_mutation_in_flight: false,

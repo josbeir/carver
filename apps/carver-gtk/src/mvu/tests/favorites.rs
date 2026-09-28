@@ -290,7 +290,13 @@ fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert!(
+        effects.iter().all(|effect| matches!(
+            effect,
+            Effect::LoadNoteLinks { .. } | Effect::LoadLibraryRevision { .. }
+        )),
+        "a rebased save should only refresh the link index and library revision"
+    );
     let Some(document) = model.editor else {
         panic!("editor should remain open");
     };

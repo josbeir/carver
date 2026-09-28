@@ -305,6 +305,10 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 path,
                 image,
             } => self.load_media_file(session, note_id, path, image),
+            Effect::LoadNoteLinks {
+                request_id,
+                note_id,
+            } => self.load_note_links(request_id, note_id),
             Effect::PrepareMediaPreview {
                 session,
                 note_id,
@@ -1183,6 +1187,22 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 session,
                 path,
                 file,
+            }));
+        });
+    }
+
+    fn load_note_links(&self, request_id: super::RequestId, note_id: carver_sdk::NoteId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .note_links_async(note_id)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::NoteLinksLoaded {
+                request_id,
+                note_id,
+                result,
             }));
         });
     }

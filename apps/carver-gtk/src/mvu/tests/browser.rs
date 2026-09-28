@@ -397,9 +397,14 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
     );
 
     assert!(matches!(
-        effects.as_slice(),
-        [Effect::ShowEditorExportDialog { .. }]
+        effects.first(),
+        Some(Effect::ShowEditorExportDialog { .. })
     ));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadNoteLinks { .. }))
+    );
     assert_eq!(model.route, Route::Editor);
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),

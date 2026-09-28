@@ -17,9 +17,9 @@ use std::time::Duration;
 use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
     CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note, NoteId,
-    NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content, fold_base_text,
-    project_frontmatter, property_descriptors,
+    NoteLinks, NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
+    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    extract_note_link_targets, fold_base_text, project_frontmatter, property_descriptors,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value as SqlValue};
@@ -823,6 +823,7 @@ impl SqliteLibrary {
             "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
             params![id.to_string(), &derived.title, &derived.plain_text],
         )?;
+        replace_note_links(&transaction, id, source)?;
         transaction.commit()?;
         self.note(id)?
             .ok_or_else(|| StorageError::Corrupt("imported note was not persisted".to_owned()))
@@ -882,6 +883,7 @@ impl SqliteLibrary {
             "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
             params![note_id.to_string(), &derived.title, &derived.plain_text],
         )?;
+        replace_note_links(&transaction, note_id, source)?;
         transaction.commit()?;
         self.note(note_id)?
             .ok_or_else(|| StorageError::Corrupt("saved note was not found".to_owned()))
@@ -1096,6 +1098,54 @@ impl SqliteLibrary {
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
         Ok(page_from_extra(rows, page.limit))
+    }
+
+    /// Loads a note's outgoing internal links and its backlinks.
+    ///
+    /// Both directions are restricted to active notes in active categories, so a trashed target or
+    /// referrer disappears from the result until it is restored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the link index cannot be queried or stored values are corrupt.
+    pub fn note_links(&self, note_id: NoteId) -> Result<NoteLinks, StorageError> {
+        let outgoing = self.query_link_summaries(
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id)
+             FROM note_links l
+             JOIN notes n ON n.id = l.target_note_id
+             JOIN categories c ON c.id = n.category_id
+             WHERE l.source_note_id = ?1 AND n.trashed_at IS NULL AND c.trashed_at IS NULL
+             ORDER BY n.updated_at DESC, n.id ASC",
+            note_id,
+        )?;
+        let backlinks = self.query_link_summaries(
+            "SELECT n.id, n.category_id, c.name, n.title, n.plain_text, n.revision, n.is_favorite, n.updated_at,
+                    EXISTS(SELECT 1 FROM assets a WHERE a.note_id = n.id)
+             FROM note_links l
+             JOIN notes n ON n.id = l.source_note_id
+             JOIN categories c ON c.id = n.category_id
+             WHERE l.target_note_id = ?1 AND n.trashed_at IS NULL AND c.trashed_at IS NULL
+             ORDER BY n.updated_at DESC, n.id ASC",
+            note_id,
+        )?;
+        Ok(NoteLinks {
+            outgoing,
+            backlinks,
+        })
+    }
+
+    fn query_link_summaries(
+        &self,
+        sql: &str,
+        note_id: NoteId,
+    ) -> Result<Vec<NoteSummary>, StorageError> {
+        let mut statement = self.connection.prepare(sql)?;
+        let rows = statement
+            .query_map([note_id.to_string()], summary_from_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::Database)?;
+        Ok(rows)
     }
 
     /// Moves a note into the in-app trash.
@@ -1629,6 +1679,10 @@ impl LibraryBackend for SqliteLibrary {
         self.search_notes(query, category_id, page)
     }
 
+    fn note_links(&self, note_id: NoteId) -> Result<NoteLinks, Self::Error> {
+        Self::note_links(self, note_id)
+    }
+
     fn store_asset(
         &self,
         note_id: NoteId,
@@ -1709,6 +1763,25 @@ fn note_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
 // Active and trashed cards share a limit of 180 user-perceived characters.
 fn note_excerpt(plain_text: &str) -> String {
     plain_text.graphemes(true).take(180).collect()
+}
+
+/// Rebuilds one note's internal-link rows from its canonical source.
+fn replace_note_links(
+    transaction: &rusqlite::Transaction<'_>,
+    note_id: NoteId,
+    source: &str,
+) -> rusqlite::Result<()> {
+    transaction.execute(
+        "DELETE FROM note_links WHERE source_note_id = ?1",
+        [note_id.to_string()],
+    )?;
+    for target in extract_note_link_targets(source) {
+        transaction.execute(
+            "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id) VALUES (?1, ?2)",
+            params![note_id.to_string(), target.to_string()],
+        )?;
+    }
+    Ok(())
 }
 
 fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {

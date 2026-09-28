@@ -214,6 +214,13 @@ pub enum Effect {
         /// Canonical asset path.
         path: String,
     },
+    /// Load a note's outgoing internal links and backlinks.
+    LoadNoteLinks {
+        /// Identity for stale-completion protection and coalesced reloads.
+        request_id: RequestId,
+        /// Note whose link index is requested.
+        note_id: NoteId,
+    },
     /// Focus a document occurrence through the active projection.
     FocusDocumentTarget {
         /// Document lifetime that owns the occurrence.
