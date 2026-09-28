@@ -3,6 +3,7 @@ import '../styles/global.css';
 
 import Footer from '../components/Footer.astro';
 import Nav from '../components/Nav.astro';
+import HeroBackdrop from '../components/HeroBackdrop.astro';
 import { base } from '../utils/base';
 
 interface Props {
@@ -87,6 +88,7 @@ const ogImageAlt = 'The Carver app editing a note, beside the Carver wordmark.';
       backdrop && 'hero-backdrop',
     ]}
   >
+    {backdrop && <HeroBackdrop />}
     <a
       href="#main"
       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-content"

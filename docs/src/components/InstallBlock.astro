@@ -20,18 +20,6 @@ const flatpakSteps = [
     code: `flatpak install --user --or-update --bundle ./${bundle}\nflatpak run io.github.josbeir.Carver`,
   },
 ];
-
-const appImage = `carver-${version}-x86_64.AppImage`;
-const appImageSteps = [
-  {
-    label: 'Verify the download',
-    code: `sha256sum -c ${appImage}.sha256`,
-  },
-  {
-    label: 'Make it executable and run',
-    code: `chmod +x ${appImage}\n./${appImage} --appimage-extract-and-run`,
-  },
-];
 ---
 
 <section
@@ -39,15 +27,14 @@ const appImageSteps = [
   class="scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-20 sm:py-28"
 >
   <div class="mx-auto max-w-6xl px-4">
-    <div class="max-w-3xl">
+    <div class="mx-auto max-w-3xl text-center">
       <p class="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">Install</p>
       <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
         Make room for your next idea
       </h2>
       <p class="mt-5 text-base/7 text-base-content/75">
-        Get Carver {version} for Linux and start with a single note. Choose the recommended Flatpak
-        download, or try the experimental AppImage on a newer system. Download its matching checksum
-        file too, then follow the steps below.
+        Get Carver {version} for Linux and start with a single note. Download the Flatpak bundle and
+        its matching checksum file, then follow the steps below.
       </p>
       <div class="mt-6">
         <a class="btn btn-primary" href={releases}>
@@ -56,7 +43,7 @@ const appImageSteps = [
       </div>
     </div>
 
-    <div class="mt-12 grid gap-6 lg:grid-cols-2">
+    <div class="mx-auto mt-10 max-w-3xl">
       <div class="card border border-base-300/70 bg-base-100">
         <div class="card-body gap-4">
           <div class="flex items-center gap-3">
@@ -76,28 +63,13 @@ const appImageSteps = [
           </p>
         </div>
       </div>
-
-      <div class="card border border-base-300/70 bg-base-100">
-        <div class="card-body gap-4">
-          <div class="flex items-center gap-3">
-            <h3 class="card-title text-xl">AppImage</h3>
-            <span class="badge badge-warning badge-sm badge-outline">Experimental</span>
-          </div>
-          <p class="text-base/7 text-base-content/70">
-            Targets Ubuntu 26.04 or a compatible newer system with
-            <code class="font-mono text-sm">glycin-loaders</code> and Bubblewrap installed. Use
-            Flatpak on older distributions.
-          </p>
-          {appImageSteps.map((step) => (
-            <CodeBlock label={step.label} code={step.code} />
-          ))}
-          <p class="text-sm/6 text-base-content/55">
-            The command above works without FUSE. If FUSE is installed, you can also launch the
-            AppImage directly. AppImage and Flatpak keep separate note libraries, so your notes will
-            not automatically appear when switching between them.
-          </p>
-        </div>
-      </div>
     </div>
+    <p class="mt-5 text-center text-sm/6 text-base-content/65">
+      Looking for other formats?{' '}
+      <a class="link link-primary" href={releases}>
+        Visit the releases page
+      </a>
+      .
+    </p>
   </div>
 </section>

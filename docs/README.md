@@ -109,3 +109,16 @@ The [identity comparison board](design/identity-exploration/index.html) and its
 [design notes](design/identity-exploration/README.md) preserve all three concepts,
 editable SVGs, size studies, and mockups. Open the board directly in a browser;
 it works offline and is not included in the published site.
+
+## Feature presentation
+
+The hero shows one rich-editor screenshot. The feature section groups the app into
+Write, Organize, and Connect, with one screenshot per group. Its tabs support arrow
+keys and Home/End; without JavaScript all three sections remain readable in order.
+The existing screenshot collection is retained for future documentation.
+
+The screenshot gallery includes every captured view with a caption. Its PhotoSwipe
+lightbox loads the full-size WebP and viewer on demand, follows the site theme,
+and supports zoom, swipe, arrow keys, and Escape. Captions remain visible in the
+grid, and links open the image directly when JavaScript is unavailable. Opening
+and zoom transitions respect reduced-motion preferences.

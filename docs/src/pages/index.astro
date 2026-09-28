@@ -3,23 +3,11 @@ import CarveSection from '../components/CarveSection.astro';
 import FeatureShowcase from '../components/FeatureShowcase.astro';
 import Hero from '../components/Hero.astro';
 import InstallBlock from '../components/InstallBlock.astro';
-import { shots, type Shot, type ShotName } from '../data/screenshots';
+import PropertiesSection from '../components/PropertiesSection.astro';
+import ScreenshotGallery from '../components/ScreenshotGallery.astro';
+import ScrollMotion from '../components/ScrollMotion.astro';
+import { shots } from '../data/screenshots';
 import BaseLayout from '../layouts/BaseLayout.astro';
-
-const heroOrder: ShotName[] = [
-  'editor',
-  'media',
-  'focus',
-  'source',
-  'bases',
-  'agent',
-  'library',
-  'search',
-  'settings',
-];
-const heroShots = heroOrder
-  .map((name) => shots[name])
-  .filter((shot): shot is Shot => Boolean(shot));
 
 const title = 'Carver: A little space for big ideas';
 const description =
@@ -49,8 +37,11 @@ const structuredData = {
   <Fragment slot="head">
     <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
   </Fragment>
-  <Hero shots={heroShots} />
+  <Hero shot={shots.editor} />
   <FeatureShowcase />
+  <PropertiesSection />
   <CarveSection />
+  <ScreenshotGallery />
   <InstallBlock />
+  <ScrollMotion />
 </BaseLayout>

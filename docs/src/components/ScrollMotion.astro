@@ -1,0 +1,94 @@
+<script>
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const animations = new Set<Animation>();
+  const targets = document.querySelectorAll<HTMLElement>(
+    '#features h2, #features [data-tab-list], #features [data-feature-panel], ' +
+      '#carve h2, #carve article, #screenshots h2, #screenshots [data-gallery-item], ' +
+      '#install h2, #install .card, #properties h2, #properties figure',
+  );
+
+  // Only off-screen items are prepared, and only when motion is supported.
+  // Without JavaScript (or with reduced motion), all content stays visible.
+  if (
+    'IntersectionObserver' in window &&
+    'animate' in Element.prototype &&
+    !reducedMotion.matches
+  ) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          observer.unobserve(entry.target);
+          if (reducedMotion.matches || entry.target.contains(document.activeElement)) {
+            entry.target.classList.remove('scroll-reveal-pending');
+            continue;
+          }
+          const siblings = entry.target.parentElement
+            ? [...entry.target.parentElement.children].filter((element) =>
+                element.matches('article, [data-gallery-item]'),
+              )
+            : [];
+          const columns = entry.target.parentElement
+            ? getComputedStyle(entry.target.parentElement).gridTemplateColumns.split(' ').length
+            : 1;
+          const position = Math.max(0, siblings.indexOf(entry.target)) % columns;
+          const animation = entry.target.animate(
+            [
+              { opacity: 0, translate: '0 40px' },
+              { opacity: 1, translate: '0 0' },
+            ],
+            {
+              duration: 900,
+              delay: position * 120,
+              easing: 'cubic-bezier(0.2, 0.65, 0.3, 1)',
+              fill: 'backwards',
+            },
+          );
+          // The animation now owns the initial hidden state, including its delay.
+          entry.target.classList.remove('scroll-reveal-pending');
+          animations.add(animation);
+          animation.onfinish = animation.oncancel = () => animations.delete(animation);
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -48px 0px' },
+    );
+
+    for (const target of targets) {
+      const rect = target.getBoundingClientRect();
+      // Leave the initial viewport and restored scroll position undisturbed.
+      if (rect.height > 0 && rect.top < window.innerHeight && rect.bottom > 0) continue;
+      target.classList.add('scroll-reveal-pending');
+      observer.observe(target);
+    }
+
+    reducedMotion.addEventListener('change', () => {
+      if (reducedMotion.matches) {
+        observer.disconnect();
+        for (const target of targets) target.classList.remove('scroll-reveal-pending');
+        for (const animation of animations) animation.cancel();
+      }
+    });
+    document.addEventListener('focusin', () => {
+      for (const target of targets) {
+        if (target.contains(document.activeElement)) {
+          observer.unobserve(target);
+          target.classList.remove('scroll-reveal-pending');
+        }
+      }
+      for (const animation of animations) {
+        const target = (animation.effect as KeyframeEffect).target;
+        if (target instanceof Element && target.contains(document.activeElement))
+          animation.cancel();
+      }
+    });
+  }
+</script>
+
+<style is:global>
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-reveal-pending {
+      opacity: 0;
+      translate: 0 40px;
+    }
+  }
+</style>

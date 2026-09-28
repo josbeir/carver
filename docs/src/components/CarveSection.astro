@@ -2,44 +2,78 @@
 const carveUrl = 'https://markup-carve.github.io/carve/';
 ---
 
-<section id="carve" class="scroll-mt-24 border-t border-base-300/60 py-20 sm:py-24">
+<section id="carve" class="scroll-mt-24 border-t border-base-300/60 py-16 sm:py-20">
   <div class="mx-auto max-w-6xl px-4">
-    <div class="mx-auto max-w-3xl text-center">
-      <p class="mb-3 text-base font-semibold uppercase tracking-wider text-primary">The format</p>
-      <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        Notes you can read in any editor
-      </h2>
-      <p class="mt-5 text-xl/9 text-base-content/75">
-        Carver stores every note as canonical <strong>Carve</strong> source: a plain-text markup
-        format from the Carve project. Your writing stays readable, diffable, and yours, while the
-        app keeps the rendered view in step with it.
-      </p>
-      <p class="mt-4 text-lg/8 text-base-content/70">
-        Carve is a format in its own right rather than a Carver invention, with its own project,
-        grammar, and documentation.
-      </p>
-
-      <a class="btn btn-ghost mt-7 gap-2" href={carveUrl}>
-        Learn about Carve
-        <svg
-          class="size-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+    <h2 class="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+      Your notes stay yours.
+    </h2>
+    <div class="mt-8 grid gap-5 md:grid-cols-3">
+      <article class="rounded-2xl border border-base-300/70 bg-base-100 p-6 shadow-[0_4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.12)] lg:p-7">
+        <div class="mb-5 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <svg
+            class="size-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 3h16v12H4z M2 19h20 M9 15v4 M15 15v4" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold">At home on your computer</h3>
+        <p class="mt-2 text-base/7 text-base-content/75">
+          Your notes and images live in your local library. Write offline, without an account.
+        </p>
+      </article>
+      <article class="rounded-2xl border border-base-300/70 bg-base-100 p-6 shadow-[0_4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.12)] lg:p-7">
+        <div class="mb-5 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <svg
+            class="size-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M8 13h8 M8 17h5" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold">Readable by design</h3>
+        <p class="mt-2 text-base/7 text-base-content/75">
+          Every note uses Carve, a plain-text markup format you can read and edit outside Carver.
+        </p>
+        <a
+          class="mt-3 inline-block font-medium text-primary underline underline-offset-4"
+          href={carveUrl}
         >
-          <path d="M5 12h14" />
-          <path d="m13 6 6 6-6 6" />
-        </svg>
-      </a>
-
-      <p class="mt-9 text-base/7 text-base-content/55">
-        Markdown-friendly when you need it: import a <code>.md</code> file, paste it as Markdown, or
-        export back out to share with other tools.
-      </p>
+          Learn about Carve ↗
+        </a>
+      </article>
+      <article class="rounded-2xl border border-base-300/70 bg-base-100 p-6 shadow-[0_4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.12)] lg:p-7">
+        <div class="mb-5 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <svg
+            class="size-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3v12 M7 10l5 5 5-5 M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold">Ready to go with you</h3>
+        <p class="mt-2 text-base/7 text-base-content/75">
+          Export to Carve, Markdown, or PDF, or bundle notes and images in a portable archive.
+        </p>
+      </article>
     </div>
   </div>
 </section>

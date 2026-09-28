@@ -1,0 +1,189 @@
+---
+import { getImage } from 'astro:assets';
+import 'photoswipe/style.css';
+import { shots, type ShotName } from '../data/screenshots';
+import ThemedScreenshot from './ThemedScreenshot.astro';
+
+const captions: Record<ShotName, string> = {
+  editor: 'Write and format freely',
+  media: 'Images, right in your notes',
+  focus: 'Find your focus',
+  source: 'Source and preview, side by side',
+  bases: 'Bring notes together in Bases',
+  agent: 'Connect your assistant',
+  library: 'Keep things in order',
+  search: 'Find your next thought',
+  settings: 'Make yourself at home',
+};
+
+const gallery = await Promise.all(
+  Object.entries(shots).map(async ([name, shot]) => {
+    const [light, dark] = await Promise.all([
+      getImage({ src: shot.light, format: 'webp', quality: 90 }),
+      getImage({ src: shot.dark, format: 'webp', quality: 90 }),
+    ]);
+    return { name, shot, light, dark };
+  }),
+);
+---
+
+<section
+  id="screenshots"
+  class="scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-12 sm:py-16"
+>
+  <div class="mx-auto max-w-6xl px-4">
+    <h2 class="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+      Take a look around
+    </h2>
+    <p class="mx-auto mt-3 max-w-3xl text-center text-lg/8 text-base-content/75">
+      From a quiet page to a library full of ideas, explore Carver in action. Select a screenshot
+      for a closer look.
+    </p>
+    <div class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {gallery.map(({ name, shot, light, dark }) => (
+        <a
+          href={light.src}
+          data-gallery-item
+          data-dark-src={dark.src}
+          data-pswp-width={shot.light.width}
+          data-pswp-height={shot.light.height}
+          data-dark-width={shot.dark.width}
+          data-dark-height={shot.dark.height}
+          aria-label={`Enlarge screenshot: ${captions[name as ShotName]}`}
+          class="group relative block cursor-zoom-in rounded-xl transition-transform motion-safe:hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+        >
+          <ThemedScreenshot
+            shot={{ ...shot, caption: undefined }}
+            shadow="none"
+            class="shadow-[0_4px_14px_rgba(0,0,0,0.10)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+            sizes="(min-width: 1152px) 357px, (min-width: 1024px) calc((100vw - 80px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), calc(100vw - 32px)"
+          />
+          <p data-gallery-caption class="mt-2 px-1 text-center text-xs/5 text-base-content/70">
+            {captions[name as ShotName]}
+          </p>
+        </a>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  import PhotoSwipeLightbox from 'photoswipe/lightbox';
+
+  const lightbox = new PhotoSwipeLightbox({
+    gallery: '#screenshots',
+    children: 'a[data-gallery-item]',
+    pswpModule: () => import('photoswipe'),
+    mainClass: 'carver-lightbox',
+    bgOpacity: 0.94,
+    paddingFn: (viewport) => ({
+      top: 72,
+      bottom: 112,
+      left: viewport.x < 640 ? 16 : 64,
+      right: viewport.x < 640 ? 16 : 64,
+    }),
+    closeTitle: 'Close gallery',
+    zoomTitle: 'Zoom screenshot',
+    arrowPrevTitle: 'Previous screenshot',
+    arrowNextTitle: 'Next screenshot',
+    errorMsg: 'This screenshot could not be loaded. Close the gallery and try again.',
+  });
+
+  // Resolve the theme each time a slide is opened, including after theme changes.
+  lightbox.addFilter('domItemData', (data, element, link) => {
+    if (link && document.documentElement.dataset.theme === 'carver-dark') {
+      data.src = link.dataset.darkSrc;
+      data.width = Number(link.dataset.darkWidth);
+      data.height = Number(link.dataset.darkHeight);
+    }
+    const thumbnail = [...element.querySelectorAll('img')].find(
+      (img) => img.getBoundingClientRect().width > 0,
+    );
+    if (thumbnail) {
+      data.msrc = thumbnail.currentSrc || thumbnail.src;
+      data.alt = thumbnail.alt;
+    }
+    return data;
+  });
+  lightbox.addFilter(
+    'thumbEl',
+    (thumbnail, data) =>
+      [...(data.element?.querySelectorAll('img') ?? [])].find(
+        (img) => img.getBoundingClientRect().width > 0,
+      ) ??
+      thumbnail ??
+      data.element ??
+      document.body,
+  );
+
+  lightbox.on('uiRegister', () => {
+    lightbox.pswp?.element?.setAttribute('aria-label', 'Carver screenshots');
+    lightbox.pswp?.element?.setAttribute('aria-modal', 'true');
+    lightbox.pswp?.ui?.registerElement({
+      name: 'caption',
+      appendTo: 'root',
+      isButton: false,
+      onInit: (element, pswp) => {
+        element.setAttribute('aria-live', 'polite');
+        element.setAttribute('aria-atomic', 'true');
+        pswp.on('change', () => {
+          element.textContent =
+            pswp.currSlide?.data.element
+              ?.querySelector('[data-gallery-caption]')
+              ?.textContent?.trim() ?? '';
+        });
+      },
+    });
+  });
+
+  let previousOverflow = '';
+  lightbox.on('beforeOpen', () => {
+    previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    if (lightbox.pswp) {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      lightbox.pswp.options.showAnimationDuration = reducedMotion ? 0 : 280;
+      lightbox.pswp.options.hideAnimationDuration = reducedMotion ? 0 : 220;
+      lightbox.pswp.options.zoomAnimationDuration = reducedMotion ? 0 : 280;
+    }
+  });
+  lightbox.on('destroy', () => {
+    document.documentElement.style.overflow = previousOverflow;
+  });
+  lightbox.init();
+</script>
+
+<style is:global>
+  .carver-lightbox {
+    --pswp-bg: #102219;
+    --pswp-icon-color: #fff8e7;
+    --pswp-icon-color-secondary: #17352b;
+    --pswp-icon-stroke-color: #17352b;
+    --pswp-icon-stroke-width: 1px;
+    backdrop-filter: blur(12px);
+  }
+  .carver-lightbox .pswp__img {
+    border-radius: 12px;
+  }
+  .carver-lightbox .pswp__button:focus-visible {
+    outline: 2px solid #8ff0a4;
+    outline-offset: -4px;
+  }
+  .carver-lightbox .pswp__caption {
+    position: absolute;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 32px);
+    padding: 12px 22px;
+    border: 1px solid #fff8e726;
+    border-radius: 18px;
+    background: #17352bf2;
+    color: #fff8e7;
+    font-size: 15px;
+    line-height: 1.5;
+    text-align: center;
+    pointer-events: none;
+  }
+</style>

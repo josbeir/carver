@@ -1,0 +1,23 @@
+<div class="hero-ambient" aria-hidden="true"></div>
+
+<script>
+  const backdrop = document.querySelector<HTMLElement>('.hero-ambient');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (backdrop && 'IntersectionObserver' in window) {
+    let visible = false;
+    const update = () => {
+      backdrop.dataset.motion = reducedMotion.matches
+        ? 'static'
+        : visible && !document.hidden
+          ? 'running'
+          : 'paused';
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      update();
+    });
+    observer.observe(backdrop);
+    document.addEventListener('visibilitychange', update);
+    reducedMotion.addEventListener('change', update);
+  }
+</script>

@@ -19,6 +19,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.3.5",
     "daisyui": "^5.7.46",
+    "photoswipe": "^5.4.4",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"

@@ -1,0 +1,71 @@
+---
+import ThemedScreenshot from './ThemedScreenshot.astro';
+import { shots } from '../data/screenshots';
+
+const source = `---
+status: In progress
+done: false
+priority: 2
+due: 2026-10-02
+---
+
+# Weekly review`;
+---
+
+<section
+  id="properties"
+  class="scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-16 sm:py-20"
+>
+  <div class="mx-auto max-w-6xl px-4">
+    <p class="text-center text-sm font-semibold uppercase tracking-wider text-primary">
+      Properties & Bases
+    </p>
+    <h2 class="mt-3 text-center text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+      A little structure. A lot of possibilities.
+    </h2>
+    <p class="mx-auto mt-4 max-w-3xl text-center text-lg/8 text-base-content/75">
+      Give your notes properties, then build views around them. Bases are saved, configurable views
+      that turn frontmatter data into a table you can filter, sort, and edit.
+    </p>
+
+    <div class="mt-10 grid items-center gap-6 lg:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
+      <figure class="min-w-0 overflow-hidden rounded-2xl border border-base-300/70 bg-base-100">
+        <figcaption class="border-b border-base-300/60 px-5 py-4 text-sm font-semibold">
+          Start with a note’s frontmatter
+        </figcaption>
+        <pre class="overflow-x-auto p-5 font-mono text-sm/7 text-base-content/85"><code>{source}</code></pre>
+      </figure>
+      {shots.bases && (
+        <ThemedScreenshot
+          shot={shots.bases}
+          shadow="subtle"
+          sizes="(min-width: 1152px) 744px, (min-width: 1024px) 65vw, calc(100vw - 32px)"
+        />
+      )}
+    </div>
+
+    <div class="mt-8 grid gap-6 md:grid-cols-3">
+      <div>
+        <h3 class="font-semibold">Properties with meaning</h3>
+        <p class="mt-2 text-sm/7 text-base-content/75">
+          Keep text, numbers, checkboxes, and lists in frontmatter. Edit properties in the app or
+          directly in your note’s source.
+        </p>
+      </div>
+      <div>
+        <h3 class="font-semibold">Your columns, your rules</h3>
+        <p class="mt-2 text-sm/7 text-base-content/75">
+          Choose the columns you need, match all or any filters, and combine sort rules to put the
+          right notes first.
+        </p>
+      </div>
+      <div>
+        <h3 class="font-semibold">Edit where you organize</h3>
+        <p class="mt-2 text-sm/7 text-base-content/75">
+          Update property values directly in a Base. Changes belong to the original notes, so each
+          view stays connected to the same data.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

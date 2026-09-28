@@ -1,127 +1,88 @@
 ---
-import { featureAreas, icons } from '../data/features';
-import CodeBlock from './CodeBlock.astro';
+import { featureAreas } from '../data/features';
 import ThemedScreenshot from './ThemedScreenshot.astro';
 
-const groupName = 'feature-area';
-
-// The rail (radios) and the detail panels live in separate columns, so the
-// active panel is matched to the checked radio with :has(). Generated here to
-// keep a single source of truth in the feature list.
-const showPanels = featureAreas
-  .map((area) => `.feature-tabs:has(input[value="${area.id}"]:checked) [data-panel="${area.id}"]`)
-  .join(',');
-const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
+const tabIcons: Record<string, string> = {
+  write: 'M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z',
+  organize: 'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z',
+  connect: 'm9 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z M19 2v6 M16 5h6 M19 16v4 M17 18h4',
+};
 ---
 
 <section
   id="features"
-  class="scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-20 sm:py-28"
+  class="feature-tabs scroll-mt-24 border-t border-base-300/60 bg-base-200/50 py-16 sm:py-24"
+  data-feature-tabs
 >
   <div class="mx-auto max-w-6xl px-4">
-    <div class="max-w-3xl">
-      <p class="mb-3 text-base font-semibold uppercase tracking-wider text-primary">Features</p>
-      <h2 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        From first thought to something worth keeping
-      </h2>
-      <p class="mt-5 text-xl/9 text-base-content/75">
-        Jot down an idea, gather your research, or make a plan. Carver gives you room to write and
-        simple ways to keep it all together.
-      </p>
+    <h2 class="text-center text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+      Write freely. Keep things together.
+    </h2>
+
+    <div
+      class="mx-auto mt-8 grid max-w-md grid-cols-3 gap-1 rounded-xl border border-base-300 bg-base-100 p-1"
+      data-tab-list
+      hidden
+    >
+      {featureAreas.map((area) => (
+        <button
+          type="button"
+          id={`feature-tab-${area.id}`}
+          data-feature-tab
+          aria-controls={`feature-panel-${area.id}`}
+          class="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold text-base-content/75 transition-colors hover:bg-base-200 aria-selected:bg-primary aria-selected:text-primary-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:gap-2 sm:px-3 sm:text-base"
+        >
+          <svg
+            class="size-4 shrink-0 sm:size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d={tabIcons[area.id]} />
+          </svg>
+          {area.label}
+        </button>
+      ))}
     </div>
 
-    <Fragment set:html={`<style>${panelCss}</style>`} />
-
-    {/*
-      CSS-only disclosure: the radios make the panel switch with no JavaScript,
-      and hidden panels' images stay unloaded until first shown.
-    */}
-    <div class="feature-tabs mt-14 grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-10">
-      <div
-        class="rounded-2xl border border-base-300/70 bg-base-100 p-1.5 shadow-sm lg:sticky lg:top-20 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto"
-        role="radiogroup"
-        aria-label="Feature areas"
-      >
-        {featureAreas.map((area, index) => (
-          <label class="block cursor-pointer">
-            <input
-              type="radio"
-              name={groupName}
-              value={area.id}
-              checked={index === 0}
-              class="peer sr-only"
-            />
-            <span class="flex items-start gap-2.5 rounded-xl p-2.5 transition-colors hover:bg-base-200/70 peer-checked:bg-primary/10 peer-checked:ring-1 peer-checked:ring-primary/40 peer-focus-visible:ring-2 peer-focus-visible:ring-primary">
-              <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="size-4"
-                  aria-hidden="true"
-                  set:html={icons[area.icon]}
-                />
-              </span>
-              <span class="min-w-0">
-                <span class="block text-base leading-snug font-medium text-base-content">
-                  {area.label}
-                </span>
-                <span class="mt-0.5 block text-sm/5 text-base-content/60">{area.teaser}</span>
-              </span>
-            </span>
-          </label>
-        ))}
-      </div>
-
-      <div>
-        {featureAreas.map((area, index) => (
-          <div
-            data-panel={area.id}
-            class="rounded-2xl border border-base-300/70 bg-base-100 p-6 shadow-sm sm:p-8"
-          >
-            <h3 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+    <div class="mt-10 space-y-14">
+      {featureAreas.map((area) => (
+        <section
+          id={`feature-panel-${area.id}`}
+          data-feature-panel
+          aria-labelledby={`feature-heading-${area.id}`}
+          class="grid items-center gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)] lg:gap-12"
+        >
+          <div>
+            <h3
+              id={`feature-heading-${area.id}`}
+              class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl"
+            >
               {area.title}
             </h3>
-
-            {area.shot && (
-              <div class="mt-6">
-                <ThemedScreenshot
-                  shot={area.shot}
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                  sizes="(min-width: 1024px) 720px, 100vw"
-                />
-              </div>
+            <p class="mt-4 text-lg/8 text-base-content/75">{area.summary}</p>
+            {area.id === 'organize' && (
+              <a
+                href="#properties"
+                class="mt-3 inline-block font-medium text-primary underline underline-offset-4"
+              >
+                Explore properties and Bases ↓
+              </a>
             )}
-
-            <p class="mt-6 text-lg/8 text-base-content/75">{area.summary}</p>
-
-            <ul class="mt-6 space-y-3">
+            <ul class="mt-5 space-y-2 border-l-2 border-primary/30 pl-4 text-sm/6 text-base-content/75">
               {area.points.map((point) => (
-                <li class="flex gap-3 text-base/7 text-base-content/75">
-                  <svg
-                    class="mt-1 size-5 shrink-0 text-primary"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m20 6-11 11-5-5" />
-                  </svg>
-                  <span>{point}</span>
-                </li>
+                <li>{point}</li>
               ))}
             </ul>
-
             {area.clients && (
-              <ul class="mt-7 flex flex-wrap gap-2">
+              <ul class="mt-6 flex flex-wrap gap-2" aria-label="Compatible assistants">
                 {area.clients.map((client) => (
-                  <li class="inline-flex items-center gap-2 rounded-full border border-base-300/70 bg-base-100 px-3 py-1.5 text-sm font-medium">
+                  <li class="inline-flex items-center gap-2 rounded-full border border-base-300 bg-base-100 px-3 py-1.5 text-xs font-medium">
                     <span
                       class="inline-flex size-4 items-center justify-center [&>svg]:size-full"
                       aria-hidden="true"
@@ -132,11 +93,79 @@ const panelCss = `[data-panel]{display:none}${showPanels}{display:block}`;
                 ))}
               </ul>
             )}
-
-            {area.code && <CodeBlock label={area.code.label} code={area.code.code} class="mt-7" />}
+            {area.note && <p class="mt-4 text-sm/6 text-base-content/65">{area.note}</p>}
           </div>
-        ))}
-      </div>
+          {area.shot && (
+            <ThemedScreenshot
+              shot={area.shot}
+              sizes="(min-width: 1152px) 700px, (min-width: 1024px) 62vw, calc(100vw - 32px)"
+            />
+          )}
+        </section>
+      ))}
     </div>
   </div>
 </section>
+
+<style>
+  /* Explicitly override layout utilities when a tab or its controls are hidden. */
+  .feature-tabs [hidden] {
+    display: none !important;
+  }
+  .feature-tabs[data-enhanced] [data-feature-panel] {
+    margin-top: 0;
+  }
+</style>
+
+<script>
+  for (const section of document.querySelectorAll<HTMLElement>('[data-feature-tabs]')) {
+    const list = section.querySelector<HTMLElement>('[data-tab-list]');
+    const tabs = [...section.querySelectorAll<HTMLButtonElement>('[data-feature-tab]')];
+    const panels = [...section.querySelectorAll<HTMLElement>('[data-feature-panel]')];
+    if (!list || !tabs.length || tabs.length !== panels.length) continue;
+
+    const select = (index: number, focus = false) => {
+      tabs.forEach((tab, position) => {
+        const selected = position === index;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        panels[position].hidden = !selected;
+      });
+      if (focus) tabs[index].focus();
+    };
+
+    list.setAttribute('role', 'tablist');
+    list.setAttribute('aria-label', 'Carver features');
+    tabs.forEach((tab, index) => {
+      tab.setAttribute('role', 'tab');
+      panels[index].setAttribute('role', 'tabpanel');
+      panels[index].setAttribute('aria-labelledby', tab.id);
+      panels[index].tabIndex = 0;
+      tab.addEventListener('click', () => select(index));
+      tab.addEventListener('keydown', (event) => {
+        let next: number;
+        switch (event.key) {
+          case 'ArrowRight':
+            next = (index + 1) % tabs.length;
+            break;
+          case 'ArrowLeft':
+            next = (index + tabs.length - 1) % tabs.length;
+            break;
+          case 'Home':
+            next = 0;
+            break;
+          case 'End':
+            next = tabs.length - 1;
+            break;
+          default:
+            return;
+        }
+        event.preventDefault();
+        select(next, true);
+      });
+    });
+    select(0);
+    section.dataset.enhanced = '';
+    list.hidden = false;
+  }
+</script>
