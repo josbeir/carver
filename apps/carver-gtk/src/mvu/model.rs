@@ -1019,6 +1019,19 @@ impl AppModel {
     }
 
     /// Resolves a document by note across the active and background tabs.
+    #[must_use]
+    pub fn document_for_note(&self, note_id: NoteId) -> Option<&EditorDocument> {
+        self.editor
+            .as_ref()
+            .filter(|document| document.note_id == note_id)
+            .or_else(|| {
+                self.background_documents
+                    .values()
+                    .find(|document| document.note_id == note_id)
+            })
+    }
+
+    /// Resolves a mutable document by note across the active and background tabs.
     pub(super) fn document_for_note_mut(&mut self, note_id: NoteId) -> Option<&mut EditorDocument> {
         if self
             .editor

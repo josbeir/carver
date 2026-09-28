@@ -1096,6 +1096,53 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
 }
 
 #[test]
+fn a_saved_cell_edit_should_reload_an_open_note_tab() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    // Open the note in a tab, then show the Base, which stashes the note tab.
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(4),
+            source: String::from("---\nstatus: open\n---\n"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    assert!(
+        effects.iter().any(|effect| matches!(
+            effect,
+            Effect::LoadEditorNote { note_id: loaded, .. } if *loaded == note_id
+        )),
+        "an open note tab should reload after a Base inline edit"
+    );
+}
+
+#[test]
 fn a_failed_cell_edit_should_reload_and_keep_a_notice() {
     let (mut model, base_id) = base_route_model();
     let note_id = NoteId::new();

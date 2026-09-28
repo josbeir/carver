@@ -42,6 +42,7 @@ pub(crate) struct Workspace {
         >,
     >,
     syncing: Rc<Cell<bool>>,
+    closing: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
     attached_bar_parent: RefCell<Option<gtk::Widget>>,
 }
 
@@ -61,6 +62,7 @@ impl Workspace {
             pages: Rc::new(RefCell::new(std::collections::BTreeMap::new())),
             editors: Rc::new(RefCell::new(std::collections::BTreeMap::new())),
             syncing: Rc::new(Cell::new(false)),
+            closing: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
             attached_bar_parent: RefCell::new(None),
         }
     }
@@ -79,6 +81,13 @@ impl Workspace {
             toolbar.add_top_bar(&self.tab_bar);
         }
         self.attached_bar_parent.replace(Some(toolbar));
+    }
+
+    /// Removes the tab bar from a surface that should not show it.
+    fn detach_tab_bar(&self) {
+        if self.attached_bar_parent.borrow_mut().take().is_some() {
+            self.tab_bar.unparent();
+        }
     }
 
     /// Connects tab-view signals so the model stays authoritative.
@@ -107,6 +116,7 @@ impl Workspace {
 
         let syncing = Rc::clone(&self.syncing);
         let pages = Rc::clone(&self.pages);
+        let closing = Rc::clone(&self.closing);
         let notes_page = self.notes_page.clone();
         let dispatcher_close = dispatcher.clone();
         self.tab_view.connect_close_page(move |_view, page| {
@@ -120,8 +130,14 @@ impl Workspace {
                     .find(|(_, candidate)| **candidate == *page)
                     .map(|(id, _)| *id);
                 if let Some(tab_id) = tab_id {
-                    let _ = dispatcher_close
-                        .dispatch(crate::mvu::AppMsg::Tabs(crate::mvu::TabsMsg::Close(tab_id)));
+                    let already_closing = {
+                        let mut closing = closing.borrow_mut();
+                        !closing.insert(tab_id)
+                    };
+                    if !already_closing {
+                        let _ = dispatcher_close
+                            .dispatch(crate::mvu::AppMsg::Tabs(crate::mvu::TabsMsg::Close(tab_id)));
+                    }
                 }
             }
             // The model removes the tab; let the view perform the page close.
@@ -130,6 +146,7 @@ impl Workspace {
 
         let pages_detached = Rc::clone(&self.pages);
         let editors_detached = Rc::clone(&self.editors);
+        let closing_detached = Rc::clone(&self.closing);
         self.tab_view
             .connect_page_detached(move |_view, page, _position| {
                 let tab_id = pages_detached
@@ -140,6 +157,7 @@ impl Workspace {
                 if let Some(tab_id) = tab_id {
                     pages_detached.borrow_mut().remove(&tab_id);
                     editors_detached.borrow_mut().remove(&tab_id);
+                    closing_detached.borrow_mut().remove(&tab_id);
                 }
             });
 
@@ -464,8 +482,19 @@ impl ViewRefs {
             return;
         };
         workspace.syncing.set(true);
-        // The Notes list is the pinned tab; hide the strip until a note is open.
-        workspace.tab_bar.set_visible(!model.note_tabs.is_empty());
+        // The strip is shown whenever notes are open, on every surface.
+        let show_tabs = !model.note_tabs.is_empty();
+        workspace.tab_bar.set_visible(show_tabs);
+        // A Base owns its own filtering, so a new note there would be ambiguous; offer the
+        // new-note action only on the Notes list and in an editor opened from it.
+        let show_new_note = match model.route {
+            Route::Browser => true,
+            Route::Editor => model.editor_return_route == Route::Browser,
+            Route::Base | Route::Trash => false,
+        };
+        if let Some(action) = workspace.tab_bar.end_action_widget() {
+            action.set_visible(show_new_note);
+        }
 
         let stale: Vec<crate::mvu::TabId> = workspace
             .pages
@@ -475,9 +504,13 @@ impl ViewRefs {
             .filter(|tab_id| model.note_tab(*tab_id).is_none())
             .collect();
         for tab_id in stale {
+            if workspace.closing.borrow().contains(&tab_id) {
+                continue;
+            }
             let page = workspace.pages.borrow().get(&tab_id).cloned();
             if let Some(page) = page {
                 // The close-page handler confirms the close and page-detached cleans up.
+                workspace.closing.borrow_mut().insert(tab_id);
                 workspace.tab_view.close_page(&page);
             }
         }
@@ -522,18 +555,22 @@ impl ViewRefs {
             workspace.tab_view.set_selected_page(&page);
         }
 
-        let surface = match model.route {
-            Route::Editor => model.active_tab.and_then(|tab_id| {
-                workspace
-                    .pages
-                    .borrow()
-                    .get(&tab_id)
-                    .map(adw::TabPage::child)
-            }),
-            Route::Browser | Route::Base | Route::Trash => self.route_stack.visible_child(),
-        };
-        if let Some(surface) = surface {
-            workspace.attach_tab_bar(&surface);
+        if show_tabs {
+            let surface = match model.route {
+                Route::Editor => model.active_tab.and_then(|tab_id| {
+                    workspace
+                        .pages
+                        .borrow()
+                        .get(&tab_id)
+                        .map(adw::TabPage::child)
+                }),
+                Route::Browser | Route::Base | Route::Trash => self.route_stack.visible_child(),
+            };
+            if let Some(surface) = surface {
+                workspace.attach_tab_bar(&surface);
+            }
+        } else {
+            workspace.detach_tab_bar();
         }
 
         let active = match model.route {

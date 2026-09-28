@@ -3763,6 +3763,22 @@ fn update_base_cell_edited(
                 effects.extend(reload_sidebar(model));
                 effects.extend(reload_browser(model));
             }
+            // Reload an open editor tab for the edited note so its frontmatter is not stale.
+            if let Some(tab_id) = model.note_tab_for_note(finished.note_id) {
+                let clean = model
+                    .document_for_note(finished.note_id)
+                    .is_none_or(|document| {
+                        matches!(document.save_state, super::EditorSaveState::Clean)
+                    });
+                if clean {
+                    let request_id = model.next_request_id();
+                    effects.push(Effect::LoadEditorNote {
+                        request_id,
+                        tab_id,
+                        note_id: finished.note_id,
+                    });
+                }
+            }
             if let Some(error) = move_error {
                 // Content saved but the move failed; the grid reloads and the user is told.
                 model.set_notice(error);

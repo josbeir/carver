@@ -72,6 +72,8 @@ impl DocumentSidebar {
         stack.set_widget_name("editor-sidebar-stack");
         stack.set_hhomogeneous(false);
         stack.set_vhomogeneous(false);
+        // Instant page switches avoid the crossfade leaving stale pixels on the narrow sidebar.
+        stack.set_enable_transitions(false);
 
         let outline = outline::Outline::new(dispatcher);
         let outline_page = Page::new(
@@ -160,6 +162,9 @@ impl DocumentSidebar {
         split.set_max_sidebar_width(320.0);
         split.set_sidebar_width_fraction(0.25);
         split.set_pin_sidebar(true);
+        // Start hidden; the reducer-owned visibility is applied on the first render so a newly
+        // created note tab does not flash the sidebar open.
+        split.set_show_sidebar(false);
         // Visibility is reducer-owned, including the persisted preference.
         split.set_enable_hide_gesture(false);
         split.set_enable_show_gesture(false);
