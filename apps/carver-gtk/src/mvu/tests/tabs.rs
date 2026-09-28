@@ -635,6 +635,106 @@ fn editing_the_page_title_should_update_the_tab_title() {
 }
 
 #[test]
+fn a_background_open_of_an_open_note_should_do_nothing() {
+    let mut model = AppModel::new(&Config::default());
+    let note = NoteId::new();
+    let tab = open_and_load(&mut model, note);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: note,
+            intent: NoteOpenIntent::Background,
+        }),
+    );
+
+    assert!(effects.is_empty());
+    assert_eq!(model.tabs.active, Some(tab));
+}
+
+#[test]
+fn a_background_tab_title_should_follow_its_document() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.tabs.background.get_mut(&first) {
+        document.source_changed(String::from("# Background renamed"));
+    }
+
+    // Any message re-syncs titles from the documents.
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::ThemeChanged));
+
+    assert_eq!(
+        model.note_tab(first).map(|tab| tab.title.as_str()),
+        Some("Background renamed")
+    );
+}
+
+#[test]
+fn activating_a_dirty_background_tab_should_schedule_a_save() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+    if let Some(document) = model.tabs.background.get_mut(&first) {
+        document.source_changed(String::from("# Dirty"));
+    }
+
+    let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Activate(first)));
+
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::ScheduleEditorSave { .. })),
+        "a dirty background tab should autosave when activated"
+    );
+}
+
+#[test]
+fn a_failed_load_should_remove_the_tab_and_activate_a_neighbor() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let effects = update(
+        &mut model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id: NoteId::new(),
+            intent: NoteOpenIntent::Default,
+        }),
+    );
+    let (request_id, tab_id) = match effects.as_slice() {
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
+        _ => panic!("opening a note should start one load"),
+    };
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id,
+            tab_id,
+            result: Err(UiError::new("missing")),
+        }),
+    );
+
+    assert!(model.note_tab(tab_id).is_none());
+    assert_eq!(model.tabs.active, Some(first));
+}
+
+#[test]
+fn tab_history_should_be_capped() {
+    let mut model = AppModel::new(&Config::default());
+    for _ in 0..70 {
+        let _ = open_and_load(&mut model, NoteId::new());
+    }
+    assert!(
+        model.tabs.history.len() <= 64,
+        "tab history must stay bounded"
+    );
+}
+
+#[test]
 fn moving_an_open_note_should_rebase_its_document_revision() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

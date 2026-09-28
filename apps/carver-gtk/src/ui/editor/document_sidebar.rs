@@ -13,6 +13,10 @@ mod links;
 mod media;
 mod outline;
 
+/// Exposes the Link-page row builder to display tests.
+#[cfg(test)]
+pub(crate) use links::render_group as render_link_group;
+
 type ThumbnailCache =
     std::collections::BTreeMap<String, (std::sync::Arc<Vec<u8>>, gtk::gdk::Texture)>;
 

@@ -880,3 +880,43 @@ pub(super) fn assert_missing_media_preview_should_report_error(
     assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
     Ok(())
 }
+
+/// Renders link rows directly so their populated markup path is covered without a live library.
+pub(super) fn link_rows_should_render_markup() {
+    let group = adw::PreferencesGroup::new();
+    let mut rows = Vec::new();
+    let notes = vec![carver_sdk::NoteSummary {
+        id: carver_sdk::NoteId::new(),
+        category_id: carver_sdk::CategoryId::new(),
+        category_name: String::from("Notes"),
+        title: String::from("A & B <c>"),
+        excerpt: String::new(),
+        revision: carver_sdk::Revision(1),
+        is_favorite: false,
+        updated_at: time::OffsetDateTime::UNIX_EPOCH,
+        has_images: false,
+    }];
+    let dispatcher = AppDispatcher::default();
+
+    crate::ui::editor::render_link_group(
+        &group,
+        &mut rows,
+        Some(&notes),
+        "No linked notes yet",
+        &dispatcher,
+    );
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].title().as_str(), "A &amp; B &lt;c&gt;");
+    assert_eq!(rows[0].subtitle().as_deref(), Some("Notes"));
+
+    // An empty or missing set falls back to the dimmed hint.
+    crate::ui::editor::render_link_group(
+        &group,
+        &mut rows,
+        None,
+        "No linked notes yet",
+        &dispatcher,
+    );
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].title().as_str(), "No linked notes yet");
+}

@@ -72,3 +72,6 @@ pub(crate) fn connect_modified_note_open_with(
     });
     widget.add_controller(controller);
 }
+
+#[cfg(test)]
+mod tests;

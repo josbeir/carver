@@ -108,6 +108,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::edited_title_should_lead_the_block_on_reopen()?;
     document_sidebar::assert_document_sidebar_visibility_should_restore_without_reentrant_toggles(
     )?;
+    document_sidebar::link_rows_should_render_markup();
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
     html::document_font_should_remain_css_text_inside_the_preview_head()?;

@@ -4,7 +4,7 @@ use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 
 /// Rebuilds one link group from loaded note summaries, using a boxed Adwaita list.
-pub(super) fn render_group(
+pub(crate) fn render_group(
     group: &adw::PreferencesGroup,
     rows: &mut Vec<adw::ActionRow>,
     notes: Option<&[carver_sdk::NoteSummary]>,

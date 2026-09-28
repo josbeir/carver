@@ -41,6 +41,10 @@ mod media_preview;
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
 mod document_navigation;
 mod document_sidebar;
+
+/// Exposes the Link-page row builder to display tests.
+#[cfg(test)]
+pub(crate) use document_sidebar::render_link_group;
 mod preview;
 pub(crate) mod properties_dialog;
 mod render;
