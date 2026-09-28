@@ -591,7 +591,8 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
     assert!(model.editor.is_none());
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .values()
             .any(|document| document.note_id == note_id)
     );
@@ -675,10 +676,13 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
     );
     let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
 
-    assert!(matches!(
-        effects.as_slice(),
-        [Effect::LoadBaseRows { base_id: loaded, .. }, Effect::LoadBrowser { .. }] if *loaded == base_id
-    ));
+    assert!(
+        matches!(
+            effects.as_slice(),
+            [Effect::LoadBaseRows { base_id: loaded, .. }, Effect::LoadBrowser { .. }] if *loaded == base_id
+        ),
+        "unexpected effects: {effects:?}"
+    );
     assert_eq!(model.route, Route::Base);
     assert_eq!(model.bases.selected, Some(base_id));
 }
@@ -711,7 +715,8 @@ fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
     assert!(model.editor.is_none());
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .values()
             .any(|document| document.note_id == note_id)
     );

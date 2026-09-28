@@ -33,7 +33,7 @@ pub enum TabOrigin {
 /// Lightweight metadata for one open note tab.
 ///
 /// The active tab's full [`EditorDocument`] lives in `AppModel.editor`; inactive tabs keep their
-/// documents in `AppModel.background_documents`, so every other part of the app still reasons
+/// documents in `AppModel.tabs.background`, so every other part of the app still reasons
 /// about exactly one active document.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NoteTab {
@@ -49,6 +49,26 @@ pub struct NoteTab {
     pub loading: bool,
     /// Surface this tab was opened from, for context-scoped tab actions.
     pub origin: TabOrigin,
+}
+
+/// The open note tabs and the documents behind them.
+///
+/// The active tab's document lives in [`AppModel::editor`]; inactive tabs keep theirs in
+/// [`Tabs::background`], and tabs that were closed while dirty keep saving in [`Tabs::closing`].
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Tabs {
+    /// Ordered open note tabs.
+    pub open: Vec<NoteTab>,
+    /// Active note tab, or `None` when the Notes list is showing.
+    pub active: Option<TabId>,
+    /// Most recently active note tab, remembered while the Notes list is showing.
+    pub(crate) last_active: Option<TabId>,
+    /// Previously active tabs, newest last, for browser-style Back.
+    pub(crate) history: Vec<Option<TabId>>,
+    /// Documents for inactive note tabs, keyed by tab id.
+    pub(crate) background: BTreeMap<TabId, EditorDocument>,
+    /// Dirty documents whose tab was closed and that are still saving.
+    pub(crate) closing: BTreeMap<EditorSessionId, EditorDocument>,
 }
 
 /// Identifies a scheduled UI timer such as a debounced search.
@@ -847,18 +867,8 @@ pub struct AppModel {
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
     pub editor: Option<EditorDocument>,
-    /// Ordered open note tabs. The active tab's document is [`AppModel::editor`].
-    pub note_tabs: Vec<NoteTab>,
-    /// Active note tab, or `None` when the Notes list is showing.
-    pub active_tab: Option<TabId>,
-    /// Most recently active note tab, remembered while the Notes list is showing.
-    pub(crate) last_active_tab: Option<TabId>,
-    /// Previously active tabs, newest last, for browser-style Back.
-    pub(crate) tab_history: Vec<Option<TabId>>,
-    /// Documents for inactive note tabs, keyed by tab id.
-    pub(crate) background_documents: BTreeMap<TabId, EditorDocument>,
-    /// Dirty documents whose tab was closed and that are still saving.
-    pub(crate) closing_documents: BTreeMap<EditorSessionId, EditorDocument>,
+    /// Open note tabs and their documents.
+    pub tabs: Tabs,
     /// Latest debounced editor preview snapshot.
     pub editor_preview: Option<EditorPreview>,
     /// One-shot request for the GTK adapter to copy a canonical source snapshot.
@@ -916,12 +926,7 @@ impl AppModel {
             undo_trash_note: None,
             preferences: Preferences::from(config),
             editor: None,
-            note_tabs: Vec::new(),
-            active_tab: None,
-            last_active_tab: None,
-            tab_history: Vec::new(),
-            background_documents: BTreeMap::new(),
-            closing_documents: BTreeMap::new(),
+            tabs: Tabs::default(),
             editor_preview: None,
             editor_copy_request: None,
             editor_export_dialog_request: None,
@@ -978,20 +983,34 @@ impl AppModel {
     /// Returns one open note tab by identity.
     #[must_use]
     pub fn note_tab(&self, tab_id: TabId) -> Option<&NoteTab> {
-        self.note_tabs.iter().find(|tab| tab.id == tab_id)
+        self.tabs.open.iter().find(|tab| tab.id == tab_id)
     }
 
     pub(super) fn note_tab_mut(&mut self, tab_id: TabId) -> Option<&mut NoteTab> {
-        self.note_tabs.iter_mut().find(|tab| tab.id == tab_id)
+        self.tabs.open.iter_mut().find(|tab| tab.id == tab_id)
     }
 
     /// Returns the tab showing `note_id`, if the note is already open.
     #[must_use]
     pub fn note_tab_for_note(&self, note_id: NoteId) -> Option<TabId> {
-        self.note_tabs
+        self.tabs
+            .open
             .iter()
             .find(|tab| tab.note_id == note_id)
             .map(|tab| tab.id)
+    }
+
+    /// Whether a new note can be created from the current surface.
+    ///
+    /// A Base owns its own filtering, so a new note there is ambiguous; an editor opened from a
+    /// Base inherits that. This single predicate drives the tab-bar action and the accelerator.
+    #[must_use]
+    pub fn can_create_note(&self) -> bool {
+        match self.route {
+            Route::Browser => true,
+            Route::Editor => self.editor_return_route == Route::Browser,
+            Route::Base | Route::Trash => false,
+        }
     }
 
     /// Resolves an editor document by session across the active and background tabs.
@@ -1001,11 +1020,12 @@ impl AppModel {
             .as_ref()
             .filter(|document| document.session == session)
             .or_else(|| {
-                self.background_documents
+                self.tabs
+                    .background
                     .values()
                     .find(|document| document.session == session)
             })
-            .or_else(|| self.closing_documents.get(&session))
+            .or_else(|| self.tabs.closing.get(&session))
     }
 
     pub(super) fn document_for_session_mut(
@@ -1019,17 +1039,15 @@ impl AppModel {
         {
             return self.editor.as_mut();
         }
-        if self
-            .background_documents
-            .values()
-            .any(|document| document.session == session)
+        if let Some(document) = self
+            .tabs
+            .background
+            .values_mut()
+            .find(|document| document.session == session)
         {
-            return self
-                .background_documents
-                .values_mut()
-                .find(|document| document.session == session);
+            return Some(document);
         }
-        self.closing_documents.get_mut(&session)
+        self.tabs.closing.get_mut(&session)
     }
 
     /// Resolves a document by note across the active and background tabs.
@@ -1039,7 +1057,8 @@ impl AppModel {
             .as_ref()
             .filter(|document| document.note_id == note_id)
             .or_else(|| {
-                self.background_documents
+                self.tabs
+                    .background
                     .values()
                     .find(|document| document.note_id == note_id)
             })
@@ -1054,7 +1073,8 @@ impl AppModel {
         {
             return self.editor.as_mut();
         }
-        self.background_documents
+        self.tabs
+            .background
             .values_mut()
             .find(|document| document.note_id == note_id)
     }

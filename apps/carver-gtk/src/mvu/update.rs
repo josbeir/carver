@@ -163,10 +163,10 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             if let Some(effects) = editor_external_change_effects(model) {
                 return effects;
             }
-            if model.active_tab.is_some() {
+            if model.tabs.active.is_some() {
                 stash_active_document(model);
                 record_tab_history(model);
-                model.active_tab = None;
+                model.tabs.active = None;
                 model.editor = None;
                 model.editor_preview = None;
                 model.preview_timer = None;
@@ -475,14 +475,16 @@ fn open_note_tab(
 /// while the Notes list was showing, then the newest open note tab.
 fn reusable_note_tab(model: &AppModel) -> Option<super::TabId> {
     model
-        .active_tab
+        .tabs
+        .active
         .filter(|tab_id| model.note_tab(*tab_id).is_some())
         .or_else(|| {
             model
-                .last_active_tab
+                .tabs
+                .last_active
                 .filter(|tab_id| model.note_tab(*tab_id).is_some())
         })
-        .or_else(|| model.note_tabs.last().map(|tab| tab.id))
+        .or_else(|| model.tabs.open.last().map(|tab| tab.id))
 }
 
 /// The surface a newly opened note tab belongs to.
@@ -491,7 +493,7 @@ fn reusable_note_tab(model: &AppModel) -> Option<super::TabId> {
 /// from a Base session stays attributed to that Base.
 fn current_tab_origin(model: &AppModel) -> super::TabOrigin {
     if model.route == super::Route::Editor
-        && let Some(tab) = model.active_tab.and_then(|tab_id| model.note_tab(tab_id))
+        && let Some(tab) = model.tabs.active.and_then(|tab_id| model.note_tab(tab_id))
     {
         return tab.origin;
     }
@@ -504,6 +506,44 @@ fn current_tab_origin(model: &AppModel) -> super::TabOrigin {
     }
 }
 
+/// Adds a note tab and returns its identity.
+fn push_note_tab(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    origin: super::TabOrigin,
+    title: String,
+    is_favorite: bool,
+    loading: bool,
+) -> super::TabId {
+    let tab_id = model.next_tab_id();
+    model.tabs.open.push(super::NoteTab {
+        id: tab_id,
+        note_id,
+        title,
+        is_favorite,
+        loading,
+        origin,
+    });
+    tab_id
+}
+
+/// Records the outgoing tab, stashes its document, and selects `tab_id`.
+///
+/// The caller installs the tab's document (or a loading placeholder) afterwards.
+fn begin_tab_switch(model: &mut AppModel, tab_id: super::TabId) {
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
+    }
+    record_tab_history(model);
+    stash_active_document(model);
+    model.tabs.active = Some(tab_id);
+    model.tabs.last_active = Some(tab_id);
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    model.route = super::Route::Editor;
+}
+
 /// Creates a new note tab and loads the note into it.
 fn create_note_tab(
     model: &mut AppModel,
@@ -512,15 +552,8 @@ fn create_note_tab(
     background: bool,
     export_after_load: bool,
 ) -> Vec<Effect> {
-    let tab_id = model.next_tab_id();
-    model.note_tabs.push(super::NoteTab {
-        id: tab_id,
-        note_id,
-        title: String::new(),
-        is_favorite: false,
-        loading: true,
-        origin,
-    });
+    let tab_id = push_note_tab(model, note_id, origin, String::new(), false, true);
+    // Remember the surface this tab was opened from, even for a background open.
     if model.route != super::Route::Editor {
         model.editor_return_route = model.route;
     }
@@ -532,15 +565,8 @@ fn create_note_tab(
             note_id,
         }];
     }
-    stash_active_document(model);
-    record_tab_history(model);
-    model.active_tab = Some(tab_id);
-    model.last_active_tab = Some(tab_id);
+    begin_tab_switch(model, tab_id);
     model.editor = None;
-    model.editor_preview = None;
-    model.preview_timer = None;
-    model.editor_link_dialog = None;
-    model.route = super::Route::Editor;
     model.editor_load_request = Some(request_id);
     model.editor_export_after_load = export_after_load.then_some(request_id);
     vec![Effect::LoadEditorNote {
@@ -556,41 +582,32 @@ fn open_note_as_active_tab(
     note: &carver_sdk::Note,
 ) -> super::EditorSessionId {
     let origin = current_tab_origin(model);
-    if model.route != super::Route::Editor {
-        model.editor_return_route = model.route;
-    }
-    record_tab_history(model);
-    let tab_id = model.next_tab_id();
-    model.note_tabs.push(super::NoteTab {
-        id: tab_id,
-        note_id: note.id,
-        title: note.title.clone(),
-        is_favorite: note.is_favorite,
-        loading: false,
+    let tab_id = push_note_tab(
+        model,
+        note.id,
         origin,
-    });
-    stash_active_document(model);
-    let session = open_editor(
+        note.title.clone(),
+        note.is_favorite,
+        false,
+    );
+    begin_tab_switch(model, tab_id);
+    open_editor(
         model,
         note.id,
         note.category_id,
         note.revision,
         note.is_favorite,
         note.source.clone(),
-    );
-    model.active_tab = Some(tab_id);
-    model.last_active_tab = Some(tab_id);
-    model.route = super::Route::Editor;
-    session
+    )
 }
 
 /// Moves the active document into its background tab slot.
 fn stash_active_document(model: &mut AppModel) {
-    let Some(active) = model.active_tab else {
+    let Some(active) = model.tabs.active else {
         return;
     };
     if let Some(document) = model.editor.take() {
-        model.background_documents.insert(active, document);
+        model.tabs.background.insert(active, document);
     }
 }
 
@@ -599,10 +616,10 @@ const MAX_TAB_HISTORY: usize = 64;
 
 /// Records the outgoing tab so browser-style Back can return to it.
 fn record_tab_history(model: &mut AppModel) {
-    model.tab_history.push(model.active_tab);
-    if model.tab_history.len() > MAX_TAB_HISTORY {
-        let overflow = model.tab_history.len() - MAX_TAB_HISTORY;
-        model.tab_history.drain(0..overflow);
+    model.tabs.history.push(model.tabs.active);
+    if model.tabs.history.len() > MAX_TAB_HISTORY {
+        let overflow = model.tabs.history.len() - MAX_TAB_HISTORY;
+        model.tabs.history.drain(0..overflow);
     }
 }
 
@@ -620,7 +637,7 @@ fn activate_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
 /// Showing the Notes list keeps `active_tab` as the tab to return to, so a
 /// matching `active_tab` alone must not suppress switching back to it.
 fn tab_is_active(model: &AppModel, tab_id: super::TabId) -> bool {
-    model.active_tab == Some(tab_id) && model.route == super::Route::Editor
+    model.tabs.active == Some(tab_id) && model.route == super::Route::Editor
 }
 
 /// Makes one note tab active without touching the back history.
@@ -632,9 +649,9 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
         model.editor_return_route = model.route;
     }
     stash_active_document(model);
-    model.editor = model.background_documents.remove(&tab_id);
-    model.active_tab = Some(tab_id);
-    model.last_active_tab = Some(tab_id);
+    model.editor = model.tabs.background.remove(&tab_id);
+    model.tabs.active = Some(tab_id);
+    model.tabs.last_active = Some(tab_id);
     model.route = super::Route::Editor;
     model.editor_preview = None;
     model.preview_timer = None;
@@ -658,7 +675,7 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
 /// Returns to the previously active tab, falling back to the Notes list.
 fn navigate_back(model: &mut AppModel) -> Vec<Effect> {
     loop {
-        match model.tab_history.pop() {
+        match model.tabs.history.pop() {
             Some(Some(tab_id)) if model.note_tab(tab_id).is_some() => {
                 return show_tab(model, tab_id);
             }
@@ -680,7 +697,7 @@ fn editor_external_change_effects(model: &AppModel) -> Option<Vec<Effect>> {
 
 /// Shows the pinned Notes tab, recording the previous tab.
 fn activate_notes_tab(model: &mut AppModel) -> Vec<Effect> {
-    if model.active_tab.is_none() {
+    if model.tabs.active.is_none() {
         return Vec::new();
     }
     record_tab_history(model);
@@ -689,14 +706,14 @@ fn activate_notes_tab(model: &mut AppModel) -> Vec<Effect> {
 
 /// Shows the pinned Notes tab, restoring the surface behind the editor.
 fn show_notes(model: &mut AppModel) -> Vec<Effect> {
-    if model.active_tab.is_none() {
+    if model.tabs.active.is_none() {
         return Vec::new();
     }
     if let Some(effects) = editor_external_change_effects(model) {
         return effects;
     }
     stash_active_document(model);
-    model.active_tab = None;
+    model.tabs.active = None;
     model.editor = None;
     model.editor_preview = None;
     model.preview_timer = None;
@@ -716,7 +733,7 @@ fn update_tabs(model: &mut AppModel, message: super::TabsMsg) -> Vec<Effect> {
         super::TabsMsg::Activate(tab_id) => activate_tab(model, tab_id),
         super::TabsMsg::Close(tab_id) => close_tab(model, tab_id),
         super::TabsMsg::CloseActive => {
-            let active = model.active_tab;
+            let active = model.tabs.active;
             active.map_or_else(Vec::new, |tab_id| close_tab(model, tab_id))
         }
         super::TabsMsg::Reordered { tab_id, position } => reorder_tab(model, tab_id, position),
@@ -728,7 +745,8 @@ fn update_tabs(model: &mut AppModel, message: super::TabsMsg) -> Vec<Effect> {
 /// Closes every note tab opened from one surface, saving dirty notes in the background.
 fn close_tabs_from_origin(model: &mut AppModel, origin: super::TabOrigin) -> Vec<Effect> {
     let tab_ids: Vec<super::TabId> = model
-        .note_tabs
+        .tabs
+        .open
         .iter()
         .filter(|tab| tab.origin == origin)
         .map(|tab| tab.id)
@@ -742,10 +760,10 @@ fn close_tabs_from_origin(model: &mut AppModel, origin: super::TabOrigin) -> Vec
 
 /// Closes one note tab immediately; a dirty document keeps saving in the background.
 fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
-    let Some(index) = model.note_tabs.iter().position(|tab| tab.id == tab_id) else {
+    let Some(index) = model.tabs.open.iter().position(|tab| tab.id == tab_id) else {
         return Vec::new();
     };
-    let was_active = model.active_tab == Some(tab_id);
+    let was_active = model.tabs.active == Some(tab_id);
     // A document with an unresolved external change cannot autosave; keep the tab open and let
     // the user resolve it instead of parking the draft somewhere with no way back.
     if was_active && let Some(effects) = editor_external_change_effects(model) {
@@ -754,10 +772,10 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     let document = if was_active {
         model.editor.take()
     } else {
-        model.background_documents.remove(&tab_id)
+        model.tabs.background.remove(&tab_id)
     };
-    model.note_tabs.retain(|tab| tab.id != tab_id);
-    model.tab_history.retain(|entry| *entry != Some(tab_id));
+    model.tabs.open.retain(|tab| tab.id != tab_id);
+    model.tabs.history.retain(|entry| *entry != Some(tab_id));
 
     let mut effects = Vec::new();
     if let Some(mut document) = document
@@ -771,25 +789,26 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
         if let Some(request) = document.begin_save() {
             effects.push(Effect::SaveNote { request });
         }
-        model.closing_documents.insert(document.session, document);
+        model.tabs.closing.insert(document.session, document);
     }
 
     if !was_active {
         return effects;
     }
-    model.active_tab = None;
+    model.tabs.active = None;
     model.editor = None;
     model.editor_preview = None;
     model.preview_timer = None;
     model.editor_link_dialog = None;
-    if model.note_tabs.is_empty() {
+    if model.tabs.open.is_empty() {
         restore_editor_origin(model);
         effects.extend(reload_return_surface(model));
         return effects;
     }
     let neighbor = model
-        .note_tabs
-        .get(index.min(model.note_tabs.len() - 1))
+        .tabs
+        .open
+        .get(index.min(model.tabs.open.len() - 1))
         .map(|tab| tab.id);
     if let Some(neighbor) = neighbor {
         effects.extend(show_tab(model, neighbor));
@@ -800,40 +819,46 @@ fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
 /// Removes a tab and activates a neighbor, or the Notes list when none remain.
 fn remove_note_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     let index = model
-        .note_tabs
+        .tabs
+        .open
         .iter()
         .position(|tab| tab.id == tab_id)
         .unwrap_or(0);
-    model.note_tabs.retain(|tab| tab.id != tab_id);
-    model.background_documents.remove(&tab_id);
-    model.tab_history.retain(|entry| *entry != Some(tab_id));
-    if model.active_tab != Some(tab_id) {
+    model.tabs.open.retain(|tab| tab.id != tab_id);
+    model.tabs.background.remove(&tab_id);
+    model.tabs.history.retain(|entry| *entry != Some(tab_id));
+    if model.tabs.active != Some(tab_id) {
         return Vec::new();
     }
-    model.active_tab = None;
+    model.tabs.active = None;
     model.editor = None;
     model.editor_preview = None;
     model.preview_timer = None;
     model.editor_link_dialog = None;
-    if model.note_tabs.is_empty() {
+    if model.tabs.open.is_empty() {
         restore_editor_origin(model);
         return reload_return_surface(model);
     }
     let neighbor = model
-        .note_tabs
-        .get(index.min(model.note_tabs.len() - 1))
+        .tabs
+        .open
+        .get(index.min(model.tabs.open.len() - 1))
         .map(|tab| tab.id);
     // Activating the neighbor is automatic, so it does not become Back history.
     neighbor.map_or_else(Vec::new, |tab_id| show_tab(model, tab_id))
 }
 
+/// Mirrors a user-driven tab reorder into the model.
+///
+/// `AdwTabView` is authoritative for tab order: it emits `page-reordered`, and this keeps
+/// `tabs.open` in the same order so neighbor selection on close stays visually correct.
 fn reorder_tab(model: &mut AppModel, tab_id: super::TabId, position: usize) -> Vec<Effect> {
-    let Some(index) = model.note_tabs.iter().position(|tab| tab.id == tab_id) else {
+    let Some(index) = model.tabs.open.iter().position(|tab| tab.id == tab_id) else {
         return Vec::new();
     };
-    let tab = model.note_tabs.remove(index);
-    let position = position.min(model.note_tabs.len());
-    model.note_tabs.insert(position, tab);
+    let tab = model.tabs.open.remove(index);
+    let position = position.min(model.tabs.open.len());
+    model.tabs.open.insert(position, tab);
     Vec::new()
 }
 
@@ -844,10 +869,10 @@ fn select_category(
     if let Some(effects) = editor_external_change_effects(model) {
         return effects;
     }
-    if model.active_tab.is_some() {
+    if model.tabs.active.is_some() {
         stash_active_document(model);
         record_tab_history(model);
-        model.active_tab = None;
+        model.tabs.active = None;
         model.editor = None;
         model.editor_preview = None;
         model.preview_timer = None;
@@ -1108,7 +1133,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                     && document.external_change == Some(ExternalChange::Deleted)
                     && !matches!(document.save_state, super::EditorSaveState::Saving(_))
             }) {
-                let _ = close_editor(model, session);
+                let _ = discard_editor(model, session);
                 model.pending_navigation = None;
                 model.route = super::Route::Trash;
                 reload_trash(model).into_iter().collect()
@@ -1493,7 +1518,8 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 target,
             }]
         }
-        EditorMsg::Close(session_id) => close_editor(model, session_id),
+        #[cfg(test)]
+        EditorMsg::Close(session_id) => discard_editor(model, session_id),
         EditorMsg::PreviewElapsed { .. } => Vec::new(),
         EditorMsg::ThemeChanged => {
             model.editor_theme_revision = model.editor_theme_revision.wrapping_add(1);
@@ -1516,29 +1542,25 @@ fn update_editor_load(
         model.route = super::Route::Editor;
         return Vec::new();
     }
-    if model.route != super::Route::Editor {
-        model.editor_return_route = model.route;
-    }
     let origin = current_tab_origin(model);
     let tab_id = if let Some(tab_id) = model.note_tab_for_note(note_id) {
         tab_id
     } else {
-        let tab_id = model.next_tab_id();
-        model.note_tabs.push(super::NoteTab {
-            id: tab_id,
-            note_id,
-            title: String::new(),
-            is_favorite: false,
-            loading: false,
-            origin,
-        });
-        tab_id
+        push_note_tab(model, note_id, origin, String::new(), false, false)
     };
-    stash_active_document(model);
     // The test-only load path has no library note; a fresh id simply leaves the category row
     // unselected until a real load replaces it.
     let title = carver_domain::derive_content(&source).title;
-    let session = open_editor(
+    if model.tabs.active == Some(tab_id) {
+        // Reloading the active tab in place is not a tab switch, so it is not Back history.
+        model.route = super::Route::Editor;
+        model.editor_preview = None;
+        model.preview_timer = None;
+        model.editor_link_dialog = None;
+    } else {
+        begin_tab_switch(model, tab_id);
+    }
+    let _ = open_editor(
         model,
         note_id,
         carver_sdk::CategoryId::new(),
@@ -1546,14 +1568,10 @@ fn update_editor_load(
         false,
         source,
     );
-    model.active_tab = Some(tab_id);
-    model.last_active_tab = Some(tab_id);
-    model.route = super::Route::Editor;
     if let Some(tab) = model.note_tab_mut(tab_id) {
         tab.loading = false;
         tab.title = title;
     }
-    let _ = session;
     Vec::new()
 }
 
@@ -1734,16 +1752,21 @@ fn update_editor_export(model: &mut AppModel, message: EditorMsg) -> Vec<Effect>
     }
 }
 
-fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec<Effect> {
+/// Removes a document's tab without saving it.
+///
+/// Used when the note no longer exists, or after its final mutation already persisted; unlike
+/// [`close_tab`] this never starts a save and does not activate a neighbor.
+fn discard_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec<Effect> {
     let tab_id = if model
         .editor
         .as_ref()
         .is_some_and(|document| document.session == session_id)
     {
-        model.active_tab
+        model.tabs.active
     } else {
         model
-            .background_documents
+            .tabs
+            .background
             .iter()
             .find(|(_, document)| document.session == session_id)
             .map(|(tab_id, _)| *tab_id)
@@ -1751,14 +1774,14 @@ fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec
     let Some(tab_id) = tab_id else {
         return Vec::new();
     };
-    let was_active = model.active_tab == Some(tab_id);
-    model.note_tabs.retain(|tab| tab.id != tab_id);
-    model.background_documents.remove(&tab_id);
-    model.tab_history.retain(|entry| *entry != Some(tab_id));
+    let was_active = model.tabs.active == Some(tab_id);
+    model.tabs.open.retain(|tab| tab.id != tab_id);
+    model.tabs.background.remove(&tab_id);
+    model.tabs.history.retain(|entry| *entry != Some(tab_id));
     if !was_active {
         return Vec::new();
     }
-    model.active_tab = None;
+    model.tabs.active = None;
     restore_editor_origin(model);
     model.editor = None;
     model.editor_preview = None;
@@ -2596,7 +2619,8 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             // A closed tab's document is dropped once its final save succeeds. A failed save has
             // no editor left to show it, so surface the error instead of losing it silently.
             let failed = match model
-                .closing_documents
+                .tabs
+                .closing
                 .get(&session)
                 .map(|document| &document.save_state)
             {
@@ -2605,13 +2629,14 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             };
             let clean = matches!(
                 model
-                    .closing_documents
+                    .tabs
+                    .closing
                     .get(&session)
                     .map(|document| &document.save_state),
                 Some(super::EditorSaveState::Clean)
             );
             if clean || failed.is_some() {
-                model.closing_documents.remove(&session);
+                model.tabs.closing.remove(&session);
             }
             if let Some(error) = failed {
                 model.set_notice(UiError::new(tr_fmt!(
@@ -2926,7 +2951,7 @@ fn update_favorite_changed(
                 if pending_favorite.is_none() && close_requested {
                     let session = model.editor.as_ref().map(|document| document.session);
                     effects.extend(
-                        session.map_or_else(Vec::new, |session| close_editor(model, session)),
+                        session.map_or_else(Vec::new, |session| discard_editor(model, session)),
                     );
                     let pending_effects = complete_pending_navigation(model);
                     if pending_effects.is_empty() {
@@ -3124,7 +3149,7 @@ fn update_editor_loaded(
                 tab.is_favorite = note.is_favorite;
                 tab.loading = false;
             }
-            let is_active = model.active_tab == Some(tab_id);
+            let is_active = model.tabs.active == Some(tab_id);
             // A Base-triggered reload is asynchronous. If the user edited the note before the
             // reply arrived, keep the local draft instead of replacing it with the snapshot.
             if model.document_for_note(note.id).is_some_and(|document| {
@@ -3146,7 +3171,7 @@ fn update_editor_loaded(
                     note.is_favorite,
                     note.source,
                 );
-                model.background_documents.insert(tab_id, document);
+                model.tabs.background.insert(tab_id, document);
                 return Vec::new();
             }
             let session = open_editor(

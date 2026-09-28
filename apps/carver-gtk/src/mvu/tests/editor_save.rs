@@ -117,7 +117,8 @@ fn stale_editor_save_completion_should_not_replace_a_newer_document() {
         "a stale save should only refresh library metadata and note links"
     );
     let first = model
-        .background_documents
+        .tabs
+        .background
         .values()
         .find(|document| document.note_id == first_note_id);
     assert_eq!(first.map(|document| document.revision), Some(Revision(2)));
@@ -235,7 +236,8 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
             .all(|effect| matches!(effect, Effect::LoadLibraryRevision { .. }))
     );
     let background = model
-        .background_documents
+        .tabs
+        .background
         .values()
         .find(|document| document.note_id == note_id);
     assert_eq!(

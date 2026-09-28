@@ -121,14 +121,16 @@ fn opening_a_linked_note_should_open_a_new_tab_and_keep_the_dirty_tab() {
     // The dirty document is stashed for its own tab instead of being saved or discarded.
     assert_eq!(
         model
-            .active_tab
+            .tabs
+            .active
             .map(|tab_id| model.note_tab(tab_id).map(|tab| tab.note_id)),
         Some(Some(target))
     );
     assert!(model.editor.is_none());
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .values()
             .any(|document| document.note_id == first_note)
     );

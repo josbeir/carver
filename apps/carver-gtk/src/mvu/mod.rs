@@ -18,7 +18,7 @@ pub use model::{
     EditorPdfExportRequest, EditorPreview, EditorPropertiesRequest, EditorSaveRequest,
     EditorSaveState, EditorSessionId, FrontmatterEdit, LinkDialogOrigin, LoadState, MediaFile,
     MoveUndo, NoteTab, PendingBaseCellEdit, Preferences, PropertiesSave, RequestId, Resource,
-    Route, SidebarSelection, SourceEditorPreferences, TabId, TabOrigin, TimerId, UiError,
+    Route, SidebarSelection, SourceEditorPreferences, TabId, TabOrigin, Tabs, TimerId, UiError,
 };
 pub use msg::{
     ActionMsg, AppMsg, BasesMsg, BrowserMsg, EditorExportFormat, EditorMsg, ImportFileSource,

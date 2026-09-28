@@ -40,8 +40,8 @@ fn loading_a_second_note_should_open_a_new_tab_and_stash_the_first() {
     let first_tab = load_note(&mut model, first);
     let second_tab = load_note(&mut model, second);
 
-    assert_eq!(model.note_tabs.len(), 2);
-    assert_eq!(model.active_tab, Some(second_tab));
+    assert_eq!(model.tabs.open.len(), 2);
+    assert_eq!(model.tabs.active, Some(second_tab));
     assert_eq!(model.route, Route::Editor);
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
@@ -49,7 +49,8 @@ fn loading_a_second_note_should_open_a_new_tab_and_stash_the_first() {
     );
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .get(&first_tab)
             .is_some_and(|document| document.note_id == first)
     );
@@ -71,8 +72,8 @@ fn opening_an_already_open_note_should_focus_its_tab() {
         }),
     );
 
-    assert_eq!(model.note_tabs.len(), 2);
-    assert_eq!(model.active_tab, Some(first_tab));
+    assert_eq!(model.tabs.open.len(), 2);
+    assert_eq!(model.tabs.active, Some(first_tab));
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
         Some(first)
@@ -106,7 +107,7 @@ fn opening_a_note_in_the_background_should_keep_the_active_tab() {
         ] => (*request_id, *tab_id),
         _ => panic!("background open should start one load"),
     };
-    assert_eq!(model.active_tab, Some(first_tab));
+    assert_eq!(model.tabs.active, Some(first_tab));
 
     let _ = update(
         &mut model,
@@ -127,10 +128,11 @@ fn opening_a_note_in_the_background_should_keep_the_active_tab() {
             }),
         }),
     );
-    assert_eq!(model.active_tab, Some(first_tab));
+    assert_eq!(model.tabs.active, Some(first_tab));
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .get(&second_tab)
             .is_some_and(|document| document.note_id == second)
     );
@@ -146,9 +148,9 @@ fn closing_the_active_tab_should_activate_a_neighbor() {
 
     let _ = update(&mut model, AppMsg::Tabs(TabsMsg::Close(second_tab)));
 
-    assert_eq!(model.note_tabs.len(), 1);
-    assert_eq!(model.note_tabs[0].id, first_tab);
-    assert_eq!(model.active_tab, Some(first_tab));
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.open[0].id, first_tab);
+    assert_eq!(model.tabs.active, Some(first_tab));
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
         Some(first)
@@ -163,8 +165,8 @@ fn closing_the_last_tab_should_return_to_the_notes_list() {
 
     let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Close(tab)));
 
-    assert!(model.note_tabs.is_empty());
-    assert_eq!(model.active_tab, None);
+    assert!(model.tabs.open.is_empty());
+    assert_eq!(model.tabs.active, None);
     assert_eq!(model.route, Route::Browser);
     assert!(model.editor.is_none());
     assert!(
@@ -191,9 +193,9 @@ fn closing_a_dirty_tab_should_save_it_without_keeping_the_tab() {
         panic!("closing a dirty tab should start a save");
     };
     // The tab is gone immediately; the document keeps saving in the background.
-    assert!(model.note_tabs.is_empty());
-    assert!(model.active_tab.is_none());
-    assert_eq!(model.closing_documents.len(), 1);
+    assert!(model.tabs.open.is_empty());
+    assert!(model.tabs.active.is_none());
+    assert_eq!(model.tabs.closing.len(), 1);
 
     let _ = update(
         &mut model,
@@ -203,7 +205,7 @@ fn closing_a_dirty_tab_should_save_it_without_keeping_the_tab() {
             move_error: None,
         }),
     );
-    assert!(model.closing_documents.is_empty());
+    assert!(model.tabs.closing.is_empty());
 }
 
 #[test]
@@ -231,7 +233,7 @@ fn a_failed_final_save_for_a_closed_tab_should_surface_a_notice() {
         }),
     );
 
-    assert!(model.closing_documents.is_empty());
+    assert!(model.tabs.closing.is_empty());
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("Could not save note: disk full")
@@ -253,7 +255,7 @@ fn reordering_tabs_should_update_the_model_order() {
     );
 
     assert_eq!(
-        model.note_tabs.iter().map(|tab| tab.id).collect::<Vec<_>>(),
+        model.tabs.open.iter().map(|tab| tab.id).collect::<Vec<_>>(),
         vec![second_tab, first_tab]
     );
 }
@@ -319,9 +321,9 @@ fn creating_a_note_should_open_a_new_tab() {
         }),
     );
 
-    assert_eq!(model.note_tabs.len(), 1);
-    assert_eq!(model.note_tabs[0].note_id, note_id);
-    assert_eq!(model.active_tab, Some(model.note_tabs[0].id));
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.open[0].note_id, note_id);
+    assert_eq!(model.tabs.active, Some(model.tabs.open[0].id));
     assert_eq!(model.route, Route::Editor);
     assert_eq!(
         model.editor.as_ref().map(|document| document.note_id),
@@ -336,16 +338,16 @@ fn back_should_return_to_the_previously_active_tab() {
     let second = NoteId::new();
     let first_tab = open_and_load(&mut model, first);
     let second_tab = open_and_load(&mut model, second);
-    assert_eq!(model.active_tab, Some(second_tab));
+    assert_eq!(model.tabs.active, Some(second_tab));
 
     // Back returns to the note the current one was opened from.
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
-    assert_eq!(model.active_tab, Some(first_tab));
+    assert_eq!(model.tabs.active, Some(first_tab));
     assert_eq!(model.route, Route::Editor);
 
     // Back again falls through to the pinned Notes list.
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
-    assert_eq!(model.active_tab, None);
+    assert_eq!(model.tabs.active, None);
     assert_eq!(model.route, Route::Browser);
 }
 
@@ -358,11 +360,11 @@ fn closing_a_tab_should_drop_it_from_the_back_history() {
     let _ = update(&mut model, AppMsg::Tabs(TabsMsg::Close(first_tab)));
     // The closed tab must not be reachable through Back.
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
-    assert_ne!(model.active_tab, Some(first_tab));
-    assert_ne!(model.active_tab, Some(second_tab));
-    assert_eq!(model.active_tab, None);
-    assert_eq!(model.note_tabs.len(), 1);
-    assert_eq!(model.note_tabs[0].id, second_tab);
+    assert_ne!(model.tabs.active, Some(first_tab));
+    assert_ne!(model.tabs.active, Some(second_tab));
+    assert_eq!(model.tabs.active, None);
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.open[0].id, second_tab);
 }
 
 #[test]
@@ -383,8 +385,8 @@ fn default_intent_should_reuse_the_active_tab_when_configured() {
     );
 
     // Replacing the active tab leaves a single tab showing the new note.
-    assert_eq!(model.note_tabs.len(), 1);
-    assert_eq!(model.note_tabs[0].note_id, second);
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.open[0].note_id, second);
     assert!(
         effects
             .iter()
@@ -402,7 +404,7 @@ fn default_intent_should_reuse_the_last_active_tab_from_the_notes_list() {
     let first_tab = open_and_load(&mut model, first);
     // Show the Notes list; the tab is remembered as the last active one.
     let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNotes));
-    assert_eq!(model.active_tab, None);
+    assert_eq!(model.tabs.active, None);
 
     let _ = update(
         &mut model,
@@ -412,9 +414,9 @@ fn default_intent_should_reuse_the_last_active_tab_from_the_notes_list() {
         }),
     );
 
-    assert!(!model.note_tabs.iter().any(|tab| tab.id == first_tab));
-    assert_eq!(model.note_tabs.len(), 1);
-    assert_eq!(model.note_tabs[0].note_id, second);
+    assert!(!model.tabs.open.iter().any(|tab| tab.id == first_tab));
+    assert_eq!(model.tabs.open.len(), 1);
+    assert_eq!(model.tabs.open[0].note_id, second);
 }
 
 #[test]
@@ -434,8 +436,8 @@ fn forced_new_tab_intent_should_ignore_the_current_tab_preference() {
         }),
     );
 
-    assert_eq!(model.note_tabs.len(), 2);
-    assert!(model.note_tabs.iter().any(|tab| tab.id == first_tab));
+    assert_eq!(model.tabs.open.len(), 2);
+    assert!(model.tabs.open.iter().any(|tab| tab.id == first_tab));
     assert!(
         effects
             .iter()
@@ -451,7 +453,7 @@ fn reactivating_a_note_tab_after_showing_notes_should_restore_the_editor() {
     // Showing the Notes list keeps the remembered active tab.
     let _ = update(&mut model, AppMsg::Navigation(NavigationMsg::ShowBrowser));
     assert_eq!(model.route, Route::Browser);
-    assert_eq!(model.active_tab, Some(tab));
+    assert_eq!(model.tabs.active, Some(tab));
 
     let effects = update(
         &mut model,
@@ -462,7 +464,7 @@ fn reactivating_a_note_tab_after_showing_notes_should_restore_the_editor() {
     );
 
     assert_eq!(model.route, Route::Editor);
-    assert_eq!(model.active_tab, Some(tab));
+    assert_eq!(model.tabs.active, Some(tab));
     assert!(
         effects
             .iter()
@@ -486,7 +488,7 @@ fn closing_a_tab_with_an_unresolved_external_change_should_keep_it_open() {
             .any(|effect| matches!(effect, Effect::ShowExternalEdit { .. }))
     );
     assert!(model.note_tab(tab).is_some());
-    assert_eq!(model.active_tab, Some(tab));
+    assert_eq!(model.tabs.active, Some(tab));
 }
 
 #[test]
@@ -495,7 +497,7 @@ fn a_failed_favorite_on_a_background_tab_should_clear_its_in_flight_state() {
     let note_id = NoteId::new();
     let first = open_and_load(&mut model, note_id);
     let _second = open_and_load(&mut model, NoteId::new());
-    if let Some(document) = model.background_documents.get_mut(&first) {
+    if let Some(document) = model.tabs.background.get_mut(&first) {
         document.favorite_mutation_in_flight = true;
     }
 
@@ -509,7 +511,8 @@ fn a_failed_favorite_on_a_background_tab_should_clear_its_in_flight_state() {
 
     assert!(
         model
-            .background_documents
+            .tabs
+            .background
             .get(&first)
             .is_some_and(|document| !document.favorite_mutation_in_flight)
     );
@@ -521,7 +524,8 @@ fn storing_an_asset_for_a_background_tab_should_schedule_its_save() {
     let _first = open_and_load(&mut model, NoteId::new());
     let _second = open_and_load(&mut model, NoteId::new());
     let Some(session) = model
-        .background_documents
+        .tabs
+        .background
         .values()
         .next()
         .map(|document| document.session)
@@ -655,7 +659,7 @@ fn closing_the_active_tab_message_should_close_it() {
     let mut model = AppModel::new(&Config::default());
     let first = open_and_load(&mut model, NoteId::new());
     let second = open_and_load(&mut model, NoteId::new());
-    assert_eq!(model.active_tab, Some(second));
+    assert_eq!(model.tabs.active, Some(second));
 
     let _ = update(&mut model, AppMsg::Tabs(TabsMsg::CloseActive));
 

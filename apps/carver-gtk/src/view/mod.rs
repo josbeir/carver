@@ -43,6 +43,7 @@ pub(crate) struct Workspace {
     >,
     syncing: Rc<Cell<bool>>,
     closing: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
+    failed: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
     attached_bar_parent: RefCell<Option<gtk::Widget>>,
     pinned_identity: RefCell<Option<(String, &'static str)>>,
 }
@@ -64,6 +65,7 @@ impl Workspace {
             editors: Rc::new(RefCell::new(std::collections::BTreeMap::new())),
             syncing: Rc::new(Cell::new(false)),
             closing: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
+            failed: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
             attached_bar_parent: RefCell::new(None),
             pinned_identity: RefCell::new(None),
         }
@@ -149,6 +151,7 @@ impl Workspace {
         let pages_detached = Rc::clone(&self.pages);
         let editors_detached = Rc::clone(&self.editors);
         let closing_detached = Rc::clone(&self.closing);
+        let failed_detached = Rc::clone(&self.failed);
         self.tab_view
             .connect_page_detached(move |_view, page, _position| {
                 let tab_id = pages_detached
@@ -160,6 +163,7 @@ impl Workspace {
                     pages_detached.borrow_mut().remove(&tab_id);
                     editors_detached.borrow_mut().remove(&tab_id);
                     closing_detached.borrow_mut().remove(&tab_id);
+                    failed_detached.borrow_mut().remove(&tab_id);
                 }
             });
 
@@ -189,9 +193,11 @@ impl Workspace {
         // Break the tab-view → signal handler → TabPage cycle when the view is destroyed.
         let pages_for_destroy = Rc::clone(&self.pages);
         let editors_for_destroy = Rc::clone(&self.editors);
+        let failed_for_destroy = Rc::clone(&self.failed);
         self.tab_view.connect_destroy(move |_| {
             pages_for_destroy.borrow_mut().clear();
             editors_for_destroy.borrow_mut().clear();
+            failed_for_destroy.borrow_mut().clear();
         });
     }
 }
@@ -301,8 +307,10 @@ fn sync_pinned_tab(workspace: &Workspace, model: &AppModel) {
 
 /// Creates missing note pages and refreshes titles, loading state, and tooltips.
 fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
-    for tab in &model.note_tabs {
-        if workspace.pages.borrow().contains_key(&tab.id) {
+    for tab in &model.tabs.open {
+        if workspace.pages.borrow().contains_key(&tab.id)
+            || workspace.failed.borrow().contains(&tab.id)
+        {
             continue;
         }
         match (workspace.factory)() {
@@ -314,22 +322,28 @@ fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
                 workspace.editors.borrow_mut().insert(tab.id, Rc::new(refs));
             }
             Err(error) => {
+                // Remember the failure so the editor is not rebuilt on every render.
+                workspace.failed.borrow_mut().insert(tab.id);
                 eprintln!("Carver could not build an editor tab: {error}");
             }
         }
     }
-    for tab in &model.note_tabs {
+    for tab in &model.tabs.open {
         if let Some(page) = workspace.pages.borrow().get(&tab.id) {
             let title = tab_display_title(tab);
             if page.title() != title.as_str() {
                 page.set_title(&title);
             }
-            page.set_loading(tab.loading);
-            let context = tab_origin_label(model, tab.origin);
-            page.set_tooltip(&tr_fmt!(
+            if page.is_loading() != tab.loading {
+                page.set_loading(tab.loading);
+            }
+            let tooltip = tr_fmt!(
                 gettext("Opened from {context}"),
-                context = context
-            ));
+                context = tab_origin_label(model, tab.origin)
+            );
+            if page.tooltip().as_deref() != Some(tooltip.as_str()) {
+                page.set_tooltip(&tooltip);
+            }
         }
     }
 }
@@ -348,7 +362,8 @@ fn render_base_header_actions(
         dispatcher,
     );
     let has_tabs = model
-        .note_tabs
+        .tabs
+        .open
         .iter()
         .any(|tab| tab.origin == crate::mvu::TabOrigin::Base(base_id));
     crate::ui::bases::actions::render_close_tabs(
@@ -587,15 +602,10 @@ impl ViewRefs {
         };
         workspace.syncing.set(true);
         // The strip is shown whenever notes are open, on every surface.
-        let show_tabs = !model.note_tabs.is_empty();
+        let show_tabs = !model.tabs.open.is_empty();
         workspace.tab_bar.set_visible(show_tabs);
-        // A Base owns its own filtering, so a new note there would be ambiguous; offer the
-        // new-note action only on the Notes list and in an editor opened from it.
-        let show_new_note = match model.route {
-            Route::Browser => true,
-            Route::Editor => model.editor_return_route == Route::Browser,
-            Route::Base | Route::Trash => false,
-        };
+        // A Base owns its own filtering, so a new note there would be ambiguous.
+        let show_new_note = model.can_create_note();
         if let Some(action) = workspace.tab_bar.end_action_widget() {
             action.set_visible(show_new_note);
         }
@@ -626,7 +636,8 @@ impl ViewRefs {
 
         let selected = match model.route {
             Route::Editor => model
-                .active_tab
+                .tabs
+                .active
                 .and_then(|tab_id| workspace.pages.borrow().get(&tab_id).cloned()),
             Route::Browser | Route::Base | Route::Trash => Some(workspace.notes_page.clone()),
         };
@@ -638,7 +649,7 @@ impl ViewRefs {
 
         if show_tabs {
             let surface = match model.route {
-                Route::Editor => model.active_tab.and_then(|tab_id| {
+                Route::Editor => model.tabs.active.and_then(|tab_id| {
                     workspace
                         .pages
                         .borrow()
@@ -655,7 +666,7 @@ impl ViewRefs {
         }
 
         let active = match model.route {
-            Route::Editor => model.active_tab,
+            Route::Editor => model.tabs.active,
             Route::Browser | Route::Base | Route::Trash => None,
         };
         let active_editor =

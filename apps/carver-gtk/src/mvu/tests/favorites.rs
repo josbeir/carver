@@ -427,7 +427,8 @@ fn favorite_reversal_should_finish_before_a_clean_editor_closes() {
         }),
     );
     let background = model
-        .background_documents
+        .tabs
+        .background
         .values()
         .find(|document| document.note_id == note_id);
     assert_eq!(
@@ -516,7 +517,8 @@ fn category_selection_should_complete_after_a_clean_favorite_mutation_closes() {
     );
 
     let background = model
-        .background_documents
+        .tabs
+        .background
         .values()
         .find(|document| document.note_id == note_id);
     assert_eq!(

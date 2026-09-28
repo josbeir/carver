@@ -280,15 +280,8 @@ fn install_note_actions(
     let dispatcher_for_new_note = dispatcher.clone();
     let runtime_for_new_note = runtime.clone();
     new_note.connect_activate(move |_, _| {
-        // Match the tab bar's new-note affordance: browsing, or an editor opened from it.
-        let allowed = {
-            let model = runtime_for_new_note.model();
-            match model.route {
-                Route::Browser => true,
-                Route::Editor => model.editor_return_route == Route::Browser,
-                Route::Base | Route::Trash => false,
-            }
-        };
+        // Match the tab bar's new-note affordance.
+        let allowed = runtime_for_new_note.model().can_create_note();
         if allowed {
             let _ = dispatcher_for_new_note.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
         }

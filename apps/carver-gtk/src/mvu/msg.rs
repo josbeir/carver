@@ -601,7 +601,8 @@ pub enum EditorMsg {
         /// Format-neutral projection target.
         target: carver_editor_protocol::DocumentTarget,
     },
-    /// Close the active editor lifetime.
+    /// Discard the active editor without saving. Test-only seam for the discard path.
+    #[cfg(test)]
     Close(EditorSessionId),
 }
 
