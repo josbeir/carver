@@ -615,6 +615,26 @@ fn a_link_reply_for_a_background_tab_should_settle_its_loading_state() {
 }
 
 #[test]
+fn editing_the_page_title_should_update_the_tab_title() {
+    let mut model = AppModel::new(&Config::default());
+    let tab = open_and_load(&mut model, NoteId::new());
+    assert_eq!(
+        model.note_tab(tab).map(|tab| tab.title.as_str()),
+        Some("Note")
+    );
+
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from("# Renamed"))),
+    );
+
+    assert_eq!(
+        model.note_tab(tab).map(|tab| tab.title.as_str()),
+        Some("Renamed")
+    );
+}
+
+#[test]
 fn moving_an_open_note_should_rebase_its_document_revision() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_options};
+use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_options, to_plain_text};
 
 /// A semantic AST node suitable for source-editor context and syntax styling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -156,6 +156,7 @@ pub struct SourceAnalysis {
     nodes: Vec<AnalyzedNode>,
     media: Vec<MediaOccurrence>,
     headings: Vec<HeadingOccurrence>,
+    title: String,
 }
 
 /// One positioned heading in authored document order.
@@ -229,7 +230,23 @@ impl SourceAnalysis {
             }
             heading.text_start = start;
         }
+        analysis.title = crate::frontmatter_title(&document)
+            .or_else(|| crate::first_heading(&document))
+            .or_else(|| {
+                to_plain_text(source)
+                    .lines()
+                    .map(str::trim)
+                    .find(|line| !line.is_empty())
+                    .map(ToOwned::to_owned)
+            })
+            .unwrap_or_else(|| "Untitled Note".to_owned());
         analysis
+    }
+
+    /// The document title as the library derives it for the browser and tabs.
+    #[must_use]
+    pub fn title(&self) -> &str {
+        &self.title
     }
 
     /// Returns the deepest AST ancestry enclosing the complete selection.

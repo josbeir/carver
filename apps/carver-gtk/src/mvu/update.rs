@@ -14,11 +14,19 @@ use super::{
 
 /// Applies one message and returns the work a runtime must perform afterwards.
 #[must_use]
+pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
+    let effects = dispatch(model, message);
+    // Keep tab titles in step with the document while it is edited.
+    sync_tab_titles(model);
+    effects
+}
+
+#[must_use]
 #[expect(
     clippy::too_many_lines,
     reason = "the top-level dispatch table keeps every message route visible in one place"
 )]
-pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
+fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let mut effects = match message {
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
@@ -542,6 +550,29 @@ fn begin_tab_switch(model: &mut AppModel, tab_id: super::TabId) {
     model.preview_timer = None;
     model.editor_link_dialog = None;
     model.route = super::Route::Editor;
+}
+
+/// Keeps each tab's title in step with the document behind it while editing.
+fn sync_tab_titles(model: &mut AppModel) {
+    let open = &mut model.tabs.open;
+    if let Some(document) = model.editor.as_ref()
+        && let Some(tab) = open.iter_mut().find(|tab| tab.note_id == document.note_id)
+    {
+        let title = document.analysis.title();
+        if tab.title != title {
+            tab.title.clear();
+            tab.title.push_str(title);
+        }
+    }
+    for (tab_id, document) in &model.tabs.background {
+        if let Some(tab) = open.iter_mut().find(|tab| tab.id == *tab_id) {
+            let title = document.analysis.title();
+            if tab.title != title {
+                tab.title.clear();
+                tab.title.push_str(title);
+            }
+        }
+    }
 }
 
 /// Creates a new note tab and loads the note into it.
