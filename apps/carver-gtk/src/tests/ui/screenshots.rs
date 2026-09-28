@@ -438,8 +438,6 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     let window = fixture.window.clone();
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
-    let route_stack = fixture.route_stack()?;
-    let editor_stack = fixture.editor_mode_stack()?;
 
     // The fixture presents its dialogs eagerly; clear them so native views are visible.
     close_all_dialogs(&window);
@@ -481,10 +479,8 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
 
     // Rich editor: open the review note and wait for the web surface.
     assert!(activate_browser_note(&note_list, showcase.review));
-    assert!(run_main_context_until(|| route_stack
-        .visible_child_name()
-        .as_deref()
-        == Some("editor")));
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
+    let editor_stack = fixture.editor_mode_stack()?;
     editor_stack.set_visible_child_name("rich");
     let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich editor")?;
     assert_web_script_should_be_true(&rich, "document.body.innerText.includes('Weekly review')");
@@ -537,11 +533,11 @@ fn capture_media(
     note: carver_sdk::NoteId,
 ) -> TestResult {
     let root = fixture.root()?;
+    assert!(open_note(fixture, note)?);
     let editor_stack = fixture.editor_mode_stack()?;
     let split =
         widget_as::<gtk::ToggleButton>(&root, "source-split-toggle").ok_or("split toggle")?;
 
-    assert!(open_note(fixture, note)?);
     editor_stack.set_visible_child_name("source");
     reset_source_scroll(fixture)?;
     split.set_active(false);
@@ -631,12 +627,12 @@ fn open_note(
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let sidebar = fixture.sidebar()?;
     let note_list = fixture.note_list()?;
-    let route_stack = fixture.route_stack()?;
+    let root = fixture.root()?;
 
     Ok(sidebar_select(&sidebar, "all-notes-count")
         && run_main_context_until(|| note_list.model().is_some_and(|model| model.n_items() >= 8))
         && activate_browser_note(&note_list, note)
-        && run_main_context_until(|| route_stack.visible_child_name().as_deref() == Some("editor")))
+        && run_main_context_until(|| note_tab_is_active(&root)))
 }
 
 /// Scrolls the source editor back to the top of the buffer.

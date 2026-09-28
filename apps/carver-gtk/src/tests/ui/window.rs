@@ -1,6 +1,13 @@
 //! Shared display-backed window fixture and cross-scenario widget helpers.
 use super::*;
 
+/// Returns whether a note tab (rather than the pinned Notes list) is active.
+pub(crate) fn note_tab_is_active(root: &gtk::Widget) -> bool {
+    widget_as::<adw::TabView>(root, "workspace-tabs")
+        .and_then(|tabs| tabs.selected_page())
+        .is_some_and(|page| !page.is_pinned())
+}
+
 /// Window, dialogs, and seed library shared by the display-backed scenario functions.
 pub(crate) struct WindowFixture {
     pub directory: tempfile::TempDir,

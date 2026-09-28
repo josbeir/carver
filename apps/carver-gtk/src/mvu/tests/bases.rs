@@ -576,22 +576,25 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         &mut model,
         AppMsg::Library(LibraryReply::BaseCreated { result: Ok(base) }),
     );
-    let request = match effects.as_slice() {
-        [Effect::LoadBases { .. }, Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("creating a base should save before navigating"),
-    };
-    assert_eq!(request.source, "Unsaved");
-    assert_eq!(model.route, Route::Editor);
-    let _ = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request,
-            result: Err(UiError::new("save failed")),
-            move_error: None,
-        }),
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBases { .. }))
     );
-    assert_eq!(model.route, Route::Editor);
-    assert!(model.editor.is_some());
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SaveNote { .. }))
+    );
+    assert_eq!(model.route, Route::Base);
+    // The dirty note keeps its tab instead of being saved or discarded.
+    assert!(model.editor.is_none());
+    assert!(
+        model
+            .background_documents
+            .values()
+            .any(|document| document.note_id == note_id)
+    );
 }
 
 #[test]
@@ -696,24 +699,19 @@ fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
     );
 
     let effects = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
-    let request = match effects.as_slice() {
-        [Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("opening a base should first save the dirty editor"),
-    };
-    assert_eq!(model.route, Route::Editor);
-
-    let effects = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request,
-            result: Ok(Revision(2)),
-            move_error: None,
-        }),
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
     );
     assert_eq!(model.route, Route::Base);
-    assert!(effects.iter().any(
-        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
-    ));
+    assert!(model.editor.is_none());
+    assert!(
+        model
+            .background_documents
+            .values()
+            .any(|document| document.note_id == note_id)
+    );
 }
 
 #[test]

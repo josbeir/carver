@@ -33,6 +33,7 @@ mod mutations;
 mod preferences;
 mod runtime;
 mod startup;
+mod tabs;
 
 pub(crate) use runtime::{
     runtime_should_edit_base_properties_without_leaving_the_base,

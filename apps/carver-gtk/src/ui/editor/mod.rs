@@ -19,7 +19,7 @@ use webkit6::prelude::*;
 
 use super::{
     dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
-    sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button},
+    sidebar::{CompactNavigation, sidebar_toggle_button},
 };
 use crate::mvu::{
     AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
@@ -575,12 +575,6 @@ pub(crate) fn build_editor(
         "editor-toggle-categories-button",
     );
     header.pack_start(&toggle_sidebar);
-    let back = back_to_notes_button(
-        dispatcher,
-        "back-to-notes-button",
-        AppMsg::Editor(EditorMsg::BackRequested),
-    );
-    header.pack_start(&back);
     let mode_group = adw::InlineViewSwitcher::new();
     mode_group.set_widget_name("editor-mode-group");
     mode_group.set_display_mode(adw::InlineViewSwitcherDisplayMode::Both);

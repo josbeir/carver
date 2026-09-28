@@ -57,6 +57,8 @@ pub enum AppMsg {
     Trash(TrashMsg),
     /// Editor intent.
     Editor(EditorMsg),
+    /// Workspace tab intent.
+    Tabs(TabsMsg),
     /// Preference intent.
     Preferences(PreferencesMsg),
     /// Window lifecycle intent.
@@ -248,6 +250,31 @@ pub enum TrashMsg {
     RestoreNote(NoteId),
     /// Permanently remove all recoverable content after confirmation.
     Empty,
+}
+
+/// Workspace tab intent.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TabsMsg {
+    /// Open a note in a new tab, or focus its existing tab.
+    OpenNote {
+        /// Note to open.
+        note_id: NoteId,
+        /// Whether the tab opens in the background instead of becoming active.
+        background: bool,
+    },
+    /// Make one note tab active.
+    Activate(super::TabId),
+    /// Close one note tab.
+    Close(super::TabId),
+    /// Apply a user-driven tab reorder.
+    Reordered {
+        /// Tab that moved.
+        tab_id: super::TabId,
+        /// New zero-based position.
+        position: usize,
+    },
+    /// Show the pinned Notes tab.
+    ActivateNotes,
 }
 
 /// A source range plus the exact document snapshot it was selected from.
@@ -866,6 +893,8 @@ pub enum LibraryReply {
     EditorLoaded {
         /// Identity of the initiating request.
         request_id: RequestId,
+        /// Tab that requested the note.
+        tab_id: super::TabId,
         /// Successful note or a displayable failure.
         result: Result<carver_sdk::Note, UiError>,
     },

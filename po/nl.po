@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 15:18+0200\n"
+"POT-Creation-Date: 2026-09-28 16:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -45,7 +45,7 @@ msgstr "Carver kon de bibliotheek niet openen"
 msgid "Categories"
 msgstr "Categorieën"
 
-#: apps/carver-gtk/src/app.rs
+#: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
 msgid "Notes"
 msgstr "Notities"
 
@@ -468,6 +468,10 @@ msgstr "Verplaatsen…"
 msgid "New Note"
 msgstr "Nieuwe notitie"
 
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "Nieuwe notitie"
+
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "No notes in this category"
 msgstr "Geen notities in deze categorie"
@@ -864,10 +868,6 @@ msgstr "Nieuwe categorie"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "Nieuwe categorie…"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note"
-msgstr "Nieuwe notitie"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
@@ -1732,6 +1732,10 @@ msgstr "Notitie verplaatst"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "Notitie naar prullenbak verplaatst"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Note"
+msgstr "Notitie"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"

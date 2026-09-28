@@ -290,13 +290,17 @@ fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
     let note_id = NoteId::new();
-    let request_id = match update(
+    let (request_id, tab_id) = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
     )
     .as_slice()
     {
-        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
         _ => panic!("opening a note should start one load"),
     };
 
@@ -304,6 +308,7 @@ fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
         &mut model,
         AppMsg::Library(LibraryReply::EditorLoaded {
             request_id,
+            tab_id,
             result: Ok(Note {
                 id: note_id,
                 category_id,
@@ -326,30 +331,39 @@ fn opening_a_note_from_all_notes_should_preserve_the_all_notes_context() {
 fn opening_a_note_should_ignore_an_older_load_completion() {
     let mut model = AppModel::new(&Config::default());
     let first_note_id = NoteId::new();
-    let first_request = match update(
+    let (first_request, first_tab) = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::OpenNote(first_note_id)),
     )
     .as_slice()
     {
-        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
         _ => panic!("opening a note should start one load"),
     };
     let second_note_id = NoteId::new();
-    let second_request = match update(
+    let (second_request, _second_tab) = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::OpenNote(second_note_id)),
     )
     .as_slice()
     {
-        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
-        _ => panic!("opening a second note should supersede the first load"),
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
+        _ => panic!("opening a second note should start its own load"),
     };
 
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorLoaded {
             request_id: first_request,
+            tab_id: first_tab,
             result: Err(UiError::new("stale")),
         }),
     );
@@ -362,7 +376,7 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
     let note_id = NoteId::new();
-    let request_id = match update(
+    let (request_id, tab_id) = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::ExportNote(note_id)),
     )
@@ -371,9 +385,10 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
         [
             Effect::LoadEditorNote {
                 request_id,
+                tab_id,
                 note_id: effect_note_id,
             },
-        ] if *effect_note_id == note_id => *request_id,
+        ] if *effect_note_id == note_id => (*request_id, *tab_id),
         _ => panic!("exporting a browser note should load its editor snapshot"),
     };
 
@@ -381,6 +396,7 @@ fn exporting_a_browser_note_should_open_its_export_options_after_loading() {
         &mut model,
         AppMsg::Library(LibraryReply::EditorLoaded {
             request_id,
+            tab_id,
             result: Ok(Note {
                 id: note_id,
                 category_id,

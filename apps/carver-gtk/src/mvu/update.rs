@@ -12,6 +12,10 @@ use super::{
 
 /// Applies one message and returns the work a runtime must perform afterwards.
 #[must_use]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the top-level dispatch table keeps every message route visible in one place"
+)]
 pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let mut effects = match message {
         AppMsg::Navigation(NavigationMsg::Started) => {
@@ -20,9 +24,11 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Navigation(NavigationMsg::SelectCategory(category_id)) => {
             select_category(model, category_id)
         }
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => open_note(model, note_id),
+        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
+            open_note_tab(model, note_id, false, false)
+        }
         AppMsg::Navigation(NavigationMsg::ExportNote(note_id)) => {
-            request_editor_load(model, note_id, true)
+            open_note_tab(model, note_id, false, true)
         }
         AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
@@ -59,6 +65,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         }
         AppMsg::Trash(TrashMsg::Empty) => vec![Effect::EmptyTrash],
         AppMsg::Editor(message) => update_editor(model, message),
+        AppMsg::Tabs(message) => update_tabs(model, message),
         AppMsg::Preferences(preference) => update_preferences(model, preference),
         AppMsg::Window(WindowMsg::SaveGeometry {
             width,
@@ -145,15 +152,19 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
         }
         BasesMsg::SetSorts { sorts } => save_base_sorts(model, sorts),
         BasesMsg::Open(base_id) => {
-            if model.route == super::Route::Editor {
-                model.pending_navigation = Some(PendingNavigation::Base(base_id));
-                let effects = request_editor_close(model);
-                return if model.editor.is_none() {
-                    complete_pending_navigation(model)
-                } else {
-                    effects
-                };
+            if let Some(effects) = editor_external_change_effects(model) {
+                return effects;
             }
+            if model.active_tab.is_some() {
+                stash_active_document(model);
+                record_tab_history(model);
+                model.active_tab = None;
+                model.editor = None;
+                model.editor_preview = None;
+                model.preview_timer = None;
+                model.editor_link_dialog = None;
+            }
+            model.editor_return_route = super::Route::Base;
             open_base(model, base_id)
         }
         BasesMsg::CreateConfigured {
@@ -418,50 +429,326 @@ fn resume_editor_refresh(model: &mut AppModel, effects: &mut Vec<Effect>) {
     }
 }
 
-fn request_editor_load(
+/// Opens a note in a tab, focusing its existing tab when the note is already open.
+fn open_note_tab(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
+    background: bool,
     export_after_load: bool,
 ) -> Vec<Effect> {
+    if let Some(tab_id) = model.note_tab_for_note(note_id) {
+        return if background {
+            Vec::new()
+        } else {
+            activate_tab(model, tab_id)
+        };
+    }
+    let tab_id = model.next_tab_id();
+    model.note_tabs.push(super::NoteTab {
+        id: tab_id,
+        note_id,
+        title: String::new(),
+        is_favorite: false,
+        loading: true,
+    });
     if model.route != super::Route::Editor {
         model.editor_return_route = model.route;
     }
     let request_id = model.next_request_id();
+    if background {
+        return vec![Effect::LoadEditorNote {
+            request_id,
+            tab_id,
+            note_id,
+        }];
+    }
+    stash_active_document(model);
+    record_tab_history(model);
+    model.active_tab = Some(tab_id);
+    model.editor = None;
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    model.route = super::Route::Editor;
     model.editor_load_request = Some(request_id);
     model.editor_export_after_load = export_after_load.then_some(request_id);
     vec![Effect::LoadEditorNote {
         request_id,
+        tab_id,
         note_id,
     }]
 }
 
-/// Opens a note, closing a dirty editor first so its edits are saved before the switch.
-fn open_note(model: &mut AppModel, note_id: carver_sdk::NoteId) -> Vec<Effect> {
-    if model.route == super::Route::Editor && model.editor.is_some() {
-        model.pending_navigation = Some(PendingNavigation::Note(note_id));
-        let effects = request_editor_close(model);
-        return if model.editor.is_none() {
-            complete_pending_navigation(model)
-        } else {
-            effects
-        };
+/// Opens an already-loaded note as a new active tab.
+fn open_note_as_active_tab(
+    model: &mut AppModel,
+    note: &carver_sdk::Note,
+) -> super::EditorSessionId {
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
     }
-    request_editor_load(model, note_id, false)
+    record_tab_history(model);
+    let tab_id = model.next_tab_id();
+    model.note_tabs.push(super::NoteTab {
+        id: tab_id,
+        note_id: note.id,
+        title: note.title.clone(),
+        is_favorite: note.is_favorite,
+        loading: false,
+    });
+    stash_active_document(model);
+    let session = open_editor(
+        model,
+        note.id,
+        note.category_id,
+        note.revision,
+        note.is_favorite,
+        note.source.clone(),
+    );
+    model.active_tab = Some(tab_id);
+    model.route = super::Route::Editor;
+    session
+}
+
+/// Moves the active document into its background tab slot.
+fn stash_active_document(model: &mut AppModel) {
+    let Some(active) = model.active_tab else {
+        return;
+    };
+    if let Some(document) = model.editor.take() {
+        model.background_documents.insert(active, document);
+    }
+}
+
+/// Maximum number of remembered tabs for back navigation.
+const MAX_TAB_HISTORY: usize = 64;
+
+/// Records the outgoing tab so browser-style Back can return to it.
+fn record_tab_history(model: &mut AppModel) {
+    model.tab_history.push(model.active_tab);
+    if model.tab_history.len() > MAX_TAB_HISTORY {
+        let overflow = model.tab_history.len() - MAX_TAB_HISTORY;
+        model.tab_history.drain(0..overflow);
+    }
+}
+
+/// Makes one note tab active, recording the previous tab.
+fn activate_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
+    if model.note_tab(tab_id).is_none() || model.active_tab == Some(tab_id) {
+        return Vec::new();
+    }
+    record_tab_history(model);
+    show_tab(model, tab_id)
+}
+
+/// Makes one note tab active without touching the back history.
+fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
+    if model.note_tab(tab_id).is_none() || model.active_tab == Some(tab_id) {
+        return Vec::new();
+    }
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
+    }
+    stash_active_document(model);
+    model.editor = model.background_documents.remove(&tab_id);
+    model.active_tab = Some(tab_id);
+    model.route = super::Route::Editor;
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    let mut effects = Vec::new();
+    if let Some(session) = model.editor.as_ref().map(|document| document.session) {
+        effects.push(Effect::FocusEditor { session });
+        if model.editor.as_ref().is_some_and(|document| {
+            matches!(
+                document.save_state,
+                super::EditorSaveState::Dirty | super::EditorSaveState::Failed(_)
+            )
+        }) {
+            effects.extend(schedule_editor_save(model));
+        }
+        effects.extend(reload_note_links(model));
+    }
+    effects
+}
+
+/// Returns to the previously active tab, falling back to the Notes list.
+fn navigate_back(model: &mut AppModel) -> Vec<Effect> {
+    loop {
+        match model.tab_history.pop() {
+            Some(Some(tab_id)) if model.note_tab(tab_id).is_some() => {
+                return show_tab(model, tab_id);
+            }
+            Some(None) | None => return show_notes(model),
+            Some(Some(_)) => {}
+        }
+    }
+}
+
+/// Shows the external-edit resolver when the active note conflicts with an external change.
+fn editor_external_change_effects(model: &AppModel) -> Option<Vec<Effect>> {
+    let document = model.editor.as_ref()?;
+    let change = document.external_change.as_ref()?;
+    Some(vec![Effect::ShowExternalEdit {
+        session: document.session,
+        deleted: matches!(change, ExternalChange::Deleted),
+    }])
+}
+
+/// Shows the pinned Notes tab, recording the previous tab.
+fn activate_notes_tab(model: &mut AppModel) -> Vec<Effect> {
+    if model.active_tab.is_none() {
+        return Vec::new();
+    }
+    record_tab_history(model);
+    show_notes(model)
+}
+
+/// Shows the pinned Notes tab, restoring the surface behind the editor.
+fn show_notes(model: &mut AppModel) -> Vec<Effect> {
+    if model.active_tab.is_none() {
+        return Vec::new();
+    }
+    if let Some(effects) = editor_external_change_effects(model) {
+        return effects;
+    }
+    stash_active_document(model);
+    model.active_tab = None;
+    model.editor = None;
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    restore_editor_origin(model);
+    reload_return_surface(model)
+}
+
+/// Handles workspace tab intent.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the tab message mirrors the AppMsg contract and stays a plain owned enum"
+)]
+fn update_tabs(model: &mut AppModel, message: super::TabsMsg) -> Vec<Effect> {
+    match message {
+        super::TabsMsg::OpenNote {
+            note_id,
+            background,
+        } => open_note_tab(model, note_id, background, false),
+        super::TabsMsg::Activate(tab_id) => activate_tab(model, tab_id),
+        super::TabsMsg::Close(tab_id) => close_tab(model, tab_id),
+        super::TabsMsg::Reordered { tab_id, position } => reorder_tab(model, tab_id, position),
+        super::TabsMsg::ActivateNotes => activate_notes_tab(model),
+    }
+}
+
+/// Closes one note tab immediately; a dirty document keeps saving in the background.
+fn close_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
+    let Some(index) = model.note_tabs.iter().position(|tab| tab.id == tab_id) else {
+        return Vec::new();
+    };
+    let was_active = model.active_tab == Some(tab_id);
+    let document = if was_active {
+        model.editor.take()
+    } else {
+        model.background_documents.remove(&tab_id)
+    };
+    model.note_tabs.retain(|tab| tab.id != tab_id);
+    model.tab_history.retain(|entry| *entry != Some(tab_id));
+
+    let mut effects = Vec::new();
+    if let Some(mut document) = document
+        && matches!(
+            document.save_state,
+            super::EditorSaveState::Dirty
+                | super::EditorSaveState::Saving(_)
+                | super::EditorSaveState::Failed(_)
+        )
+    {
+        if let Some(request) = document.begin_save() {
+            effects.push(Effect::SaveNote { request });
+        }
+        model.closing_documents.insert(document.session, document);
+    }
+
+    if !was_active {
+        return effects;
+    }
+    model.active_tab = None;
+    model.editor = None;
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    if model.note_tabs.is_empty() {
+        restore_editor_origin(model);
+        effects.extend(reload_return_surface(model));
+        return effects;
+    }
+    let neighbor = model
+        .note_tabs
+        .get(index.min(model.note_tabs.len() - 1))
+        .map(|tab| tab.id);
+    if let Some(neighbor) = neighbor {
+        effects.extend(show_tab(model, neighbor));
+    }
+    effects
+}
+
+/// Removes a tab and activates a neighbor, or the Notes list when none remain.
+fn remove_note_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
+    let index = model
+        .note_tabs
+        .iter()
+        .position(|tab| tab.id == tab_id)
+        .unwrap_or(0);
+    model.note_tabs.retain(|tab| tab.id != tab_id);
+    model.background_documents.remove(&tab_id);
+    model.tab_history.retain(|entry| *entry != Some(tab_id));
+    if model.active_tab != Some(tab_id) {
+        return Vec::new();
+    }
+    model.active_tab = None;
+    model.editor = None;
+    model.editor_preview = None;
+    model.preview_timer = None;
+    model.editor_link_dialog = None;
+    if model.note_tabs.is_empty() {
+        restore_editor_origin(model);
+        return reload_return_surface(model);
+    }
+    let neighbor = model
+        .note_tabs
+        .get(index.min(model.note_tabs.len() - 1))
+        .map(|tab| tab.id);
+    // Activating the neighbor is automatic, so it does not become Back history.
+    neighbor.map_or_else(Vec::new, |tab_id| show_tab(model, tab_id))
+}
+
+fn reorder_tab(model: &mut AppModel, tab_id: super::TabId, position: usize) -> Vec<Effect> {
+    let Some(index) = model.note_tabs.iter().position(|tab| tab.id == tab_id) else {
+        return Vec::new();
+    };
+    let tab = model.note_tabs.remove(index);
+    let position = position.min(model.note_tabs.len());
+    model.note_tabs.insert(position, tab);
+    Vec::new()
 }
 
 fn select_category(
     model: &mut AppModel,
     category_id: Option<carver_sdk::CategoryId>,
 ) -> Vec<Effect> {
-    if model.route == super::Route::Editor {
-        model.pending_navigation = Some(PendingNavigation::Browser(category_id));
-        let effects = request_editor_close(model);
-        return if model.editor.is_none() {
-            complete_pending_navigation(model)
-        } else {
-            effects
-        };
+    if let Some(effects) = editor_external_change_effects(model) {
+        return effects;
     }
+    if model.active_tab.is_some() {
+        stash_active_document(model);
+        record_tab_history(model);
+        model.active_tab = None;
+        model.editor = None;
+        model.editor_preview = None;
+        model.preview_timer = None;
+        model.editor_link_dialog = None;
+    }
+    model.editor_return_route = super::Route::Browser;
     model.selected_category = category_id;
     model.route = super::Route::Browser;
     reload_browser(model).into_iter().collect()
@@ -478,7 +765,6 @@ fn complete_pending_navigation(model: &mut AppModel) -> Vec<Effect> {
             reload_browser(model).into_iter().collect()
         }
         PendingNavigation::Base(base_id) => open_base(model, base_id),
-        PendingNavigation::Note(note_id) => request_editor_load(model, note_id, false),
     }
 }
 
@@ -797,9 +1083,8 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         }
         EditorMsg::AutosaveRequested => schedule_editor_save(model).into_iter().collect(),
         EditorMsg::AutosaveElapsed { session, timer_id } => model
-            .editor
-            .as_mut()
-            .filter(|document| document.session == session && document.is_current_timer(timer_id))
+            .document_for_session_mut(session)
+            .filter(|document| document.is_current_timer(timer_id))
             .and_then(super::EditorDocument::begin_save)
             .map_or_else(Vec::new, save_note_effect),
         EditorMsg::RetrySave => model
@@ -809,7 +1094,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             .map_or_else(Vec::new, save_note_effect),
         EditorMsg::BackRequested => {
             model.pending_navigation = None;
-            request_editor_close(model)
+            navigate_back(model)
         }
         EditorMsg::TrashRequested => model
             .editor
@@ -1035,8 +1320,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             path,
             file,
         } => {
-            if let Some(document) = model.editor.as_mut()
-                && document.session == session
+            if let Some(document) = model.document_for_session_mut(session)
                 && document.media_file_kinds.get(&path) == Some(&image)
             {
                 document.media_files.insert(path, file);
@@ -1113,17 +1397,35 @@ fn update_editor_load(
     revision: carver_sdk::Revision,
     source: String,
 ) -> Vec<Effect> {
-    model.route = super::Route::Editor;
     if model
         .editor
         .as_ref()
         .is_some_and(|document| document.note_id == note_id)
     {
+        model.route = super::Route::Editor;
         return Vec::new();
     }
+    if model.route != super::Route::Editor {
+        model.editor_return_route = model.route;
+    }
+    let tab_id = if let Some(tab_id) = model.note_tab_for_note(note_id) {
+        tab_id
+    } else {
+        let tab_id = model.next_tab_id();
+        model.note_tabs.push(super::NoteTab {
+            id: tab_id,
+            note_id,
+            title: String::new(),
+            is_favorite: false,
+            loading: false,
+        });
+        tab_id
+    };
+    stash_active_document(model);
     // The test-only load path has no library note; a fresh id simply leaves the category row
     // unselected until a real load replaces it.
-    open_editor(
+    let title = carver_domain::derive_content(&source).title;
+    let session = open_editor(
         model,
         note_id,
         carver_sdk::CategoryId::new(),
@@ -1131,6 +1433,13 @@ fn update_editor_load(
         false,
         source,
     );
+    model.active_tab = Some(tab_id);
+    model.route = super::Route::Editor;
+    if let Some(tab) = model.note_tab_mut(tab_id) {
+        tab.loading = false;
+        tab.title = title;
+    }
+    let _ = session;
     Vec::new()
 }
 
@@ -1312,13 +1621,30 @@ fn update_editor_export(model: &mut AppModel, message: EditorMsg) -> Vec<Effect>
 }
 
 fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec<Effect> {
-    if model
+    let tab_id = if model
         .editor
         .as_ref()
-        .is_none_or(|document| document.session != session_id)
+        .is_some_and(|document| document.session == session_id)
     {
+        model.active_tab
+    } else {
+        model
+            .background_documents
+            .iter()
+            .find(|(_, document)| document.session == session_id)
+            .map(|(tab_id, _)| *tab_id)
+    };
+    let Some(tab_id) = tab_id else {
+        return Vec::new();
+    };
+    let was_active = model.active_tab == Some(tab_id);
+    model.note_tabs.retain(|tab| tab.id != tab_id);
+    model.background_documents.remove(&tab_id);
+    model.tab_history.retain(|entry| *entry != Some(tab_id));
+    if !was_active {
         return Vec::new();
     }
+    model.active_tab = None;
     restore_editor_origin(model);
     model.editor = None;
     model.editor_preview = None;
@@ -1497,6 +1823,31 @@ fn import_note_effect(
     )
 }
 
+/// Builds an editor document for a note, without making it active.
+fn new_editor_document(
+    model: &mut AppModel,
+    note_id: carver_sdk::NoteId,
+    category_id: carver_sdk::CategoryId,
+    revision: carver_sdk::Revision,
+    is_favorite: bool,
+    source: String,
+) -> super::EditorDocument {
+    let session = model.next_editor_session_id();
+    let mut document = super::EditorDocument::new(
+        session,
+        note_id,
+        category_id,
+        revision,
+        is_favorite,
+        source,
+        model.preferences.editor_mode,
+    );
+    if model.config.editor.show_document_sidebar {
+        document.document_sidebar = super::model::DocumentSidebarVisibility::Visible;
+    }
+    document
+}
+
 fn open_editor(
     model: &mut AppModel,
     note_id: carver_sdk::NoteId,
@@ -1505,19 +1856,15 @@ fn open_editor(
     is_favorite: bool,
     source: String,
 ) -> super::EditorSessionId {
-    let session = model.next_editor_session_id();
-    let mut document = super::EditorDocument::new(
-        session,
+    let document = new_editor_document(
+        model,
         note_id,
         category_id,
         revision,
         is_favorite,
         source.clone(),
-        model.preferences.editor_mode,
     );
-    if model.config.editor.show_document_sidebar {
-        document.document_sidebar = super::model::DocumentSidebarVisibility::Visible;
-    }
+    let session = document.session;
     model.editor_refresh_request = None;
     model.editor_refresh_pending = false;
     model.editor_refresh_retry = None;
@@ -2075,9 +2422,11 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             discard_local,
             result,
         } => update_editor_refresh(model, request_id, session, &snapshot, discard_local, result),
-        LibraryReply::EditorLoaded { request_id, result } => {
-            update_editor_loaded(model, request_id, result)
-        }
+        LibraryReply::EditorLoaded {
+            request_id,
+            tab_id,
+            result,
+        } => update_editor_loaded(model, request_id, tab_id, result),
         LibraryReply::NoteLinksLoaded {
             request_id,
             note_id,
@@ -2126,7 +2475,21 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
             request,
             move_error,
             result,
-        } => update_editor_save(model, &request, move_error, result),
+        } => {
+            let session = request.session;
+            let effects = update_editor_save(model, &request, move_error, result);
+            // A closed tab's document is dropped once its final save settles.
+            if model
+                .closing_documents
+                .get(&session)
+                .is_some_and(|document| {
+                    !matches!(document.save_state, super::EditorSaveState::Saving(_))
+                })
+            {
+                model.closing_documents.remove(&session);
+            }
+            effects
+        }
     }
 }
 
@@ -2390,44 +2753,44 @@ fn update_favorite_changed(
     match result {
         Ok(note) => {
             model.clear_notice();
-            let (rebased_save, pending_favorite, close_requested) = if let Some(document) = model
-                .editor
-                .as_mut()
-                .filter(|document| document.note_id == note.id)
-            {
-                let save_needs_rebase = matches!(
-                    &document.save_state,
-                    super::EditorSaveState::Saving(request)
-                        if request.expected_revision != note.revision
-                );
-                document.revision = note.revision;
-                document.is_favorite = note.is_favorite;
-                document.favorite_mutation_in_flight = false;
-                let pending_favorite = document
-                    .pending_favorite
-                    .filter(|is_favorite| *is_favorite != note.is_favorite);
-                if pending_favorite.is_none() {
-                    document.pending_favorite = None;
-                }
-                let rebased_save = if save_needs_rebase {
-                    document.save_state = super::EditorSaveState::Dirty;
-                    document.begin_save()
+            let (rebased_save, pending_favorite, close_requested, favorite_session) =
+                if let Some(document) = model.document_for_note_mut(note.id) {
+                    let save_needs_rebase = matches!(
+                        &document.save_state,
+                        super::EditorSaveState::Saving(request)
+                            if request.expected_revision != note.revision
+                    );
+                    document.revision = note.revision;
+                    document.is_favorite = note.is_favorite;
+                    document.favorite_mutation_in_flight = false;
+                    let pending_favorite = document
+                        .pending_favorite
+                        .filter(|is_favorite| *is_favorite != note.is_favorite);
+                    if pending_favorite.is_none() {
+                        document.pending_favorite = None;
+                    }
+                    let rebased_save = if save_needs_rebase {
+                        document.save_state = super::EditorSaveState::Dirty;
+                        document.begin_save()
+                    } else {
+                        None
+                    };
+                    (
+                        rebased_save,
+                        pending_favorite,
+                        document.close_is_requested(),
+                        Some(document.session),
+                    )
                 } else {
-                    None
+                    (None, None, false, None)
                 };
-                (
-                    rebased_save,
-                    pending_favorite,
-                    document.close_is_requested(),
-                )
-            } else {
-                (None, None, false)
-            };
             let save_was_rebased = rebased_save.is_some();
             let mut effects = rebased_save.map_or_else(Vec::new, save_note_effect);
             if !save_was_rebased {
                 effects.extend(pending_favorite.map_or_else(Vec::new, |is_favorite| {
-                    set_editor_favorite(model, is_favorite)
+                    favorite_session.map_or_else(Vec::new, |session| {
+                        set_document_favorite(model, session, is_favorite)
+                    })
                 }));
                 if pending_favorite.is_none() && close_requested {
                     let session = model.editor.as_ref().map(|document| document.session);
@@ -2469,11 +2832,7 @@ fn update_editor_asset_stored(
     result: Result<String, UiError>,
     image: bool,
 ) -> Vec<Effect> {
-    let Some(document) = model
-        .editor
-        .as_mut()
-        .filter(|document| document.session == session)
-    else {
+    let Some(document) = model.document_for_session_mut(session) else {
         return Vec::new();
     };
     match result {
@@ -2569,18 +2928,39 @@ fn update_browser_appended(
 fn update_editor_loaded(
     model: &mut AppModel,
     request_id: super::RequestId,
+    tab_id: super::TabId,
     result: Result<carver_sdk::Note, UiError>,
 ) -> Vec<Effect> {
-    if model.editor_load_request != Some(request_id) {
+    if model.note_tab(tab_id).is_none() {
         return Vec::new();
     }
-    model.editor_load_request = None;
+    if model.editor_load_request == Some(request_id) {
+        model.editor_load_request = None;
+    }
     let export_after_load = model.editor_export_after_load == Some(request_id);
     if export_after_load {
         model.editor_export_after_load = None;
     }
     match result {
         Ok(note) => {
+            if let Some(tab) = model.note_tab_mut(tab_id) {
+                tab.title.clone_from(&note.title);
+                tab.is_favorite = note.is_favorite;
+                tab.loading = false;
+            }
+            let is_active = model.active_tab == Some(tab_id);
+            if !is_active {
+                let document = new_editor_document(
+                    model,
+                    note.id,
+                    note.category_id,
+                    note.revision,
+                    note.is_favorite,
+                    note.source,
+                );
+                model.background_documents.insert(tab_id, document);
+                return Vec::new();
+            }
             let session = open_editor(
                 model,
                 note.id,
@@ -2600,7 +2980,7 @@ fn update_editor_loaded(
         }
         Err(error) => {
             model.set_notice(error);
-            Vec::new()
+            remove_note_tab(model, tab_id)
         }
     }
 }
@@ -2703,16 +3083,9 @@ fn update_created_note(
 ) -> Vec<Effect> {
     match result {
         Ok(note) => {
-            let session = open_editor(
-                model,
-                note.id,
-                note.category_id,
-                note.revision,
-                note.is_favorite,
-                note.source,
-            );
-            model.route = super::Route::Editor;
+            let session = open_note_as_active_tab(model, &note);
             let mut effects = vec![Effect::FocusEditor { session }];
+            effects.extend(reload_note_links(model));
             effects.extend(reload_after_local_mutation(model));
             effects
         }
@@ -2877,12 +3250,15 @@ fn update_editor_save(
     mut move_error: Option<UiError>,
     result: Result<carver_sdk::Revision, UiError>,
 ) -> Vec<Effect> {
+    let is_active = model
+        .editor
+        .as_ref()
+        .is_some_and(|document| document.session == request.session);
     let (close_requested, pending_favorite, move_notice, moved) = {
-        let Some(document) = model.editor.as_mut() else {
+        let Some(document) = model.document_for_session_mut(request.session) else {
             return Vec::new();
         };
-        if document.session != request.session
-            || document.note_id != request.note_id
+        if document.note_id != request.note_id
             || document.revision != request.expected_revision
             || document.save_state != super::EditorSaveState::Saving(request.clone())
         {
@@ -2940,9 +3316,11 @@ fn update_editor_save(
     if let Some(notice) = move_notice {
         model.set_notice(notice);
     }
-    let mut effects = pending_favorite.map_or_else(Vec::new, |is_favorite| {
-        set_editor_favorite(model, is_favorite)
-    });
+    let mut effects = if let Some(is_favorite) = pending_favorite {
+        set_document_favorite(model, request.session, is_favorite)
+    } else {
+        Vec::new()
+    };
     if moved {
         // A move changes which categories own the note, so refresh the sidebar counts and the
         // browser list even though the save came from the editor rather than an action.
@@ -2963,7 +3341,7 @@ fn update_editor_save(
             effects.extend(pending_effects);
         }
     }
-    if !close_requested {
+    if !close_requested && is_active {
         effects.extend(reload_note_links(model));
     }
     effects.extend(request_library_revision(
@@ -2971,35 +3349,6 @@ fn update_editor_save(
         LibraryRevisionCheckReason::LocalMutation,
     ));
     effects
-}
-
-fn request_editor_close(model: &mut AppModel) -> Vec<Effect> {
-    let Some(document) = model.editor.as_mut() else {
-        return Vec::new();
-    };
-    if document.external_change.is_some() {
-        return vec![Effect::ShowExternalEdit {
-            session: document.session,
-            deleted: document.external_change == Some(ExternalChange::Deleted),
-        }];
-    }
-    document.request_close();
-    if matches!(&document.save_state, super::EditorSaveState::Clean)
-        && !document.favorite_mutation_in_flight
-    {
-        restore_editor_origin(model);
-        model.editor = None;
-        model.editor_preview = None;
-        model.preview_timer = None;
-        return if model.pending_navigation.is_none() {
-            reload_return_surface(model)
-        } else {
-            Vec::new()
-        };
-    }
-    document
-        .begin_save()
-        .map_or_else(Vec::new, save_note_effect)
 }
 
 fn reload_return_surface(model: &mut AppModel) -> Vec<Effect> {
@@ -3499,17 +3848,36 @@ fn toggle_editor_favorite(model: &mut AppModel) -> Vec<Effect> {
 }
 
 fn set_editor_favorite(model: &mut AppModel, is_favorite: bool) -> Vec<Effect> {
-    let Some((note_id, revision)) = model.editor.as_ref().and_then(|document| {
-        (!document.favorite_mutation_in_flight && document.is_favorite != is_favorite)
-            .then_some((document.note_id, document.revision))
-    }) else {
-        if let Some(document) = model.editor.as_mut()
-            && !document.favorite_mutation_in_flight
-        {
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        return Vec::new();
+    };
+    set_document_favorite(model, session, is_favorite)
+}
+
+/// Applies a favorite change to the document owning `session`.
+fn set_document_favorite(
+    model: &mut AppModel,
+    session: super::EditorSessionId,
+    is_favorite: bool,
+) -> Vec<Effect> {
+    let Some((note_id, revision, current, in_flight)) =
+        model.document_for_session(session).map(|document| {
+            (
+                document.note_id,
+                document.revision,
+                document.is_favorite,
+                document.favorite_mutation_in_flight,
+            )
+        })
+    else {
+        return Vec::new();
+    };
+    if in_flight || current == is_favorite {
+        if !in_flight && let Some(document) = model.document_for_session_mut(session) {
             document.pending_favorite = None;
         }
         return Vec::new();
-    };
+    }
     let effects = update_action(
         model,
         ActionMsg::SetNoteFavorite {
@@ -3519,10 +3887,8 @@ fn set_editor_favorite(model: &mut AppModel, is_favorite: bool) -> Vec<Effect> {
         },
     );
     if !effects.is_empty()
-        && let Some(document) = model
-            .editor
-            .as_mut()
-            .filter(|document| document.note_id == note_id)
+        && let Some(document) = model.document_for_session_mut(session)
+        && document.note_id == note_id
     {
         document.favorite_mutation_in_flight = true;
     }

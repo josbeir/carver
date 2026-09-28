@@ -406,8 +406,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
             } => self.load_more_browser(request_id, category_id, query, offset),
             Effect::LoadEditorNote {
                 request_id,
+                tab_id,
                 note_id,
-            } => self.load_editor_note(request_id, note_id),
+            } => self.load_editor_note(request_id, tab_id, note_id),
             Effect::RefreshEditorNote {
                 request_id,
                 session,
@@ -966,7 +967,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
-    fn load_editor_note(&self, request_id: super::RequestId, note_id: carver_sdk::NoteId) {
+    fn load_editor_note(
+        &self,
+        request_id: super::RequestId,
+        tab_id: super::TabId,
+        note_id: carver_sdk::NoteId,
+    ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
@@ -977,6 +983,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 .and_then(|note| note.ok_or_else(|| UiError::new("The note no longer exists")));
             runtime.dispatch(AppMsg::Library(LibraryReply::EditorLoaded {
                 request_id,
+                tab_id,
                 result,
             }));
         });

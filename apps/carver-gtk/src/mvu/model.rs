@@ -1,6 +1,6 @@
 //! UI-neutral application state.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carver_config::{Config, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_domain::source_analysis::SourceAnalysis;
@@ -14,8 +14,31 @@ use carver_sdk::{
 pub struct RequestId(pub u64);
 
 /// Identifies an editor lifetime so stale callbacks cannot affect a newer note.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct EditorSessionId(pub u64);
+
+/// Identifies one open note tab in the workspace.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TabId(pub u64);
+
+/// Lightweight metadata for one open note tab.
+///
+/// The active tab's full [`EditorDocument`] lives in `AppModel.editor`; inactive tabs keep their
+/// documents in `AppModel.background_documents`, so every other part of the app still reasons
+/// about exactly one active document.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NoteTab {
+    /// Stable tab identity.
+    pub id: TabId,
+    /// Note shown by this tab.
+    pub note_id: NoteId,
+    /// Display title, refreshed from the note.
+    pub title: String,
+    /// Whether the note is currently a favorite.
+    pub is_favorite: bool,
+    /// Whether the note is still loading into the tab.
+    pub loading: bool,
+}
 
 /// Identifies a scheduled UI timer such as a debounced search.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -261,8 +284,6 @@ pub(crate) enum PendingNavigation {
     Browser(Option<CategoryId>),
     /// Show one saved base.
     Base(carver_sdk::BaseId),
-    /// Open one note in the editor.
-    Note(NoteId),
 }
 
 /// Browser-specific UI-neutral state.
@@ -742,6 +763,7 @@ impl EditorDocument {
         self.save_timer == Some(timer_id)
     }
 
+    #[cfg(test)]
     pub(super) fn request_close(&mut self) {
         self.close_requested = true;
     }
@@ -814,6 +836,16 @@ pub struct AppModel {
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
     pub editor: Option<EditorDocument>,
+    /// Ordered open note tabs. The active tab's document is [`AppModel::editor`].
+    pub note_tabs: Vec<NoteTab>,
+    /// Active note tab, or `None` when the Notes list is showing.
+    pub active_tab: Option<TabId>,
+    /// Previously active tabs, newest last, for browser-style Back.
+    pub(crate) tab_history: Vec<Option<TabId>>,
+    /// Documents for inactive note tabs, keyed by tab id.
+    pub(crate) background_documents: BTreeMap<TabId, EditorDocument>,
+    /// Dirty documents whose tab was closed and that are still saving.
+    pub(crate) closing_documents: BTreeMap<EditorSessionId, EditorDocument>,
     /// Latest debounced editor preview snapshot.
     pub editor_preview: Option<EditorPreview>,
     /// One-shot request for the GTK adapter to copy a canonical source snapshot.
@@ -843,6 +875,7 @@ pub struct AppModel {
     pub(crate) editor_refresh_retry: Option<EditorSessionId>,
     next_request_id: u64,
     next_editor_session_id: u64,
+    next_tab_id: u64,
     next_timer_id: u64,
     next_preview_timer_id: u64,
     next_editor_copy_request_id: u64,
@@ -870,6 +903,11 @@ impl AppModel {
             undo_trash_note: None,
             preferences: Preferences::from(config),
             editor: None,
+            note_tabs: Vec::new(),
+            active_tab: None,
+            tab_history: Vec::new(),
+            background_documents: BTreeMap::new(),
+            closing_documents: BTreeMap::new(),
             editor_preview: None,
             editor_copy_request: None,
             editor_export_dialog_request: None,
@@ -889,6 +927,7 @@ impl AppModel {
             editor_refresh_retry: None,
             next_request_id: 1,
             next_editor_session_id: 1,
+            next_tab_id: 1,
             next_timer_id: 1,
             next_preview_timer_id: 1,
             next_editor_copy_request_id: 1,
@@ -914,6 +953,83 @@ impl AppModel {
         let session_id = EditorSessionId(self.next_editor_session_id);
         self.next_editor_session_id = self.next_editor_session_id.wrapping_add(1);
         session_id
+    }
+
+    pub(super) fn next_tab_id(&mut self) -> TabId {
+        let tab_id = TabId(self.next_tab_id);
+        self.next_tab_id = self.next_tab_id.wrapping_add(1);
+        tab_id
+    }
+
+    /// Returns one open note tab by identity.
+    #[must_use]
+    pub fn note_tab(&self, tab_id: TabId) -> Option<&NoteTab> {
+        self.note_tabs.iter().find(|tab| tab.id == tab_id)
+    }
+
+    pub(super) fn note_tab_mut(&mut self, tab_id: TabId) -> Option<&mut NoteTab> {
+        self.note_tabs.iter_mut().find(|tab| tab.id == tab_id)
+    }
+
+    /// Returns the tab showing `note_id`, if the note is already open.
+    #[must_use]
+    pub fn note_tab_for_note(&self, note_id: NoteId) -> Option<TabId> {
+        self.note_tabs
+            .iter()
+            .find(|tab| tab.note_id == note_id)
+            .map(|tab| tab.id)
+    }
+
+    /// Resolves an editor document by session across the active and background tabs.
+    #[must_use]
+    pub fn document_for_session(&self, session: EditorSessionId) -> Option<&EditorDocument> {
+        self.editor
+            .as_ref()
+            .filter(|document| document.session == session)
+            .or_else(|| {
+                self.background_documents
+                    .values()
+                    .find(|document| document.session == session)
+            })
+            .or_else(|| self.closing_documents.get(&session))
+    }
+
+    pub(super) fn document_for_session_mut(
+        &mut self,
+        session: EditorSessionId,
+    ) -> Option<&mut EditorDocument> {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.session == session)
+        {
+            return self.editor.as_mut();
+        }
+        if self
+            .background_documents
+            .values()
+            .any(|document| document.session == session)
+        {
+            return self
+                .background_documents
+                .values_mut()
+                .find(|document| document.session == session);
+        }
+        self.closing_documents.get_mut(&session)
+    }
+
+    /// Resolves a document by note across the active and background tabs.
+    pub(super) fn document_for_note_mut(&mut self, note_id: NoteId) -> Option<&mut EditorDocument> {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.note_id == note_id)
+        {
+            return self.editor.as_mut();
+        }
+        self.background_documents
+            .values_mut()
+            .find(|document| document.note_id == note_id)
     }
 
     pub(super) fn next_timer_id(&mut self) -> TimerId {

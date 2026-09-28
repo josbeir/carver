@@ -462,6 +462,8 @@ pub enum Effect {
     LoadEditorNote {
         /// Identity for stale-completion protection.
         request_id: RequestId,
+        /// Tab that requested the note.
+        tab_id: super::TabId,
         /// Note to open.
         note_id: NoteId,
     },

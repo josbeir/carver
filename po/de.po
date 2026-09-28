@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 15:18+0200\n"
+"POT-Creation-Date: 2026-09-28 16:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -45,7 +45,7 @@ msgstr "Carver konnte die Bibliothek nicht öffnen"
 msgid "Categories"
 msgstr "Kategorien"
 
-#: apps/carver-gtk/src/app.rs
+#: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
 msgid "Notes"
 msgstr "Notizen"
 
@@ -468,6 +468,10 @@ msgstr "Verschieben…"
 msgid "New Note"
 msgstr "Neue Notiz"
 
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "Neue Notiz"
+
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "No notes in this category"
 msgstr "Keine Notizen in dieser Kategorie"
@@ -864,10 +868,6 @@ msgstr "Neue Kategorie"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "Neue Kategorie…"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note"
-msgstr "Neue Notiz"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
@@ -1732,6 +1732,10 @@ msgstr "Notiz verschoben"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "Notiz in den Papierkorb verschoben"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Note"
+msgstr "Notiz"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"

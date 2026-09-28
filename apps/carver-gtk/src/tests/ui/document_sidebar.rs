@@ -35,6 +35,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     )?;
     let (surface, refs) = editor.into_parts();
     let stack = gtk::Stack::new();
+    stack.set_widget_name("content-route-stack");
     stack.add_named(
         &gtk::Box::new(gtk::Orientation::Vertical, 0),
         Some("browser"),
@@ -49,7 +50,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         client.clone(),
         AppModel::new(&config),
         crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
-            .with_editor(refs)
+            .with_editor_for_test(refs)
             .with_source_syntax_dir(syntax)
             .with_dispatcher(dispatcher.clone()),
         Some(config_path.clone()),
@@ -745,6 +746,11 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
         config_path,
         ..
     } = fixture()?;
+    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        source: String::from("Plain document"),
+    }));
     let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
     let editor_view =
@@ -760,11 +766,7 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
         "![Photo](assets/missing.png)",
         "Another document",
     ] {
-        runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-            note_id: carver_sdk::NoteId::new(),
-            revision: carver_sdk::Revision(1),
-            source: source.to_owned(),
-        }));
+        runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(source.to_owned())));
         assert!(toggle.is_active());
         assert!(runtime.model().config.editor.show_document_sidebar);
         let pages = widget_as::<gtk::Stack>(&surface, "editor-media-pages").ok_or("media pages")?;
@@ -803,11 +805,9 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
     assert!(run_main_context_until(
         || !document_sidebar_split.shows_sidebar()
     ));
-    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-        note_id: carver_sdk::NoteId::new(),
-        revision: carver_sdk::Revision(1),
-        source: String::from("![Image](assets/another.png)"),
-    }));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(String::from(
+        "![Image](assets/another.png)",
+    ))));
     assert!(!toggle.is_active());
     toggle.set_active(true);
     assert!(

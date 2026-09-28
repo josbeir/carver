@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 15:18+0200\n"
+"POT-Creation-Date: 2026-09-28 16:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -45,7 +45,7 @@ msgstr "Carver 无法打开其笔记库"
 msgid "Categories"
 msgstr "分类"
 
-#: apps/carver-gtk/src/app.rs
+#: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
 msgid "Notes"
 msgstr "笔记"
 
@@ -466,6 +466,10 @@ msgstr "移动…"
 msgid "New Note"
 msgstr "新建笔记"
 
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "新建笔记"
+
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "No notes in this category"
 msgstr "此分类中没有笔记"
@@ -858,10 +862,6 @@ msgstr "新建分类"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "新建分类…"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note"
-msgstr "新建笔记"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
@@ -1724,6 +1724,10 @@ msgstr "已移动笔记"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "已将笔记移到回收站"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Note"
+msgstr "笔记"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"

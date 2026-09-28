@@ -11,7 +11,7 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
     assert!(activate_browser_note(&note_list, note.id));
     let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
-        route_stack.visible_child_name().as_deref() == Some("editor")
+        note_tab_is_active(&root)
             && sidebar_selected_badge(&sidebar).as_deref() == Some("all-notes-count")
     }));
     let controllers = route_stack.observe_controllers();
@@ -107,10 +107,6 @@ pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
     assert!(
         widget_as::<gtk::ToggleButton>(&root, "favorite-note-button")
             .is_some_and(|button| !button.is_visible())
-    );
-    assert!(
-        widget_as::<gtk::Button>(&root, "back-to-notes-button")
-            .is_some_and(|button| button.is_visible())
     );
     window.set_default_size(390, 844);
     assert!(run_main_context_until(|| responsive_editor.width() >= 360));

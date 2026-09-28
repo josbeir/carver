@@ -16,9 +16,7 @@ pub(super) fn note_should_delete_restore_and_favorite_from_shortcuts(
     let trash_back =
         widget_as::<gtk::Button>(&root, "back-from-trash-button").ok_or("trash back")?;
     assert!(activate_browser_note(&note_list, note.id));
-    assert!(run_main_context_until(|| {
-        route_stack.visible_child_name().as_deref() == Some("editor")
-    }));
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
     assert!(widget_as::<gtk::Button>(&root, "delete-note-button").is_none());
     let delete_handled = editor_shortcuts.emit_by_name::<bool>(
         "key-pressed",
@@ -54,21 +52,24 @@ pub(super) fn note_should_delete_restore_and_favorite_from_shortcuts(
             && find_widget(&root, &format!("note:{}", note.id)).is_some()
     }));
     assert!(activate_browser_note(&note_list, note.id));
-    assert!(run_main_context_until(|| {
-        route_stack.visible_child_name().as_deref() == Some("editor")
-    }));
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
     let favorite =
         widget_as::<gtk::ToggleButton>(&root, "favorite-note-button").ok_or("favorite button")?;
-    let back = widget_as::<gtk::Button>(&root, "back-to-notes-button").ok_or("back button")?;
     favorite.emit_clicked();
     favorite.emit_clicked();
-    back.emit_clicked();
-    assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
+    // The Notes list is a pinned tab; select it directly instead of a back button.
+    let tabs = widget_as::<adw::TabView>(&root, "workspace-tabs").ok_or("tabs")?;
+    let notes = tabs.nth_page(0);
+    tabs.set_selected_page(&notes);
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+    }));
+    assert!(!note_tab_is_active(&root));
     assert!(sidebar_select(
         &sidebar,
         &format!("category-count:{}", category.id)
     ));
-    assert_eq!(route_stack.visible_child_name().as_deref(), Some("editor"));
+    assert_eq!(route_stack.visible_child_name().as_deref(), Some("browser"));
     assert!(run_main_context_until(|| {
         route_stack.visible_child_name().as_deref() == Some("browser")
             && widget_as::<gtk::Label>(&root, "browser-hero-title")

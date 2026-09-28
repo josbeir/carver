@@ -18,7 +18,7 @@ use super::{
         IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
         show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
     },
-    editor::{EditorViewRefs, SourceSyntaxError, build_editor},
+    editor::{EditorSurface, build_editor},
     search::{build_search_controls, connect_search_controls, install_search_shortcut},
     sidebar::{CompactNavigation, sidebar_toggle_button},
     trash::{TrashViewRefs, build_trash},
@@ -26,6 +26,7 @@ use super::{
 use crate::mvu::{
     ActionMsg, AppDispatcher, AppMsg, BrowserMsg, EditorMsg, LoadState, NavigationMsg,
 };
+use crate::view::{EditorFactory, Workspace};
 
 const MOUSE_BACK_BUTTON: u32 = 8;
 const TOUCHPAD_BACK_SCROLL_THRESHOLD: f64 = 80.0;
@@ -142,13 +143,13 @@ pub(crate) struct BrowserViewRefs {
 pub(crate) struct ContentSurface {
     pub(crate) widget: gtk::Widget,
     pub(crate) route_stack: gtk::Stack,
-    pub(crate) editor: EditorViewRefs,
+    pub(crate) workspace: Workspace,
     pub(crate) browser: BrowserViewRefs,
     pub(crate) trash: TrashViewRefs,
     pub(crate) base: crate::ui::bases::BaseViewRefs,
 }
 
-/// Builds the browser, editor, and trash pages for the content pane.
+/// Builds the Notes page, tab host, and per-tab editor factory.
 pub(crate) fn build_content(
     dispatcher: &AppDispatcher,
     config: &Config,
@@ -157,7 +158,7 @@ pub(crate) fn build_content(
     split_view: &adw::NavigationSplitView,
     compact_navigation: &CompactNavigation,
     toast_overlay: &adw::ToastOverlay,
-) -> Result<ContentSurface, SourceSyntaxError> {
+) -> ContentSurface {
     let stack = gtk::Stack::new();
     stack.set_widget_name("content-route-stack");
     stack.set_hhomogeneous(false);
@@ -167,29 +168,92 @@ pub(crate) fn build_content(
     let (base, base_refs) =
         crate::ui::bases::build_base(dispatcher, split_view, compact_navigation);
     stack.add_named(&base, Some("base"));
-    let (editor, editor_refs) = build_editor(
-        dispatcher,
-        config,
-        assets_dir,
-        source_syntax_dir,
-        toast_overlay,
-        split_view,
-        compact_navigation,
-    )?
-    .into_parts();
-    stack.add_named(&editor, Some("editor"));
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
     install_page_back_navigation(dispatcher, &stack, &base_refs.scroll);
-    Ok(ContentSurface {
-        widget: stack.clone().upcast(),
+
+    let tab_view = adw::TabView::new();
+    tab_view.set_widget_name("workspace-tabs");
+    let notes_page = tab_view.append_pinned(&stack);
+    notes_page.set_title(&gettext("Notes"));
+    tab_view.set_page_pinned(&notes_page, true);
+
+    let factory: EditorFactory = {
+        let dispatcher = dispatcher.clone();
+        let config = config.clone();
+        let assets_dir = assets_dir.map(std::path::Path::to_path_buf);
+        let source_syntax_dir = source_syntax_dir.to_path_buf();
+        let toast_overlay = toast_overlay.clone();
+        let split_view = split_view.clone();
+        let compact_navigation = Rc::clone(compact_navigation);
+        Box::new(move || {
+            build_editor(
+                &dispatcher,
+                &config,
+                assets_dir.as_deref(),
+                &source_syntax_dir,
+                &toast_overlay,
+                &split_view,
+                &compact_navigation,
+            )
+            .map(EditorSurface::into_parts)
+        })
+    };
+    let tab_bar = adw::TabBar::new();
+    tab_bar.set_widget_name("workspace-tab-bar");
+    tab_bar.set_autohide(false);
+    tab_bar.set_expand_tabs(true);
+    let new_note = gtk::Button::from_icon_name("tab-new-symbolic");
+    new_note.set_widget_name("workspace-new-note-button");
+    new_note.add_css_class("flat");
+    new_note.set_tooltip_text(Some(&gettext("New note")));
+    new_note.update_property(&[gtk::accessible::Property::Label(&gettext("New note"))]);
+    let new_note_dispatcher = dispatcher.clone();
+    new_note.connect_clicked(move |_| {
+        let _ = new_note_dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
+    });
+    tab_bar.set_end_action_widget(Some(&new_note));
+    let workspace = Workspace::new(tab_view.clone(), notes_page.clone(), tab_bar, factory);
+    workspace.connect(dispatcher);
+    install_tab_back_navigation(dispatcher, &tab_view, &notes_page);
+
+    ContentSurface {
+        widget: tab_view.clone().upcast(),
         route_stack: stack,
-        editor: editor_refs,
+        workspace,
         browser: browser_refs,
         trash: trash_refs,
         base: base_refs,
-    })
+    }
+}
+
+/// Routes conventional Back inputs from a note tab back to the Notes list.
+fn install_tab_back_navigation(
+    dispatcher: &AppDispatcher,
+    tab_view: &adw::TabView,
+    notes_page: &adw::TabPage,
+) {
+    let back = gtk::EventControllerLegacy::new();
+    back.set_name(Some("workspace-mouse-back-controller"));
+    back.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let dispatcher = dispatcher.clone();
+    let tab_view_for_event = tab_view.clone();
+    let notes_page = notes_page.clone();
+    back.connect_event(move |_, event| {
+        let is_mouse_back = event
+            .downcast_ref::<gtk::gdk::ButtonEvent>()
+            .is_some_and(|button| {
+                button.event_type() == gtk::gdk::EventType::ButtonPress
+                    && button.button() == MOUSE_BACK_BUTTON
+            });
+        if !is_mouse_back || tab_view_for_event.selected_page().as_ref() == Some(&notes_page) {
+            return glib::Propagation::Proceed;
+        }
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::BackRequested));
+        glib::Propagation::Stop
+    });
+    tab_view.add_controller(back);
 }
 
 /// Routes conventional Back inputs through the active editor or base transition.

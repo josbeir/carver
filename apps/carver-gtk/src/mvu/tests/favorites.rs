@@ -398,9 +398,15 @@ fn favorite_reversal_should_finish_before_a_clean_editor_closes() {
     );
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::BackRequested)).is_empty());
-    assert_eq!(model.route, Route::Editor);
-    assert!(model.editor.is_some());
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. }))
+    );
+    assert_eq!(model.route, Route::Browser);
+    assert!(model.editor.is_none());
+    assert!(model.note_tab_for_note(note_id).is_some());
 
     let effects = update(
         &mut model,
@@ -420,7 +426,14 @@ fn favorite_reversal_should_finish_before_a_clean_editor_closes() {
             }),
         }),
     );
-    assert!(model.editor.is_some());
+    let background = model
+        .background_documents
+        .values()
+        .find(|document| document.note_id == note_id);
+    assert_eq!(
+        background.map(|document| document.revision),
+        Some(Revision(2))
+    );
     assert!(effects.iter().any(|effect| matches!(
         effect,
         Effect::SetNoteFavorite {
@@ -468,16 +481,22 @@ fn category_selection_should_complete_after_a_clean_favorite_mutation_closes() {
         }),
     );
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite));
-    assert!(
-        update(
-            &mut model,
-            AppMsg::Navigation(NavigationMsg::SelectCategory(Some(selected_category_id))),
-        )
-        .is_empty()
-    );
-    assert!(model.editor.is_some());
-
     let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::SelectCategory(Some(selected_category_id))),
+    );
+    assert_eq!(model.route, Route::Browser);
+    assert_eq!(model.selected_category, Some(selected_category_id));
+    assert!(model.editor.is_none());
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::LoadBrowser {
+            category_id: Some(actual_category_id),
+            ..
+        } if *actual_category_id == selected_category_id
+    )));
+
+    let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::FavoriteChanged {
             action: ActionKey::SetNoteFavorite(note_id),
@@ -496,16 +515,17 @@ fn category_selection_should_complete_after_a_clean_favorite_mutation_closes() {
         }),
     );
 
+    let background = model
+        .background_documents
+        .values()
+        .find(|document| document.note_id == note_id);
+    assert_eq!(
+        background.map(|document| document.revision),
+        Some(Revision(2))
+    );
+    assert!(background.is_some_and(|document| document.is_favorite));
     assert_eq!(model.route, Route::Browser);
-    assert_eq!(model.selected_category, Some(selected_category_id));
     assert!(model.editor.is_none());
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::LoadBrowser {
-            category_id: Some(actual_category_id),
-            ..
-        } if *actual_category_id == selected_category_id
-    )));
 }
 
 #[test]

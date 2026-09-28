@@ -67,7 +67,7 @@ fn build_application(application: &adw::Application) {
             return;
         }
     };
-    if let Err(error) = build_window(
+    let _window = build_window(
         application,
         client,
         &config,
@@ -75,9 +75,7 @@ fn build_application(application: &adw::Application) {
         &source_syntax_dir,
         Some(config_path).as_deref(),
         Some(paths.database_file()).as_deref(),
-    ) {
-        show_startup_error(application, &error.to_string());
-    }
+    );
 }
 
 pub(crate) fn load_styles() {
@@ -123,7 +121,7 @@ fn build_window(
     source_syntax_dir: &Path,
     config_path: Option<&Path>,
     database_path: Option<&Path>,
-) -> Result<adw::ApplicationWindow, crate::ui::editor::SourceSyntaxError> {
+) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
@@ -145,7 +143,7 @@ fn build_window(
         &split_view,
         &compact_navigation,
         &toast_overlay,
-    )?;
+    );
     let sidebar_page = adw::NavigationPage::new(&sidebar.widget, &gettext("Categories"));
     let content_page = adw::NavigationPage::new(&content.widget, &gettext("Notes"));
     content_page.set_can_pop(false);
@@ -165,7 +163,7 @@ fn build_window(
         .with_base(content.base)
         .with_add_dialog(Rc::clone(&add_dialog))
         .with_sidebar_renderer(move |model| sidebar_for_render.render(model))
-        .with_editor(content.editor)
+        .with_workspace(content.workspace)
         .with_source_syntax_dir(source_syntax_dir.to_path_buf())
         .with_trash(
             content.trash.list,
@@ -200,7 +198,7 @@ fn build_window(
     });
     let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     window.present();
-    Ok(window)
+    window
 }
 
 fn responsive_navigation(
@@ -237,7 +235,7 @@ pub(crate) fn build_window_for_test(
     load_styles();
     let data_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
     let source_syntax_dir = install_syntax_assets(data_dir)?;
-    build_window(
+    Ok(build_window(
         application,
         client,
         config,
@@ -245,5 +243,5 @@ pub(crate) fn build_window_for_test(
         &source_syntax_dir,
         Some(config_path),
         None,
-    )
+    ))
 }

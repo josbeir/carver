@@ -148,13 +148,17 @@ fn opened_note_should_request_editor_focus() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();
     let category_id = CategoryId::new();
-    let request_id = match update(
+    let (request_id, tab_id) = match update(
         &mut model,
         AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
     )
     .as_slice()
     {
-        [Effect::LoadEditorNote { request_id, .. }] => *request_id,
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
         _ => panic!("opening a note should load it"),
     };
 
@@ -162,6 +166,7 @@ fn opened_note_should_request_editor_focus() {
         &mut model,
         AppMsg::Library(LibraryReply::EditorLoaded {
             request_id,
+            tab_id,
             result: Ok(Note {
                 id: note_id,
                 category_id,
