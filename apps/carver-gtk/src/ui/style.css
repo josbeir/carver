@@ -52,6 +52,11 @@
   background: alpha(@accent_bg_color, 0.24);
 }
 
+/* The card sits in a toggle button, whose heavier weight should stay on the title. */
+.base-view-card-description {
+  font-weight: normal;
+}
+
 .category-count-badge.category-color-rose,
 .category-count-badge.category-color-tangerine,
 .category-count-badge.category-color-yellow,

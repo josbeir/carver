@@ -370,6 +370,7 @@ fn base_view_card(
     content.append(&heading);
     let body = gtk::Label::new(Some(description));
     body.add_css_class("dim-label");
+    body.add_css_class("base-view-card-description");
     body.set_wrap(true);
     body.set_justify(gtk::Justification::Center);
     body.set_max_width_chars(24);
