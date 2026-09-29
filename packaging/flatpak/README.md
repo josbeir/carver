@@ -69,16 +69,21 @@ generated manifests and never downloads dependencies while compiling.
 
 ## Runtime locale data
 
-The GNOME runtime keeps its locale definitions as symlinks into the
-`org.gnome.Platform.Locale` extension. Flathub installs that extension for the
-user's languages automatically, but a local or bundle install must add it or
-GLib falls back to the `C` locale. That shows an English interface and, because
-`WebKit` launches its web process through the Flatpak portal, can abort the UI
-process when the environment carries non-ASCII values. Install it for the
-runtime branch in use:
+Flatpak provides the runtime's glibc locale definitions through the
+`org.gnome.Platform.Locale` extension, which it installs only for the languages
+listed in `flatpak config languages` (`en` by default). When the session locale
+is missing, GLib falls back to the `C` locale: the interface is English and,
+because `WebKit` launches its web process through the Flatpak portal, the UI
+process can abort on a non-ASCII environment.
+
+`carver-gtk-launcher.sh` is installed as the `carver-gtk` command. When the
+session locale is not available it falls back to `LC_ALL=C.UTF-8`, so the editor
+still starts while the locale data is missing. To get a localized interface, add
+the language and update:
 
 ```sh
-flatpak install --user flathub org.gnome.Platform.Locale//51
+flatpak config --set languages "en;nl"
+flatpak update
 ```
 
 `separate-locales` is disabled in the manifest so Carver's own gettext catalogs
