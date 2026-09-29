@@ -184,7 +184,7 @@ impl Workspace {
                     let _ = dispatcher_reorder.dispatch(crate::mvu::AppMsg::Tabs(
                         crate::mvu::TabsMsg::Reordered {
                             tab_id,
-                            position: usize::try_from(position.max(0)).unwrap_or(0),
+                            position: note_tab_position(position),
                         },
                     ));
                 }
@@ -362,8 +362,24 @@ fn sync_pinned_tab(workspace: &Workspace, model: &AppModel) {
     }
 }
 
+/// Converts an `AdwTabView` page position to a note-tab index.
+///
+/// `AdwTabView` reports positions in the full page list, which always starts with the pinned
+/// Notes page, while `tabs.open` holds only the note tabs.
+fn note_tab_position(position: i32) -> usize {
+    usize::try_from(position.max(0))
+        .unwrap_or(0)
+        .saturating_sub(1)
+}
+
 /// Creates missing note pages and refreshes titles, loading state, and tooltips.
-fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
+///
+/// Returns the tabs whose editor could not be built so the caller can surface the failure.
+fn sync_note_tabs(
+    workspace: &Workspace,
+    model: &AppModel,
+) -> Vec<(crate::mvu::TabId, crate::ui::editor::SourceSyntaxError)> {
+    let mut failures = Vec::new();
     for tab in &model.tabs.open {
         if workspace.pages.borrow().contains_key(&tab.id)
             || workspace.failed.borrow().contains(&tab.id)
@@ -381,7 +397,7 @@ fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
             Err(error) => {
                 // Remember the failure so the editor is not rebuilt on every render.
                 workspace.failed.borrow_mut().insert(tab.id);
-                eprintln!("Carver could not build an editor tab: {error}");
+                failures.push((tab.id, error));
             }
         }
     }
@@ -403,6 +419,7 @@ fn sync_note_tabs(workspace: &Workspace, model: &AppModel) {
             }
         }
     }
+    failures
 }
 
 /// Renders the Base header actions, including the context-scoped tab cleanup.
@@ -689,7 +706,24 @@ impl ViewRefs {
             }
         }
 
-        sync_note_tabs(workspace, model);
+        let sync_failures = sync_note_tabs(workspace, model);
+        for (tab_id, error) in sync_failures {
+            if let Some(toast_overlay) = &self.toast_overlay {
+                toast_overlay.add_toast(adw::Toast::new(&tr_fmt!(
+                    gettext("Could not open the note editor: {error}"),
+                    error = error.to_string()
+                )));
+            }
+            // Drop the unusable tab once the render pass unwinds, so the model does not keep a
+            // document-less page the user cannot reach.
+            if let Some(dispatcher) = &self.dispatcher {
+                let dispatcher = dispatcher.clone();
+                glib::idle_add_local_once(move || {
+                    let _ = dispatcher
+                        .dispatch(crate::mvu::AppMsg::Tabs(crate::mvu::TabsMsg::Close(tab_id)));
+                });
+            }
+        }
 
         let selected = match model.route {
             Route::Editor => model

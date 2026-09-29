@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 07:34+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1386,6 +1386,7 @@ msgstr ""
 "仍要导出吗？"
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
@@ -1713,6 +1714,11 @@ msgstr "关闭将丢弃您的本地草稿并打开回收站，您可以在此恢
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
 msgstr "无法加载内容"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not open the note editor: {error}"
+msgstr "无法打开笔记编辑器：{error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"

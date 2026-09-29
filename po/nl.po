@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 07:34+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -1394,6 +1394,7 @@ msgstr ""
 "Toch exporteren?"
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr "Kon de link niet openen in je standaardbrowser."
 
@@ -1721,6 +1722,11 @@ msgstr "Sluiten gooit je lokale concept weg en opent de prullenbak, waar je de o
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
 msgstr "Kon inhoud niet laden"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not open the note editor: {error}"
+msgstr "Kon de notitie-editor niet openen: {error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"

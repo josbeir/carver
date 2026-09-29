@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 07:34+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -1394,6 +1394,7 @@ msgstr ""
 "Esportare comunque?"
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr "Impossibile aprire il link nel browser predefinito."
 
@@ -1721,6 +1722,11 @@ msgstr "La chiusura scarta la bozza locale e apre il cestino, dove puoi ripristi
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
 msgstr "Impossibile caricare i contenuti"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not open the note editor: {error}"
+msgstr "Impossibile aprire l’editor della nota: {error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"

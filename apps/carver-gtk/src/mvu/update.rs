@@ -2386,21 +2386,13 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         return Vec::new();
     }
     if let ActionMsg::TrashNote(note_id) = action
-        && model
-            .editor
-            .as_ref()
-            .is_some_and(|document| document.note_id == note_id)
+        && let Some(session) = model
+            .document_for_note(note_id)
+            .map(|document| document.session)
     {
-        model.route = super::Route::Browser;
-        model.editor = None;
-        model.editor_preview = None;
-        model.editor_copy_request = None;
-        model.editor_export_dialog_request = None;
-        model.editor_export_warning_request = None;
-        model.editor_export_progress = None;
-        model.editor_pdf_export_request = None;
-        model.preview_timer = None;
-        model.editor_export_after_load = None;
+        // The note is going to the trash, so drop its tab without saving the draft. This covers a
+        // tab in the background too, which would otherwise keep a stale, document-less page.
+        let _ = discard_editor(model, session);
     }
     let effect = match action {
         ActionMsg::CreateCategory(name) => {
@@ -4273,11 +4265,7 @@ fn complete_file_import(
     target: super::ImportTarget,
     result: Result<Vec<super::StoredMedia>, UiError>,
 ) -> Vec<Effect> {
-    let Some(document) = model
-        .editor
-        .as_mut()
-        .filter(|document| document.session == target.session)
-    else {
+    let Some(document) = model.document_for_session_mut(target.session) else {
         return Vec::new();
     };
     let files = match result {
@@ -4305,15 +4293,20 @@ fn complete_file_import(
     let source = insert_media_markup(&document.source, &markup, target.source);
     document.source_changed(source);
     let source = document.source.clone();
-    [
-        schedule_preview(model),
-        schedule_editor_save(model),
-        Some(Effect::ReloadRichEditor {
-            session: target.session,
-            source,
-        }),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+    // The import can finish after the user leaves the tab; schedule the save on the document that
+    // owns the import, and only preview it while it is active.
+    let mut effects = Vec::new();
+    if model
+        .editor
+        .as_ref()
+        .is_some_and(|document| document.session == target.session)
+    {
+        effects.extend(schedule_preview(model));
+    }
+    effects.extend(schedule_editor_save_for(model, target.session));
+    effects.push(Effect::ReloadRichEditor {
+        session: target.session,
+        source,
+    });
+    effects
 }

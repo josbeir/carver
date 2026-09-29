@@ -677,6 +677,65 @@ fn open_media_document(model: &AppModel) -> &crate::mvu::model::EditorDocument {
 }
 
 #[test]
+fn imported_files_should_complete_for_a_background_document() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "First".into(),
+        }),
+    );
+    let session = open_media_document(&model).session;
+    // Opening a second note stashes the first document in the background.
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Second".into(),
+        }),
+    );
+    assert!(
+        model
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.session != session)
+    );
+
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ImportFilesStored {
+            target: crate::mvu::ImportTarget {
+                session,
+                source: None,
+            },
+            result: Ok(vec![crate::mvu::StoredMedia {
+                path: "assets/a.png".into(),
+                label: "A".into(),
+                image: true,
+            }]),
+        }),
+    );
+
+    let document = model
+        .document_for_session(session)
+        .unwrap_or_else(|| panic!("the background document should remain open"));
+    assert_eq!(document.source, "First\n![A](assets/a.png)\n");
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::ReloadRichEditor { session: reloaded, .. } if *reloaded == session
+    )));
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::ScheduleEditorSave { session: saved, .. } if *saved == session
+    )));
+    // The active document is left untouched.
+    assert_eq!(open_media_document(&model).source, "Second");
+}
+
+#[test]
 fn native_import_should_reject_a_different_document_and_preview_mode() {
     let mut model = AppModel::new(&Config::default());
     let _ = update(

@@ -55,6 +55,14 @@ fn tab_labels_should_name_their_surface_and_fall_back() {
 }
 
 #[test]
+fn note_tab_position_should_skip_the_pinned_page() {
+    assert_eq!(super::note_tab_position(0), 0);
+    assert_eq!(super::note_tab_position(1), 0);
+    assert_eq!(super::note_tab_position(2), 1);
+    assert_eq!(super::note_tab_position(-1), 0);
+}
+
+#[test]
 fn pinned_tab_identity_should_follow_the_surface() {
     let mut model = crate::mvu::AppModel::new(&Config::default());
     assert_eq!(

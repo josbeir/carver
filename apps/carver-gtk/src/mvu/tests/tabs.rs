@@ -247,6 +247,22 @@ fn a_failed_final_save_for_a_closed_tab_should_reopen_the_draft() {
 }
 
 #[test]
+fn trashing_the_active_note_should_remove_its_tab() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _tab = open_and_load(&mut model, note_id);
+
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::TrashRequested));
+
+    assert!(
+        model.tabs.open.is_empty(),
+        "trashing the note should drop its tab instead of leaving a document-less page"
+    );
+    assert!(model.tabs.active.is_none());
+    assert!(model.editor.is_none());
+}
+
+#[test]
 fn reordering_tabs_should_update_the_model_order() {
     let mut model = AppModel::new(&Config::default());
     let first_tab = load_note(&mut model, NoteId::new());

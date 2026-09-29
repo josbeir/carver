@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 07:34+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1401,6 +1401,7 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr ""
 
@@ -1735,6 +1736,11 @@ msgstr ""
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Could not load content"
+msgstr ""
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not open the note editor: {error}"
 msgstr ""
 
 #: apps/carver-gtk/src/view/mod.rs
