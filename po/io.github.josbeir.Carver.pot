@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.0\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 16:35+0200\n"
+"POT-Creation-Date: 2026-09-29 16:52+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,14 +31,44 @@ msgid "notes;markdown;writing;editor;"
 msgstr ""
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
-msgid "A native GNOME home for notes that last"
+msgid ""
+"Carver is a local-first note-taking app that stays out of your way. Quick to "
+"open and ready to catch an idea, it keeps your notes and images on your own "
+"computer."
 msgstr ""
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
 msgid ""
-"Carver is a native GNOME home for notes that last. Capture ideas in a "
-"polished writing space, keep them organized without ceremony, and reach for "
-"the source whenever you want full control."
+"Give notes structure with frontmatter properties, and build saved views "
+"called Bases with configurable columns, filters, and sort rules."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid ""
+"Import Carve or Markdown, and export to Carve, Markdown, PDF, or a portable "
+"archive."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Local-first notes for Linux"
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid ""
+"Optionally connect an assistant such as Claude Code, Codex, Copilot, or "
+"OpenCode through local, read-only MCP access."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid ""
+"Organize notes into categories, search your library, and recover deleted "
+"notes from Trash."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid ""
+"Write in rich text or Carve source, with a live preview and a distraction-"
+"free focus view."
 msgstr ""
 
 #: apps/carver-gtk/src/app.rs

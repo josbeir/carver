@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 11:34+0200\n"
+"POT-Creation-Date: 2026-09-29 16:52+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -30,12 +30,33 @@ msgid "notes;markdown;writing;editor;"
 msgstr "notities;markdown;schrijven;editor;"
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
-msgid "A native GNOME home for notes that last"
-msgstr "Een native GNOME-thuis voor notities die blijven"
+msgid "Carver is a local-first note-taking app that stays out of your way. Quick to open and ready to catch an idea, it keeps your notes and images on your own computer."
+msgstr ""
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
-msgid "Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control."
-msgstr "Carver is een native GNOME-thuis voor notities die blijven. Leg ideeën vast in een verzorgde schrijfomgeving, houd ze moeiteloos georganiseerd en grijp naar de bron wanneer je volledige controle wilt."
+msgid "Give notes structure with frontmatter properties, and build saved views called Bases with configurable columns, filters, and sort rules."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Import Carve or Markdown, and export to Carve, Markdown, PDF, or a portable archive."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Local-first notes for Linux"
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Optionally connect an assistant such as Claude Code, Codex, Copilot, or OpenCode through local, read-only MCP access."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+#, fuzzy
+msgid "Organize notes into categories, search your library, and recover deleted notes from Trash."
+msgstr "Notities in deze categorie verschijnen niet meer in je bibliotheek. Je kunt de categorie later vanuit de prullenbak herstellen."
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Write in rich text or Carve source, with a live preview and a distraction-free focus view."
+msgstr ""
 
 #: apps/carver-gtk/src/app.rs
 msgid "Carver could not open its library"

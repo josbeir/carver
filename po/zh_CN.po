@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 11:34+0200\n"
+"POT-Creation-Date: 2026-09-29 16:52+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -30,12 +30,33 @@ msgid "notes;markdown;writing;editor;"
 msgstr "笔记;markdown;写作;编辑器;"
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
-msgid "A native GNOME home for notes that last"
-msgstr "为历久弥新的笔记打造的原生 GNOME 之家"
+msgid "Carver is a local-first note-taking app that stays out of your way. Quick to open and ready to catch an idea, it keeps your notes and images on your own computer."
+msgstr ""
 
 #: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
-msgid "Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control."
-msgstr "Carver 是为历久弥新的笔记打造的原生 GNOME 之家。在精致的写作空间中捕捉灵感，轻松整理而无需繁琐操作，并随时切换到源码以获得完全的控制。"
+msgid "Give notes structure with frontmatter properties, and build saved views called Bases with configurable columns, filters, and sort rules."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Import Carve or Markdown, and export to Carve, Markdown, PDF, or a portable archive."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Local-first notes for Linux"
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Optionally connect an assistant such as Claude Code, Codex, Copilot, or OpenCode through local, read-only MCP access."
+msgstr ""
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+#, fuzzy
+msgid "Organize notes into categories, search your library, and recover deleted notes from Trash."
+msgstr "此分类中的笔记将不再显示在您的笔记库中。您可以稍后从回收站恢复该分类。"
+
+#: apps/carver-gtk/resources/io.github.josbeir.Carver.metainfo.xml
+msgid "Write in rich text or Carve source, with a live preview and a distraction-free focus view."
+msgstr ""
 
 #: apps/carver-gtk/src/app.rs
 msgid "Carver could not open its library"
