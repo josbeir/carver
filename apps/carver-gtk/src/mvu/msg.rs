@@ -281,6 +281,10 @@ pub enum TabsMsg {
     },
     /// Make one note tab active.
     Activate(super::TabId),
+    /// Activate the next page in the strip, wrapping to the pinned root page.
+    ActivateNext,
+    /// Activate the previous page in the strip, wrapping to the pinned root page.
+    ActivatePrevious,
     /// Close one note tab.
     Close(super::TabId),
     /// Close the currently selected note tab, if any.

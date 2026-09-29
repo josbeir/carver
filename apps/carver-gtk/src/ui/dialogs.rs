@@ -67,10 +67,28 @@ static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
 });
 
 static TAB_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
-    vec![Shortcut {
-        title: gettext("Close tab"),
-        accelerator: "<Control>w",
-    }]
+    vec![
+        Shortcut {
+            title: gettext("Next tab"),
+            accelerator: "<Control>Page_Down",
+        },
+        Shortcut {
+            title: gettext("Previous tab"),
+            accelerator: "<Control>Page_Up",
+        },
+        Shortcut {
+            title: gettext("Move tab left"),
+            accelerator: "<Control><Shift>Page_Up",
+        },
+        Shortcut {
+            title: gettext("Move tab right"),
+            accelerator: "<Control><Shift>Page_Down",
+        },
+        Shortcut {
+            title: gettext("Close tab"),
+            accelerator: "<Control>w",
+        },
+    ]
 });
 
 static BROWSER_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {

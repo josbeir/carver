@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 19:48+0200\n"
+"POT-Creation-Date: 2026-09-29 07:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -869,6 +869,14 @@ msgid "Move note to Trash"
 msgstr "将笔记移到回收站"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab left"
+msgstr "向左移动标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab right"
+msgstr "向右移动标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "将“{category_name}”移到回收站？"
@@ -901,6 +909,10 @@ msgstr "新标签页"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "下一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next tab"
+msgstr "下一个标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No categories found"
@@ -958,6 +970,10 @@ msgstr "预览和导出"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Previous result"
 msgstr "上一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous tab"
+msgstr "上一个标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Print note"

@@ -835,6 +835,55 @@ fn activating_a_background_tab_should_refresh_it() {
 }
 
 #[test]
+fn next_and_previous_should_wrap_the_strip_including_the_root_page() {
+    let mut model = AppModel::new(&Config::default());
+    let first = open_and_load(&mut model, NoteId::new());
+    let second = open_and_load(&mut model, NoteId::new());
+
+    // From the last note tab, next wraps to the root (Notes).
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNext));
+    assert_eq!(model.tabs.active, None);
+    assert_eq!(model.route, Route::Browser);
+    // Next again moves into the first note tab.
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNext));
+    assert_eq!(model.tabs.active, Some(first));
+    // Previous from the first note tab wraps back to the root.
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivatePrevious));
+    assert_eq!(model.tabs.active, None);
+    // Previous from the root goes to the last note tab.
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivatePrevious));
+    assert_eq!(model.tabs.active, Some(second));
+}
+
+#[test]
+fn next_from_a_note_opened_from_a_base_should_return_to_the_base() {
+    let mut model = AppModel::new(&Config::default());
+    let base_id = BaseId::new();
+    model.route = Route::Base;
+    model.bases.selected = Some(base_id);
+    let _note = open_and_load(&mut model, NoteId::new());
+
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNext));
+
+    assert_eq!(model.tabs.active, None);
+    assert_eq!(model.route, Route::Base);
+    assert_eq!(model.bases.selected, Some(base_id));
+}
+
+#[test]
+fn navigating_tabs_should_not_record_back_history() {
+    let mut model = AppModel::new(&Config::default());
+    let _first = open_and_load(&mut model, NoteId::new());
+    let _second = open_and_load(&mut model, NoteId::new());
+    let before = model.tabs.history.clone();
+
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivateNext));
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::ActivatePrevious));
+
+    assert_eq!(model.tabs.history, before);
+}
+
+#[test]
 fn moving_an_open_note_should_rebase_its_document_revision() {
     let mut model = AppModel::new(&Config::default());
     let note_id = NoteId::new();

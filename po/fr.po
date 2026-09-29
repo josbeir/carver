@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 19:48+0200\n"
+"POT-Creation-Date: 2026-09-29 07:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -875,6 +875,14 @@ msgid "Move note to Trash"
 msgstr "Mettre la note à la corbeille"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab left"
+msgstr "Déplacer l’onglet vers la gauche"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab right"
+msgstr "Déplacer l’onglet vers la droite"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "Mettre « {category_name} » à la corbeille ?"
@@ -907,6 +915,10 @@ msgstr "Nouvel onglet"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "Résultat suivant"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next tab"
+msgstr "Onglet suivant"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No categories found"
@@ -964,6 +976,10 @@ msgstr "Aperçus et exports"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Previous result"
 msgstr "Résultat précédent"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous tab"
+msgstr "Onglet précédent"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Print note"

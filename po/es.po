@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 19:48+0200\n"
+"POT-Creation-Date: 2026-09-29 07:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -875,6 +875,14 @@ msgid "Move note to Trash"
 msgstr "Mover nota a la papelera"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab left"
+msgstr "Mover pestaña a la izquierda"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab right"
+msgstr "Mover pestaña a la derecha"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "¿Mover «{category_name}» a la papelera?"
@@ -907,6 +915,10 @@ msgstr "Nueva pestaña"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "Resultado siguiente"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next tab"
+msgstr "Pestaña siguiente"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No categories found"
@@ -964,6 +976,10 @@ msgstr "Vistas previas y exportaciones"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Previous result"
 msgstr "Resultado anterior"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous tab"
+msgstr "Pestaña anterior"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Print note"

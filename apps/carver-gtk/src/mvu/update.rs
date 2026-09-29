@@ -715,6 +715,39 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     effects
 }
 
+/// Moves to the neighbouring page in the visible strip, wrapping to the pinned root page.
+///
+/// The strip is `[root, note tabs…]`, where the root is whichever surface the pinned page
+/// currently hosts: the Notes list, a Base, or Trash. Switching here does not touch the Back
+/// history, unlike clicking a tab.
+fn activate_relative_page(model: &mut AppModel, step: isize) -> Vec<Effect> {
+    let pages = model.tabs.open.len() + 1;
+    let current = if model.route == super::Route::Editor {
+        model
+            .tabs
+            .active
+            .and_then(|tab_id| model.tabs.open.iter().position(|tab| tab.id == tab_id))
+            .map_or(0, |index| index + 1)
+    } else {
+        0
+    };
+    let target = if step < 0 {
+        if current == 0 { pages - 1 } else { current - 1 }
+    } else if current + 1 == pages {
+        0
+    } else {
+        current + 1
+    };
+    if target == current {
+        return Vec::new();
+    }
+    if target == 0 {
+        return show_notes(model);
+    }
+    let tab_id = model.tabs.open.get(target - 1).map(|tab| tab.id);
+    tab_id.map_or_else(Vec::new, |tab_id| show_tab(model, tab_id))
+}
+
 /// Returns to the previously active tab, falling back to the Notes list.
 fn navigate_back(model: &mut AppModel) -> Vec<Effect> {
     loop {
@@ -774,6 +807,8 @@ fn update_tabs(model: &mut AppModel, message: super::TabsMsg) -> Vec<Effect> {
     match message {
         super::TabsMsg::OpenNote { note_id, intent } => open_note_tab(model, note_id, intent),
         super::TabsMsg::Activate(tab_id) => activate_tab(model, tab_id),
+        super::TabsMsg::ActivateNext => activate_relative_page(model, 1),
+        super::TabsMsg::ActivatePrevious => activate_relative_page(model, -1),
         super::TabsMsg::Close(tab_id) => close_tab(model, tab_id),
         super::TabsMsg::CloseActive => {
             let active = model.tabs.active;

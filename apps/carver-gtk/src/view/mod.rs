@@ -199,6 +199,63 @@ impl Workspace {
             editors_for_destroy.borrow_mut().clear();
             failed_for_destroy.borrow_mut().clear();
         });
+
+        self.install_shortcuts(dispatcher);
+    }
+
+    /// Installs the tab-navigation keys before the focused editor sees them.
+    ///
+    /// `AdwTabView`'s own shortcuts are enabled but unreachable while `WebKit` or the source view
+    /// has focus, so navigation is owned here and routed through the reducer.
+    fn install_shortcuts(&self, dispatcher: &crate::mvu::AppDispatcher) {
+        let controller = gtk::EventControllerKey::new();
+        controller.set_name(Some("workspace-tab-shortcuts"));
+        controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let tab_view = self.tab_view.clone();
+        let dispatcher = dispatcher.clone();
+        controller.connect_key_pressed(move |_, key, _, modifiers| {
+            if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                return glib::Propagation::Proceed;
+            }
+            let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+            let message = match (key, shift) {
+                (gtk::gdk::Key::Page_Down, true) => {
+                    reorder_selected_page(&tab_view, true);
+                    None
+                }
+                (gtk::gdk::Key::Page_Up, true) => {
+                    reorder_selected_page(&tab_view, false);
+                    None
+                }
+                (gtk::gdk::Key::Page_Down | gtk::gdk::Key::Tab, false) => {
+                    Some(crate::mvu::TabsMsg::ActivateNext)
+                }
+                (gtk::gdk::Key::Page_Up, false) | (gtk::gdk::Key::Tab, true) => {
+                    Some(crate::mvu::TabsMsg::ActivatePrevious)
+                }
+                _ => return glib::Propagation::Proceed,
+            };
+            if let Some(message) = message {
+                let _ = dispatcher.dispatch(crate::mvu::AppMsg::Tabs(message));
+            }
+            glib::Propagation::Stop
+        });
+        self.tab_view.add_controller(controller);
+    }
+}
+
+/// Moves the selected non-pinned page one position, reporting the result through the tab view.
+fn reorder_selected_page(tab_view: &adw::TabView, forward: bool) {
+    let Some(page) = tab_view.selected_page() else {
+        return;
+    };
+    if page.is_pinned() {
+        return;
+    }
+    if forward {
+        tab_view.reorder_forward(&page);
+    } else {
+        tab_view.reorder_backward(&page);
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -132,3 +132,65 @@ fn tab_shortcuts_should_create_and_close_tabs(
     }));
     Ok(())
 }
+
+/// Verifies the tab-navigation shortcut controller cycles and reorders tabs.
+pub(super) fn tab_shortcuts_should_cycle_tabs(
+    fixture: &WindowFixture,
+    note: &carver_sdk::NoteSummary,
+) -> TestResult {
+    let root = fixture.root()?;
+    let note_list = fixture.note_list()?;
+    assert!(activate_browser_note(&note_list, note.id));
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
+    // Open a second note so navigation has somewhere to go.
+    if let Some(second) = browser_note_ids(&note_list)
+        .into_iter()
+        .find(|note_id| *note_id != note.id)
+    {
+        assert!(activate_browser_note(&note_list, second));
+        assert!(run_main_context_until(|| note_tab_is_active(&root)));
+    }
+    let tabs = widget_as::<adw::TabView>(&root, "workspace-tabs").ok_or("tabs")?;
+    let controller = tabs
+        .observe_controllers()
+        .iter::<glib::Object>()
+        .filter_map(Result::ok)
+        .find_map(|object| object.downcast::<gtk::EventControllerKey>().ok())
+        .filter(|controller| controller.name().as_deref() == Some("workspace-tab-shortcuts"))
+        .ok_or("tab shortcuts controller")?;
+
+    let before = tabs.selected_page();
+    let handled = controller.emit_by_name::<bool>(
+        "key-pressed",
+        &[
+            &gtk::gdk::Key::Page_Down,
+            &0_u32,
+            &gtk::gdk::ModifierType::CONTROL_MASK,
+        ],
+    );
+    assert!(handled);
+    assert!(run_main_context_until(|| {
+        tabs.selected_page().as_ref() != before.as_ref()
+    }));
+
+    // Ctrl+Shift+Page_Down moves the selected note tab one position right.
+    if let Some(page) = tabs.selected_page()
+        && !page.is_pinned()
+        && tabs.n_pages() > 2
+    {
+        let position = tabs.page_position(&page);
+        let handled = controller.emit_by_name::<bool>(
+            "key-pressed",
+            &[
+                &gtk::gdk::Key::Page_Down,
+                &0_u32,
+                &(gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK),
+            ],
+        );
+        assert!(handled);
+        assert!(run_main_context_until(|| {
+            tabs.page_position(&page) != position
+        }));
+    }
+    Ok(())
+}

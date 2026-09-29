@@ -305,6 +305,25 @@ pub(crate) fn find_label(root: &gtk::Widget, text: &str) -> Option<gtk::Label> {
     None
 }
 
+/// Returns the note ids shown in a browser feed list, in order.
+pub(crate) fn browser_note_ids(list: &gtk::ListView) -> Vec<carver_sdk::NoteId> {
+    let Some(model) = list.model() else {
+        return Vec::new();
+    };
+    (0..model.n_items())
+        .filter_map(|position| {
+            let item = model
+                .item(position)
+                .and_downcast::<glib::BoxedAnyObject>()?;
+            match &*item.borrow::<crate::ui::browser::BrowserFeedItem>() {
+                crate::ui::browser::BrowserFeedItem::Note(note)
+                | crate::ui::browser::BrowserFeedItem::Favorite(note) => Some(note.id),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
 pub(crate) fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::NoteId) -> bool {
     let Some(model) = list.model() else {
         return false;
