@@ -52,10 +52,11 @@ pub(crate) struct RichEditor {
 
 impl RichEditor {
     /// Builds an editor backed by the locally bundled, sandboxed Tiptap application.
-    pub(crate) fn new(
+    pub(super) fn new(
         assets_dir: Option<std::path::PathBuf>,
         asset_scope: &super::preview::AssetScope,
         allow_remote_images: bool,
+        theme: &EditorTheme,
         dispatcher: &AppDispatcher,
         source_buffer: &gtk::TextBuffer,
         toast_overlay: &libadwaita::ToastOverlay,
@@ -97,6 +98,10 @@ impl RichEditor {
             .settings(&settings)
             .build();
         view.set_widget_name("rich-editor");
+        // WebKit paints this color behind the page before its stylesheet
+        // composites, so seed it with the active scheme instead of the default
+        // white. `set_theme` keeps it current on later scheme changes.
+        view.set_background_color(&theme.background);
 
         let editor = Self {
             view,
@@ -118,7 +123,7 @@ impl RichEditor {
         editor.connect_messages(&manager, dispatcher, source_buffer, toast_overlay);
         editor.connect_load_lifecycle();
         editor.view.load_html(
-            &editor_document(allow_remote_images),
+            &editor_document(allow_remote_images, theme.dark),
             Some("carver-asset:///"),
         );
         editor
@@ -168,8 +173,15 @@ impl RichEditor {
     /// then restores the canonical Carve source when the new editor is ready.
     pub(crate) fn reload_with_remote_images(&self, source: &str, allow_remote_images: bool) {
         self.ready.set(false);
+        // Keep the rebuilt shell on the scheme already painted so it never
+        // flashes the opposite palette while the new page loads.
+        let dark = self
+            .current_theme
+            .borrow()
+            .as_ref()
+            .map_or_else(|| super::editor_theme().dark, |theme| theme.dark);
         self.view.load_html(
-            &editor_document(allow_remote_images),
+            &editor_document(allow_remote_images, dark),
             Some("carver-asset:///"),
         );
         self.load_source(source);
@@ -289,6 +301,10 @@ impl RichEditor {
 
     /// Applies GNOME's resolved editor colors without reloading the document.
     pub(super) fn set_theme(&self, theme: &EditorTheme) {
+        // Update the native backdrop even before the editor bundle is ready:
+        // it is what WebKit shows while the page composits, and waiting for the
+        // `ready` message would leave a frame of the previous scheme.
+        self.view.set_background_color(&theme.background);
         self.current_theme.replace(Some(theme.clone()));
         self.apply_theme();
     }
@@ -634,10 +650,14 @@ fn selection_theme_with_foreground(accent: &gtk::gdk::RGBA, foreground: &str) ->
     }
 }
 
-/// Color-scheme and selection colors transferred from Adwaita into `WebKit`.
+/// Color-scheme, document surface, and selection colors transferred from
+/// Adwaita into `WebKit`.
 #[derive(Clone)]
 pub(super) struct EditorTheme {
     pub(super) dark: bool,
+    /// Opaque surface `WebKit` paints behind the page until the stylesheet
+    /// composites. Matches `--document-background` in the bundled stylesheet.
+    pub(super) background: gtk::gdk::RGBA,
     pub(super) selection: SelectionTheme,
 }
 
@@ -677,17 +697,27 @@ pub(super) fn appearance_style(appearance: &DocumentAppearance) -> &str {
 /// Builds the `WebKit` palette from Adwaita's selected color scheme.
 ///
 /// The bundled stylesheet owns the canonical Adwaita document surface for the
-/// active scheme. Passing a native background across the `WebKit` boundary is
-/// unreliable because GTK can update it after the style-manager notification.
+/// active scheme. The native backdrop is applied separately so `WebKit` shows
+/// the matching color before that stylesheet composites.
 pub(super) fn editor_theme(dark: bool, accent: &gtk::gdk::RGBA) -> EditorTheme {
     EditorTheme {
         dark,
+        background: document_background(dark),
         selection: selection_theme_with_foreground(accent, default_document_foreground(dark)),
     }
 }
 
 fn default_document_foreground(dark: bool) -> &'static str {
     if dark { "#ffffff" } else { "#333334" }
+}
+
+/// Resolves the opaque document surface for a scheme.
+///
+/// Kept in step with `--document-background` in `web/src/styles/document.css`;
+/// the fallback only covers an unparsable literal, which the unit test guards.
+fn document_background(dark: bool) -> gtk::gdk::RGBA {
+    let hex = if dark { "#1d1d20" } else { "#ffffff" };
+    gtk::gdk::RGBA::parse(hex).unwrap_or(gtk::gdk::RGBA::WHITE)
 }
 
 fn theme_javascript(theme: &EditorTheme) -> String {
@@ -708,14 +738,18 @@ fn appearance_javascript(appearance: &DocumentAppearance) -> String {
 }
 
 /// Builds the sandboxed editor shell using the configured image source policy.
-fn editor_document(allow_remote_images: bool) -> String {
+///
+/// The initial scheme is baked into the markup so the first paint matches
+/// Adwaita; the editor bundle only re-applies it once its `ready` message lands.
+fn editor_document(allow_remote_images: bool, dark: bool) -> String {
     let image_sources = if allow_remote_images {
         "data: https: http: carver-asset: blob:"
     } else {
         "data: carver-asset: blob:"
     };
+    let color_scheme = if dark { "dark" } else { "light" };
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
     )
 }
 
@@ -738,20 +772,28 @@ mod tests {
 
     #[test]
     fn editor_document_allows_remote_images_when_configured() {
-        assert!(editor_document(true).contains("img-src data: https: http: carver-asset: blob:"));
+        assert!(
+            editor_document(true, true).contains("img-src data: https: http: carver-asset: blob:")
+        );
     }
 
     #[test]
     fn editor_document_keeps_remote_images_blocked_when_disabled() {
-        assert!(editor_document(false).contains("img-src data: carver-asset: blob:"));
+        assert!(editor_document(false, true).contains("img-src data: carver-asset: blob:"));
     }
 
     #[test]
     fn editor_document_should_keep_runtime_styles_in_the_head() {
-        let document = editor_document(false);
+        let document = editor_document(false, true);
 
         assert!(document.contains("<style id=\"editor-runtime-styles\"></style>"));
         assert!(!document.contains("<html style="));
+    }
+
+    #[test]
+    fn editor_document_should_bake_the_initial_scheme_before_the_bundle_loads() {
+        assert!(editor_document(false, true).contains("<html data-theme=\"dark\">"));
+        assert!(editor_document(false, false).contains("<html data-theme=\"light\">"));
     }
 
     #[test]
@@ -856,6 +898,18 @@ mod tests {
         let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
         let theme = editor_theme(true, &accent);
         assert_eq!(theme.selection.foreground, "#ffffff");
+    }
+
+    #[test]
+    fn editor_theme_should_match_the_native_backdrop_to_the_scheme() {
+        let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
+        let dark_background = gtk::gdk::RGBA::parse("#1d1d20").unwrap_or(gtk::gdk::RGBA::BLACK);
+
+        assert_eq!(editor_theme(true, &accent).background, dark_background);
+        assert_eq!(
+            editor_theme(false, &accent).background,
+            gtk::gdk::RGBA::WHITE
+        );
     }
 
     #[test]

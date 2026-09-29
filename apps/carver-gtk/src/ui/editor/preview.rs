@@ -78,6 +78,9 @@ pub(super) fn build_preview(
         .build();
     view.set_editable(false);
     view.set_widget_name("rendered-preview");
+    // Fill the view with the active scheme before the first document loads, so
+    // an empty or still-loading preview never flashes `WebKit`'s default white.
+    view.set_background_color(&super::editor_theme().background);
     connect_link_handler(&view, toast_overlay, dispatcher);
     view
 }
@@ -418,11 +421,13 @@ pub(super) fn load_preview(
     allow_remote_images: bool,
     profile: HtmlProfile,
 ) {
+    let theme = super::editor_theme();
+    view.set_background_color(&theme.background);
     view.load_html(
         &rendered_document_with_profile(
             source,
             allow_remote_images,
-            &super::editor_theme(),
+            &theme,
             &default_appearance(),
             profile,
             carve::Mode::Static,
@@ -440,6 +445,8 @@ pub(super) fn load_preview_with_theme(
     appearance: &super::web::DocumentAppearance,
     profile: HtmlProfile,
 ) {
+    // Keep the native backdrop on the active scheme across reloads.
+    view.set_background_color(&theme.background);
     view.load_html(
         &rendered_document_with_profile(
             source,
