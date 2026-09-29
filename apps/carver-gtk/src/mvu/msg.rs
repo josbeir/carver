@@ -5,7 +5,7 @@ use std::ops::Range;
 use carver_config::{DocumentProperty, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
-    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, BaseView,
     CategoryAppearance, CategoryId, CategorySummary, DocumentImportFormat, LibraryRevision, NoteId,
     NoteLinks, NoteSummary, Revision, TrashContents, TrashPurgeResult,
 };
@@ -115,6 +115,8 @@ pub enum BasesMsg {
         filters: Vec<BaseFilter>,
         /// Ordered sort rules.
         sorts: Vec<BaseSort>,
+        /// How the Base presents its rows.
+        view: BaseView,
     },
     /// Save a complete Base configuration guarded by its revision.
     Update {
@@ -132,6 +134,8 @@ pub enum BasesMsg {
         filters: Vec<BaseFilter>,
         /// Ordered sort rules.
         sorts: Vec<BaseSort>,
+        /// How the Base presents its rows.
+        view: BaseView,
     },
     /// Reload saved definitions.
     Reload,

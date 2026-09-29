@@ -236,6 +236,7 @@ impl LibraryBackend for TestBackend {
         _filter_mode: BaseFilterMode,
         _filters: &[BaseFilter],
         _sorts: &[BaseSort],
+        _view: BaseView,
     ) -> Result<BaseDefinition, Self::Error> {
         Self::unsupported()
     }
@@ -249,6 +250,7 @@ impl LibraryBackend for TestBackend {
         _filter_mode: BaseFilterMode,
         _filters: &[BaseFilter],
         _sorts: &[BaseSort],
+        _view: BaseView,
     ) -> Result<BaseDefinition, Self::Error> {
         Self::unsupported()
     }

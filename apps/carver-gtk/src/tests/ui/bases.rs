@@ -195,6 +195,9 @@ pub(super) fn base_header_sort_should_persist_from_native_controls() -> TestResu
         category: "Notes".to_owned(),
         updated: "2026-09-14T12:00:00Z".to_owned(),
         properties: serde_json::Value::Null,
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     }]);
     model.route = Route::Base;
     view.render(&model);
@@ -261,6 +264,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         field: carver_sdk::BaseColumn::Category,
         direction: carver_sdk::BaseSortDirection::Ascending,
     });
+    base.view = carver_sdk::BaseView::List;
     let dispatcher = AppDispatcher::default();
     let (base_widget, refs) = crate::ui::bases::build_base(
         &dispatcher,
@@ -301,6 +305,9 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         category: "Notes".to_owned(),
         updated: "2026-09-10T12:00:00Z".to_owned(),
         properties: serde_json::json!({"status": "blocked"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     }]);
     model.route = Route::Base;
     view.render(&model);
@@ -338,6 +345,20 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-filters-section").is_some()
     );
     assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-sort-section").is_some());
+    assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-view-section").is_some());
+    let view_list =
+        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-list").ok_or("list view")?;
+    let view_grid =
+        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-grid").ok_or("grid view")?;
+    assert!(
+        view_list.is_active() && !view_grid.is_active(),
+        "the configuration dialog should preselect the saved list view"
+    );
+    // The two cards are mutually exclusive.
+    view_grid.set_active(true);
+    assert!(!view_list.is_active());
+    view_list.set_active(true);
+    assert!(!view_grid.is_active());
     let preview = widget_as::<adw::ComboRow>(dialog.upcast_ref(), "base-filter-mode")
         .ok_or("matching combo")?;
     assert!(run_main_context_until(|| {
@@ -447,6 +468,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .ok_or("saved base")?;
     assert!(saved.filters.is_empty());
     assert_eq!(saved.columns.len(), 5);
+    assert_eq!(saved.view, carver_sdk::BaseView::List);
     assert_eq!(
         saved.sorts,
         vec![
@@ -477,6 +499,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         saved.filter_mode,
         saved.filters.clone(),
         saved.sorts.clone(),
+        saved.view,
     ))?;
     let save = widget_as::<gtk::Button>(failed_dialog.upcast_ref(), "base-configuration-save")
         .ok_or("second save")?;
@@ -578,7 +601,7 @@ pub(super) fn assert_base_loading_delay() -> TestResult {
     model.bases.selected = Some(carver_sdk::BaseId::new());
     model.bases.definitions.state = LoadState::Loading(RequestId(1));
     view.render(&model);
-    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    assert_eq!(pages.visible_child_name().as_deref(), Some("contents"));
     let _ = update(
         &mut model,
         AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(1))),
@@ -594,11 +617,13 @@ pub(super) fn assert_base_loading_delay() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     }]);
-    pages.set_visible_child_name("grid");
+    pages.set_visible_child_name("contents");
     model.bases.rows.state = LoadState::Loading(RequestId(2));
     view.render(&model);
-    assert_eq!(pages.visible_child_name().as_deref(), Some("grid"));
+    assert_eq!(pages.visible_child_name().as_deref(), Some("contents"));
     let _ = update(
         &mut model,
         AppMsg::Bases(BasesMsg::LoadingIndicatorElapsed(RequestId(2))),
@@ -637,6 +662,8 @@ pub(super) fn assert_base_note_keyboard_activation() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let row = carver_sdk::BaseRow {
         note_id: note.id,
@@ -645,8 +672,19 @@ pub(super) fn assert_base_note_keyboard_activation() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
-    crate::ui::bases::render_base(&refs, &definition, &[row], &[], &[], &dispatcher);
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        &[row],
+        &[],
+        &[],
+        &crate::mvu::LoadState::Idle,
+        &dispatcher,
+    );
     let window = gtk::Window::new();
     window.set_child(Some(&widget));
     window.present();
@@ -663,6 +701,187 @@ pub(super) fn assert_base_note_keyboard_activation() -> TestResult {
     window.close();
     Ok(())
 }
+/// Verifies a list-mode Base renders read-only note cards and opens them on activation.
+pub(super) fn base_list_view_should_render_note_cards() -> TestResult {
+    use crate::mvu::{AppDispatcher, AppModel, AppRuntime, LoadState, Route};
+    let (_temporary, client) = test_state()?;
+    let category = client.create_category("Notes")?;
+    let note = client.create_note(category.id)?;
+    let dispatcher = AppDispatcher::default();
+    let routes = gtk::Stack::new();
+    for route in ["browser", "editor"] {
+        routes.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some(route));
+    }
+    let runtime = AppRuntime::new(
+        client,
+        AppModel::new(&Config::default()),
+        crate::view::ViewRefs::new(routes, adw::StatusPage::new(), adw::StatusPage::new()),
+    );
+    runtime.bind_dispatcher(&dispatcher);
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Reading".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        view: carver_sdk::BaseView::List,
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: note.id,
+        revision: note.revision,
+        name: "Reading note".to_owned(),
+        category: "Notes".to_owned(),
+        category_id: category.id,
+        excerpt: "Reading note body excerpt".to_owned(),
+        updated: "2026-09-09T12:00:00Z".to_owned(),
+        properties: serde_json::json!({}),
+    };
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &LoadState::Idle,
+        &dispatcher,
+    );
+    let window = gtk::Window::new();
+    window.set_default_size(700, 500);
+    window.set_child(Some(&widget));
+    window.present();
+
+    assert_eq!(
+        refs.display_stack.visible_child_name().as_deref(),
+        Some("list")
+    );
+    assert_eq!(
+        widget_as::<gtk::Label>(&widget, "base-hero-title")
+            .ok_or("base hero title")?
+            .text(),
+        "Reading"
+    );
+    assert_eq!(
+        widget_as::<gtk::Label>(&widget, "base-hero-subtitle")
+            .ok_or("base hero subtitle")?
+            .text(),
+        "1 note"
+    );
+    let title_name = format!("base-list-note-title:{}", note.id);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &title_name)
+            .is_some_and(|label| label.text() == "Reading note")
+    }));
+    let excerpt_name = format!("base-list-note-excerpt:{}", note.id);
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &excerpt_name)
+            .is_some_and(|label| label.text() == "body excerpt")
+    }));
+    assert!(
+        widget_as::<gtk::Label>(&widget, &format!("base-list-note-category:{}", note.id)).is_some(),
+        "the list card should render the category pill"
+    );
+
+    let list = widget_as::<gtk::ListView>(&widget, "bases-list").ok_or("base list")?;
+    list.emit_by_name::<()>("activate", &[&0u32]);
+    assert!(run_main_context_until(
+        || runtime.model().route == Route::Editor
+    ));
+    window.close();
+    Ok(())
+}
+
+/// Verifies realized list cards re-resolve their category accent when the sidebar changes.
+pub(super) fn base_list_should_rebind_when_category_colors_change() -> TestResult {
+    use crate::mvu::{AppDispatcher, LoadState};
+    let dispatcher = AppDispatcher::default();
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let _list = widget_as::<gtk::ListView>(&widget, "bases-list").ok_or("base list")?;
+    let category_id = carver_sdk::CategoryId::new();
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Reading".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        view: carver_sdk::BaseView::List,
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        name: "Reading note".to_owned(),
+        category: "Notes".to_owned(),
+        category_id,
+        excerpt: "Body".to_owned(),
+        updated: "2026-09-09T12:00:00Z".to_owned(),
+        properties: serde_json::json!({}),
+    };
+    let pill_name = format!("base-list-note-category:{}", row.note_id);
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &LoadState::Idle,
+        &dispatcher,
+    );
+    let window = gtk::Window::new();
+    window.set_default_size(700, 500);
+    window.set_child(Some(&widget));
+    window.present();
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &pill_name)
+            .is_some_and(|label| !label.has_css_class("category-color-rose"))
+    }));
+
+    // The categories arrive after the rows, so the realized card must rebind to pick up the color.
+    let summary = carver_sdk::CategorySummary {
+        category: carver_sdk::Category {
+            id: category_id,
+            name: "Notes".to_owned(),
+            appearance: carver_sdk::CategoryAppearance {
+                icon: carver_sdk::CategoryIcon::Folder,
+                color: carver_sdk::CategoryColor::Rose,
+            },
+            position: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            trashed_at: None,
+        },
+        note_count: 1,
+    };
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &LoadState::Ready(vec![summary]),
+        &dispatcher,
+    );
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &pill_name)
+            .is_some_and(|label| label.has_css_class("category-color-rose"))
+    }));
+    window.close();
+    Ok(())
+}
+
 pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
     let sidebar = crate::ui::sidebar::build_sidebar(
         &crate::mvu::AppDispatcher::default(),
@@ -678,6 +897,8 @@ pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 7,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let mut model = crate::mvu::AppModel::new(&Config::default());
     model.bases.definitions.state = crate::mvu::LoadState::Ready(vec![base.clone()]);
@@ -876,6 +1097,8 @@ pub(super) fn base_grid_edits_should_persist_to_the_note() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -885,6 +1108,9 @@ pub(super) fn base_grid_edits_should_persist_to_the_note() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     crate::ui::bases::render_base(
         &refs,
@@ -892,6 +1118,7 @@ pub(super) fn base_grid_edits_should_persist_to_the_note() -> TestResult {
         std::slice::from_ref(&row),
         &[],
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -954,6 +1181,10 @@ pub(super) fn base_grid_edits_should_persist_to_the_note() -> TestResult {
 }
 
 /// Clears the reserved title through the grid so the derived heading takes over.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scenario seeds, drives, and asserts a complete grid interaction"
+)]
 pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
     let (_temp, client) = test_state()?;
     let category = client.create_category("Notes")?;
@@ -978,6 +1209,8 @@ pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -987,6 +1220,9 @@ pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     crate::ui::bases::render_base(
         &refs,
@@ -994,6 +1230,7 @@ pub(super) fn base_grid_should_clear_the_title_override() -> TestResult {
         std::slice::from_ref(&row),
         &[],
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -1208,6 +1445,8 @@ pub(super) fn base_grid_should_toggle_a_boolean_property() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -1217,6 +1456,9 @@ pub(super) fn base_grid_should_toggle_a_boolean_property() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"done": false}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/done".to_owned()),
@@ -1230,6 +1472,7 @@ pub(super) fn base_grid_should_toggle_a_boolean_property() -> TestResult {
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -1294,6 +1537,8 @@ pub(super) fn clicking_a_cell_should_reveal_the_editor() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let row = carver_sdk::BaseRow {
         note_id: carver_sdk::NoteId::new(),
@@ -1302,6 +1547,9 @@ pub(super) fn clicking_a_cell_should_reveal_the_editor() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"status": "ready"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/status".to_owned()),
@@ -1315,6 +1563,7 @@ pub(super) fn clicking_a_cell_should_reveal_the_editor() -> TestResult {
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let window = adw::Window::new();
@@ -1353,6 +1602,10 @@ pub(super) fn clicking_a_cell_should_reveal_the_editor() -> TestResult {
 }
 
 /// A configured list property renders an inline dropdown and persists the selection.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scenario seeds, drives, and asserts a complete grid interaction"
+)]
 pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
     let (_temp, client) = test_state()?;
     let category = client.create_category("Notes")?;
@@ -1379,6 +1632,8 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -1388,6 +1643,9 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"status": "draft"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     // A single-select list is stored as text, so the observation reports `Text`; the configured
     // options must still drive the cell editor.
@@ -1409,6 +1667,7 @@ pub(super) fn base_grid_list_should_offer_a_dropdown() -> TestResult {
         std::slice::from_ref(&row),
         &descriptors,
         &defaults,
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -1482,6 +1741,8 @@ pub(super) fn base_properties_should_set_the_category() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -1491,6 +1752,9 @@ pub(super) fn base_properties_should_set_the_category() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     crate::ui::bases::render_base(
         &refs,
@@ -1498,6 +1762,7 @@ pub(super) fn base_properties_should_set_the_category() -> TestResult {
         std::slice::from_ref(&row),
         &[],
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -1581,6 +1846,8 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let row = carver_sdk::BaseRow {
         note_id: carver_sdk::NoteId::new(),
@@ -1589,6 +1856,9 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"due": "2026-09-27"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/due".to_owned()),
@@ -1602,6 +1872,7 @@ pub(super) fn base_grid_date_should_expose_a_picker_icon() -> TestResult {
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     // The derived-title column is labelled Title, matching the properties dialog.
@@ -1699,6 +1970,8 @@ fn grid_cell_fixture(
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -1708,6 +1981,9 @@ fn grid_cell_fixture(
         category: "Notes".to_owned(),
         updated: String::new(),
         properties,
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [descriptor];
     crate::ui::bases::render_base(
@@ -1716,6 +1992,7 @@ fn grid_cell_fixture(
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -1954,6 +2231,8 @@ pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let note_id = note.id;
     let row = carver_sdk::BaseRow {
@@ -1963,6 +2242,9 @@ pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"due": "2026-09-01"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/due".to_owned()),
@@ -1976,6 +2258,7 @@ pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
     let routes = gtk::Stack::new();
@@ -2173,6 +2456,8 @@ pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> 
         sorts: Vec::new(),
         revision: carver_sdk::Revision(1),
         row_count: 1,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let row = carver_sdk::BaseRow {
         note_id: carver_sdk::NoteId::new(),
@@ -2181,6 +2466,9 @@ pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> 
         category: "Notes".to_owned(),
         updated: String::new(),
         properties: serde_json::json!({"due": "2026-09-01"}),
+
+        category_id: carver_sdk::CategoryId::default(),
+        excerpt: String::new(),
     };
     let descriptors = [carver_domain::PropertyDescriptor {
         path: carver_domain::PropertyPath("/due".to_owned()),
@@ -2194,6 +2482,7 @@ pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> 
         std::slice::from_ref(&row),
         &descriptors,
         &[],
+        &crate::mvu::LoadState::Idle,
         &dispatcher,
     );
 
@@ -2219,7 +2508,15 @@ pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> 
         columns: Vec::new(),
         ..definition.clone()
     };
-    crate::ui::bases::render_base(&refs, &rebuilt, &[], &[], &[], &dispatcher);
+    crate::ui::bases::render_base(
+        &refs,
+        &rebuilt,
+        &[],
+        &[],
+        &[],
+        &crate::mvu::LoadState::Idle,
+        &dispatcher,
+    );
 
     assert!(
         run_main_context_until_for(std::time::Duration::from_secs(5), || weak_calendar

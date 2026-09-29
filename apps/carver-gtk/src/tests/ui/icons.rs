@@ -34,5 +34,11 @@ pub(super) fn bundled_icons_should_be_discoverable() -> TestResult {
         gtk::IconTheme::for_display(&display).has_icon("system-users-symbolic"),
         "the Adwaita people icon should be available to the category picker"
     );
+    for icon in ["view-grid-symbolic", "view-list-symbolic"] {
+        assert!(
+            gtk::IconTheme::for_display(&display).has_icon(icon),
+            "the Adwaita {icon} icon should be available to the Base view picker"
+        );
+    }
     Ok(())
 }

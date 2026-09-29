@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 08:00+0200\n"
+"POT-Creation-Date: 2026-09-29 11:34+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -161,6 +161,10 @@ msgid "Ascending"
 msgstr "Oplopend"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Browse notes as read-only cards."
+msgstr "Blader door notities als alleen-lezen kaarten."
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -171,6 +175,10 @@ msgstr "Oplopend"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Annuleren"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Choose how this Base presents its notes."
+msgstr "Kies hoe deze basis de notities weergeeft."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Choose the columns shown in this Base. Name is always included."
@@ -201,6 +209,10 @@ msgid "Direction"
 msgstr "Richting"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Edit notes and properties directly in a table."
+msgstr "Bewerk notities en eigenschappen rechtstreeks in een tabel."
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Field"
 msgstr "Veld"
@@ -208,6 +220,10 @@ msgstr "Veld"
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Filters"
 msgstr "Filters"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Grid"
+msgstr "Raster"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Match all filters"
@@ -250,6 +266,10 @@ msgid "New Base"
 msgstr "Nieuwe basis"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Notes list"
+msgstr "Notitielijst"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
 msgstr "Alleen deze basis wordt verwijderd. Je notities en hun eigenschappen blijven ongewijzigd."
 
@@ -287,6 +307,10 @@ msgstr "Gebruik de pijlen om de prioriteit van regels in te stellen of verwijder
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Value"
 msgstr "Waarde"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "View"
+msgstr "Weergave"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Visible fields"

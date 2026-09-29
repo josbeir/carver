@@ -85,6 +85,7 @@ fn base_search_should_intersect_full_text_with_saved_json1_filters() {
             BaseFilterMode::All,
             std::slice::from_ref(&filter),
             &[],
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
 
@@ -126,6 +127,7 @@ fn base_search_should_page_in_the_saved_base_sort_order() {
             BaseFilterMode::All,
             &[],
             std::slice::from_ref(&sort),
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base failed: {error}"));
     let first = library
@@ -187,6 +189,7 @@ fn assert_sql_projection_matches_domain(
             filter_mode,
             filters,
             sorts,
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
     let rows = library
@@ -220,6 +223,7 @@ fn configured_base_creation_should_persist_columns_filters_and_sorts() {
             BaseFilterMode::All,
             std::slice::from_ref(&filter),
             std::slice::from_ref(&sort),
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("Base creation failed: {error}"));
 
@@ -546,6 +550,7 @@ fn property_descriptors_should_ignore_the_active_base_filter() {
                 value: Some(serde_json::json!("active")),
             }],
             &[],
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
 
@@ -630,6 +635,7 @@ fn base_configuration_should_filter_rows_and_guard_revision() {
                 value: Some(serde_json::json!("active")),
             }],
             &[],
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("update failed: {error}"));
     assert_eq!(updated.row_count, 1);
@@ -663,6 +669,7 @@ fn base_configuration_should_filter_rows_and_guard_revision() {
             BaseFilterMode::All,
             &[],
             &[],
+            carver_domain::BaseView::Grid,
         ),
         Err(StorageError::Conflict)
     ));
@@ -740,6 +747,7 @@ fn sorted_date_names(direction: BaseSortDirection) -> Vec<String> {
             BaseFilterMode::All,
             &[],
             std::slice::from_ref(&sort),
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
     let names = library
@@ -793,6 +801,7 @@ fn date_filtered_names(operator: BaseFilterOperator, value: &str) -> Vec<String>
             BaseFilterMode::All,
             std::slice::from_ref(&filter),
             &[],
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
     let names = library
@@ -851,6 +860,7 @@ fn json1_query_should_ignore_non_scalar_range_filter_values() {
             BaseFilterMode::All,
             std::slice::from_ref(&filter),
             &[],
+            carver_domain::BaseView::Grid,
         )
         .unwrap_or_else(|error| panic!("base update failed: {error}"));
     let names: Vec<String> = library
@@ -902,4 +912,68 @@ fn reserved_title_references_should_canonicalize_to_the_name_column() {
     assert_eq!(loaded[0].columns, vec![BaseColumn::Name]);
     assert_eq!(loaded[0].filters[0].field, BaseColumn::Name);
     assert_eq!(loaded[0].sorts[0].field, BaseColumn::Name);
+}
+
+#[test]
+fn base_view_should_persist_and_list_rows_should_carry_note_metadata() {
+    let (_directory, library) = library();
+    let category = library
+        .create_category("Projects", OffsetDateTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let base = library
+        .create_base_with_configuration(
+            "Reading",
+            &[],
+            BaseFilterMode::All,
+            &[],
+            &[],
+            carver_domain::BaseView::List,
+        )
+        .unwrap_or_else(|error| panic!("base failed: {error}"));
+    assert_eq!(base.view, carver_domain::BaseView::List);
+
+    let note = library
+        .create_note_with_source(
+            category.id,
+            "# Hello world\n\nBody text",
+            OffsetDateTime::UNIX_EPOCH,
+        )
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    let page = library
+        .base_rows(base.id, all_page())
+        .unwrap_or_else(|error| panic!("base rows failed: {error}"));
+    let row = page
+        .items
+        .iter()
+        .find(|row| row.note_id == note.id)
+        .ok_or("projected row")
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(row.category_id, category.id);
+    assert!(
+        row.excerpt.contains("Hello"),
+        "excerpt was {:?}",
+        row.excerpt
+    );
+
+    let updated = library
+        .update_base(
+            base.id,
+            base.revision,
+            "Reading",
+            &[],
+            BaseFilterMode::All,
+            &[],
+            &[],
+            carver_domain::BaseView::Grid,
+        )
+        .unwrap_or_else(|error| panic!("update failed: {error}"));
+    assert_eq!(updated.view, carver_domain::BaseView::Grid);
+    let reloaded = library
+        .bases()
+        .unwrap_or_else(|error| panic!("bases failed: {error}"))
+        .into_iter()
+        .find(|candidate| candidate.id == base.id)
+        .ok_or("reloaded base")
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(reloaded.view, carver_domain::BaseView::Grid);
 }

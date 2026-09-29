@@ -17,10 +17,10 @@ use atomic_write_file::AtomicWriteFile;
 use std::time::Duration;
 
 use carver_domain::{
-    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
-    CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note, NoteId,
-    NoteLinks, NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
-    TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, BaseView,
+    Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note,
+    NoteId, NoteLinks, NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit,
+    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
     extract_note_link_targets, fold_base_text, project_frontmatter, property_descriptors,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
@@ -117,6 +117,8 @@ struct BaseDefinitionPayload {
     filters: Vec<BaseFilter>,
     #[serde(default)]
     sorts: Vec<BaseSort>,
+    #[serde(default)]
+    view: BaseView,
 }
 
 const fn base_definition_version() -> u8 {
@@ -141,6 +143,7 @@ fn decode_base_payload(raw: &str) -> Result<BaseDefinitionPayload, StorageError>
             filter_mode: BaseFilterMode::All,
             filters: Vec::new(),
             sorts: Vec::new(),
+            view: BaseView::Grid,
         }
     };
     // Reserved frontmatter paths resolve to their built-in column on read, so an older definition
@@ -184,6 +187,7 @@ fn encode_base_payload(
     filter_mode: BaseFilterMode,
     filters: &[BaseFilter],
     sorts: &[BaseSort],
+    view: BaseView,
 ) -> Result<String, StorageError> {
     serde_json::to_string(&BaseDefinitionPayload {
         version: 1,
@@ -191,6 +195,7 @@ fn encode_base_payload(
         filter_mode,
         filters: filters.to_vec(),
         sorts: sorts.to_vec(),
+        view,
     })
     .map_err(|error| StorageError::InvalidBaseDefinition(error.to_string()))
 }
@@ -266,7 +271,14 @@ impl SqliteLibrary {
         name: &str,
         columns: &[BaseColumn],
     ) -> Result<BaseDefinition, StorageError> {
-        self.create_base_with_configuration(name, columns, BaseFilterMode::All, &[], &[])
+        self.create_base_with_configuration(
+            name,
+            columns,
+            BaseFilterMode::All,
+            &[],
+            &[],
+            BaseView::Grid,
+        )
     }
 
     /// Creates a saved Base using its complete initial configuration.
@@ -274,6 +286,8 @@ impl SqliteLibrary {
     /// # Errors
     ///
     /// Returns an error for an empty name or when persistence fails.
+    // CONTEXT: Keep the persistence boundary explicit; each configuration component maps to one
+    // independently serialized Base setting and grouping it would leak storage concerns inward.
     pub fn create_base_with_configuration(
         &self,
         name: &str,
@@ -281,6 +295,7 @@ impl SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, StorageError> {
         let name = name.trim();
         if name.is_empty() {
@@ -289,7 +304,7 @@ impl SqliteLibrary {
         let id = BaseId::new();
         let revision = Revision(1);
         let (columns, filters, sorts) = canonicalize_base_fields(columns, filters, sorts);
-        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts)?;
+        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts, view)?;
         self.connection.execute(
             "INSERT INTO bases (id, name, definition_json, revision) VALUES (?1, ?2, ?3, ?4)",
             params![id.to_string(), name, definition_json, revision.0],
@@ -301,6 +316,7 @@ impl SqliteLibrary {
             filter_mode,
             filters,
             sorts,
+            view,
             revision,
             row_count: 0,
         };
@@ -335,6 +351,7 @@ impl SqliteLibrary {
                     filter_mode: payload.filter_mode,
                     filters: payload.filters,
                     sorts: payload.sorts,
+                    view: payload.view,
                     revision: Revision(row.get(3)?),
                     row_count: 0,
                 })
@@ -402,6 +419,7 @@ impl SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, StorageError> {
         let name = name.trim();
         if name.is_empty() {
@@ -409,7 +427,7 @@ impl SqliteLibrary {
         }
         let next_revision = Revision(revision.0.saturating_add(1));
         let (columns, filters, sorts) = canonicalize_base_fields(columns, filters, sorts);
-        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts)?;
+        let definition_json = encode_base_payload(&columns, filter_mode, &filters, &sorts, view)?;
         let changed = self.connection.execute(
             "UPDATE bases SET name = ?1, definition_json = ?2, revision = ?3
              WHERE id = ?4 AND revision = ?5",
@@ -431,6 +449,7 @@ impl SqliteLibrary {
             filter_mode,
             filters,
             sorts,
+            view,
             revision: next_revision,
             row_count: 0,
         };
@@ -521,7 +540,7 @@ impl SqliteLibrary {
             },
         );
         let sql = format!(
-            "SELECT n.id, n.revision, n.title, c.name, n.updated_at, n.frontmatter_json
+            "SELECT n.id, n.revision, n.title, c.name, n.category_id, n.plain_text, n.updated_at, n.frontmatter_json
              {from}
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL{search}{filter}
              ORDER BY {} LIMIT ? OFFSET ?",
@@ -1649,8 +1668,9 @@ impl LibraryBackend for SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, Self::Error> {
-        Self::create_base_with_configuration(self, name, columns, filter_mode, filters, sorts)
+        Self::create_base_with_configuration(self, name, columns, filter_mode, filters, sorts, view)
     }
 
     fn update_base(
@@ -1662,6 +1682,7 @@ impl LibraryBackend for SqliteLibrary {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, Self::Error> {
         Self::update_base(
             self,
@@ -1672,6 +1693,7 @@ impl LibraryBackend for SqliteLibrary {
             filter_mode,
             filters,
             sorts,
+            view,
         )
     }
 
@@ -2025,14 +2047,14 @@ fn page_from_extra<T>(mut items: Vec<T>, limit: usize) -> Page<T> {
 }
 
 fn base_row_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BaseRow> {
-    let raw: Option<String> = row.get(5)?;
+    let raw: Option<String> = row.get(7)?;
     let properties = raw
         .as_deref()
         .map(serde_json::from_str)
         .transpose()
         .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))?
         .unwrap_or(serde_json::Value::Null);
-    let updated = parse_timestamp(row.get(4)?)
+    let updated = parse_timestamp(row.get(6)?)
         .and_then(|timestamp| {
             timestamp
                 .format(&Rfc3339)
@@ -2044,6 +2066,8 @@ fn base_row_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BaseRow> {
         revision: Revision(row.get(1)?),
         name: row.get(2)?,
         category: row.get(3)?,
+        category_id: category_id(&row.get::<_, String>(4)?).map_err(to_sql_error)?,
+        excerpt: note_excerpt(&row.get::<_, String>(5)?),
         updated,
         properties,
     })

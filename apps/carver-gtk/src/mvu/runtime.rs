@@ -238,7 +238,15 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 filter_mode,
                 filters,
                 sorts,
-            } => self.create_base_with_configuration(name, columns, filter_mode, filters, sorts),
+                view,
+            } => self.create_base_with_configuration(
+                name,
+                columns,
+                filter_mode,
+                filters,
+                sorts,
+                view,
+            ),
             Effect::UpdateBase {
                 base_id,
                 revision,
@@ -247,6 +255,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 filter_mode,
                 filters,
                 sorts,
+                view,
             } => self.update_base(
                 base_id,
                 revision,
@@ -255,6 +264,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 filter_mode,
                 filters,
                 sorts,
+                view,
             ),
             Effect::DeleteBase { base_id } => self.delete_base(base_id),
             Effect::PrepareBaseConfiguration {
@@ -865,6 +875,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
+    // CONTEXT: Runtime forwards the typed effect without collapsing configuration fields.
     fn create_base_with_configuration(
         &self,
         name: String,
@@ -872,12 +883,20 @@ impl<B: LibraryBackend> AppRuntime<B> {
         filter_mode: carver_sdk::BaseFilterMode,
         filters: Vec<carver_sdk::BaseFilter>,
         sorts: Vec<carver_sdk::BaseSort>,
+        view: carver_sdk::BaseView,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         glib::spawn_future_local(async move {
             let result = client
-                .create_base_with_configuration_async(name, columns, filter_mode, filters, sorts)
+                .create_base_with_configuration_async(
+                    name,
+                    columns,
+                    filter_mode,
+                    filters,
+                    sorts,
+                    view,
+                )
                 .await
                 .map_err(display_error);
             runtime.dispatch(AppMsg::Library(LibraryReply::BaseCreated { result }));
@@ -898,6 +917,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
         filter_mode: carver_sdk::BaseFilterMode,
         filters: Vec<carver_sdk::BaseFilter>,
         sorts: Vec<carver_sdk::BaseSort>,
+        view: carver_sdk::BaseView,
     ) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
@@ -911,6 +931,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     filter_mode,
                     filters,
                     sorts,
+                    view,
                 )
                 .await
                 .map_err(display_error);

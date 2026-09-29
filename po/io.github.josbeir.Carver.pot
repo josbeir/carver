@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 08:17+0200\n"
+"POT-Creation-Date: 2026-09-29 11:34+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -165,6 +165,10 @@ msgid "Ascending"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Browse notes as read-only cards."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -174,6 +178,10 @@ msgstr ""
 #: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Choose how this Base presents its notes."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
@@ -205,12 +213,20 @@ msgid "Direction"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Edit notes and properties directly in a table."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Field"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Filters"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Grid"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
@@ -253,6 +269,10 @@ msgid "New Base"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Notes list"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid ""
 "Only this Base will be deleted. Your notes and their properties will not be "
 "changed."
@@ -292,6 +312,10 @@ msgstr ""
 #: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Value"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "View"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs

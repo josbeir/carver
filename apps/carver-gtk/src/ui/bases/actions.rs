@@ -8,7 +8,7 @@ use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId, TabOrigin, TabsMsg}
 use carver_config::DocumentProperty;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
-    BaseSortDirection,
+    BaseSortDirection, BaseView,
 };
 use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
@@ -335,6 +335,48 @@ fn operator_combo(initial: Option<BaseFilterOperator>, id: u64) -> adw::ComboRow
         initial.unwrap_or(BaseFilterOperator::Equals),
     ));
     combo
+}
+
+/// Maps the list card's checked state to the persisted presentation.
+fn base_view_from_active(list_active: bool) -> BaseView {
+    if list_active {
+        BaseView::List
+    } else {
+        BaseView::Grid
+    }
+}
+
+/// Builds one selectable card describing a Base presentation.
+fn base_view_card(
+    widget_name: &str,
+    icon_name: &str,
+    title: &str,
+    description: &str,
+) -> gtk::ToggleButton {
+    let card = gtk::ToggleButton::new();
+    card.set_widget_name(widget_name);
+    card.add_css_class("flat");
+    card.add_css_class("base-view-card");
+    card.update_property(&[gtk::accessible::Property::Label(title)]);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    content.set_halign(gtk::Align::Center);
+    content.set_valign(gtk::Align::Center);
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(32);
+    icon.set_halign(gtk::Align::Center);
+    content.append(&icon);
+    let heading = gtk::Label::new(Some(title));
+    heading.add_css_class("heading");
+    content.append(&heading);
+    let body = gtk::Label::new(Some(description));
+    body.add_css_class("dim-label");
+    body.add_css_class("base-view-card-description");
+    body.set_wrap(true);
+    body.set_justify(gtk::Justification::Center);
+    body.set_max_width_chars(24);
+    content.append(&body);
+    card.set_child(Some(&content));
+    card
 }
 
 fn selected_filter_mode(combo: &adw::ComboRow) -> BaseFilterMode {
@@ -766,6 +808,37 @@ pub(crate) fn build_base_configuration_form(
     name_group.add(&name);
     page.add(&name_group);
 
+    let view_group = adw::PreferencesGroup::new();
+    view_group.set_widget_name("base-view-section");
+    view_group.set_title(&gettext("View"));
+    view_group.set_description(Some(&gettext("Choose how this Base presents its notes.")));
+    let grid_option = base_view_card(
+        "base-view-grid",
+        "view-grid-symbolic",
+        &gettext("Grid"),
+        &gettext("Edit notes and properties directly in a table."),
+    );
+    let list_option = base_view_card(
+        "base-view-list",
+        "view-list-symbolic",
+        &gettext("Notes list"),
+        &gettext("Browse notes as read-only cards."),
+    );
+    // A single toggle group makes the two cards mutually exclusive.
+    list_option.set_group(Some(&grid_option));
+    if matches!(definition.view, BaseView::List) {
+        list_option.set_active(true);
+    } else {
+        grid_option.set_active(true);
+    }
+    let view_options = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    view_options.set_widget_name("base-view-options");
+    view_options.set_homogeneous(true);
+    view_options.append(&grid_option);
+    view_options.append(&list_option);
+    view_group.add(&view_options);
+    page.add(&view_group);
+
     let catalog = FieldCatalog::new(definition, property_descriptors, default_properties);
     let selected_columns = Rc::new(RefCell::new(visible_columns(definition)));
     let visible_group = adw::PreferencesGroup::new();
@@ -999,6 +1072,7 @@ pub(crate) fn build_base_configuration_form(
         let page = page.clone();
         let dispatcher = dispatcher.clone();
         let name_for_save = name.clone();
+        let view_for_save = list_option.clone();
         save.connect_clicked(move |save| {
             if !save.is_sensitive() {
                 return;
@@ -1008,6 +1082,7 @@ pub(crate) fn build_base_configuration_form(
             let columns = selected_columns.borrow().clone();
             let filters = selected_filters(&filter_widgets.borrow());
             let sorts = selected_sorts(&sort_widgets.borrow());
+            let view = base_view_from_active(view_for_save.is_active());
             let message = match mode {
                 BaseConfigurationMode::Create => BasesMsg::CreateConfigured {
                     name: name_for_save.text().to_string(),
@@ -1015,6 +1090,7 @@ pub(crate) fn build_base_configuration_form(
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
+                    view,
                 },
                 BaseConfigurationMode::Update { base_id, revision } => BasesMsg::Update {
                     base_id,
@@ -1024,6 +1100,7 @@ pub(crate) fn build_base_configuration_form(
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
+                    view,
                 },
             };
             let _ = dispatcher.dispatch(AppMsg::Bases(message));
