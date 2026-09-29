@@ -37,10 +37,10 @@ const {
   </div>
 
   {slides.length > 1 && (
-    <div class="carousel__controls">
+    <>
       <button
         type="button"
-        class="carousel__button"
+        class="carousel__button carousel__button--prev"
         data-carousel-prev
         aria-label={`Previous: ${label}`}
       >
@@ -48,7 +48,7 @@ const {
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.8"
+          stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
           aria-hidden="true"
@@ -56,19 +56,9 @@ const {
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
-      <div class="carousel__dots">
-        {slides.map((slide) => (
-          <button
-            type="button"
-            class="carousel__dot"
-            data-carousel-dot
-            aria-label={`Show: ${slide.label}`}
-          />
-        ))}
-      </div>
       <button
         type="button"
-        class="carousel__button"
+        class="carousel__button carousel__button--next"
         data-carousel-next
         aria-label={`Next: ${label}`}
       >
@@ -76,7 +66,7 @@ const {
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.8"
+          stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
           aria-hidden="true"
@@ -84,7 +74,7 @@ const {
           <path d="M9 6l6 6-6 6" />
         </svg>
       </button>
-    </div>
+    </>
   )}
 </div>
 
@@ -92,47 +82,25 @@ const {
   document.querySelectorAll('[data-carousel]').forEach((carousel) => {
     const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
     if (!track) return;
-    const slides = [...track.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    const slideCount = track.querySelectorAll('[data-carousel-slide]').length;
     const prev = carousel.querySelector<HTMLButtonElement>('[data-carousel-prev]');
     const next = carousel.querySelector<HTMLButtonElement>('[data-carousel-next]');
-    const dots = [...carousel.querySelectorAll<HTMLButtonElement>('[data-carousel-dot]')];
-
-    const activeIndex = (): number => {
-      const center = track.scrollLeft + track.clientWidth / 2;
-      let closest = 0;
-      let distance = Infinity;
-      slides.forEach((slide, index) => {
-        const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
-        const diff = Math.abs(slideCenter - center);
-        if (diff < distance) {
-          distance = diff;
-          closest = index;
-        }
-      });
-      return closest;
-    };
+    if (!prev || !next || slideCount < 2) return;
 
     const update = () => {
-      const index = activeIndex();
-      dots.forEach((dot, dotIndex) => {
-        if (dotIndex === index) {
-          dot.setAttribute('aria-current', 'true');
-        } else {
-          dot.removeAttribute('aria-current');
-        }
-      });
-      if (prev) prev.disabled = track.scrollLeft <= 1;
-      if (next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+      prev.disabled = track.scrollLeft <= 1;
+      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
     };
 
     const goTo = (index: number) => {
-      const slide = slides[index];
-      if (slide) track.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+      const clamped = Math.max(0, Math.min(slideCount - 1, index));
+      track.scrollTo({ left: clamped * track.clientWidth, behavior: 'smooth' });
     };
 
-    prev?.addEventListener('click', () => goTo(activeIndex() - 1));
-    next?.addEventListener('click', () => goTo(activeIndex() + 1));
-    dots.forEach((dot, index) => dot.addEventListener('click', () => goTo(index)));
+    const nearest = () => Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
+
+    prev.addEventListener('click', () => goTo(nearest() - 1));
+    next.addEventListener('click', () => goTo(nearest() + 1));
     track.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);
     update();
@@ -140,6 +108,9 @@ const {
 </script>
 
 <style>
+  .carousel {
+    position: relative;
+  }
   .carousel__track {
     display: flex;
     overflow-x: auto;
@@ -157,60 +128,48 @@ const {
     min-width: 100%;
     scroll-snap-align: center;
   }
-  .carousel__controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    margin-top: 0.75rem;
-  }
   .carousel__button {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border: 1px solid color-mix(in oklab, currentColor 20%, transparent);
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 22%);
     border-radius: 9999px;
-    background: transparent;
-    color: inherit;
+    background: rgb(20 20 24 / 55%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
+    backdrop-filter: blur(8px);
     cursor: pointer;
+    transform: translateY(-50%);
     transition:
-      background-color 120ms ease,
-      opacity 120ms ease;
+      opacity 140ms ease,
+      background-color 140ms ease;
   }
   .carousel__button:hover:not(:disabled) {
-    background: color-mix(in oklab, currentColor 10%, transparent);
+    background: rgb(20 20 24 / 78%);
   }
   .carousel__button:disabled {
-    opacity: 0.35;
-    cursor: default;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .carousel__button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
   }
   .carousel__button svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
   }
-  .carousel__dots {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .carousel__button--prev {
+    left: 0.75rem;
   }
-  .carousel__dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    padding: 0;
-    border: 0;
-    border-radius: 9999px;
-    background: currentColor;
-    opacity: 0.25;
-    cursor: pointer;
-    transition:
-      opacity 120ms ease,
-      transform 120ms ease;
-  }
-  .carousel__dot[aria-current='true'] {
-    opacity: 1;
-    transform: scale(1.2);
+  .carousel__button--next {
+    right: 0.75rem;
   }
   @media (prefers-reduced-motion: reduce) {
     .carousel__track {

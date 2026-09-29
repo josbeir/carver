@@ -111,19 +111,19 @@ export const baseViewSlides: BaseViewSlide[] = [
     },
   },
   {
-    label: 'Choose columns, filters, sort rules, and how notes are shown',
-    shot: {
-      alt: "A Base's configuration form with its visible fields and view options",
-      light: baseConfigLight,
-      dark: baseConfigDark,
-    },
-  },
-  {
     label: 'Switch to a notes list to browse the same rows as cards',
     shot: {
       alt: 'A Base shown as a scrollable list of note cards',
       light: baseListLight,
       dark: baseListDark,
+    },
+  },
+  {
+    label: 'Choose columns, filters, sort rules, and how notes are shown',
+    shot: {
+      alt: "A Base's configuration form with its visible fields and view options",
+      light: baseConfigLight,
+      dark: baseConfigDark,
     },
   },
 ];
