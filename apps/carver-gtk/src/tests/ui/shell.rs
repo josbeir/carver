@@ -100,6 +100,7 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
             last_search_open: std::cell::Cell::new(false),
             grid: bases_grid.clone(),
             list: widget_as::<gtk::ListView>(&root, "bases-list").ok_or("bases list")?,
+            hero: widget_as::<gtk::Box>(&root, "base-list-hero").ok_or("base list hero")?,
             display_stack: widget_as::<gtk::Stack>(&root, "base-display-stack")
                 .ok_or("base display stack")?,
             list_context: std::rc::Rc::new(std::cell::RefCell::new(

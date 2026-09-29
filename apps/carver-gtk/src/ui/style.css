@@ -26,6 +26,32 @@
   background: @accent_bg_color;
 }
 
+.base-hero-icon-tile {
+  background: @accent_bg_color;
+  color: white;
+}
+
+/* Two selectable cards for the Base view mode, shown in the Configure dialog. */
+.base-view-card {
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 1px solid alpha(currentColor, 0.18);
+  background: transparent;
+}
+
+.base-view-card:hover {
+  background: alpha(currentColor, 0.06);
+}
+
+.base-view-card:checked {
+  border-color: @accent_bg_color;
+  background: alpha(@accent_bg_color, 0.16);
+}
+
+.base-view-card:checked:hover {
+  background: alpha(@accent_bg_color, 0.24);
+}
+
 .category-count-badge.category-color-rose,
 .category-count-badge.category-color-tangerine,
 .category-count-badge.category-color-yellow,

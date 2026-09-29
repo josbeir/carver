@@ -346,13 +346,19 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     );
     assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-sort-section").is_some());
     assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-view-section").is_some());
-    let view_combo =
-        widget_as::<adw::ComboRow>(dialog.upcast_ref(), "base-view").ok_or("view combo")?;
-    assert_eq!(
-        view_combo.selected(),
-        1,
+    let view_list =
+        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-list").ok_or("list view")?;
+    let view_grid =
+        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-grid").ok_or("grid view")?;
+    assert!(
+        view_list.is_active() && !view_grid.is_active(),
         "the configuration dialog should preselect the saved list view"
     );
+    // The two cards are mutually exclusive.
+    view_grid.set_active(true);
+    assert!(!view_list.is_active());
+    view_list.set_active(true);
+    assert!(!view_grid.is_active());
     let preview = widget_as::<adw::ComboRow>(dialog.upcast_ref(), "base-filter-mode")
         .ok_or("matching combo")?;
     assert!(run_main_context_until(|| {
@@ -755,6 +761,18 @@ pub(super) fn base_list_view_should_render_note_cards() -> TestResult {
     assert_eq!(
         refs.display_stack.visible_child_name().as_deref(),
         Some("list")
+    );
+    assert_eq!(
+        widget_as::<gtk::Label>(&widget, "base-hero-title")
+            .ok_or("base hero title")?
+            .text(),
+        "Reading"
+    );
+    assert_eq!(
+        widget_as::<gtk::Label>(&widget, "base-hero-subtitle")
+            .ok_or("base hero subtitle")?
+            .text(),
+        "1 note"
     );
     let title_name = format!("base-list-note-title:{}", note.id);
     assert!(run_main_context_until(|| {

@@ -742,11 +742,12 @@ pub(crate) fn render_category_hero(
 
 fn all_notes_hero(categories: &[CategorySummary]) -> gtk::Widget {
     let note_count = categories.iter().map(|summary| summary.note_count).sum();
-    category_hero_content(
+    build_hero_content(
         "go-home-symbolic",
         "all-notes-icon",
         &gettext("All notes"),
         &note_count_label(note_count),
+        "browser-hero",
         None,
     )
 }
@@ -755,26 +756,32 @@ fn category_hero(summary: &CategorySummary, dispatcher: Option<&AppDispatcher>) 
     let category = &summary.category;
     let color = category.appearance.color.resolved_for(category.id);
     let actions = dispatcher.map(|dispatcher| category_hero_actions(category, dispatcher));
-    category_hero_content(
+    build_hero_content(
         category_icon_name(category.appearance.icon),
         category_color_css_class(color),
         &category.name,
         &note_count_label(summary.note_count),
+        "browser-hero",
         actions.as_ref(),
     )
 }
 
-fn category_hero_content(
+/// Builds the shared hero header shown above a note list.
+///
+/// The browser's category hero and the Base list hero share one layout; only the
+/// icon, accent color, text, and widget-name prefix differ between them.
+pub(crate) fn build_hero_content(
     icon_name: &str,
     color_class: &str,
     title: &str,
     subtitle: &str,
+    name_prefix: &str,
     actions: Option<&gtk::Box>,
 ) -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     content.add_css_class("category-hero-content");
     let icon = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    icon.set_widget_name("browser-hero-icon");
+    icon.set_widget_name(&format!("{name_prefix}-icon"));
     icon.add_css_class("category-icon-tile");
     icon.add_css_class("category-hero-icon");
     icon.add_css_class(color_class);
@@ -790,14 +797,14 @@ fn category_hero_content(
     let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
     text.set_hexpand(true);
     let title_label = gtk::Label::new(Some(title));
-    title_label.set_widget_name("browser-hero-title");
+    title_label.set_widget_name(&format!("{name_prefix}-title"));
     title_label.add_css_class("title-2");
     title_label.set_xalign(0.0);
     title_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
     title_label.set_single_line_mode(true);
     text.append(&title_label);
     let subtitle_label = gtk::Label::new(Some(subtitle));
-    subtitle_label.set_widget_name("browser-hero-subtitle");
+    subtitle_label.set_widget_name(&format!("{name_prefix}-subtitle"));
     subtitle_label.add_css_class("dim-label");
     subtitle_label.set_xalign(0.0);
     text.append(&subtitle_label);
@@ -858,7 +865,7 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
     actions
 }
 
-fn note_count_label(note_count: usize) -> String {
+pub(crate) fn note_count_label(note_count: usize) -> String {
     tr_fmt!(
         ngettext(
             "{count} note",

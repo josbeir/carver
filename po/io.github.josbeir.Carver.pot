@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 11:24+0200\n"
+"POT-Creation-Date: 2026-09-29 11:34+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -165,6 +165,10 @@ msgid "Ascending"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Browse notes as read-only cards."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -209,6 +213,10 @@ msgid "Direction"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Edit notes and properties directly in a table."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Field"
 msgstr ""
@@ -219,10 +227,6 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Grid"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/bases/actions.rs
-msgid "Layout"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs

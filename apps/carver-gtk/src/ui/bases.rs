@@ -52,6 +52,7 @@ pub(crate) struct BaseViewRefs {
     pub(crate) last_search_open: std::cell::Cell<bool>,
     pub(crate) grid: gtk::ColumnView,
     pub(crate) list: gtk::ListView,
+    pub(crate) hero: gtk::Box,
     pub(crate) display_stack: gtk::Stack,
     pub(crate) list_context: std::rc::Rc<std::cell::RefCell<BaseListContext>>,
     pub(crate) pages: gtk::Stack,
@@ -160,12 +161,29 @@ pub(crate) fn build_base(
     list_scroll.set_vexpand(true);
     list_scroll.set_child(Some(&list_clamp));
 
+    // The list keeps a category-style hero fixed above the virtual feed.
+    let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    hero.set_widget_name("base-list-hero");
+    hero.add_css_class("category-hero");
+    hero.set_margin_start(18);
+    hero.set_margin_end(18);
+    let hero_clamp = adw::Clamp::new();
+    hero_clamp.set_widget_name("base-list-hero-clamp");
+    hero_clamp.set_maximum_size(720);
+    hero_clamp.set_tightening_threshold(520);
+    hero_clamp.set_child(Some(&hero));
+    let list_page = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    list_page.set_widget_name("base-list-page");
+    list_page.set_vexpand(true);
+    list_page.append(&hero_clamp);
+    list_page.append(&list_scroll);
+
     let display_stack = gtk::Stack::new();
     display_stack.set_widget_name("base-display-stack");
     display_stack.set_hexpand(true);
     display_stack.set_vexpand(true);
     display_stack.add_named(&scroll, Some("grid"));
-    display_stack.add_named(&list_scroll, Some("list"));
+    display_stack.add_named(&list_page, Some("list"));
     display_stack.set_visible_child_name("grid");
 
     let status = adw::StatusPage::builder()
@@ -237,6 +255,7 @@ pub(crate) fn build_base(
             last_search_open: std::cell::Cell::new(false),
             grid,
             list,
+            hero,
             display_stack,
             list_context,
             pages,
@@ -417,6 +436,7 @@ pub(crate) fn render_base(
         refs.rendered_editors.replace(Some(editors));
     }
     append_rows(refs, rows);
+    render_base_hero(refs, definition);
     refs.display_stack
         .set_visible_child_name(match definition.view {
             BaseView::List => "list",
@@ -427,6 +447,21 @@ pub(crate) fn render_base(
     } else {
         "contents"
     });
+}
+
+/// Renders the Base list's category-style header from the saved definition.
+fn render_base_hero(refs: &BaseViewRefs, definition: &BaseDefinition) {
+    while let Some(child) = refs.hero.first_child() {
+        refs.hero.remove(&child);
+    }
+    refs.hero.append(&crate::ui::browser::build_hero_content(
+        "carver-database-symbolic",
+        "base-hero-icon-tile",
+        &definition.name,
+        &crate::ui::browser::note_count_label(definition.row_count),
+        "base-hero",
+        None,
+    ));
 }
 
 /// Resolves the editor for each configured column, aligned with `definition.columns`.
