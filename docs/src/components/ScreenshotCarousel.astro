@@ -18,8 +18,9 @@ const {
 ---
 
 <!-- Note: the root avoids daisyUI's `carousel` class on purpose. That component
-     is an `overflow-x: scroll` scroller, which would clip the screenshots'
-     drop shadows and set `display: inline-flex` on the stage. -->
+     is itself an `overflow-x: scroll` scroller whose `display: inline-flex`
+     would squash the layout. The track below is a native scroll-snap scroller
+     with just enough gap and padding for the screenshot's drop shadow. -->
 <div
   class="shot-carousel"
   data-carousel
@@ -27,122 +28,127 @@ const {
   aria-roledescription="carousel"
   aria-label={label}
 >
-  <div class="shot-carousel__stage">
+  <div
+    class="shot-carousel__track"
+    data-carousel-track
+    tabindex="0"
+    aria-label={`${label} screenshots`}
+  >
     {slides.map((slide, index) => (
       <div
         class="shot-carousel__slide"
         data-carousel-slide
-        data-label={slide.label}
-        data-active={index === 0 ? '' : undefined}
         role="group"
         aria-roledescription="slide"
         aria-label={`${index + 1} of ${slides.length}: ${slide.label}`}
       >
-        <ThemedScreenshot shot={slide.shot} shadow="subtle" sizes={sizes} loading="eager" />
+        <ThemedScreenshot shot={slide.shot} shadow="soft" sizes={sizes} loading="eager" />
+        <p class="shot-carousel__caption">{slide.label}</p>
       </div>
     ))}
-
-    {slides.length > 1 && (
-      <>
-        <button
-          type="button"
-          class="shot-carousel__button shot-carousel__button--prev"
-          data-carousel-prev
-          aria-label={`Previous: ${label}`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="shot-carousel__button shot-carousel__button--next"
-          data-carousel-next
-          aria-label={`Next: ${label}`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </button>
-      </>
-    )}
   </div>
 
-  <p class="shot-carousel__caption" data-carousel-caption aria-live="polite">
-    {slides[0]?.label}
-  </p>
+  {slides.length > 1 && (
+    <>
+      <button
+        type="button"
+        class="shot-carousel__button shot-carousel__button--prev"
+        data-carousel-prev
+        aria-label={`Previous: ${label}`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="shot-carousel__button shot-carousel__button--next"
+        data-carousel-next
+        aria-label={`Next: ${label}`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+    </>
+  )}
 </div>
 
 <script>
   document.querySelectorAll('[data-carousel]').forEach((carousel) => {
-    const slides = [...carousel.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
-    const caption = carousel.querySelector<HTMLElement>('[data-carousel-caption]');
+    const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
     const prev = carousel.querySelector<HTMLButtonElement>('[data-carousel-prev]');
     const next = carousel.querySelector<HTMLButtonElement>('[data-carousel-next]');
-    if (!prev || !next || slides.length < 2) return;
+    if (!track || !prev || !next) return;
+    const slides = [...track.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    if (slides.length < 2) return;
 
-    let index = 0;
-    const render = () => {
-      slides.forEach((slide, slideIndex) => {
-        if (slideIndex === index) {
-          slide.setAttribute('data-active', '');
-        } else {
-          slide.removeAttribute('data-active');
-        }
-      });
-      prev.disabled = index === 0;
-      next.disabled = index === slides.length - 1;
-      if (caption) caption.textContent = slides[index]?.dataset.label ?? '';
+    // Distance between two slide starts, including the flex gap.
+    const step = () => slides[1].offsetLeft - slides[0].offsetLeft;
+    const nearest = () => Math.round(track.scrollLeft / step());
+
+    const update = () => {
+      prev.disabled = track.scrollLeft <= 1;
+      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
     };
 
-    prev.addEventListener('click', () => {
-      index = Math.max(0, index - 1);
-      render();
-    });
-    next.addEventListener('click', () => {
-      index = Math.min(slides.length - 1, index + 1);
-      render();
-    });
-    render();
+    const goTo = (index: number) => {
+      const target = Math.max(0, Math.min(slides.length - 1, index));
+      track.scrollTo({ left: target * step(), behavior: 'smooth' });
+    };
+
+    prev.addEventListener('click', () => goTo(nearest() - 1));
+    next.addEventListener('click', () => goTo(nearest() + 1));
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
   });
 </script>
 
 <style>
-  .shot-carousel__stage {
+  .shot-carousel {
     position: relative;
   }
-  /* A fade stage rather than a scroller: an `overflow` container would clip the
-   * screenshot's drop shadow, so inactive slides are hidden in place. */
+  /* The 1rem gap and matching padding give the drop shadow room while the clip
+   * still ends exactly where the next slide begins, so no neighbour peeks in.
+   * `margin` cancels the padding so the slides stay the width of the column. */
+  .shot-carousel__track {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+    padding: 1.5rem 1rem;
+    margin: -1.5rem -1rem;
+  }
+  .shot-carousel__track::-webkit-scrollbar {
+    display: none;
+  }
   .shot-carousel__slide {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 220ms ease;
-  }
-  .shot-carousel__slide[data-active] {
-    position: relative;
-    opacity: 1;
-    visibility: visible;
+    flex: 0 0 100%;
+    scroll-snap-align: start;
   }
   .shot-carousel__caption {
-    margin-top: 0.75rem;
+    /* Clear the screenshot's bottom drop shadow. */
+    margin-top: 1.5rem;
     text-align: center;
     font-size: 0.875rem;
     line-height: 1.5;
@@ -192,8 +198,8 @@ const {
     right: 0.75rem;
   }
   @media (prefers-reduced-motion: reduce) {
-    .shot-carousel__slide {
-      transition: none;
+    .shot-carousel__track {
+      scroll-behavior: auto;
     }
   }
 </style>

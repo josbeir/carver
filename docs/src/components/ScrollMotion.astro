@@ -1,11 +1,16 @@
 <script>
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const animations = new Set<Animation>();
-  const targets = document.querySelectorAll<HTMLElement>(
-    '#features h2, #features [data-tab-list], #features [data-feature-panel], ' +
-      '#carve h2, #carve article, #screenshots h2, #screenshots [data-gallery-item], ' +
-      '#install h2, #install .card, #properties h2, #properties figure',
-  );
+  // Carousel slides manage their own visibility, so they opt out of the scroll
+  // reveal: the pending `translate` would otherwise shift a slide over its
+  // caption and re-hide each slide when the carousel scrolls.
+  const targets = [
+    ...document.querySelectorAll<HTMLElement>(
+      '#features h2, #features [data-tab-list], #features [data-feature-panel], ' +
+        '#carve h2, #carve article, #screenshots h2, #screenshots [data-gallery-item], ' +
+        '#install h2, #install .card, #properties h2, #properties figure',
+    ),
+  ].filter((element) => !element.closest('[data-carousel]'));
 
   // Only off-screen items are prepared, and only when motion is supported.
   // Without JavaScript (or with reduced motion), all content stays visible.
