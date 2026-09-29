@@ -798,6 +798,90 @@ pub(super) fn base_list_view_should_render_note_cards() -> TestResult {
     Ok(())
 }
 
+/// Verifies realized list cards re-resolve their category accent when the sidebar changes.
+pub(super) fn base_list_should_rebind_when_category_colors_change() -> TestResult {
+    use crate::mvu::{AppDispatcher, LoadState};
+    let dispatcher = AppDispatcher::default();
+    let (widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let _list = widget_as::<gtk::ListView>(&widget, "bases-list").ok_or("base list")?;
+    let category_id = carver_sdk::CategoryId::new();
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Reading".to_owned(),
+        columns: Vec::new(),
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        view: carver_sdk::BaseView::List,
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        name: "Reading note".to_owned(),
+        category: "Notes".to_owned(),
+        category_id,
+        excerpt: "Body".to_owned(),
+        updated: "2026-09-09T12:00:00Z".to_owned(),
+        properties: serde_json::json!({}),
+    };
+    let pill_name = format!("base-list-note-category:{}", row.note_id);
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &LoadState::Idle,
+        &dispatcher,
+    );
+    let window = gtk::Window::new();
+    window.set_default_size(700, 500);
+    window.set_child(Some(&widget));
+    window.present();
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &pill_name)
+            .is_some_and(|label| !label.has_css_class("category-color-rose"))
+    }));
+
+    // The categories arrive after the rows, so the realized card must rebind to pick up the color.
+    let summary = carver_sdk::CategorySummary {
+        category: carver_sdk::Category {
+            id: category_id,
+            name: "Notes".to_owned(),
+            appearance: carver_sdk::CategoryAppearance {
+                icon: carver_sdk::CategoryIcon::Folder,
+                color: carver_sdk::CategoryColor::Rose,
+            },
+            position: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            trashed_at: None,
+        },
+        note_count: 1,
+    };
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &[],
+        &[],
+        &LoadState::Ready(vec![summary]),
+        &dispatcher,
+    );
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&widget, &pill_name)
+            .is_some_and(|label| label.has_css_class("category-color-rose"))
+    }));
+    window.close();
+    Ok(())
+}
+
 pub(super) fn assert_base_reload_preserves_buttons() -> TestResult {
     let sidebar = crate::ui::sidebar::build_sidebar(
         &crate::mvu::AppDispatcher::default(),

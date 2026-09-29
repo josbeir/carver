@@ -367,6 +367,25 @@ fn base_category_color(
         })
 }
 
+/// Returns the category id/accent pairs the Base list renders, ignoring note counts.
+///
+/// The list factory reads the sidebar only while binding a row, so comparing this signature
+/// lets `render_base` invalidate realized cards exactly when their accent could change.
+fn base_category_colors(
+    sidebar: &LoadState<Vec<CategorySummary>>,
+) -> Vec<(carver_sdk::CategoryId, CategoryColor)> {
+    let LoadState::Ready(categories) = sidebar else {
+        return Vec::new();
+    };
+    categories
+        .iter()
+        .map(|summary| {
+            let id = summary.category.id;
+            (id, summary.category.appearance.color.resolved_for(id))
+        })
+        .collect()
+}
+
 pub(crate) fn render_base_status(refs: &BaseViewRefs, title: &str, description: &str) {
     refs.status.set_title(title);
     refs.status.set_description(Some(description));
@@ -418,6 +437,16 @@ pub(crate) fn render_base(
     refs.title.set_text(&definition.name);
     refs.grid.set_sensitive(true);
     refs.list.set_sensitive(true);
+    // Realized list cards resolve their category accent during `bind`, so a change to the
+    // category set or its colors must invalidate the rendered rows or they keep a stale accent.
+    // Note counts are ignored so an ordinary note edit does not reset the list.
+    let category_colors = base_category_colors(sidebar);
+    let colors_changed =
+        base_category_colors(&refs.list_context.borrow().sidebar) != category_colors;
+    if colors_changed {
+        refs.rows.remove_all();
+        refs.rendered_rows.borrow_mut().clear();
+    }
     refs.list_context.borrow_mut().sidebar = sidebar.clone();
     // The editor per column depends on the definition, the observed descriptors, and the
     // configured defaults, so any change among them must rebuild the columns.

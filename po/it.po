@@ -162,7 +162,7 @@ msgstr "Crescente"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Browse notes as read-only cards."
-msgstr ""
+msgstr "Sfoglia le note come schede di sola lettura."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
@@ -178,7 +178,7 @@ msgstr "Annulla"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Choose how this Base presents its notes."
-msgstr ""
+msgstr "Scegli come questa base presenta le sue note."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Choose the columns shown in this Base. Name is always included."
@@ -210,7 +210,7 @@ msgstr "Direzione"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Edit notes and properties directly in a table."
-msgstr ""
+msgstr "Modifica note e proprietà direttamente in una tabella."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
@@ -223,7 +223,7 @@ msgstr "Filtri"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Grid"
-msgstr ""
+msgstr "Griglia"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Match all filters"
@@ -266,9 +266,8 @@ msgid "New Base"
 msgstr "Nuova base"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
-#, fuzzy
 msgid "Notes list"
-msgstr "Note che durano"
+msgstr "Elenco delle note"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
@@ -311,7 +310,7 @@ msgstr "Valore"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "View"
-msgstr ""
+msgstr "Visualizzazione"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Visible fields"
