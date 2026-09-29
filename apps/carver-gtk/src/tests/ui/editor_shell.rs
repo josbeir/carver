@@ -9,34 +9,10 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
     let sidebar = fixture.sidebar()?;
     let note_list = fixture.note_list()?;
     assert!(activate_browser_note(&note_list, note.id));
-    let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
         note_tab_is_active(&root)
             && sidebar_selected_badge(&sidebar).as_deref() == Some("all-notes-count")
     }));
-    let controllers = route_stack.observe_controllers();
-    let mouse_back = (0..controllers.n_items())
-        .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::EventControllerLegacy>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("page-mouse-back-controller"))
-        .ok_or("page mouse back controller")?;
-    assert_eq!(
-        mouse_back.propagation_phase(),
-        gtk::PropagationPhase::Capture
-    );
-    let touchpad_back = (0..controllers.n_items())
-        .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::EventControllerScroll>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("page-touchpad-back-controller"))
-        .ok_or("editor touchpad back controller")?;
-    assert_eq!(
-        touchpad_back.propagation_phase(),
-        gtk::PropagationPhase::Capture
-    );
-    assert_eq!(
-        touchpad_back.flags(),
-        gtk::EventControllerScrollFlags::BOTH_AXES
-    );
     let source_view =
         widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
     let source_buffer = source_view

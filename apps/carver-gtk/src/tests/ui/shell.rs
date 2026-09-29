@@ -100,7 +100,6 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
             last_search_open: std::cell::Cell::new(false),
             grid: bases_grid.clone(),
             pages: base_pages.clone(),
-            scroll: widget_as::<gtk::ScrolledWindow>(&root, "base-scroll").ok_or("base scroll")?,
             status: base_status.clone(),
             load_more: widget_as::<gtk::Button>(&root, "base-load-more").ok_or("base load more")?,
             rows: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
