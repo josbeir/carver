@@ -9,10 +9,32 @@
     <name>Carver contributors</name>
   </developer>
   <url type="homepage">https://github.com/josbeir/carver</url>
+  <url type="bugtracker">https://github.com/josbeir/carver/issues</url>
+  <url type="vcs-browser">https://github.com/josbeir/carver</url>
   <launchable type="desktop-id">io.github.josbeir.Carver.desktop</launchable>
   <description>
     <p>Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control.</p>
   </description>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/editor-light.png</image>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/source-light.png</image>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/bases-light.png</image>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/base-list-light.png</image>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/media-light.png</image>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/josbeir/carver/v0.4.1/docs/src/assets/screenshots/focus-light.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="0.4.0" date="2026-09-29"/>
     <release version="0.3.1" date="2026-09-23"/>

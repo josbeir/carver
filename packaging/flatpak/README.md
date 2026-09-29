@@ -16,9 +16,9 @@ Install Flatpak Builder and the matching runtime, SDK, and SDK extensions:
 
 ```sh
 sudo pacman -S flatpak-builder
-flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50 \
-  org.freedesktop.Sdk.Extension.rust-stable//25.08 \
-  org.freedesktop.Sdk.Extension.node24//25.08
+flatpak install --user flathub org.gnome.Platform//51 org.gnome.Sdk//51 \
+  org.freedesktop.Sdk.Extension.rust-stable//26.08 \
+  org.freedesktop.Sdk.Extension.node24//26.08
 ```
 
 Build and install the checked-out tree:
