@@ -309,6 +309,59 @@ pub(super) fn category_selection_should_show_empty_state(
     Ok(())
 }
 
+/// Verifies the accent- and category-colored hero tiles keep a light glyph.
+pub(super) fn category_hero_icon_should_use_a_light_glyph(fixture: &WindowFixture) -> TestResult {
+    // The headless compositor may default to a dark scheme; force light mode so
+    // the assertion exercises the light theme where the regression appeared.
+    let style_manager = adw::StyleManager::default();
+    let previous_scheme = style_manager.color_scheme();
+    style_manager.set_color_scheme(adw::ColorScheme::ForceLight);
+    let result = category_hero_icon_light_glyph_assertions(fixture);
+    style_manager.set_color_scheme(previous_scheme);
+    result
+}
+
+fn category_hero_icon_light_glyph_assertions(fixture: &WindowFixture) -> TestResult {
+    let root = fixture.root()?;
+    let sidebar = fixture.sidebar()?;
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "All notes")
+    }));
+    let all_notes_tile =
+        widget_as::<gtk::Box>(&root, "browser-hero-icon").ok_or("all-notes hero tile")?;
+    assert!(all_notes_tile.has_css_class("all-notes-icon"));
+    assert!(
+        run_main_context_until(|| {
+            let color = all_notes_tile.color();
+            color.red() > 0.9 && color.green() > 0.9 && color.blue() > 0.9
+        }),
+        "the accent hero tile should keep a light glyph, got {:?}",
+        all_notes_tile.color()
+    );
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("category-count:{}", fixture.category.id)
+    ));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "Notes")
+    }));
+    let category_tile =
+        widget_as::<gtk::Box>(&root, "browser-hero-icon").ok_or("category hero tile")?;
+    assert!(category_tile.has_css_class("category-color-rose"));
+    assert!(
+        run_main_context_until(|| {
+            let color = category_tile.color();
+            color.red() > 0.9 && color.green() > 0.9 && color.blue() > 0.9
+        }),
+        "the category hero tile should keep a light glyph, got {:?}",
+        category_tile.color()
+    );
+    Ok(())
+}
+
 pub(super) fn category_switch_should_retain_previous_browser(
     fixture: &WindowFixture,
     note: &carver_sdk::NoteSummary,
