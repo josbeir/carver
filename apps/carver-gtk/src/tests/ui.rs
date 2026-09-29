@@ -165,6 +165,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     library::note_cards_should_group_and_favorite(&fixture, &note)?;
     library::move_picker_should_filter_and_move_notes(&fixture, &note)?;
     library::category_selection_should_show_empty_state(&fixture, &note)?;
+    library::category_hero_icon_should_use_a_light_glyph(&fixture)?;
     library::category_switch_should_retain_previous_browser(&fixture, &note)?;
     editor_shell::source_editor_should_configure_language_and_gutter(&fixture, &note)?;
     editor_shell::responsive_editor_should_switch_compact_and_desktop_toolbars(&fixture, &note)?;

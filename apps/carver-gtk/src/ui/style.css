@@ -6,7 +6,20 @@
   min-width: 28px;
   min-height: 28px;
   border-radius: 9px;
-  color: @window_fg_color;
+}
+
+/* The hero tile always carries an accent or category color, so its symbolic
+ * glyph stays light regardless of the color scheme. */
+.category-icon-tile.category-color-rose,
+.category-icon-tile.category-color-tangerine,
+.category-icon-tile.category-color-yellow,
+.category-icon-tile.category-color-olive,
+.category-icon-tile.category-color-teal,
+.category-icon-tile.category-color-blue,
+.category-icon-tile.category-color-purple,
+.category-icon-tile.category-color-auto,
+.category-icon-tile.all-notes-icon {
+  color: white;
 }
 
 .category-count-badge {
