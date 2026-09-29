@@ -24,6 +24,12 @@ const EDITOR_STYLESHEET: &str =
 type UnsupportedHandler = Rc<RefCell<Option<Box<dyn Fn()>>>>;
 type SelectionHandler = Rc<RefCell<Option<Box<dyn Fn(SelectionState)>>>>;
 
+/// One-shot callback run once the rich editor surface becomes ready.
+type ReadyHandler = Rc<dyn Fn()>;
+
+/// Shared slot holding the pending ready handler until it fires.
+type ReadyHandlerSlot = Rc<RefCell<Option<ReadyHandler>>>;
+
 /// A `WebKit` rich-text editor whose canonical state is kept in the source buffer.
 #[derive(Clone)]
 pub(crate) struct RichEditor {
@@ -31,6 +37,7 @@ pub(crate) struct RichEditor {
     session: Rc<Cell<u64>>,
     document_session: Rc<Cell<Option<crate::mvu::EditorSessionId>>>,
     ready: Rc<Cell<bool>>,
+    ready_handler: ReadyHandlerSlot,
     revision: Rc<Cell<u64>>,
     navigation_epoch: Rc<Cell<u64>>,
     canonical_source: Rc<RefCell<Rc<str>>>,
@@ -96,6 +103,7 @@ impl RichEditor {
             session: Rc::new(Cell::new(0)),
             document_session: Rc::new(Cell::new(None)),
             ready: Rc::new(Cell::new(false)),
+            ready_handler: Rc::new(RefCell::new(None)),
             revision: Rc::new(Cell::new(0)),
             navigation_epoch: Rc::new(Cell::new(0)),
             canonical_source: Rc::new(RefCell::new(Rc::from(""))),
@@ -129,6 +137,18 @@ impl RichEditor {
     /// Associates projection events with the current MVU document session.
     pub(crate) fn set_document_session(&self, session: crate::mvu::EditorSessionId) {
         self.document_session.set(Some(session));
+    }
+
+    /// Registers a one-shot callback for the editor surface finishing its initial load.
+    ///
+    /// The callback runs immediately when the surface is already ready, so callers never miss
+    /// the transition.
+    pub(crate) fn set_ready_handler(&self, handler: Rc<dyn Fn()>) {
+        if self.ready.get() {
+            handler();
+        } else {
+            self.ready_handler.borrow_mut().replace(handler);
+        }
     }
 
     /// Loads a new document into the rich editor without marking it dirty.
@@ -334,6 +354,9 @@ impl RichEditor {
                     editor.flush_pending_source();
                     editor.apply_theme();
                     editor.apply_appearance();
+                    if let Some(handler) = editor.ready_handler.borrow_mut().take() {
+                        handler();
+                    }
                 }
                 EditorEvent::Changed {
                     session,

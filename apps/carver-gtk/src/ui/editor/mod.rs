@@ -111,6 +111,11 @@ pub(crate) struct EditorViewRefs {
 }
 
 impl EditorViewRefs {
+    /// Registers a one-shot callback for the rich editor finishing its initial load.
+    pub(crate) fn set_surface_ready_handler(&self, handler: Rc<dyn Fn()>) {
+        self.rich.set_ready_handler(handler);
+    }
+
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     // CONTEXT: Rendering all projections together prevents GTK widgets from becoming a second
     // document state store.
@@ -583,6 +588,7 @@ impl EditorSurface {
 /// Builds the note editor and connects its user-facing actions.
 #[expect(
     clippy::too_many_lines,
+    clippy::too_many_arguments,
     reason = "widget construction stays together so ownership and lifecycle are explicit"
 )]
 pub(crate) fn build_editor(
@@ -593,6 +599,7 @@ pub(crate) fn build_editor(
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
     compact_navigation: &CompactNavigation,
+    mode: EditorMode,
 ) -> Result<EditorSurface, SourceSyntaxError> {
     let allow_remote_images = config.images.load_remote_automatically;
     let assets_dir = assets_dir.map(Path::to_path_buf);
@@ -727,6 +734,10 @@ pub(crate) fn build_editor(
         &remote_images,
         &document_appearance,
     );
+    // Select the configured mode before the switcher notify handler is connected, so the surface
+    // never flashes the default page while the first document loads.
+    editor_stack.set_visible_child_name(editor_mode_page(mode));
+    toolbar.set_mode(mode);
     let toolbar_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
     toolbar_bar.append(toolbar.widget());
@@ -906,6 +917,15 @@ fn view_mode(editor_stack: &adw::ViewStack) -> EditorMode {
         Some("source") => EditorMode::Source,
         Some("rendered") => EditorMode::Rendered,
         _ => EditorMode::Rich,
+    }
+}
+
+/// The view-stack page name that renders an editor mode.
+fn editor_mode_page(mode: EditorMode) -> &'static str {
+    match mode {
+        EditorMode::Source => "source",
+        EditorMode::Rendered => "rendered",
+        EditorMode::Rich => "rich",
     }
 }
 
@@ -1093,7 +1113,6 @@ fn add_editor_pages(
         &pgettext("editor mode", "Preview"),
         "view-reveal-symbolic",
     );
-    editor_stack.set_visible_child_name("rich");
     EditorPages { source_scroll }
 }
 

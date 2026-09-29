@@ -147,7 +147,7 @@ pub(crate) fn build_content(
         let toast_overlay = toast_overlay.clone();
         let split_view = split_view.clone();
         let compact_navigation = Rc::clone(compact_navigation);
-        Box::new(move || {
+        Box::new(move |mode| {
             build_editor(
                 &dispatcher,
                 &config,
@@ -156,6 +156,7 @@ pub(crate) fn build_content(
                 &toast_overlay,
                 &split_view,
                 &compact_navigation,
+                mode,
             )
             .map(EditorSurface::into_parts)
         })

@@ -13,6 +13,8 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
         note_tab_is_active(&root)
             && sidebar_selected_badge(&sidebar).as_deref() == Some("all-notes-count")
     }));
+    // The tab spinner clears once the editor surface reports it is ready.
+    assert!(run_main_context_until(|| !note_tab_is_loading(&root)));
     let source_view =
         widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
     let source_buffer = source_view

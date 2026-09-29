@@ -32,6 +32,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         &overlay,
         &adw::NavigationSplitView::new(),
         &Rc::new(Cell::new(false)),
+        config.editor.last_mode,
     )?;
     let (surface, refs) = editor.into_parts();
     let stack = gtk::Stack::new();
@@ -77,6 +78,14 @@ pub(super) fn show_sidebar_page(root: &gtk::Widget, name: &str) {
 
 pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
     let fixture = fixture()?;
+
+    let editor_stack = widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?;
+    assert_eq!(
+        editor_stack.visible_child_name().as_deref(),
+        Some("source"),
+        "the editor should open in the configured mode instead of its default page"
+    );
 
     for name in [
         "rich-editor",

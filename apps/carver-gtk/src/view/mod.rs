@@ -21,9 +21,11 @@ use crate::ui::browser::{BrowserFeedContext, BrowserFeedItem};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
 
-/// Builds one independent editor projection tree for a note tab.
+/// Builds one independent editor projection tree for a note tab in the given initial mode.
 pub(crate) type EditorFactory = Box<
-    dyn Fn() -> Result<
+    dyn Fn(
+        carver_config::EditorMode,
+    ) -> Result<
         (gtk::Widget, crate::ui::editor::EditorViewRefs),
         crate::ui::editor::SourceSyntaxError,
     >,
@@ -44,6 +46,7 @@ pub(crate) struct Workspace {
     syncing: Rc<Cell<bool>>,
     closing: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
     failed: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
+    ready: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
     attached_bar_parent: RefCell<Option<gtk::Widget>>,
     pinned_identity: RefCell<Option<(String, &'static str)>>,
 }
@@ -66,6 +69,7 @@ impl Workspace {
             syncing: Rc::new(Cell::new(false)),
             closing: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
             failed: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
+            ready: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
             attached_bar_parent: RefCell::new(None),
             pinned_identity: RefCell::new(None),
         }
@@ -152,6 +156,7 @@ impl Workspace {
         let editors_detached = Rc::clone(&self.editors);
         let closing_detached = Rc::clone(&self.closing);
         let failed_detached = Rc::clone(&self.failed);
+        let ready_detached = Rc::clone(&self.ready);
         self.tab_view
             .connect_page_detached(move |_view, page, _position| {
                 let tab_id = pages_detached
@@ -164,6 +169,7 @@ impl Workspace {
                     editors_detached.borrow_mut().remove(&tab_id);
                     closing_detached.borrow_mut().remove(&tab_id);
                     failed_detached.borrow_mut().remove(&tab_id);
+                    ready_detached.borrow_mut().remove(&tab_id);
                 }
             });
 
@@ -386,11 +392,18 @@ fn sync_note_tabs(
         {
             continue;
         }
-        match (workspace.factory)() {
+        match (workspace.factory)(model.preferences.editor_mode) {
             Ok((widget, refs)) => {
                 let page = workspace.tab_view.append(&widget);
                 page.set_title(&tab_display_title(tab));
-                page.set_loading(tab.loading);
+                page.set_loading(tab_loading(workspace, tab));
+                let ready = Rc::clone(&workspace.ready);
+                let page_for_ready = page.clone();
+                let tab_id = tab.id;
+                refs.set_surface_ready_handler(Rc::new(move || {
+                    ready.borrow_mut().insert(tab_id);
+                    page_for_ready.set_loading(false);
+                }));
                 workspace.pages.borrow_mut().insert(tab.id, page);
                 workspace.editors.borrow_mut().insert(tab.id, Rc::new(refs));
             }
@@ -407,8 +420,9 @@ fn sync_note_tabs(
             if page.title() != title.as_str() {
                 page.set_title(&title);
             }
-            if page.is_loading() != tab.loading {
-                page.set_loading(tab.loading);
+            let loading = tab_loading(workspace, tab);
+            if page.is_loading() != loading {
+                page.set_loading(loading);
             }
             let tooltip = tr_fmt!(
                 gettext("Opened from {context}"),
@@ -420,6 +434,13 @@ fn sync_note_tabs(
         }
     }
     failures
+}
+
+/// Whether a note tab should still show its loading spinner.
+///
+/// The tab spins while its document loads and until its editor surface finishes its initial load.
+fn tab_loading(workspace: &Workspace, tab: &crate::mvu::NoteTab) -> bool {
+    tab.loading || !workspace.ready.borrow().contains(&tab.id)
 }
 
 /// Renders the Base header actions, including the context-scoped tab cleanup.

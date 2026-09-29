@@ -8,6 +8,13 @@ pub(crate) fn note_tab_is_active(root: &gtk::Widget) -> bool {
         .is_some_and(|page| !page.is_pinned())
 }
 
+/// Returns whether the selected note tab is still showing its loading spinner.
+pub(crate) fn note_tab_is_loading(root: &gtk::Widget) -> bool {
+    widget_as::<adw::TabView>(root, "workspace-tabs")
+        .and_then(|tabs| tabs.selected_page())
+        .is_some_and(|page| !page.is_pinned() && page.is_loading())
+}
+
 /// Window, dialogs, and seed library shared by the display-backed scenario functions.
 pub(crate) struct WindowFixture {
     pub directory: tempfile::TempDir,
