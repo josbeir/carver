@@ -273,8 +273,12 @@ pub(super) fn capture_docs_screenshots() -> TestResult {
         // Screenshots should show the application's default document font, not
         // the deterministic font the interaction suite configures. Pinning the
         // desktop default keeps the capture identical whatever the machine's
-        // font settings are.
-        |config| config.editor.document_font = Some("Adwaita Sans 12".to_owned()),
+        // font settings are. The document sidebar is a view switcher now, so
+        // open it on Media for the media capture.
+        |config| {
+            config.editor.document_font = Some("Adwaita Sans 12".to_owned());
+            config.editor.document_sidebar_page = carver_config::DocumentSidebarPage::Media;
+        },
     )?;
     let showcase = showcase.into_inner().ok_or("showcase")?;
     capture_scenes(&fixture, &directory, &showcase)
@@ -477,8 +481,11 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     search_toggle.set_active(false);
     let _ = run_main_context_until_for(Duration::from_millis(200), || false);
 
-    // Rich editor: open the review note and wait for the web surface.
-    assert!(activate_browser_note(&note_list, showcase.review));
+    // Open several notes so the note captures show the workspace tab strip, and
+    // leave the review note in front for the rich editor and source scenes.
+    open_showcase_tabs(fixture, showcase)?;
+
+    // Rich editor: the review note with its web surface.
     assert!(run_main_context_until(|| note_tab_is_active(&root)));
     let editor_stack = fixture.editor_mode_stack()?;
     editor_stack.set_visible_child_name("rich");
@@ -617,6 +624,19 @@ fn capture_dialogs(fixture: &WindowFixture, directory: &Path) -> TestResult {
     settle();
     capture_theme_pair(fixture, directory, "settings")?;
     preferences.close();
+    Ok(())
+}
+
+/// Opens the media, focus, and review notes as workspace tabs.
+///
+/// The default "open in a new tab" behavior keeps each note open, so the note
+/// captures show the tab strip instead of a single document. The review note is
+/// opened last so it starts in front with a fresh preview for the editor and
+/// source scenes.
+fn open_showcase_tabs(fixture: &WindowFixture, showcase: &Showcase) -> TestResult {
+    for note in [showcase.media, showcase.focus, showcase.review] {
+        assert!(open_note(fixture, note)?);
+    }
     Ok(())
 }
 
