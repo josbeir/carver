@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 15:18+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -45,9 +45,15 @@ msgstr "Carver no pudo abrir su biblioteca"
 msgid "Categories"
 msgstr "Categorías"
 
-#: apps/carver-gtk/src/app.rs
+#: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "Notas"
+
+#: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not save note: {error}"
+msgstr "No se pudo guardar la nota: {error}"
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -67,7 +73,7 @@ msgstr "Categoría"
 msgid "Create"
 msgstr "Crear"
 
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
 msgid "Base"
 msgstr "Base"
 
@@ -75,6 +81,15 @@ msgstr "Base"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
 msgstr "Categoría"
+
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close note tabs opened from this Base"
+msgstr "Cerrar las pestañas de notas abiertas desde esta base"
+
+#. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close tabs"
+msgstr "Cerrar pestañas"
 
 #: apps/carver-gtk/src/ui/bases.rs
 msgid "Configure"
@@ -468,6 +483,10 @@ msgstr "Mover…"
 msgid "New Note"
 msgstr "Nueva nota"
 
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "Nueva nota"
+
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "No notes in this category"
 msgstr "No hay notas en esta categoría"
@@ -664,6 +683,10 @@ msgid "Close search"
 msgstr "Cerrar búsqueda"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close tab"
+msgstr "Cerrar pestaña"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Codex"
 msgstr "Codex"
 
@@ -695,6 +718,10 @@ msgstr "No se pudo leer el archivo seleccionado."
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Current"
 msgstr "Actual"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current tab"
+msgstr "Pestaña actual"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
@@ -787,6 +814,10 @@ msgid "Highlight current line"
 msgstr "Resaltar la línea actual"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Hold Ctrl and click a note to open it in a background tab."
+msgstr "Mantén pulsada Ctrl y haz clic en una nota para abrirla en una pestaña en segundo plano."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Home"
 msgstr "Casa"
 
@@ -844,6 +875,14 @@ msgid "Move note to Trash"
 msgstr "Mover nota a la papelera"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab left"
+msgstr "Mover pestaña a la izquierda"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab right"
+msgstr "Mover pestaña a la derecha"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "¿Mover «{category_name}» a la papelera?"
@@ -866,16 +905,20 @@ msgid "New Category…"
 msgstr "Nueva categoría…"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note"
-msgstr "Nueva nota"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
 msgstr "Propiedades de notas nuevas"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New tab"
+msgstr "Nueva pestaña"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "Resultado siguiente"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next tab"
+msgstr "Pestaña siguiente"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No categories found"
@@ -907,6 +950,10 @@ msgid "Olive"
 msgstr "Oliva"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Open notes in"
+msgstr "Abrir notas en"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "OpenAI's coding agent"
 msgstr "Agente de programación de OpenAI"
 
@@ -929,6 +976,10 @@ msgstr "Vistas previas y exportaciones"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Previous result"
 msgstr "Resultado anterior"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous tab"
+msgstr "Pestaña anterior"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Print note"
@@ -1049,6 +1100,10 @@ msgid "TOML"
 msgstr "TOML"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tabs"
+msgstr "Pestañas"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Tag"
 msgstr "Etiqueta"
 
@@ -1121,10 +1176,6 @@ msgid "Add files…"
 msgstr "Añadir archivos…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Add headings to navigate your document."
-msgstr "Añade encabezados para navegar por tu documento."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Backlinks"
 msgstr "Retroenlaces"
@@ -1134,13 +1185,14 @@ msgid "Hide document sidebar"
 msgstr "Ocultar la barra lateral del documento"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Insert a link to another note to see it here."
-msgstr "Inserta un enlace a otra nota para verla aquí."
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Linked notes"
 msgstr "Notas vinculadas"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Links"
+msgstr "Enlaces"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1160,12 +1212,9 @@ msgid "No linked notes yet"
 msgstr "Aún no hay notas vinculadas"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#, fuzzy
 msgid "No media yet"
-msgstr "Aún no hay multimedia"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Notes that link here will appear in this list."
-msgstr "Las notas que enlacen aquí aparecerán en esta lista."
+msgstr "Aún no hay encabezados"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1176,10 +1225,6 @@ msgstr "Esquema"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show document sidebar"
 msgstr "Mostrar la barra lateral del documento"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Use + to add files, or drag them into the document."
-msgstr "Usa + para añadir archivos o arrástralos al documento."
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Preview file"
@@ -1349,6 +1394,7 @@ msgstr ""
 "¿Exportar de todos modos?"
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr "No se pudo abrir el enlace en tu navegador predeterminado."
 
@@ -1628,6 +1674,7 @@ msgid "Show Categories"
 msgstr "Mostrar categorías"
 
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "Papelera"
 
@@ -1678,8 +1725,8 @@ msgstr "No se pudo cargar el contenido"
 
 #: apps/carver-gtk/src/view/mod.rs
 #, rust-format
-msgid "Could not save note: {error}"
-msgstr "No se pudo guardar la nota: {error}"
+msgid "Could not open the note editor: {error}"
+msgstr "No se pudo abrir el editor de notas: {error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"
@@ -1734,9 +1781,18 @@ msgid "Moved note to Trash"
 msgstr "Nota movida a la papelera"
 
 #: apps/carver-gtk/src/view/mod.rs
+msgid "Note"
+msgstr "Nota"
+
+#: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "Notas"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Opened from {context}"
+msgstr "Abierto desde {context}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Refreshing this base."

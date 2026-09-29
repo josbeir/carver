@@ -632,3 +632,43 @@ fn document_properties_default_source_should_drop_blank_values() {
     };
     assert_eq!(config.default_source(), "---\nauthor: Jane\n---\n");
 }
+
+#[test]
+fn document_sidebar_page_should_round_trip_and_default_to_outline()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[editor]\ndocument_sidebar_page = 'links'\n")?;
+
+    assert_eq!(
+        load(&path)?.editor.document_sidebar_page,
+        DocumentSidebarPage::Links
+    );
+    assert_eq!(
+        load(&directory.path().join("missing.toml"))?
+            .editor
+            .document_sidebar_page,
+        DocumentSidebarPage::Outline
+    );
+    Ok(())
+}
+
+#[test]
+fn note_open_behavior_should_round_trip_and_default_to_new_tab()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("config.toml");
+    fs::write(&path, "[editor]\nnote_open_behavior = 'current-tab'\n")?;
+
+    assert_eq!(
+        load(&path)?.editor.note_open_behavior,
+        NoteOpenBehavior::CurrentTab
+    );
+    assert_eq!(
+        load(&directory.path().join("missing.toml"))?
+            .editor
+            .note_open_behavior,
+        NoteOpenBehavior::NewTab
+    );
+    Ok(())
+}

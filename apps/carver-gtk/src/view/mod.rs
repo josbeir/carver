@@ -20,6 +20,250 @@ use crate::mvu::{
 use crate::ui::browser::{BrowserFeedContext, BrowserFeedItem};
 
 type SidebarRenderer = Box<dyn Fn(&AppModel)>;
+
+/// Builds one independent editor projection tree for a note tab in the given initial mode.
+pub(crate) type EditorFactory = Box<
+    dyn Fn(
+        carver_config::EditorMode,
+    ) -> Result<
+        (gtk::Widget, crate::ui::editor::EditorViewRefs),
+        crate::ui::editor::SourceSyntaxError,
+    >,
+>;
+
+/// The tabbed content host: a pinned Notes page plus one editor page per open note.
+pub(crate) struct Workspace {
+    pub(crate) tab_view: adw::TabView,
+    pub(crate) notes_page: adw::TabPage,
+    pub(crate) tab_bar: adw::TabBar,
+    pub(crate) factory: EditorFactory,
+    pages: Rc<RefCell<std::collections::BTreeMap<crate::mvu::TabId, adw::TabPage>>>,
+    editors: Rc<
+        RefCell<
+            std::collections::BTreeMap<crate::mvu::TabId, Rc<crate::ui::editor::EditorViewRefs>>,
+        >,
+    >,
+    syncing: Rc<Cell<bool>>,
+    closing: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
+    failed: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
+    ready: Rc<RefCell<std::collections::BTreeSet<crate::mvu::TabId>>>,
+    attached_bar_parent: RefCell<Option<gtk::Widget>>,
+    pinned_identity: RefCell<Option<(String, &'static str)>>,
+}
+
+impl Workspace {
+    pub(crate) fn new(
+        tab_view: adw::TabView,
+        notes_page: adw::TabPage,
+        tab_bar: adw::TabBar,
+        factory: EditorFactory,
+    ) -> Self {
+        tab_bar.set_view(Some(&tab_view));
+        Self {
+            tab_view,
+            notes_page,
+            tab_bar,
+            factory,
+            pages: Rc::new(RefCell::new(std::collections::BTreeMap::new())),
+            editors: Rc::new(RefCell::new(std::collections::BTreeMap::new())),
+            syncing: Rc::new(Cell::new(false)),
+            closing: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
+            failed: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
+            ready: Rc::new(RefCell::new(std::collections::BTreeSet::new())),
+            attached_bar_parent: RefCell::new(None),
+            pinned_identity: RefCell::new(None),
+        }
+    }
+
+    /// Places the tab bar directly below the active surface's header bar.
+    fn attach_tab_bar(&self, surface: &gtk::Widget) {
+        let Some(toolbar) = find_toolbar_view(surface) else {
+            return;
+        };
+        let toolbar = toolbar.upcast::<gtk::Widget>();
+        if self.attached_bar_parent.borrow().as_ref() == Some(&toolbar) {
+            return;
+        }
+        self.tab_bar.unparent();
+        if let Some(toolbar) = toolbar.downcast_ref::<adw::ToolbarView>() {
+            toolbar.add_top_bar(&self.tab_bar);
+        }
+        self.attached_bar_parent.replace(Some(toolbar));
+    }
+
+    /// Removes the tab bar from a surface that should not show it.
+    fn detach_tab_bar(&self) {
+        if self.attached_bar_parent.borrow_mut().take().is_some() {
+            self.tab_bar.unparent();
+        }
+    }
+
+    /// Connects tab-view signals so the model stays authoritative.
+    pub(crate) fn connect(&self, dispatcher: &crate::mvu::AppDispatcher) {
+        let syncing = Rc::clone(&self.syncing);
+        let pages = Rc::clone(&self.pages);
+        let dispatcher_select = dispatcher.clone();
+        self.tab_view.connect_selected_page_notify(move |view| {
+            if syncing.get() {
+                return;
+            }
+            let Some(page) = view.selected_page() else {
+                return;
+            };
+            let tab_id = pages
+                .borrow()
+                .iter()
+                .find(|(_, candidate)| **candidate == page)
+                .map(|(id, _)| *id);
+            let message = tab_id.map_or(
+                crate::mvu::TabsMsg::ActivateNotes,
+                crate::mvu::TabsMsg::Activate,
+            );
+            let _ = dispatcher_select.dispatch(crate::mvu::AppMsg::Tabs(message));
+        });
+
+        let syncing = Rc::clone(&self.syncing);
+        let pages = Rc::clone(&self.pages);
+        let closing = Rc::clone(&self.closing);
+        let notes_page = self.notes_page.clone();
+        let dispatcher_close = dispatcher.clone();
+        self.tab_view.connect_close_page(move |_view, page| {
+            if *page == notes_page {
+                return glib::Propagation::Stop;
+            }
+            if !syncing.get() {
+                let tab_id = pages
+                    .borrow()
+                    .iter()
+                    .find(|(_, candidate)| **candidate == *page)
+                    .map(|(id, _)| *id);
+                if let Some(tab_id) = tab_id {
+                    let already_closing = {
+                        let mut closing = closing.borrow_mut();
+                        !closing.insert(tab_id)
+                    };
+                    if !already_closing {
+                        let _ = dispatcher_close
+                            .dispatch(crate::mvu::AppMsg::Tabs(crate::mvu::TabsMsg::Close(tab_id)));
+                    }
+                }
+            }
+            // The model removes the tab; let the view perform the page close.
+            glib::Propagation::Proceed
+        });
+
+        let pages_detached = Rc::clone(&self.pages);
+        let editors_detached = Rc::clone(&self.editors);
+        let closing_detached = Rc::clone(&self.closing);
+        let failed_detached = Rc::clone(&self.failed);
+        let ready_detached = Rc::clone(&self.ready);
+        self.tab_view
+            .connect_page_detached(move |_view, page, _position| {
+                let tab_id = pages_detached
+                    .borrow()
+                    .iter()
+                    .find(|(_, candidate)| **candidate == *page)
+                    .map(|(id, _)| *id);
+                if let Some(tab_id) = tab_id {
+                    pages_detached.borrow_mut().remove(&tab_id);
+                    editors_detached.borrow_mut().remove(&tab_id);
+                    closing_detached.borrow_mut().remove(&tab_id);
+                    failed_detached.borrow_mut().remove(&tab_id);
+                    ready_detached.borrow_mut().remove(&tab_id);
+                }
+            });
+
+        let syncing = Rc::clone(&self.syncing);
+        let pages = Rc::clone(&self.pages);
+        let dispatcher_reorder = dispatcher.clone();
+        self.tab_view
+            .connect_page_reordered(move |_view, page, position| {
+                if syncing.get() {
+                    return;
+                }
+                let tab_id = pages
+                    .borrow()
+                    .iter()
+                    .find(|(_, candidate)| **candidate == *page)
+                    .map(|(id, _)| *id);
+                if let Some(tab_id) = tab_id {
+                    let _ = dispatcher_reorder.dispatch(crate::mvu::AppMsg::Tabs(
+                        crate::mvu::TabsMsg::Reordered {
+                            tab_id,
+                            position: note_tab_position(position),
+                        },
+                    ));
+                }
+            });
+
+        // Break the tab-view → signal handler → TabPage cycle when the view is destroyed.
+        let pages_for_destroy = Rc::clone(&self.pages);
+        let editors_for_destroy = Rc::clone(&self.editors);
+        let failed_for_destroy = Rc::clone(&self.failed);
+        self.tab_view.connect_destroy(move |_| {
+            pages_for_destroy.borrow_mut().clear();
+            editors_for_destroy.borrow_mut().clear();
+            failed_for_destroy.borrow_mut().clear();
+        });
+
+        self.install_shortcuts(dispatcher);
+    }
+
+    /// Installs the tab-navigation keys before the focused editor sees them.
+    ///
+    /// `AdwTabView`'s own shortcuts are enabled but unreachable while `WebKit` or the source view
+    /// has focus, so navigation is owned here and routed through the reducer.
+    fn install_shortcuts(&self, dispatcher: &crate::mvu::AppDispatcher) {
+        let controller = gtk::EventControllerKey::new();
+        controller.set_name(Some("workspace-tab-shortcuts"));
+        controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let tab_view = self.tab_view.clone();
+        let dispatcher = dispatcher.clone();
+        controller.connect_key_pressed(move |_, key, _, modifiers| {
+            if !modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                return glib::Propagation::Proceed;
+            }
+            let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+            let message = match (key, shift) {
+                (gtk::gdk::Key::Page_Down, true) => {
+                    reorder_selected_page(&tab_view, true);
+                    None
+                }
+                (gtk::gdk::Key::Page_Up, true) => {
+                    reorder_selected_page(&tab_view, false);
+                    None
+                }
+                (gtk::gdk::Key::Page_Down | gtk::gdk::Key::Tab, false) => {
+                    Some(crate::mvu::TabsMsg::ActivateNext)
+                }
+                (gtk::gdk::Key::Page_Up, false) | (gtk::gdk::Key::Tab, true) => {
+                    Some(crate::mvu::TabsMsg::ActivatePrevious)
+                }
+                _ => return glib::Propagation::Proceed,
+            };
+            if let Some(message) = message {
+                let _ = dispatcher.dispatch(crate::mvu::AppMsg::Tabs(message));
+            }
+            glib::Propagation::Stop
+        });
+        self.tab_view.add_controller(controller);
+    }
+}
+
+/// Moves the selected non-pinned page one position, reporting the result through the tab view.
+fn reorder_selected_page(tab_view: &adw::TabView, forward: bool) {
+    let Some(page) = tab_view.selected_page() else {
+        return;
+    };
+    if page.is_pinned() {
+        return;
+    }
+    if forward {
+        tab_view.reorder_forward(&page);
+    } else {
+        tab_view.reorder_backward(&page);
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SidebarSnapshot {
     categories: Vec<carver_sdk::CategorySummary>,
@@ -66,6 +310,180 @@ struct BrowserContentRefs<'a> {
     empty_new_note: &'a gtk::Button,
 }
 
+/// Returns the display title for a note tab, falling back while it loads.
+fn tab_display_title(tab: &crate::mvu::NoteTab) -> String {
+    if tab.title.trim().is_empty() {
+        gettext("Note")
+    } else {
+        tab.title.clone()
+    }
+}
+
+/// The name shown for a tab origin, used to attribute note tabs to their surface.
+fn tab_origin_label(model: &AppModel, origin: crate::mvu::TabOrigin) -> String {
+    match origin {
+        crate::mvu::TabOrigin::Browser => gettext("Notes"),
+        crate::mvu::TabOrigin::Base(base_id) => base_display_name(model, base_id),
+    }
+}
+
+/// The saved name of a Base, or a generic label while it is still loading.
+fn base_display_name(model: &AppModel, base_id: carver_sdk::BaseId) -> String {
+    if let LoadState::Ready(definitions) = &model.bases.definitions.state
+        && let Some(base) = definitions.iter().find(|base| base.id == base_id)
+    {
+        return base.name.clone();
+    }
+    gettext("Base")
+}
+
+/// Title and icon for the pinned root tab, following the surface it hosts.
+fn pinned_tab_identity(model: &AppModel) -> (String, &'static str) {
+    let route = match model.route {
+        Route::Editor => model.editor_return_route,
+        route => route,
+    };
+    match route {
+        Route::Base => (
+            model.bases.selected.map_or_else(
+                || gettext("Base"),
+                |base_id| base_display_name(model, base_id),
+            ),
+            "carver-database-symbolic",
+        ),
+        Route::Trash => (gettext("Trash"), "user-trash-symbolic"),
+        Route::Browser | Route::Editor => (gettext("Notes"), "view-list-symbolic"),
+    }
+}
+
+/// Reflects the surface hosted by the pinned root tab in its title and icon.
+fn sync_pinned_tab(workspace: &Workspace, model: &AppModel) {
+    let identity = pinned_tab_identity(model);
+    if workspace.pinned_identity.borrow().as_ref() != Some(&identity) {
+        workspace.notes_page.set_title(&identity.0);
+        workspace
+            .notes_page
+            .set_icon(Some(&gtk::gio::ThemedIcon::new(identity.1)));
+        workspace.pinned_identity.replace(Some(identity));
+    }
+}
+
+/// Converts an `AdwTabView` page position to a note-tab index.
+///
+/// `AdwTabView` reports positions in the full page list, which always starts with the pinned
+/// Notes page, while `tabs.open` holds only the note tabs.
+fn note_tab_position(position: i32) -> usize {
+    usize::try_from(position.max(0))
+        .unwrap_or(0)
+        .saturating_sub(1)
+}
+
+/// Creates missing note pages and refreshes titles, loading state, and tooltips.
+///
+/// Returns the tabs whose editor could not be built so the caller can surface the failure.
+fn sync_note_tabs(
+    workspace: &Workspace,
+    model: &AppModel,
+) -> Vec<(crate::mvu::TabId, crate::ui::editor::SourceSyntaxError)> {
+    let mut failures = Vec::new();
+    for tab in &model.tabs.open {
+        if workspace.pages.borrow().contains_key(&tab.id)
+            || workspace.failed.borrow().contains(&tab.id)
+        {
+            continue;
+        }
+        match (workspace.factory)(model.preferences.editor_mode) {
+            Ok((widget, refs)) => {
+                let page = workspace.tab_view.append(&widget);
+                page.set_title(&tab_display_title(tab));
+                page.set_loading(tab_loading(workspace, tab));
+                let ready = Rc::clone(&workspace.ready);
+                let page_for_ready = page.clone();
+                let tab_id = tab.id;
+                refs.set_surface_ready_handler(Rc::new(move || {
+                    ready.borrow_mut().insert(tab_id);
+                    page_for_ready.set_loading(false);
+                }));
+                workspace.pages.borrow_mut().insert(tab.id, page);
+                workspace.editors.borrow_mut().insert(tab.id, Rc::new(refs));
+            }
+            Err(error) => {
+                // Remember the failure so the editor is not rebuilt on every render.
+                workspace.failed.borrow_mut().insert(tab.id);
+                failures.push((tab.id, error));
+            }
+        }
+    }
+    for tab in &model.tabs.open {
+        if let Some(page) = workspace.pages.borrow().get(&tab.id) {
+            let title = tab_display_title(tab);
+            if page.title() != title.as_str() {
+                page.set_title(&title);
+            }
+            let loading = tab_loading(workspace, tab);
+            if page.is_loading() != loading {
+                page.set_loading(loading);
+            }
+            let tooltip = tr_fmt!(
+                gettext("Opened from {context}"),
+                context = tab_origin_label(model, tab.origin)
+            );
+            if page.tooltip().as_deref() != Some(tooltip.as_str()) {
+                page.set_tooltip(&tooltip);
+            }
+        }
+    }
+    failures
+}
+
+/// Whether a note tab should still show its loading spinner.
+///
+/// The tab spins while its document loads and until its editor surface finishes its initial load.
+fn tab_loading(workspace: &Workspace, tab: &crate::mvu::NoteTab) -> bool {
+    tab.loading || !workspace.ready.borrow().contains(&tab.id)
+}
+
+/// Renders the Base header actions, including the context-scoped tab cleanup.
+fn render_base_header_actions(
+    model: &AppModel,
+    refs: &crate::ui::bases::BaseViewRefs,
+    base_id: carver_sdk::BaseId,
+    definition: Option<&carver_sdk::BaseDefinition>,
+    dispatcher: &AppDispatcher,
+) {
+    crate::ui::bases::actions::render_delete(
+        &refs.delete,
+        definition.filter(|base| !model.bases.deleting.contains(&base.id)),
+        dispatcher,
+    );
+    let has_tabs = model
+        .tabs
+        .open
+        .iter()
+        .any(|tab| tab.origin == crate::mvu::TabOrigin::Base(base_id));
+    crate::ui::bases::actions::render_close_tabs(
+        &refs.close_tabs,
+        definition,
+        has_tabs,
+        dispatcher,
+    );
+}
+
+/// Finds the toolbar view that owns a surface so the tab bar can sit below its header.
+fn find_toolbar_view(widget: &gtk::Widget) -> Option<adw::ToolbarView> {
+    if let Some(toolbar) = widget.downcast_ref::<adw::ToolbarView>() {
+        return Some(toolbar.clone());
+    }
+    let mut child = widget.first_child();
+    while let Some(current) = child {
+        if let Some(toolbar) = find_toolbar_view(&current) {
+            return Some(toolbar);
+        }
+        child = current.next_sibling();
+    }
+    None
+}
+
 /// GTK references used to render the high-level MVU resources.
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
@@ -99,7 +517,8 @@ pub struct ViewRefs {
     last_browser_snapshot: RefCell<Option<BrowserProjectionSnapshot>>,
     last_trash_snapshot: RefCell<Option<LoadState<carver_sdk::TrashContents>>>,
     sidebar_renderer: Option<SidebarRenderer>,
-    editor: Option<crate::ui::editor::EditorViewRefs>,
+    editor: RefCell<Option<Rc<crate::ui::editor::EditorViewRefs>>>,
+    workspace: Option<Workspace>,
     link_dialog: RefCell<Option<crate::ui::editor::link_dialog::LinkDialogHandle>>,
     last_link_candidates: RefCell<Option<LoadState<Vec<carver_sdk::NoteSummary>>>>,
     source_syntax_dir: Option<PathBuf>,
@@ -145,7 +564,8 @@ impl ViewRefs {
             last_browser_snapshot: RefCell::new(None),
             last_trash_snapshot: RefCell::new(None),
             sidebar_renderer: None,
-            editor: None,
+            editor: RefCell::new(None),
+            workspace: None,
             link_dialog: RefCell::new(None),
             last_link_candidates: RefCell::new(None),
             source_syntax_dir: None,
@@ -217,10 +637,21 @@ impl ViewRefs {
         self
     }
 
-    /// Adds the editor projections created by the composition shell.
+    /// Adds the tabbed workspace created by the composition shell.
     #[must_use]
-    pub(crate) fn with_editor(mut self, editor: crate::ui::editor::EditorViewRefs) -> Self {
-        self.editor = Some(editor);
+    pub(crate) fn with_workspace(mut self, workspace: Workspace) -> Self {
+        self.workspace = Some(workspace);
+        self
+    }
+
+    /// Installs one editor directly for display tests that do not exercise the tab host.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_editor_for_test(
+        mut self,
+        editor: crate::ui::editor::EditorViewRefs,
+    ) -> Self {
+        self.editor = RefCell::new(Some(Rc::new(editor)));
         self
     }
 
@@ -234,16 +665,21 @@ impl ViewRefs {
     /// Renders one immutable model snapshot without invoking application actions.
     pub fn render(&self, model: &AppModel) {
         self.rendering.set(true);
-        self.route_stack.set_visible_child_name(match model.route {
-            Route::Browser => "browser",
-            Route::Base => "base",
-            Route::Trash => "trash",
-            Route::Editor => "editor",
-        });
+        if let Some(child) = match model.route {
+            Route::Browser => Some("browser"),
+            Route::Base => Some("base"),
+            Route::Trash => Some("trash"),
+            // Without a tab host, the legacy single-editor stack owns the editor page.
+            Route::Editor if self.workspace.is_none() => Some("editor"),
+            Route::Editor => None,
+        } {
+            self.route_stack.set_visible_child_name(child);
+        }
         self.render_sidebar(model);
         self.render_browser(model);
         self.render_base(model);
         self.render_trash(model);
+        self.render_tabs(model);
         self.render_editor(model);
         self.render_link_dialog(model);
         self.clear_resolved_external_notice(model);
@@ -252,6 +688,104 @@ impl ViewRefs {
         self.render_undo_move(model);
         self.render_undo_trash_note(model);
         self.rendering.set(false);
+    }
+
+    /// Reconciles the tab host with the model and selects the active page.
+    fn render_tabs(&self, model: &AppModel) {
+        let Some(workspace) = &self.workspace else {
+            return;
+        };
+        workspace.syncing.set(true);
+        // The strip is shown whenever notes are open, on every surface.
+        let show_tabs = !model.tabs.open.is_empty();
+        workspace.tab_bar.set_visible(show_tabs);
+        // A Base owns its own filtering, so a new note there would be ambiguous.
+        let show_new_note = model.can_create_note();
+        if let Some(action) = workspace.tab_bar.end_action_widget() {
+            action.set_visible(show_new_note);
+        }
+
+        // The pinned root tab reflects the surface it currently hosts.
+        sync_pinned_tab(workspace, model);
+
+        let stale: Vec<crate::mvu::TabId> = workspace
+            .pages
+            .borrow()
+            .keys()
+            .copied()
+            .filter(|tab_id| model.note_tab(*tab_id).is_none())
+            .collect();
+        for tab_id in stale {
+            if workspace.closing.borrow().contains(&tab_id) {
+                continue;
+            }
+            let page = workspace.pages.borrow().get(&tab_id).cloned();
+            if let Some(page) = page {
+                // The close-page handler confirms the close and page-detached cleans up.
+                workspace.closing.borrow_mut().insert(tab_id);
+                workspace.tab_view.close_page(&page);
+            }
+        }
+
+        let sync_failures = sync_note_tabs(workspace, model);
+        for (tab_id, error) in sync_failures {
+            if let Some(toast_overlay) = &self.toast_overlay {
+                toast_overlay.add_toast(adw::Toast::new(&tr_fmt!(
+                    gettext("Could not open the note editor: {error}"),
+                    error = error.to_string()
+                )));
+            }
+            // Drop the unusable tab once the render pass unwinds, so the model does not keep a
+            // document-less page the user cannot reach.
+            if let Some(dispatcher) = &self.dispatcher {
+                let dispatcher = dispatcher.clone();
+                glib::idle_add_local_once(move || {
+                    let _ = dispatcher
+                        .dispatch(crate::mvu::AppMsg::Tabs(crate::mvu::TabsMsg::Close(tab_id)));
+                });
+            }
+        }
+
+        let selected = match model.route {
+            Route::Editor => model
+                .tabs
+                .active
+                .and_then(|tab_id| workspace.pages.borrow().get(&tab_id).cloned()),
+            Route::Browser | Route::Base | Route::Trash => Some(workspace.notes_page.clone()),
+        };
+        if let Some(page) = selected
+            && workspace.tab_view.selected_page().as_ref() != Some(&page)
+        {
+            workspace.tab_view.set_selected_page(&page);
+        }
+
+        if show_tabs {
+            let surface = match model.route {
+                Route::Editor => model.tabs.active.and_then(|tab_id| {
+                    workspace
+                        .pages
+                        .borrow()
+                        .get(&tab_id)
+                        .map(adw::TabPage::child)
+                }),
+                Route::Browser | Route::Base | Route::Trash => self.route_stack.visible_child(),
+            };
+            if let Some(surface) = surface {
+                workspace.attach_tab_bar(&surface);
+            }
+        } else {
+            workspace.detach_tab_bar();
+        }
+
+        let active = match model.route {
+            Route::Editor => model.tabs.active,
+            Route::Browser | Route::Base | Route::Trash => None,
+        };
+        let active_editor =
+            active.and_then(|tab_id| workspace.editors.borrow().get(&tab_id).cloned());
+        self.editor.replace(active_editor);
+
+        workspace.syncing.set(false);
     }
 
     fn render_link_dialog(&self, model: &AppModel) {
@@ -263,8 +797,13 @@ impl ViewRefs {
             self.last_link_candidates.replace(None);
             // Drop the borrow before closing: closing can emit a response that re-renders.
             let handle = self.link_dialog.borrow_mut().take();
+            let editor = self.editor.borrow().clone();
             if let Some(handle) = handle {
                 handle.close();
+                // Return focus to the editor after Insert or Cancel, like the old dialog did.
+                if let Some(editor) = editor {
+                    editor.restore_focus_later();
+                }
             }
             return;
         }
@@ -296,6 +835,7 @@ impl ViewRefs {
         let LoadState::Ready(definitions) = &model.bases.definitions.state else {
             crate::ui::bases::actions::render_delete(&refs.delete, None, dispatcher);
             crate::ui::bases::actions::render_configure(&refs.configure, None, dispatcher);
+            crate::ui::bases::actions::render_close_tabs(&refs.close_tabs, None, false, dispatcher);
             refs.grid.set_sensitive(false);
             if let LoadState::Failed(error) = &model.bases.definitions.state {
                 crate::ui::bases::render_base_status(
@@ -318,11 +858,7 @@ impl ViewRefs {
             return;
         };
         let definition = definitions.iter().find(|base| base.id == base_id);
-        crate::ui::bases::actions::render_delete(
-            &refs.delete,
-            definition.filter(|base| !model.bases.deleting.contains(&base.id)),
-            dispatcher,
-        );
+        render_base_header_actions(model, refs, base_id, definition, dispatcher);
         let rows = match &model.bases.rows.state {
             LoadState::Ready(rows) => rows,
             LoadState::Failed(error) => {
@@ -560,7 +1096,8 @@ impl ViewRefs {
             }
             return;
         }
-        let Some(editor) = &self.editor else {
+        let editor = self.editor.borrow().clone();
+        let Some(editor) = editor else {
             return;
         };
         match effect {
@@ -720,7 +1257,7 @@ impl ViewRefs {
     }
 
     fn render_editor(&self, model: &AppModel) {
-        if let Some(editor) = &self.editor {
+        if let Some(editor) = self.editor.borrow().as_ref() {
             editor.render(model);
         }
     }

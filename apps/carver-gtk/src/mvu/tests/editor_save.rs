@@ -107,7 +107,23 @@ fn stale_editor_save_completion_should_not_replace_a_newer_document() {
         }),
     );
 
-    assert!(effects.is_empty());
+    // The first note's save completes against its own background tab. It may refresh the
+    // active note's links (a new backlink), but must not replace the newer document.
+    assert!(
+        effects.iter().all(|effect| matches!(
+            effect,
+            Effect::LoadLibraryRevision { .. } | Effect::LoadNoteLinks { .. }
+        )),
+        "a stale save should only refresh library metadata and note links"
+    );
+    let first = model
+        .tabs
+        .background
+        .values()
+        .find(|document| document.note_id == first_note_id);
+    assert_eq!(first.map(|document| document.revision), Some(Revision(2)));
+    assert!(first.is_some_and(|document| document.save_state == super::EditorSaveState::Clean));
+    // The active second document is untouched.
     let Some(document) = model.editor.as_ref() else {
         panic!("second editor should remain open");
     };
@@ -196,11 +212,16 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
         _ => panic!("the autosave timer should begin one save"),
     };
 
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::BackRequested)).is_empty());
-    let _ = update(
-        &mut model,
-        AppMsg::Editor(EditorMsg::SourceChanged("Final source".to_owned())),
+    let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBrowser { .. }))
     );
+    assert_eq!(model.route, Route::Browser);
+    assert!(model.editor.is_none());
+
+    // The in-flight save completes against the note's background tab.
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::EditorSaved {
@@ -209,29 +230,23 @@ fn back_requested_while_saving_should_close_only_after_the_latest_source_saves()
             move_error: None,
         }),
     );
-    let final_request = match effects.as_slice() {
-        [Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("a changed source should schedule one follow-up save"),
-    };
-    assert_eq!(model.route, Route::Editor);
-
-    let effects = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request: final_request,
-            result: Ok(Revision(9)),
-            move_error: None,
-        }),
+    assert!(
+        effects
+            .iter()
+            .all(|effect| matches!(effect, Effect::LoadLibraryRevision { .. }))
     );
-    assert!(matches!(
-        effects.as_slice(),
-        [
-            Effect::LoadBrowser { .. },
-            Effect::LoadLibraryRevision { .. }
-        ]
-    ));
-    assert_eq!(model.route, Route::Browser);
-    assert_eq!(model.editor, None);
+    let background = model
+        .tabs
+        .background
+        .values()
+        .find(|document| document.note_id == note_id);
+    assert_eq!(
+        background.map(|document| document.revision),
+        Some(Revision(8))
+    );
+    assert!(
+        background.is_some_and(|document| document.save_state == super::EditorSaveState::Clean)
+    );
 }
 
 #[test]

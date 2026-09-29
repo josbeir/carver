@@ -1,6 +1,20 @@
 //! Shared display-backed window fixture and cross-scenario widget helpers.
 use super::*;
 
+/// Returns whether a note tab (rather than the pinned Notes list) is active.
+pub(crate) fn note_tab_is_active(root: &gtk::Widget) -> bool {
+    widget_as::<adw::TabView>(root, "workspace-tabs")
+        .and_then(|tabs| tabs.selected_page())
+        .is_some_and(|page| !page.is_pinned())
+}
+
+/// Returns whether the selected note tab is still showing its loading spinner.
+pub(crate) fn note_tab_is_loading(root: &gtk::Widget) -> bool {
+    widget_as::<adw::TabView>(root, "workspace-tabs")
+        .and_then(|tabs| tabs.selected_page())
+        .is_some_and(|page| !page.is_pinned() && page.is_loading())
+}
+
 /// Window, dialogs, and seed library shared by the display-backed scenario functions.
 pub(crate) struct WindowFixture {
     pub directory: tempfile::TempDir,
@@ -154,6 +168,25 @@ impl WindowFixture {
             .map_err(|_| "GtkSourceBuffer")?)
     }
 
+    /// Opens the note in the browser list and waits for its tab to become active.
+    ///
+    /// Editor accessors follow the selected workspace tab, so a scenario that
+    /// asserts on a specific note must bring that note to the front first.
+    pub(crate) fn activate_note(
+        &self,
+        note_id: carver_sdk::NoteId,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let list = self.note_list()?;
+        if !activate_browser_note(&list, note_id) {
+            return Err("note is not in the browser list".into());
+        }
+        let root = self.root()?;
+        if !run_main_context_until(|| note_tab_is_active(&root)) {
+            return Err("note tab did not become active".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn editor_mode_stack(&self) -> Result<adw::ViewStack, Box<dyn std::error::Error>> {
         Ok(
             widget_as::<adw::ViewStack>(&self.root()?, "editor-mode-stack")
@@ -279,6 +312,25 @@ pub(crate) fn find_label(root: &gtk::Widget, text: &str) -> Option<gtk::Label> {
     None
 }
 
+/// Returns the note ids shown in a browser feed list, in order.
+pub(crate) fn browser_note_ids(list: &gtk::ListView) -> Vec<carver_sdk::NoteId> {
+    let Some(model) = list.model() else {
+        return Vec::new();
+    };
+    (0..model.n_items())
+        .filter_map(|position| {
+            let item = model
+                .item(position)
+                .and_downcast::<glib::BoxedAnyObject>()?;
+            match &*item.borrow::<crate::ui::browser::BrowserFeedItem>() {
+                crate::ui::browser::BrowserFeedItem::Note(note)
+                | crate::ui::browser::BrowserFeedItem::Favorite(note) => Some(note.id),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
 pub(crate) fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::NoteId) -> bool {
     let Some(model) = list.model() else {
         return false;
@@ -290,7 +342,9 @@ pub(crate) fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::N
             .is_some_and(|item| {
                 matches!(
                     &*item.borrow::<crate::ui::browser::BrowserFeedItem>(),
-                    crate::ui::browser::BrowserFeedItem::Note(current) if current.id == note_id
+                    crate::ui::browser::BrowserFeedItem::Note(current)
+                        | crate::ui::browser::BrowserFeedItem::Favorite(current)
+                        if current.id == note_id
                 )
             })
     }) else {

@@ -73,7 +73,10 @@ fn opening_a_linked_note_with_a_clean_editor_should_load_it() {
 
     let effects = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: target,
+            intent: NoteOpenIntent::Default,
+        }),
     );
 
     assert!(matches!(
@@ -87,12 +90,13 @@ fn opening_a_linked_note_with_a_clean_editor_should_load_it() {
 }
 
 #[test]
-fn opening_a_linked_note_should_save_a_dirty_editor_first() {
+fn opening_a_linked_note_should_open_a_new_tab_and_keep_the_dirty_tab() {
     let mut model = AppModel::new(&Config::default());
+    let first_note = NoteId::new();
     let _ = update(
         &mut model,
         AppMsg::Editor(EditorMsg::Load {
-            note_id: NoteId::new(),
+            note_id: first_note,
             revision: Revision(1),
             source: String::from("Initial"),
         }),
@@ -105,29 +109,31 @@ fn opening_a_linked_note_should_save_a_dirty_editor_first() {
 
     let effects = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(target)),
-    );
-    let request = match effects.as_slice() {
-        [Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("opening a linked note should save the dirty document first"),
-    };
-    assert_eq!(
-        model.pending_navigation,
-        Some(PendingNavigation::Note(target))
-    );
-
-    let effects = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request,
-            result: Ok(Revision(2)),
-            move_error: None,
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: target,
+            intent: NoteOpenIntent::Default,
         }),
     );
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::LoadEditorNote { note_id, .. } if *note_id == target
-    )));
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadEditorNote { note_id, .. }] if *note_id == target
+    ));
+    // The dirty document is stashed for its own tab instead of being saved or discarded.
+    assert_eq!(
+        model
+            .tabs
+            .active
+            .map(|tab_id| model.note_tab(tab_id).map(|tab| tab.note_id)),
+        Some(Some(target))
+    );
+    assert!(model.editor.is_none());
+    assert!(
+        model
+            .tabs
+            .background
+            .values()
+            .any(|document| document.note_id == first_note)
+    );
 }
 
 #[test]

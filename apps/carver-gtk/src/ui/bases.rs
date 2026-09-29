@@ -34,6 +34,7 @@ pub(crate) struct BaseViewRefs {
     >,
     pub(crate) configure: gtk::Button,
     pub(crate) delete: gtk::Button,
+    pub(crate) close_tabs: gtk::Button,
     pub(crate) title: gtk::Label,
     pub(crate) search_bar: gtk::SearchBar,
     pub(crate) search_entry: gtk::SearchEntry,
@@ -41,7 +42,6 @@ pub(crate) struct BaseViewRefs {
     pub(crate) last_search_open: std::cell::Cell<bool>,
     pub(crate) grid: gtk::ColumnView,
     pub(crate) pages: gtk::Stack,
-    pub(crate) scroll: gtk::ScrolledWindow,
     pub(crate) status: adw::StatusPage,
     pub(crate) load_more: gtk::Button,
     pub(crate) rows: gtk::gio::ListStore,
@@ -94,6 +94,15 @@ pub(crate) fn build_base(
     configure.set_widget_name("configure-base-button");
     configure.set_action_name(Some("base.configure"));
     header.pack_end(&configure);
+    // Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+    let close_tabs = gtk::Button::with_label(&gettext("Close tabs"));
+    close_tabs.set_icon_name("edit-clear-all-symbolic");
+    close_tabs.add_css_class("flat");
+    close_tabs.set_widget_name("close-base-tabs-button");
+    close_tabs.set_tooltip_text(Some(&gettext("Close note tabs opened from this Base")));
+    close_tabs.set_action_name(Some("base.close-tabs"));
+    close_tabs.set_visible(false);
+    header.pack_end(&close_tabs);
     toolbar.add_top_bar(&header);
     toolbar.add_top_bar(&search.bar);
 
@@ -168,6 +177,7 @@ pub(crate) fn build_base(
             configuration: std::cell::RefCell::new(None),
             configure,
             delete,
+            close_tabs,
             title,
             search_bar: search.bar,
             search_entry: search.entry,
@@ -175,7 +185,6 @@ pub(crate) fn build_base(
             last_search_open: std::cell::Cell::new(false),
             grid,
             pages,
-            scroll,
             status,
             load_more,
             rows,
@@ -657,38 +666,41 @@ fn date_cell_for(
     cell.append(&label);
     cell.append(picker.button());
 
-    // Seed from the row each time the calendar opens.
+    // Seed from the row each time the calendar opens. The picker invokes this from its own
+    // popover handler, so the grid never captures the picker and cannot create a cycle.
     {
-        let picker = picker.clone();
-        let popover = picker.popover().clone();
         let weak_item = item.downgrade();
         let column = column.clone();
-        popover.connect_show(move |_| {
+        picker.connect_seed(move || {
             let Some(item) = weak_item.upgrade() else {
-                return;
+                return FrontmatterValue::Null;
             };
             let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-                return;
+                return FrontmatterValue::Null;
             };
             let row = object.borrow::<BaseRow>();
-            picker.set_frontmatter(&cell_seed(&row, &column));
+            cell_seed(&row, &column)
         });
     }
     // Clear submits immediately: dismiss the popover so the close handler removes the property,
-    // rather than making the user press Clear and then Done.
+    // rather than making the user press Clear and then Done. The weak reference avoids keeping the
+    // popover alive from its own content.
     {
-        let popover = picker.popover().clone();
-        picker.connect_cleared(move || popover.popdown());
+        let weak_popover = picker.popover().downgrade();
+        picker.connect_cleared(move || {
+            if let Some(popover) = weak_popover.upgrade() {
+                popover.popdown();
+            }
+        });
     }
-    // Commit a changed value when the calendar closes.
+    // Commit a changed value when the calendar closes. The picker supplies the closed value, so
+    // this handler does not need to own the picker.
     {
-        let picker = picker.clone();
-        let popover = picker.popover().clone();
         let weak_item = item.downgrade();
         let column = column.clone();
         let editor = editor.clone();
         let dispatcher = dispatcher.clone();
-        popover.connect_closed(move |_| {
+        picker.connect_commit(move |value| {
             let Some(item) = weak_item.upgrade() else {
                 return;
             };
@@ -699,7 +711,7 @@ fn date_cell_for(
             let current = cell_seed(&row, &column);
             // An unset cell still shows a calendar selection, so confirming the picker commits
             // what is displayed even when the user did not move the calendar.
-            let value = picker.commit_value().map(serde_json::Value::String);
+            let value = value.map(serde_json::Value::String);
             if value != seed_value(&editor, &current) {
                 let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::CommitCellEdit {
                     note_id: row.note_id,
@@ -711,6 +723,13 @@ fn date_cell_for(
         });
     }
     cell
+}
+
+/// Resolves the note bound to a Base row from its recycled list item.
+fn item_note_id(item: &glib::WeakRef<gtk::ListItem>) -> Option<carver_sdk::NoteId> {
+    let item = item.upgrade()?;
+    let row = item.item().and_downcast::<glib::BoxedAnyObject>()?;
+    Some(row.borrow::<BaseRow>().note_id)
 }
 
 /// Builds the read-only presentation for a cell, including the Name open/edit controls.
@@ -735,17 +754,19 @@ fn build_display_cell(
             open.set_halign(gtk::Align::Start);
             {
                 let dispatcher = dispatcher.clone();
+                let weak_item_for_gesture = item.downgrade();
+                crate::ui::intent::connect_modified_note_open_with(&open, &dispatcher, move || {
+                    item_note_id(&weak_item_for_gesture)
+                });
                 let weak_item = item.downgrade();
                 open.connect_clicked(move |_| {
-                    let Some(item) = weak_item.upgrade() else {
+                    let Some(note_id) = item_note_id(&weak_item) else {
                         return;
                     };
-                    let Some(row) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-                        return;
-                    };
-                    let note_id = { row.borrow::<BaseRow>().note_id };
-                    let _ =
-                        dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+                    let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+                        note_id,
+                        intent: crate::mvu::NoteOpenIntent::Default,
+                    }));
                 });
             }
             let edit = gtk::Button::from_icon_name("document-edit-symbolic");

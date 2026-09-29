@@ -1,11 +1,11 @@
 //! UI-neutral application state.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carver_config::{Config, DocumentWidth, EditorMode, SourceSyntaxStyle};
 use carver_domain::source_analysis::SourceAnalysis;
 use carver_sdk::{
-    CategoryId, CategorySummary, LibraryRevision, NoteId, NoteLinks, NoteSummary, Revision,
+    BaseId, CategoryId, CategorySummary, LibraryRevision, NoteId, NoteLinks, NoteSummary, Revision,
     TrashContents,
 };
 
@@ -14,8 +14,71 @@ use carver_sdk::{
 pub struct RequestId(pub u64);
 
 /// Identifies an editor lifetime so stale callbacks cannot affect a newer note.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct EditorSessionId(pub u64);
+
+/// Identifies one open note tab in the workspace.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TabId(pub u64);
+
+/// The surface a note tab was opened from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TabOrigin {
+    /// Opened while browsing notes or managing the trash.
+    Browser,
+    /// Opened from a saved Base view.
+    Base(BaseId),
+}
+
+/// Where an editor document's content came from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DocumentOrigin {
+    /// Loaded from the library, so external refreshes are meaningful.
+    Library,
+    /// Loaded directly by a test helper, with no library note behind it.
+    Synthetic,
+}
+
+/// Lightweight metadata for one open note tab.
+///
+/// The active tab's full [`EditorDocument`] lives in `AppModel.editor`; inactive tabs keep their
+/// documents in `AppModel.tabs.background`, so every other part of the app still reasons
+/// about exactly one active document.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NoteTab {
+    /// Stable tab identity.
+    pub id: TabId,
+    /// Note shown by this tab.
+    pub note_id: NoteId,
+    /// Display title, refreshed from the note.
+    pub title: String,
+    /// Whether the note is currently a favorite.
+    pub is_favorite: bool,
+    /// Whether the note is still loading into the tab.
+    pub loading: bool,
+    /// Surface this tab was opened from, for context-scoped tab actions.
+    pub origin: TabOrigin,
+}
+
+/// The open note tabs and the documents behind them.
+///
+/// The active tab's document lives in [`AppModel::editor`]; inactive tabs keep theirs in
+/// [`Tabs::background`], and tabs that were closed while dirty keep saving in [`Tabs::closing`].
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Tabs {
+    /// Ordered open note tabs.
+    pub open: Vec<NoteTab>,
+    /// Active note tab, or `None` when the Notes list is showing.
+    pub active: Option<TabId>,
+    /// Most recently active note tab, remembered while the Notes list is showing.
+    pub(crate) last_active: Option<TabId>,
+    /// Previously active tabs, newest last, for browser-style Back.
+    pub(crate) history: Vec<Option<TabId>>,
+    /// Documents for inactive note tabs, keyed by tab id.
+    pub(crate) background: BTreeMap<TabId, EditorDocument>,
+    /// Dirty documents whose tab was closed and that are still saving.
+    pub(crate) closing: BTreeMap<EditorSessionId, EditorDocument>,
+}
 
 /// Identifies a scheduled UI timer such as a debounced search.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -261,8 +324,6 @@ pub(crate) enum PendingNavigation {
     Browser(Option<CategoryId>),
     /// Show one saved base.
     Base(carver_sdk::BaseId),
-    /// Open one note in the editor.
-    Note(NoteId),
 }
 
 /// Browser-specific UI-neutral state.
@@ -433,6 +494,8 @@ pub struct EditorDocument {
     pub analysis: std::sync::Arc<SourceAnalysis>,
     /// Monotonic identity of the current source snapshot.
     pub source_generation: u64,
+    /// Whether this document came from the library or a synthetic test load.
+    pub(crate) origin: DocumentOrigin,
     /// Heading currently selected in the editor.
     pub selected_heading: Option<usize>,
     /// Source range of the media currently selected in the editor.
@@ -441,6 +504,8 @@ pub struct EditorDocument {
     pub media_files: std::collections::BTreeMap<String, Option<MediaFile>>,
     /// Thumbnail requirements of in-flight and cached asset detail requests.
     pub media_file_kinds: std::collections::BTreeMap<String, bool>,
+    /// Managed-asset stores still in flight for this document.
+    pub(crate) pending_assets: usize,
     /// Outgoing internal-link targets and backlinks for this note.
     pub links: Resource<NoteLinks>,
     /// Current visibility of the editor's document navigation sidebar.
@@ -670,10 +735,12 @@ impl EditorDocument {
             mode,
             analysis,
             source_generation: 0,
+            origin: DocumentOrigin::Library,
             selected_heading: None,
             selected_media: None,
             media_files: std::collections::BTreeMap::new(),
             media_file_kinds: std::collections::BTreeMap::new(),
+            pending_assets: 0,
             links: Resource::default(),
             document_sidebar: DocumentSidebarVisibility::Hidden,
             pending_favorite: None,
@@ -742,6 +809,7 @@ impl EditorDocument {
         self.save_timer == Some(timer_id)
     }
 
+    #[cfg(test)]
     pub(super) fn request_close(&mut self) {
         self.close_requested = true;
     }
@@ -814,6 +882,8 @@ pub struct AppModel {
     pub preferences: Preferences,
     /// Active editor document, if the editor is open.
     pub editor: Option<EditorDocument>,
+    /// Open note tabs and their documents.
+    pub tabs: Tabs,
     /// Latest debounced editor preview snapshot.
     pub editor_preview: Option<EditorPreview>,
     /// One-shot request for the GTK adapter to copy a canonical source snapshot.
@@ -843,6 +913,7 @@ pub struct AppModel {
     pub(crate) editor_refresh_retry: Option<EditorSessionId>,
     next_request_id: u64,
     next_editor_session_id: u64,
+    next_tab_id: u64,
     next_timer_id: u64,
     next_preview_timer_id: u64,
     next_editor_copy_request_id: u64,
@@ -870,6 +941,7 @@ impl AppModel {
             undo_trash_note: None,
             preferences: Preferences::from(config),
             editor: None,
+            tabs: Tabs::default(),
             editor_preview: None,
             editor_copy_request: None,
             editor_export_dialog_request: None,
@@ -889,6 +961,7 @@ impl AppModel {
             editor_refresh_retry: None,
             next_request_id: 1,
             next_editor_session_id: 1,
+            next_tab_id: 1,
             next_timer_id: 1,
             next_preview_timer_id: 1,
             next_editor_copy_request_id: 1,
@@ -914,6 +987,111 @@ impl AppModel {
         let session_id = EditorSessionId(self.next_editor_session_id);
         self.next_editor_session_id = self.next_editor_session_id.wrapping_add(1);
         session_id
+    }
+
+    pub(super) fn next_tab_id(&mut self) -> TabId {
+        let tab_id = TabId(self.next_tab_id);
+        self.next_tab_id = self.next_tab_id.wrapping_add(1);
+        tab_id
+    }
+
+    /// Returns one open note tab by identity.
+    #[must_use]
+    pub fn note_tab(&self, tab_id: TabId) -> Option<&NoteTab> {
+        self.tabs.open.iter().find(|tab| tab.id == tab_id)
+    }
+
+    pub(super) fn note_tab_mut(&mut self, tab_id: TabId) -> Option<&mut NoteTab> {
+        self.tabs.open.iter_mut().find(|tab| tab.id == tab_id)
+    }
+
+    /// Returns the tab showing `note_id`, if the note is already open.
+    #[must_use]
+    pub fn note_tab_for_note(&self, note_id: NoteId) -> Option<TabId> {
+        self.tabs
+            .open
+            .iter()
+            .find(|tab| tab.note_id == note_id)
+            .map(|tab| tab.id)
+    }
+
+    /// Whether a new note can be created from the current surface.
+    ///
+    /// A Base owns its own filtering, so a new note there is ambiguous; an editor opened from a
+    /// Base inherits that. This single predicate drives the tab-bar action and the accelerator.
+    #[must_use]
+    pub fn can_create_note(&self) -> bool {
+        match self.route {
+            Route::Browser => true,
+            Route::Editor => self.editor_return_route == Route::Browser,
+            Route::Base | Route::Trash => false,
+        }
+    }
+
+    /// Resolves an editor document by session across the active and background tabs.
+    #[must_use]
+    pub fn document_for_session(&self, session: EditorSessionId) -> Option<&EditorDocument> {
+        self.editor
+            .as_ref()
+            .filter(|document| document.session == session)
+            .or_else(|| {
+                self.tabs
+                    .background
+                    .values()
+                    .find(|document| document.session == session)
+            })
+            .or_else(|| self.tabs.closing.get(&session))
+    }
+
+    pub(super) fn document_for_session_mut(
+        &mut self,
+        session: EditorSessionId,
+    ) -> Option<&mut EditorDocument> {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.session == session)
+        {
+            return self.editor.as_mut();
+        }
+        if let Some(document) = self
+            .tabs
+            .background
+            .values_mut()
+            .find(|document| document.session == session)
+        {
+            return Some(document);
+        }
+        self.tabs.closing.get_mut(&session)
+    }
+
+    /// Resolves a document by note across the active and background tabs.
+    #[must_use]
+    pub fn document_for_note(&self, note_id: NoteId) -> Option<&EditorDocument> {
+        self.editor
+            .as_ref()
+            .filter(|document| document.note_id == note_id)
+            .or_else(|| {
+                self.tabs
+                    .background
+                    .values()
+                    .find(|document| document.note_id == note_id)
+            })
+    }
+
+    /// Resolves a mutable document by note across the active and background tabs.
+    pub(super) fn document_for_note_mut(&mut self, note_id: NoteId) -> Option<&mut EditorDocument> {
+        if self
+            .editor
+            .as_ref()
+            .is_some_and(|document| document.note_id == note_id)
+        {
+            return self.editor.as_mut();
+        }
+        self.tabs
+            .background
+            .values_mut()
+            .find(|document| document.note_id == note_id)
     }
 
     pub(super) fn next_timer_id(&mut self) -> TimerId {

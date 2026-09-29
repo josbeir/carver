@@ -18,8 +18,11 @@ use libadwaita::prelude::{
 use webkit6::prelude::*;
 
 use super::{
-    dialogs::{EXPORT_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION, TRASH_NOTE_ACTION},
-    sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button},
+    dialogs::{
+        EXPORT_NOTE_ACTION, NEW_NOTE_ACTION, PRINT_NOTE_ACTION, TOGGLE_FAVORITE_ACTION,
+        TRASH_NOTE_ACTION,
+    },
+    sidebar::{CompactNavigation, sidebar_toggle_button},
 };
 use crate::mvu::{
     AppDispatcher, AppModel, AppMsg, EditorCopyRequest, EditorExportDialogRequest,
@@ -38,6 +41,10 @@ mod media_preview;
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
 mod document_navigation;
 mod document_sidebar;
+
+/// Exposes the Link-page row builder to display tests.
+#[cfg(test)]
+pub(crate) use document_sidebar::render_link_group;
 mod preview;
 pub(crate) mod properties_dialog;
 mod render;
@@ -104,6 +111,11 @@ pub(crate) struct EditorViewRefs {
 }
 
 impl EditorViewRefs {
+    /// Registers a one-shot callback for the rich editor finishing its initial load.
+    pub(crate) fn set_surface_ready_handler(&self, handler: Rc<dyn Fn()>) {
+        self.rich.set_ready_handler(handler);
+    }
+
     /// Applies an immutable editor-document snapshot to its GTK/WebKit projections.
     // CONTEXT: Rendering all projections together prevents GTK widgets from becoming a second
     // document state store.
@@ -133,7 +145,11 @@ impl EditorViewRefs {
         self.favorite_options.remove(0);
         self.favorite_options
             .insert(0, Some(&favorite_label), Some("editor.toggle-favorite"));
-        self.sidebar.render(document, &self.dispatcher);
+        self.sidebar.render(
+            document,
+            model.config.editor.document_sidebar_page,
+            &self.dispatcher,
+        );
         self.favorite.set_tooltip_text(Some(&favorite_label));
         let new_document = self.loaded_session.borrow().as_ref() != Some(&document.session);
         let remote_images_changed = self
@@ -360,6 +376,25 @@ impl EditorViewRefs {
         }
     }
 
+    /// Returns keyboard focus to the editable surface after a dialog or popover closes.
+    pub(crate) fn restore_focus_later(&self) {
+        let mode = view_mode(&self.editor_stack);
+        let source = self.source_editor.view().clone();
+        let rich = self.rich.view().clone();
+        glib::idle_add_local_once(move || match mode {
+            EditorMode::Source => {
+                source.grab_focus();
+                if let Some(root) = source.root() {
+                    root.set_focus(Some(&source));
+                }
+            }
+            EditorMode::Rich => {
+                rich.grab_focus();
+            }
+            EditorMode::Rendered => {}
+        });
+    }
+
     /// Focuses a validated occurrence while retaining the current editor mode.
     pub(crate) fn focus_document_target(
         &self,
@@ -553,6 +588,7 @@ impl EditorSurface {
 /// Builds the note editor and connects its user-facing actions.
 #[expect(
     clippy::too_many_lines,
+    clippy::too_many_arguments,
     reason = "widget construction stays together so ownership and lifecycle are explicit"
 )]
 pub(crate) fn build_editor(
@@ -563,6 +599,7 @@ pub(crate) fn build_editor(
     toast_overlay: &adw::ToastOverlay,
     split_view: &adw::NavigationSplitView,
     compact_navigation: &CompactNavigation,
+    mode: EditorMode,
 ) -> Result<EditorSurface, SourceSyntaxError> {
     let allow_remote_images = config.images.load_remote_automatically;
     let assets_dir = assets_dir.map(Path::to_path_buf);
@@ -575,12 +612,6 @@ pub(crate) fn build_editor(
         "editor-toggle-categories-button",
     );
     header.pack_start(&toggle_sidebar);
-    let back = back_to_notes_button(
-        dispatcher,
-        "back-to-notes-button",
-        AppMsg::Editor(EditorMsg::BackRequested),
-    );
-    header.pack_start(&back);
     let mode_group = adw::InlineViewSwitcher::new();
     mode_group.set_widget_name("editor-mode-group");
     mode_group.set_display_mode(adw::InlineViewSwitcherDisplayMode::Both);
@@ -703,6 +734,10 @@ pub(crate) fn build_editor(
         &remote_images,
         &document_appearance,
     );
+    // Select the configured mode before the switcher notify handler is connected, so the surface
+    // never flashes the default page while the first document loads.
+    editor_stack.set_visible_child_name(editor_mode_page(mode));
+    toolbar.set_mode(mode);
     let toolbar_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     toolbar_bar.set_widget_name("formatting-toolbar-bar");
     toolbar_bar.append(toolbar.widget());
@@ -882,6 +917,15 @@ fn view_mode(editor_stack: &adw::ViewStack) -> EditorMode {
         Some("source") => EditorMode::Source,
         Some("rendered") => EditorMode::Rendered,
         _ => EditorMode::Rich,
+    }
+}
+
+/// The view-stack page name that renders an editor mode.
+fn editor_mode_page(mode: EditorMode) -> &'static str {
+    match mode {
+        EditorMode::Source => "source",
+        EditorMode::Rendered => "rendered",
+        EditorMode::Rich => "rich",
     }
 }
 
@@ -1069,7 +1113,6 @@ fn add_editor_pages(
         &pgettext("editor mode", "Preview"),
         "view-reveal-symbolic",
     );
-    editor_stack.set_visible_child_name("rich");
     EditorPages { source_scroll }
 }
 
@@ -1517,7 +1560,12 @@ fn install_editor_window_shortcuts(view: &adw::ToolbarView, dispatcher: &AppDisp
             return glib::Propagation::Proceed;
         }
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
+        if key == gtk::gdk::Key::w && !shift {
+            let _ = dispatcher.dispatch(AppMsg::Tabs(crate::mvu::TabsMsg::CloseActive));
+            return glib::Propagation::Stop;
+        }
         let action = match (key, shift) {
+            (gtk::gdk::Key::n, false) => NEW_NOTE_ACTION,
             (gtk::gdk::Key::e, false) => EXPORT_NOTE_ACTION,
             (gtk::gdk::Key::p, false) => PRINT_NOTE_ACTION,
             (gtk::gdk::Key::d, false) => TRASH_NOTE_ACTION,

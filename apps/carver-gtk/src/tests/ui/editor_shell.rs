@@ -9,34 +9,12 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
     let sidebar = fixture.sidebar()?;
     let note_list = fixture.note_list()?;
     assert!(activate_browser_note(&note_list, note.id));
-    let route_stack = widget_as::<gtk::Stack>(&root, "content-route-stack").ok_or("route stack")?;
     assert!(run_main_context_until(|| {
-        route_stack.visible_child_name().as_deref() == Some("editor")
+        note_tab_is_active(&root)
             && sidebar_selected_badge(&sidebar).as_deref() == Some("all-notes-count")
     }));
-    let controllers = route_stack.observe_controllers();
-    let mouse_back = (0..controllers.n_items())
-        .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::EventControllerLegacy>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("page-mouse-back-controller"))
-        .ok_or("page mouse back controller")?;
-    assert_eq!(
-        mouse_back.propagation_phase(),
-        gtk::PropagationPhase::Capture
-    );
-    let touchpad_back = (0..controllers.n_items())
-        .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::EventControllerScroll>().ok())
-        .filter(|controller| controller.name().as_deref() == Some("page-touchpad-back-controller"))
-        .ok_or("editor touchpad back controller")?;
-    assert_eq!(
-        touchpad_back.propagation_phase(),
-        gtk::PropagationPhase::Capture
-    );
-    assert_eq!(
-        touchpad_back.flags(),
-        gtk::EventControllerScrollFlags::BOTH_AXES
-    );
+    // The tab spinner clears once the editor surface reports it is ready.
+    assert!(run_main_context_until(|| !note_tab_is_loading(&root)));
     let source_view =
         widget_as::<sourceview5::View>(&root, "source-editor").ok_or("GtkSourceView")?;
     let source_buffer = source_view
@@ -82,9 +60,12 @@ pub(super) fn source_editor_should_configure_language_and_gutter(
 
 pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
     fixture: &WindowFixture,
+    note: &carver_sdk::NoteSummary,
 ) -> TestResult {
     let window = fixture.window.clone();
     let root = fixture.root()?;
+    // Editor lookups follow the active tab; keep the scenario's note in front.
+    fixture.activate_note(note.id)?;
     let editor_stack = fixture.editor_mode_stack()?;
     window.set_default_size(360, 640);
     let responsive_editor = widget_as::<adw::BreakpointBin>(&root, "editor-responsive-container")
@@ -107,10 +88,6 @@ pub(super) fn responsive_editor_should_switch_compact_and_desktop_toolbars(
     assert!(
         widget_as::<gtk::ToggleButton>(&root, "favorite-note-button")
             .is_some_and(|button| !button.is_visible())
-    );
-    assert!(
-        widget_as::<gtk::Button>(&root, "back-to-notes-button")
-            .is_some_and(|button| button.is_visible())
     );
     window.set_default_size(390, 844);
     assert!(run_main_context_until(|| responsive_editor.width() >= 360));

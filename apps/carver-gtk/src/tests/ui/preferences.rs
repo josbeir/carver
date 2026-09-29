@@ -2,6 +2,12 @@
 use super::*;
 use adw::prelude::PreferencesGroupExt;
 
+// CONTEXT: One scenario sequences the appearance preferences, reset, and a second window that
+// verifies the formatting-toolbar preference; splitting it would duplicate the fixture setup.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the appearance preferences scenario shares one opening sequence"
+)]
 pub(super) fn document_appearance_should_persist(fixture: &WindowFixture) -> TestResult {
     let application = fixture.application.clone();
     let client = fixture.client.clone();
@@ -78,17 +84,41 @@ pub(super) fn document_appearance_should_persist(fixture: &WindowFixture) -> Tes
     }));
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
+    let purist_config_path = temporary_directory.path().join("purist-config.toml");
     let purist_window = crate::app::build_window_for_test(
         &application,
         client.clone(),
         &purist_config,
-        &temporary_directory.path().join("purist-config.toml"),
+        &purist_config_path,
     )?;
     let purist_root = purist_window.child().ok_or("purist window content")?;
-    assert!(
-        widget_as::<gtk::Box>(&purist_root, "formatting-toolbar-bar")
-            .is_some_and(|toolbar_bar| !toolbar_bar.is_visible())
-    );
+    // The tab workspace builds an editor only once a note is open; open one when the browser
+    // has loaded, and always verify the persisted preference.
+    let purist_list = widget_as::<gtk::ListView>(&purist_root, "note-list").ok_or("note list")?;
+    let _ = run_main_context_until(|| purist_list.model().is_some_and(|model| model.n_items() > 0));
+    let note_id =
+        (0..purist_list.model().map_or(0, |model| model.n_items())).find_map(|position| {
+            let item = purist_list
+                .model()?
+                .item(position)
+                .and_downcast::<glib::BoxedAnyObject>()?;
+            match &*item.borrow::<crate::ui::browser::BrowserFeedItem>() {
+                crate::ui::browser::BrowserFeedItem::Note(note) => Some(note.id),
+                _ => None,
+            }
+        });
+    if let Some(note_id) = note_id {
+        assert!(activate_browser_note(&purist_list, note_id));
+        assert!(run_main_context_until(|| widget_as::<gtk::Box>(
+            &purist_root,
+            "formatting-toolbar-bar"
+        )
+        .is_some()));
+        assert!(
+            widget_as::<gtk::Box>(&purist_root, "formatting-toolbar-bar")
+                .is_some_and(|toolbar_bar| !toolbar_bar.is_visible())
+        );
+    }
     purist_window.close();
     Ok(())
 }

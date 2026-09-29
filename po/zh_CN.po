@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-28 15:18+0200\n"
+"POT-Creation-Date: 2026-09-29 08:00+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -45,9 +45,15 @@ msgstr "Carver 无法打开其笔记库"
 msgid "Categories"
 msgstr "分类"
 
-#: apps/carver-gtk/src/app.rs
+#: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "笔记"
+
+#: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Could not save note: {error}"
+msgstr "无法保存笔记：{error}"
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -67,7 +73,7 @@ msgstr "分类"
 msgid "Create"
 msgstr "创建"
 
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/view/mod.rs
 msgid "Base"
 msgstr "视图库"
 
@@ -75,6 +81,15 @@ msgstr "视图库"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Category"
 msgstr "分类"
+
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close note tabs opened from this Base"
+msgstr "关闭从此视图库打开的笔记标签页"
+
+#. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
+#: apps/carver-gtk/src/ui/bases.rs
+msgid "Close tabs"
+msgstr "关闭标签页"
 
 #: apps/carver-gtk/src/ui/bases.rs
 msgid "Configure"
@@ -466,6 +481,10 @@ msgstr "移动…"
 msgid "New Note"
 msgstr "新建笔记"
 
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note"
+msgstr "新建笔记"
+
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "No notes in this category"
 msgstr "此分类中没有笔记"
@@ -658,6 +677,10 @@ msgid "Close search"
 msgstr "关闭搜索"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Close tab"
+msgstr "关闭标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Codex"
 msgstr "Codex"
 
@@ -689,6 +712,10 @@ msgstr "无法读取所选文件。"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Current"
 msgstr "当前"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Current tab"
+msgstr "当前标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
@@ -781,6 +808,10 @@ msgid "Highlight current line"
 msgstr "高亮当前行"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Hold Ctrl and click a note to open it in a background tab."
+msgstr "按住 Ctrl 并点击笔记，可在后台标签页中打开。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Home"
 msgstr "主页"
 
@@ -838,6 +869,14 @@ msgid "Move note to Trash"
 msgstr "将笔记移到回收站"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab left"
+msgstr "向左移动标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Move tab right"
+msgstr "向右移动标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 #, rust-format
 msgid "Move “{category_name}” to Trash?"
 msgstr "将“{category_name}”移到回收站？"
@@ -860,16 +899,20 @@ msgid "New Category…"
 msgstr "新建分类…"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note"
-msgstr "新建笔记"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
 msgstr "新笔记属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New tab"
+msgstr "新标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Next result"
 msgstr "下一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Next tab"
+msgstr "下一个标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No categories found"
@@ -901,6 +944,10 @@ msgid "Olive"
 msgstr "橄榄"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Open notes in"
+msgstr "打开笔记的位置"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "OpenAI's coding agent"
 msgstr "OpenAI 的编程智能体"
 
@@ -923,6 +970,10 @@ msgstr "预览和导出"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Previous result"
 msgstr "上一个结果"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Previous tab"
+msgstr "上一个标签页"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Print note"
@@ -1043,6 +1094,10 @@ msgid "TOML"
 msgstr "TOML"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Tabs"
+msgstr "标签页"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Tag"
 msgstr "标签"
 
@@ -1114,10 +1169,6 @@ msgid "Add files…"
 msgstr "添加文件…"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Add headings to navigate your document."
-msgstr "添加标题以便在文档中导航。"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Backlinks"
 msgstr "反向链接"
@@ -1127,13 +1178,14 @@ msgid "Hide document sidebar"
 msgstr "隐藏文档侧边栏"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Insert a link to another note to see it here."
-msgstr "插入指向其他笔记的链接即可在此查看。"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
 msgid "Linked notes"
 msgstr "链接的笔记"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Links"
+msgstr "链接"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1153,12 +1205,9 @@ msgid "No linked notes yet"
 msgstr "还没有链接的笔记"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+#, fuzzy
 msgid "No media yet"
-msgstr "还没有媒体"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Notes that link here will appear in this list."
-msgstr "链接到这里的笔记将显示在此列表中。"
+msgstr "还没有标题"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1169,10 +1218,6 @@ msgstr "大纲"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show document sidebar"
 msgstr "显示文档侧边栏"
-
-#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
-msgid "Use + to add files, or drag them into the document."
-msgstr "使用 + 添加文件，或将文件拖入文档。"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Preview file"
@@ -1341,6 +1386,7 @@ msgstr ""
 "仍要导出吗？"
 
 #: apps/carver-gtk/src/ui/editor/preview.rs
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not open the link in your default browser."
 msgstr "无法在默认浏览器中打开该链接。"
 
@@ -1620,6 +1666,7 @@ msgid "Show Categories"
 msgstr "显示分类"
 
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "回收站"
 
@@ -1670,8 +1717,8 @@ msgstr "无法加载内容"
 
 #: apps/carver-gtk/src/view/mod.rs
 #, rust-format
-msgid "Could not save note: {error}"
-msgstr "无法保存笔记：{error}"
+msgid "Could not open the note editor: {error}"
+msgstr "无法打开笔记编辑器：{error}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"
@@ -1726,9 +1773,18 @@ msgid "Moved note to Trash"
 msgstr "已将笔记移到回收站"
 
 #: apps/carver-gtk/src/view/mod.rs
+msgid "Note"
+msgstr "笔记"
+
+#: apps/carver-gtk/src/view/mod.rs
 msgctxt "Trash section"
 msgid "Notes"
 msgstr "笔记"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "Opened from {context}"
+msgstr "打开自 {context}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Refreshing this base."

@@ -1,10 +1,6 @@
 //! Recent-note browser and responsive content composition.
 
-use std::{
-    borrow::Cow,
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use carver_config::Config;
 use carver_sdk::{Category, CategoryColor, CategorySummary, NoteSummary};
@@ -18,47 +14,13 @@ use super::{
         IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
         show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
     },
-    editor::{EditorViewRefs, SourceSyntaxError, build_editor},
+    editor::{EditorSurface, build_editor},
     search::{build_search_controls, connect_search_controls, install_search_shortcut},
     sidebar::{CompactNavigation, sidebar_toggle_button},
     trash::{TrashViewRefs, build_trash},
 };
-use crate::mvu::{
-    ActionMsg, AppDispatcher, AppMsg, BrowserMsg, EditorMsg, LoadState, NavigationMsg,
-};
-
-const MOUSE_BACK_BUTTON: u32 = 8;
-const TOUCHPAD_BACK_SCROLL_THRESHOLD: f64 = 80.0;
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum TouchpadBackGesture {
-    Idle,
-    Tracking(f64),
-    Triggered,
-}
-
-impl TouchpadBackGesture {
-    fn advance(self, delta_x: f64, delta_y: f64) -> Self {
-        if matches!(self, Self::Triggered) || delta_x.abs() <= delta_y.abs() {
-            return self;
-        }
-        let distance = match self {
-            Self::Idle if delta_x > 0.0 => delta_x,
-            Self::Idle => return Self::Idle,
-            Self::Tracking(distance) => (distance + delta_x).max(0.0),
-            Self::Triggered => return Self::Triggered,
-        };
-        if distance >= TOUCHPAD_BACK_SCROLL_THRESHOLD {
-            Self::Triggered
-        } else {
-            Self::Tracking(distance)
-        }
-    }
-
-    fn is_tracking(self) -> bool {
-        matches!(self, Self::Tracking(_) | Self::Triggered)
-    }
-}
+use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BrowserMsg, LoadState, NavigationMsg};
+use crate::view::{EditorFactory, Workspace};
 
 /// A relative calendar section used to group the recent-notes browser.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -142,13 +104,13 @@ pub(crate) struct BrowserViewRefs {
 pub(crate) struct ContentSurface {
     pub(crate) widget: gtk::Widget,
     pub(crate) route_stack: gtk::Stack,
-    pub(crate) editor: EditorViewRefs,
+    pub(crate) workspace: Workspace,
     pub(crate) browser: BrowserViewRefs,
     pub(crate) trash: TrashViewRefs,
     pub(crate) base: crate::ui::bases::BaseViewRefs,
 }
 
-/// Builds the browser, editor, and trash pages for the content pane.
+/// Builds the Notes page, tab host, and per-tab editor factory.
 pub(crate) fn build_content(
     dispatcher: &AppDispatcher,
     config: &Config,
@@ -157,7 +119,7 @@ pub(crate) fn build_content(
     split_view: &adw::NavigationSplitView,
     compact_navigation: &CompactNavigation,
     toast_overlay: &adw::ToastOverlay,
-) -> Result<ContentSurface, SourceSyntaxError> {
+) -> ContentSurface {
     let stack = gtk::Stack::new();
     stack.set_widget_name("content-route-stack");
     stack.set_hhomogeneous(false);
@@ -167,144 +129,63 @@ pub(crate) fn build_content(
     let (base, base_refs) =
         crate::ui::bases::build_base(dispatcher, split_view, compact_navigation);
     stack.add_named(&base, Some("base"));
-    let (editor, editor_refs) = build_editor(
-        dispatcher,
-        config,
-        assets_dir,
-        source_syntax_dir,
-        toast_overlay,
-        split_view,
-        compact_navigation,
-    )?
-    .into_parts();
-    stack.add_named(&editor, Some("editor"));
     let (trash, trash_refs) = build_trash(dispatcher);
     stack.add_named(&trash, Some("trash"));
     stack.set_visible_child_name("browser");
-    install_page_back_navigation(dispatcher, &stack, &base_refs.scroll);
-    Ok(ContentSurface {
-        widget: stack.clone().upcast(),
+
+    let tab_view = adw::TabView::new();
+    tab_view.set_widget_name("workspace-tabs");
+    let notes_page = tab_view.append_pinned(&stack);
+    notes_page.set_title(&gettext("Notes"));
+    tab_view.set_page_pinned(&notes_page, true);
+
+    let factory: EditorFactory = {
+        let dispatcher = dispatcher.clone();
+        let config = config.clone();
+        let assets_dir = assets_dir.map(std::path::Path::to_path_buf);
+        let source_syntax_dir = source_syntax_dir.to_path_buf();
+        let toast_overlay = toast_overlay.clone();
+        let split_view = split_view.clone();
+        let compact_navigation = Rc::clone(compact_navigation);
+        Box::new(move |mode| {
+            build_editor(
+                &dispatcher,
+                &config,
+                assets_dir.as_deref(),
+                &source_syntax_dir,
+                &toast_overlay,
+                &split_view,
+                &compact_navigation,
+                mode,
+            )
+            .map(EditorSurface::into_parts)
+        })
+    };
+    let tab_bar = adw::TabBar::new();
+    tab_bar.set_widget_name("workspace-tab-bar");
+    tab_bar.set_autohide(false);
+    tab_bar.set_expand_tabs(true);
+    let new_note = gtk::Button::from_icon_name("tab-new-symbolic");
+    new_note.set_widget_name("workspace-new-note-button");
+    new_note.add_css_class("flat");
+    new_note.set_tooltip_text(Some(&gettext("New note")));
+    new_note.update_property(&[gtk::accessible::Property::Label(&gettext("New note"))]);
+    let new_note_dispatcher = dispatcher.clone();
+    new_note.connect_clicked(move |_| {
+        let _ = new_note_dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
+    });
+    tab_bar.set_end_action_widget(Some(&new_note));
+    let workspace = Workspace::new(tab_view.clone(), notes_page.clone(), tab_bar, factory);
+    workspace.connect(dispatcher);
+
+    ContentSurface {
+        widget: tab_view.clone().upcast(),
         route_stack: stack,
-        editor: editor_refs,
+        workspace,
         browser: browser_refs,
         trash: trash_refs,
         base: base_refs,
-    })
-}
-
-/// Routes conventional Back inputs through the active editor or base transition.
-fn install_page_back_navigation(
-    dispatcher: &AppDispatcher,
-    route_stack: &gtk::Stack,
-    base_scroll: &gtk::ScrolledWindow,
-) {
-    install_mouse_back_navigation(dispatcher, route_stack);
-    install_touchpad_back_navigation(dispatcher, route_stack, base_scroll);
-}
-
-fn install_mouse_back_navigation(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
-    let back = gtk::EventControllerLegacy::new();
-    back.set_name(Some("page-mouse-back-controller"));
-    // Capture the event before an embedded rich editor can consume it.
-    back.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let dispatcher = dispatcher.clone();
-    let route_stack_for_event = route_stack.clone();
-    back.connect_event(move |_, event| {
-        let is_mouse_back = event
-            .downcast_ref::<gtk::gdk::ButtonEvent>()
-            .is_some_and(|button| {
-                button.event_type() == gtk::gdk::EventType::ButtonPress
-                    && button.button() == MOUSE_BACK_BUTTON
-            });
-        if !is_mouse_back || !is_back_route(&route_stack_for_event) {
-            return glib::Propagation::Proceed;
-        }
-        dispatch_route_back(&dispatcher, &route_stack_for_event);
-        glib::Propagation::Stop
-    });
-    route_stack.add_controller(back);
-}
-
-fn install_touchpad_back_navigation(
-    dispatcher: &AppDispatcher,
-    route_stack: &gtk::Stack,
-    base_scroll: &gtk::ScrolledWindow,
-) {
-    let back = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
-    back.set_name(Some("page-touchpad-back-controller"));
-    // Capture the scroll before a nested WebKit editor can claim a horizontal swipe.
-    back.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let gesture = Rc::new(Cell::new(TouchpadBackGesture::Idle));
-    let gesture_for_begin = Rc::clone(&gesture);
-    back.connect_scroll_begin(move |_| gesture_for_begin.set(TouchpadBackGesture::Idle));
-    let gesture_for_scroll = Rc::clone(&gesture);
-    let dispatcher = dispatcher.clone();
-    let route_stack_for_scroll = route_stack.clone();
-    let base_scroll = base_scroll.clone();
-    back.connect_scroll(move |controller, delta_x, delta_y| {
-        if !is_back_route(&route_stack_for_scroll) || !is_touchpad_surface_scroll(controller) {
-            return glib::Propagation::Proceed;
-        }
-        if route_stack_for_scroll.visible_child_name().as_deref() == Some("base")
-            && base_can_scroll_right(&base_scroll)
-        {
-            gesture_for_scroll.set(TouchpadBackGesture::Idle);
-            return glib::Propagation::Proceed;
-        }
-        let next = gesture_for_scroll.get().advance(delta_x, delta_y);
-        let was_triggered = matches!(gesture_for_scroll.get(), TouchpadBackGesture::Triggered);
-        gesture_for_scroll.set(next);
-        if matches!(next, TouchpadBackGesture::Triggered) && !was_triggered {
-            dispatch_route_back(&dispatcher, &route_stack_for_scroll);
-        }
-        if next.is_tracking() {
-            glib::Propagation::Stop
-        } else {
-            glib::Propagation::Proceed
-        }
-    });
-    route_stack.add_controller(back);
-}
-
-fn base_can_scroll_right(scroll: &gtk::ScrolledWindow) -> bool {
-    let adjustment = scroll.hadjustment();
-    adjustment_can_scroll_right(
-        adjustment.value(),
-        adjustment.page_size(),
-        adjustment.upper(),
-    )
-}
-
-fn adjustment_can_scroll_right(value: f64, page_size: f64, upper: f64) -> bool {
-    value + page_size < upper
-}
-
-fn is_editor_route(route_stack: &gtk::Stack) -> bool {
-    route_stack.visible_child_name().as_deref() == Some("editor")
-}
-
-fn is_back_route(route_stack: &gtk::Stack) -> bool {
-    matches!(
-        route_stack.visible_child_name().as_deref(),
-        Some("editor" | "base")
-    )
-}
-
-fn dispatch_route_back(dispatcher: &AppDispatcher, route_stack: &gtk::Stack) {
-    let message = if is_editor_route(route_stack) {
-        AppMsg::Editor(EditorMsg::BackRequested)
-    } else {
-        AppMsg::Navigation(NavigationMsg::ShowBrowser)
-    };
-    let _ = dispatcher.dispatch(message);
-}
-
-fn is_touchpad_surface_scroll(controller: &gtk::EventControllerScroll) -> bool {
-    controller.unit() == gtk::gdk::ScrollUnit::Surface
-        && controller
-            .current_event()
-            .and_then(|event| event.device())
-            .is_some_and(|device| device.source() == gtk::gdk::InputSource::Touchpad)
+    }
 }
 
 /// Builds the default recent-note and search view.
@@ -403,7 +284,10 @@ pub(crate) fn build_browser(
                 _ => return,
             }
         };
-        let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+        let _ = dispatcher_for_feed.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: crate::mvu::NoteOpenIntent::Default,
+        }));
     });
 
     connect_search_controls(
@@ -533,16 +417,39 @@ fn connect_browser_actions(
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
 }
 
+/// Builds one reusable browser row container with modifier-aware note activation.
+fn setup_browser_row(dispatcher: &AppDispatcher, item: &gtk::ListItem) {
+    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    item.set_child(Some(&container));
+    let weak_item = item.downgrade();
+    crate::ui::intent::connect_modified_note_open_with(&container, dispatcher, move || {
+        feed_item_note_id(&weak_item)
+    });
+}
+
+/// Resolves the note bound to a recycled browser row.
+fn feed_item_note_id(item: &glib::WeakRef<gtk::ListItem>) -> Option<carver_sdk::NoteId> {
+    let item = item.upgrade()?;
+    let object = item.item().and_downcast::<glib::BoxedAnyObject>()?;
+    match &*object.borrow::<BrowserFeedItem>() {
+        BrowserFeedItem::Note(note) | BrowserFeedItem::Favorite(note) => Some(note.id),
+        _ => None,
+    }
+}
+
 fn browser_feed_factory(
     dispatcher: &AppDispatcher,
     context: Rc<RefCell<BrowserFeedContext>>,
 ) -> gtk::SignalListItemFactory {
     let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        item.set_child(Some(&gtk::Box::new(gtk::Orientation::Vertical, 0)));
+    factory.connect_setup({
+        let dispatcher = dispatcher.clone();
+        move |_, item| {
+            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                return;
+            };
+            setup_browser_row(&dispatcher, item);
+        }
     });
     let dispatcher = dispatcher.clone();
     factory.connect_bind(move |_, item| {
@@ -552,91 +459,97 @@ fn browser_feed_factory(
         let Some(container) = item.child().and_downcast::<gtk::Box>() else {
             return;
         };
-        while let Some(child) = container.first_child() {
-            container.remove(&child);
-        }
-        container.set_css_classes(&[]);
-        container.set_widget_name("");
-        container.set_margin_start(0);
-        container.set_margin_end(0);
-        container.set_margin_top(0);
-        container.set_margin_bottom(0);
-        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
-            return;
-        };
-        let feed_item = object.borrow::<BrowserFeedItem>().clone();
-        container.set_margin_start(18);
-        container.set_margin_end(18);
-        match feed_item {
-            BrowserFeedItem::Hero => {
-                container.set_margin_top(18);
-                container.set_margin_bottom(2);
-                let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                hero.set_widget_name("browser-category-hero");
-                hero.add_css_class("category-hero");
-                render_category_hero(
-                    &hero,
-                    &context.borrow().sidebar,
-                    context.borrow().selected_category,
-                    Some(&dispatcher),
-                );
-                container.append(&hero);
-            }
-            BrowserFeedItem::FavoritesHeading => {
-                container.set_margin_top(12);
-                container.set_margin_bottom(2);
-                container.append(&favorites_heading());
-            }
-            BrowserFeedItem::Favorite(note) => {
-                let context = context.borrow().clone();
-                container.set_widget_name(&format!("favorite-note:{}", note.id));
-                container.set_css_classes(&["card", "activatable", "note-card"]);
-                container.set_margin_start(18);
-                container.set_margin_end(18);
-                container.set_margin_top(6);
-                container.set_margin_bottom(6);
-                populate_note_card(&container, &note, &context, Some(&dispatcher));
-            }
-            BrowserFeedItem::SearchEmpty => {
-                container.set_margin_top(12);
-                container.append(&build_search_empty_card());
-            }
-            BrowserFeedItem::CategoryEmpty => {
-                container.set_margin_top(12);
-                let (card, new_note) = build_category_empty_card();
-                card.set_visible(true);
-                connect_new_note_action(&dispatcher, &new_note);
-                container.append(&card);
-            }
-            BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
-            BrowserFeedItem::Note(note) => {
-                let context = context.borrow().clone();
-                container.set_widget_name(&format!("note:{}", note.id));
-                container.set_css_classes(&["card", "activatable", "note-card"]);
-                // All feed entries share the same horizontal reading measure.
-                container.set_margin_start(18);
-                container.set_margin_end(18);
-                container.set_margin_top(6);
-                container.set_margin_bottom(6);
-                populate_note_card(&container, &note, &context, Some(&dispatcher));
-            }
-            BrowserFeedItem::LoadMore { label, sensitive } => {
-                container.set_margin_top(8);
-                container.set_margin_bottom(18);
-                let button = gtk::Button::with_label(&label);
-                button.set_widget_name("browser-load-more");
-                button.add_css_class("flat");
-                button.set_halign(gtk::Align::Center);
-                button.set_sensitive(sensitive);
-                let dispatcher = dispatcher.clone();
-                button.connect_clicked(move |_| {
-                    let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
-                });
-                container.append(&button);
-            }
-        }
+        bind_browser_row(&container, item, &context, &dispatcher);
     });
     factory
+}
+
+/// Resets a recycled row and fills it for the bound feed item.
+fn bind_browser_row(
+    container: &gtk::Box,
+    item: &gtk::ListItem,
+    context: &Rc<RefCell<BrowserFeedContext>>,
+    dispatcher: &AppDispatcher,
+) {
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+    container.set_css_classes(&[]);
+    container.set_widget_name("");
+    container.set_margin_start(0);
+    container.set_margin_end(0);
+    container.set_margin_top(0);
+    container.set_margin_bottom(0);
+    let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+        return;
+    };
+    let feed_item = object.borrow::<BrowserFeedItem>().clone();
+    container.set_margin_start(18);
+    container.set_margin_end(18);
+    match feed_item {
+        BrowserFeedItem::Hero => {
+            container.set_margin_top(18);
+            container.set_margin_bottom(2);
+            let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            hero.set_widget_name("browser-category-hero");
+            hero.add_css_class("category-hero");
+            render_category_hero(
+                &hero,
+                &context.borrow().sidebar,
+                context.borrow().selected_category,
+                Some(dispatcher),
+            );
+            container.append(&hero);
+        }
+        BrowserFeedItem::FavoritesHeading => {
+            container.set_margin_top(12);
+            container.set_margin_bottom(2);
+            container.append(&favorites_heading());
+        }
+        BrowserFeedItem::Favorite(note) => {
+            let context = context.borrow().clone();
+            container.set_widget_name(&format!("favorite-note:{}", note.id));
+            container.set_css_classes(&["card", "activatable", "note-card"]);
+            container.set_margin_top(6);
+            container.set_margin_bottom(6);
+            populate_note_card(container, &note, &context, Some(dispatcher));
+        }
+        BrowserFeedItem::SearchEmpty => {
+            container.set_margin_top(12);
+            container.append(&build_search_empty_card());
+        }
+        BrowserFeedItem::CategoryEmpty => {
+            container.set_margin_top(12);
+            let (card, new_note) = build_category_empty_card();
+            card.set_visible(true);
+            connect_new_note_action(dispatcher, &new_note);
+            container.append(&card);
+        }
+        BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
+        BrowserFeedItem::Note(note) => {
+            let context = context.borrow().clone();
+            container.set_widget_name(&format!("note:{}", note.id));
+            container.set_css_classes(&["card", "activatable", "note-card"]);
+            // All feed entries share the same horizontal reading measure.
+            container.set_margin_top(6);
+            container.set_margin_bottom(6);
+            populate_note_card(container, &note, &context, Some(dispatcher));
+        }
+        BrowserFeedItem::LoadMore { label, sensitive } => {
+            container.set_margin_top(8);
+            container.set_margin_bottom(18);
+            let button = gtk::Button::with_label(&label);
+            button.set_widget_name("browser-load-more");
+            button.add_css_class("flat");
+            button.set_halign(gtk::Align::Center);
+            button.set_sensitive(sensitive);
+            let dispatcher = dispatcher.clone();
+            button.connect_clicked(move |_| {
+                let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
+            });
+            container.append(&button);
+        }
+    }
 }
 
 fn favorites_heading() -> gtk::Widget {

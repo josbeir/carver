@@ -211,7 +211,10 @@ pub(crate) fn runtime_should_refresh_visible_resources_after_a_separate_client_m
             LoadState::Ready(ref notes) if notes.iter().any(|summary| summary.id == note.id)
         )
     }) {
-        runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+        runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: NoteOpenIntent::Default,
+        }));
         if !crate::ui::tests::support::run_main_context_until(|| runtime.model().editor.is_some()) {
             return Err("editor did not load".into());
         }
@@ -428,7 +431,10 @@ fn assert_external_category_deletion(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let category = agent.create_category("Category to trash")?;
     let note = agent.create_note_with_source(category.id, "# Saved before category deletion")?;
-    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+        note_id: note.id,
+        intent: NoteOpenIntent::Default,
+    }));
     assert!(crate::ui::tests::support::run_main_context_until(|| {
         runtime
             .model()
@@ -485,7 +491,10 @@ fn assert_external_category_deletion(
         matches!(runtime.model().sidebar.state, LoadState::Ready(ref categories)
             if categories.iter().any(|item| item.category.id == category.id))
     }));
-    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+        note_id: note.id,
+        intent: NoteOpenIntent::Default,
+    }));
     assert!(crate::ui::tests::support::run_main_context_until(|| {
         runtime.model().editor.is_some_and(|document| {
             document.note_id == note.id
@@ -594,7 +603,10 @@ pub(crate) fn runtime_should_refresh_sidebar_counts_after_an_editor_category_mov
     }));
 
     // Open the note in the editor, then move it from the properties dialog.
-    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note.id)));
+    runtime.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+        note_id: note.id,
+        intent: NoteOpenIntent::Default,
+    }));
     assert!(crate::ui::tests::support::run_main_context_until(|| {
         runtime.model().editor.is_some()
     }));

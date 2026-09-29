@@ -37,14 +37,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
         let files = stage_native_files(files).await?;
         let mut stored = Vec::with_capacity(files.len());
         for file in files {
-            if !self
+            let has_document = self
                 .inner
                 .model
                 .borrow()
-                .editor
-                .as_ref()
-                .is_some_and(|document| document.session == session)
-            {
+                .document_for_session(session)
+                .is_some();
+            if !has_document {
                 return Ok(Vec::new());
             }
             let path = self

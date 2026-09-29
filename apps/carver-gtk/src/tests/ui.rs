@@ -108,6 +108,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::edited_title_should_lead_the_block_on_reopen()?;
     document_sidebar::assert_document_sidebar_visibility_should_restore_without_reentrant_toggles(
     )?;
+    document_sidebar::link_rows_should_render_markup();
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
     html::document_font_should_remain_css_text_inside_the_preview_head()?;
@@ -140,6 +141,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::base_grid_date_picker_should_commit_an_unset_datetime()?;
     bases::base_grid_cleared_unset_datetime_should_not_commit()?;
     bases::base_grid_date_picker_clear_should_commit_immediately()?;
+    bases::base_date_picker_should_release_widgets_after_column_rebuild()?;
     icons::bundled_icons_should_be_discoverable()?;
     crate::mvu::tests::runtime_should_render_and_complete_each_initial_resource()?;
     crate::mvu::tests::runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library()?;
@@ -165,7 +167,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     library::category_selection_should_show_empty_state(&fixture, &note)?;
     library::category_switch_should_retain_previous_browser(&fixture, &note)?;
     editor_shell::source_editor_should_configure_language_and_gutter(&fixture, &note)?;
-    editor_shell::responsive_editor_should_switch_compact_and_desktop_toolbars(&fixture)?;
+    editor_shell::responsive_editor_should_switch_compact_and_desktop_toolbars(&fixture, &note)?;
     editor_shell::editor_options_should_adapt_to_layout(&fixture)?;
     rich_mode::rich_table_selection_should_update_the_picker(&fixture)?;
     export::export_dialogs_should_validate_and_print(&fixture, &note)?;
@@ -181,6 +183,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     rich_mode::rich_editor_should_round_trip_and_preserve_media(&fixture)?;
     rich_mode::short_rich_document_should_not_scroll_the_writing_surface(&fixture)?;
     library::browser_search_should_show_and_clear_empty_state(&fixture, &note)?;
+    note_flow::tab_shortcuts_should_cycle_tabs(&fixture, &note)?;
     note_flow::note_should_delete_restore_and_favorite_from_shortcuts(&fixture, &note)?;
     // No-op unless CARVER_SCREENSHOT_DIR is set; keeps one GTK entry point.
     screenshots::capture_docs_screenshots()?;

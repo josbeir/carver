@@ -10,6 +10,20 @@ fn context(source: &str, selection: Range<usize>) -> Vec<SourceNodeKind> {
 }
 
 #[test]
+fn title_should_follow_frontmatter_headings_and_first_line() {
+    assert_eq!(
+        SourceAnalysis::parse("---\ntitle: From frontmatter\n---\n\n# Heading").title(),
+        "From frontmatter"
+    );
+    assert_eq!(SourceAnalysis::parse("# Heading").title(), "Heading");
+    assert_eq!(
+        SourceAnalysis::parse("plain first line").title(),
+        "plain first line"
+    );
+    assert_eq!(SourceAnalysis::parse("   \n\n").title(), "Untitled Note");
+}
+
+#[test]
 fn context_should_report_paragraph_and_bold_at_a_bold_cursor() {
     assert_eq!(
         context("*bold*", 2..2),

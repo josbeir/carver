@@ -2146,3 +2146,81 @@ pub(super) fn base_grid_date_picker_clear_should_commit_immediately() -> TestRes
     fixture.window.close();
     Ok(())
 }
+
+/// Rebuilding a date column must release the previous picker's widgets.
+///
+/// The date picker's calendar once captured itself in its own `day-selected` handler, so every
+/// Base column rebuild leaked a picker. This guards that cycle: after the date column is replaced,
+/// the old calendar must be finalized.
+pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> TestResult {
+    let dispatcher = AppDispatcher::default();
+    let (base_widget, refs) = crate::ui::bases::build_base(
+        &dispatcher,
+        &adw::NavigationSplitView::new(),
+        &Rc::new(Cell::new(false)),
+    );
+    let definition = carver_sdk::BaseDefinition {
+        id: carver_sdk::BaseId::new(),
+        name: "Tasks".to_owned(),
+        columns: vec![carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath(
+            "/due".to_owned(),
+        ))],
+        filter_mode: carver_sdk::BaseFilterMode::All,
+        filters: Vec::new(),
+        sorts: Vec::new(),
+        revision: carver_sdk::Revision(1),
+        row_count: 1,
+    };
+    let row = carver_sdk::BaseRow {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        name: "Task".to_owned(),
+        category: "Notes".to_owned(),
+        updated: String::new(),
+        properties: serde_json::json!({"due": "2026-09-01"}),
+    };
+    let descriptors = [carver_domain::PropertyDescriptor {
+        path: carver_domain::PropertyPath("/due".to_owned()),
+        kind: carver_domain::PropertyKind::Text,
+        property_type: carver_domain::PropertyType::Date,
+        example: Some("2026-09-01".to_owned()),
+    }];
+    crate::ui::bases::render_base(
+        &refs,
+        &definition,
+        std::slice::from_ref(&row),
+        &descriptors,
+        &[],
+        &dispatcher,
+    );
+
+    let window = adw::Window::new();
+    window.set_default_size(700, 500);
+    window.set_content(Some(&base_widget));
+    window.present();
+
+    let picker = widget_as::<gtk::MenuButton>(&base_widget, "cell-date-picker").ok_or("picker")?;
+    assert!(run_main_context_until(|| picker.is_mapped()));
+    drop(picker);
+    let calendar =
+        widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar").ok_or("calendar")?;
+    let weak_calendar = calendar.downgrade();
+    drop(calendar);
+
+    // Replace the date column with a plain one, which rebuilds the grid's columns.
+    let rebuilt = carver_sdk::BaseDefinition {
+        columns: Vec::new(),
+        ..definition.clone()
+    };
+    crate::ui::bases::render_base(&refs, &rebuilt, &[], &[], &[], &dispatcher);
+
+    assert!(
+        run_main_context_until_for(std::time::Duration::from_secs(5), || weak_calendar
+            .upgrade()
+            .is_none()),
+        "the date picker calendar should be released after its column is rebuilt"
+    );
+
+    window.close();
+    Ok(())
+}

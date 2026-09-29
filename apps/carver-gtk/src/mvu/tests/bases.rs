@@ -576,22 +576,26 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         &mut model,
         AppMsg::Library(LibraryReply::BaseCreated { result: Ok(base) }),
     );
-    let request = match effects.as_slice() {
-        [Effect::LoadBases { .. }, Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("creating a base should save before navigating"),
-    };
-    assert_eq!(request.source, "Unsaved");
-    assert_eq!(model.route, Route::Editor);
-    let _ = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request,
-            result: Err(UiError::new("save failed")),
-            move_error: None,
-        }),
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBases { .. }))
     );
-    assert_eq!(model.route, Route::Editor);
-    assert!(model.editor.is_some());
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SaveNote { .. }))
+    );
+    assert_eq!(model.route, Route::Base);
+    // The dirty note keeps its tab instead of being saved or discarded.
+    assert!(model.editor.is_none());
+    assert!(
+        model
+            .tabs
+            .background
+            .values()
+            .any(|document| document.note_id == note_id)
+    );
 }
 
 #[test]
@@ -657,7 +661,10 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
 
     let _ = update(
         &mut model,
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)),
+        AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: NoteOpenIntent::Default,
+        }),
     );
     let _ = update(
         &mut model,
@@ -669,10 +676,13 @@ fn closing_a_note_opened_from_a_base_should_restore_the_base_route() {
     );
     let effects = update(&mut model, AppMsg::Editor(EditorMsg::BackRequested));
 
-    assert!(matches!(
-        effects.as_slice(),
-        [Effect::LoadBaseRows { base_id: loaded, .. }, Effect::LoadBrowser { .. }] if *loaded == base_id
-    ));
+    assert!(
+        matches!(
+            effects.as_slice(),
+            [Effect::LoadBaseRows { base_id: loaded, .. }, Effect::LoadBrowser { .. }] if *loaded == base_id
+        ),
+        "unexpected effects: {effects:?}"
+    );
     assert_eq!(model.route, Route::Base);
     assert_eq!(model.bases.selected, Some(base_id));
 }
@@ -696,24 +706,20 @@ fn opening_a_base_from_a_dirty_editor_should_save_before_navigating() {
     );
 
     let effects = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
-    let request = match effects.as_slice() {
-        [Effect::SaveNote { request }] => request.clone(),
-        _ => panic!("opening a base should first save the dirty editor"),
-    };
-    assert_eq!(model.route, Route::Editor);
-
-    let effects = update(
-        &mut model,
-        AppMsg::Library(LibraryReply::EditorSaved {
-            request,
-            result: Ok(Revision(2)),
-            move_error: None,
-        }),
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id))
     );
     assert_eq!(model.route, Route::Base);
-    assert!(effects.iter().any(
-        |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)
-    ));
+    assert!(model.editor.is_none());
+    assert!(
+        model
+            .tabs
+            .background
+            .values()
+            .any(|document| document.note_id == note_id)
+    );
 }
 
 #[test]
@@ -1095,6 +1101,146 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
         effects.as_slice(),
         [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
     ));
+}
+
+#[test]
+fn a_saved_cell_edit_should_reload_an_open_note_tab() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    // Open the note in a tab, then show the Base, which stashes the note tab.
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(4),
+            source: String::from("---\nstatus: open\n---\n"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    assert!(
+        effects.iter().any(|effect| matches!(
+            effect,
+            Effect::LoadEditorNote { note_id: loaded, .. } if *loaded == note_id
+        )),
+        "an open note tab should reload after a Base inline edit"
+    );
+}
+
+#[test]
+fn a_base_reload_should_keep_a_tab_edited_before_the_reply() {
+    let (mut model, base_id) = base_route_model();
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(4),
+            source: String::from("---\nstatus: open\n---\n"),
+        }),
+    );
+    let _ = update(&mut model, AppMsg::Bases(BasesMsg::Open(base_id)));
+    let effects = update(
+        &mut model,
+        AppMsg::Bases(BasesMsg::CommitCellEdit {
+            note_id,
+            path: "/status".to_owned(),
+            revision: Revision(4),
+            value: Some(serde_json::json!("done")),
+        }),
+    );
+    let request_id = match effects.as_slice() {
+        [Effect::EditBaseCell { request_id, .. }] => *request_id,
+        _ => panic!("expected one cell edit"),
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BaseCellEdited {
+            request_id,
+            note_id,
+            path: "/status".to_owned(),
+            moved: false,
+            result: Ok(Revision(5)),
+            move_error: None,
+        }),
+    );
+    let (load_request, tab_id) = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            } => Some((*request_id, *tab_id)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("an open note tab should reload after a Base inline edit"));
+
+    // The user returns to the tab and types before the reload reply arrives.
+    let _ = update(
+        &mut model,
+        AppMsg::Tabs(crate::mvu::TabsMsg::Activate(tab_id)),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged(String::from(
+            "---\nstatus: done\n---\n\nEdited.",
+        ))),
+    );
+    let session = model.editor.as_ref().map(|document| document.session);
+
+    let _ = update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id: load_request,
+            tab_id,
+            result: Ok(Note {
+                id: note_id,
+                category_id: CategoryId::new(),
+                source: String::from("---\nstatus: done\n---\n"),
+                title: String::from("Note"),
+                plain_text: String::new(),
+                revision: Revision(5),
+                is_favorite: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                trashed_at: None,
+            }),
+        }),
+    );
+
+    let Some(document) = model.editor.as_ref() else {
+        panic!("editor should remain open");
+    };
+    assert_eq!(
+        document.session,
+        session.unwrap_or_else(|| panic!("session"))
+    );
+    assert!(
+        document.source.contains("Edited."),
+        "the reload must not discard edits made before its reply"
+    );
 }
 
 #[test]

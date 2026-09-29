@@ -504,7 +504,7 @@ pub fn derive_content(source: &str) -> DerivedContent {
     }
 }
 
-fn frontmatter_title(document: &carve::Document) -> Option<String> {
+pub(crate) fn frontmatter_title(document: &carve::Document) -> Option<String> {
     let (_, value) = bases::parse_frontmatter_value(document)?;
     value
         .ok()?
@@ -525,7 +525,7 @@ pub fn canonicalize_rich_source(source: &str) -> Result<String, DocumentError> {
     Ok(render_carve(&document)?)
 }
 
-fn first_heading(document: &carve::Document) -> Option<String> {
+pub(crate) fn first_heading(document: &carve::Document) -> Option<String> {
     document.children.iter().find_map(|block| match block {
         carve::BlockNode::Heading(heading) => {
             let source = carve::Document {

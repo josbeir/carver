@@ -128,9 +128,9 @@ impl DateTimePicker {
         row.add_suffix(picker.button());
         let date_only = picker.is_date_only();
         let row_for_subtitle = row.clone();
-        let picker_for_subtitle = picker.clone();
+        let value = picker.value_handle();
         picker.connect_changed(move || {
-            let subtitle = picker_for_subtitle.value().map_or_else(
+            let subtitle = value().map_or_else(
                 || gettext("Not set"),
                 |iso| crate::ui::property::display_date(&iso, date_only),
             );

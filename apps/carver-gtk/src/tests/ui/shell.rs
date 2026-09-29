@@ -88,6 +88,8 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
                 .ok_or("configure base button")?,
             delete: widget_as::<gtk::Button>(&root, "delete-base-button")
                 .ok_or("delete base button")?,
+            close_tabs: widget_as::<gtk::Button>(&root, "close-base-tabs-button")
+                .ok_or("close base tabs button")?,
             title: widget_as::<gtk::Label>(&root, "base-title").ok_or("base title")?,
             search_bar: widget_as::<gtk::SearchBar>(&root, "base-search-bar")
                 .ok_or("base search bar")?,
@@ -98,7 +100,6 @@ pub(super) fn window_shell_should_expose_sidebar_and_base_presentation(
             last_search_open: std::cell::Cell::new(false),
             grid: bases_grid.clone(),
             pages: base_pages.clone(),
-            scroll: widget_as::<gtk::ScrolledWindow>(&root, "base-scroll").ok_or("base scroll")?,
             status: base_status.clone(),
             load_more: widget_as::<gtk::Button>(&root, "base-load-more").ok_or("base load more")?,
             rows: gtk::gio::ListStore::new::<glib::BoxedAnyObject>(),
@@ -211,10 +212,21 @@ pub(super) fn responsive_navigation_should_switch_sidebar_and_content(
             && widget_as::<gtk::Label>(&root, "base-title")
                 .is_some_and(|title| title.text() == "Review base")
     }));
+    // The pinned root tab names the surface it hosts.
+    assert!(run_main_context_until(|| {
+        widget_as::<adw::TabView>(&root, "workspace-tabs")
+            .map(|tabs| tabs.nth_page(0))
+            .is_some_and(|page| page.title() == "Review base")
+    }));
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.shows_content()));
     assert!(sidebar_select(&sidebar, "all-notes-count"));
     assert!(run_main_context_until(|| navigation.shows_content()));
+    assert!(run_main_context_until(|| {
+        widget_as::<adw::TabView>(&root, "workspace-tabs")
+            .map(|tabs| tabs.nth_page(0))
+            .is_some_and(|page| page.title() == "Notes")
+    }));
     window.set_default_size(1120, 760);
     assert!(run_main_context_until(|| !navigation.is_collapsed()));
     Ok(())

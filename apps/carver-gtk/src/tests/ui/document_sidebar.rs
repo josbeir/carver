@@ -32,9 +32,11 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         &overlay,
         &adw::NavigationSplitView::new(),
         &Rc::new(Cell::new(false)),
+        config.editor.last_mode,
     )?;
     let (surface, refs) = editor.into_parts();
     let stack = gtk::Stack::new();
+    stack.set_widget_name("content-route-stack");
     stack.add_named(
         &gtk::Box::new(gtk::Orientation::Vertical, 0),
         Some("browser"),
@@ -49,7 +51,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
         client.clone(),
         AppModel::new(&config),
         crate::view::ViewRefs::new(stack, adw::StatusPage::new(), adw::StatusPage::new())
-            .with_editor(refs)
+            .with_editor_for_test(refs)
             .with_source_syntax_dir(syntax)
             .with_dispatcher(dispatcher.clone()),
         Some(config_path.clone()),
@@ -67,8 +69,23 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     })
 }
 
+/// Selects one document-sidebar page (outline, media, or links).
+pub(super) fn show_sidebar_page(root: &gtk::Widget, name: &str) {
+    if let Some(stack) = widget_as::<adw::ViewStack>(root, "editor-sidebar-stack") {
+        stack.set_visible_child_name(name);
+    }
+}
+
 pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
     let fixture = fixture()?;
+
+    let editor_stack = widget_as::<adw::ViewStack>(&fixture.surface, "editor-mode-stack")
+        .ok_or("editor mode stack")?;
+    assert_eq!(
+        editor_stack.visible_child_name().as_deref(),
+        Some("source"),
+        "the editor should open in the configured mode instead of its default page"
+    );
 
     for name in [
         "rich-editor",
@@ -168,7 +185,9 @@ pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResu
     assert!(run_main_context_until(
         || selected_position(&outline) == Some(1)
     ));
-    assert!(widget_is_window_focus(source.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        source.upcast_ref()
+    )));
     source
         .buffer()
         .place_cursor(&source.buffer().iter_at_offset(19));
@@ -286,7 +305,9 @@ fn check_rich_navigation(root: &gtk::Widget, outline: &gtk::ListView) -> TestRes
     assert!(run_main_context_until(
         || selected_position(outline) == Some(1)
     ));
-    assert!(widget_is_window_focus(rich.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        rich.upcast_ref()
+    )));
     assert_web_script_should_be_true(
         &rich,
         "(() => { const e=window.carverEditor.editor; let p=0; e.state.doc.descendants((n,i)=>{ if(n.type.name==='paragraph' && n.textContent==='Body') p=i+1; }); return e.commands.setTextSelection(p); })()",
@@ -394,7 +415,9 @@ fn check_tree_should_remain_expanded(
     assert!(run_main_context_until(
         || selected_position(outline) == Some(2)
     ));
-    assert!(widget_is_window_focus(source.upcast_ref()));
+    assert!(run_main_context_until(|| widget_is_window_focus(
+        source.upcast_ref()
+    )));
     Ok(())
 }
 
@@ -563,6 +586,8 @@ pub(super) fn assert_document_sidebar_should_focus_and_show_file_details(
     let toggle = widget_as::<gtk::ToggleButton>(root, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
     toggle.set_active(true);
+    // The media list lives on its own switcher page.
+    show_sidebar_page(root, "media");
     assert!(run_main_context_until_for(Duration::from_secs(10), || {
         widget_as::<gtk::Label>(root, "editor-media-size")
             .is_some_and(|label| label.text() == glib::format_size(bytes.len() as u64))
@@ -745,6 +770,11 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
         config_path,
         ..
     } = fixture()?;
+    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: carver_sdk::NoteId::new(),
+        revision: carver_sdk::Revision(1),
+        source: String::from("Plain document"),
+    }));
     let toggle = widget_as::<gtk::ToggleButton>(&surface, "editor-document-sidebar-toggle")
         .ok_or("document sidebar toggle")?;
     let editor_view =
@@ -760,11 +790,7 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
         "![Photo](assets/missing.png)",
         "Another document",
     ] {
-        runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-            note_id: carver_sdk::NoteId::new(),
-            revision: carver_sdk::Revision(1),
-            source: source.to_owned(),
-        }));
+        runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(source.to_owned())));
         assert!(toggle.is_active());
         assert!(runtime.model().config.editor.show_document_sidebar);
         let pages = widget_as::<gtk::Stack>(&surface, "editor-media-pages").ok_or("media pages")?;
@@ -803,11 +829,9 @@ pub(super) fn assert_document_sidebar_visibility_should_restore_without_reentran
     assert!(run_main_context_until(
         || !document_sidebar_split.shows_sidebar()
     ));
-    runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
-        note_id: carver_sdk::NoteId::new(),
-        revision: carver_sdk::Revision(1),
-        source: String::from("![Image](assets/another.png)"),
-    }));
+    runtime.dispatch(AppMsg::Editor(EditorMsg::SourceChanged(String::from(
+        "![Image](assets/another.png)",
+    ))));
     assert!(!toggle.is_active());
     toggle.set_active(true);
     assert!(
@@ -857,10 +881,51 @@ pub(super) fn assert_missing_media_preview_should_report_error(
     runtime: &crate::mvu::AppRuntime<carver_storage_sqlite::SqliteLibrary>,
 ) -> TestResult {
     let before = runtime.model().editor.ok_or("document")?.source;
+    show_sidebar_page(surface, "media");
     let button =
         widget_as::<gtk::Button>(surface, "editor-media-preview").ok_or("preview action")?;
     button.emit_clicked();
     assert!(run_main_context_until(|| runtime.model().notice.is_some()));
     assert_eq!(runtime.model().editor.ok_or("document")?.source, before);
     Ok(())
+}
+
+/// Renders link rows directly so their populated markup path is covered without a live library.
+pub(super) fn link_rows_should_render_markup() {
+    let group = adw::PreferencesGroup::new();
+    let mut rows = Vec::new();
+    let notes = vec![carver_sdk::NoteSummary {
+        id: carver_sdk::NoteId::new(),
+        category_id: carver_sdk::CategoryId::new(),
+        category_name: String::from("Notes"),
+        title: String::from("A & B <c>"),
+        excerpt: String::new(),
+        revision: carver_sdk::Revision(1),
+        is_favorite: false,
+        updated_at: time::OffsetDateTime::UNIX_EPOCH,
+        has_images: false,
+    }];
+    let dispatcher = AppDispatcher::default();
+
+    crate::ui::editor::render_link_group(
+        &group,
+        &mut rows,
+        Some(&notes),
+        "No linked notes yet",
+        &dispatcher,
+    );
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].title().as_str(), "A &amp; B &lt;c&gt;");
+    assert_eq!(rows[0].subtitle().as_deref(), Some("Notes"));
+
+    // An empty or missing set falls back to the dimmed hint.
+    crate::ui::editor::render_link_group(
+        &group,
+        &mut rows,
+        None,
+        "No linked notes yet",
+        &dispatcher,
+    );
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].title().as_str(), "No linked notes yet");
 }

@@ -25,6 +25,56 @@ fn sidebar_snapshot_should_preserve_the_last_ready_projection_during_a_reload() 
 }
 
 #[test]
+fn tab_labels_should_name_their_surface_and_fall_back() {
+    let model = crate::mvu::AppModel::new(&Config::default());
+    let empty = crate::mvu::NoteTab {
+        id: crate::mvu::TabId(1),
+        note_id: NoteId::new(),
+        title: String::new(),
+        is_favorite: false,
+        loading: false,
+        origin: crate::mvu::TabOrigin::Browser,
+    };
+    assert_eq!(super::tab_display_title(&empty), "Note");
+    let named = crate::mvu::NoteTab {
+        title: String::from("Named"),
+        ..empty
+    };
+    assert_eq!(super::tab_display_title(&named), "Named");
+    assert_eq!(
+        super::tab_origin_label(&model, crate::mvu::TabOrigin::Browser),
+        "Notes"
+    );
+    assert_eq!(
+        super::tab_origin_label(
+            &model,
+            crate::mvu::TabOrigin::Base(carver_sdk::BaseId::new())
+        ),
+        "Base"
+    );
+}
+
+#[test]
+fn note_tab_position_should_skip_the_pinned_page() {
+    assert_eq!(super::note_tab_position(0), 0);
+    assert_eq!(super::note_tab_position(1), 0);
+    assert_eq!(super::note_tab_position(2), 1);
+    assert_eq!(super::note_tab_position(-1), 0);
+}
+
+#[test]
+fn pinned_tab_identity_should_follow_the_surface() {
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    assert_eq!(
+        super::pinned_tab_identity(&model),
+        (String::from("Notes"), "view-list-symbolic")
+    );
+    model.route = crate::mvu::Route::Trash;
+    assert_eq!(super::pinned_tab_identity(&model).0, "Trash");
+    model.route = crate::mvu::Route::Base;
+    assert_eq!(super::pinned_tab_identity(&model).0, "Base");
+}
+#[test]
 fn note_category_color_should_use_the_category_appearance() {
     let category_id = CategoryId::new();
     let note = NoteSummary {

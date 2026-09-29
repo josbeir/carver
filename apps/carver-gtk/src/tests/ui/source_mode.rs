@@ -203,6 +203,7 @@ pub(super) fn formatting_controls_should_edit_carve(
 ) -> TestResult {
     let client = &fixture.client;
     let root = fixture.root()?;
+    fixture.activate_note(note.id)?;
     let source = fixture.source()?;
     let source_buffer = fixture.source_buffer()?;
     source.buffer().set_text("# Source\n\nA paragraph");
