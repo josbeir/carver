@@ -113,11 +113,14 @@ pub(crate) struct SourceEditor {
 impl SourceEditor {
     /// Creates a Carve-configured source view from installed syntax assets.
     ///
-    /// The grammar engine is not bound to the buffer here: constructing it costs over a hundred
-    /// milliseconds and the editor surface is built during window construction, before the user
-    /// can open a note. [`SourceEditor::render_preferences`] applies the language on the first
+    /// The buffer starts on the scheme matching `dark` so a tab that has not
+    /// rendered its preferences yet never paints `GtkSourceView`'s light
+    /// background. The grammar engine is not bound to the buffer here:
+    /// constructing it costs over a hundred milliseconds and the editor surface
+    /// is built during window construction, before the user can open a note.
+    /// [`SourceEditor::render_preferences`] applies the language on the first
     /// render that enables highlighting.
-    pub(crate) fn new(syntax_dir: &Path) -> Result<Self, SourceSyntaxError> {
+    pub(crate) fn new(syntax_dir: &Path, dark: bool) -> Result<Self, SourceSyntaxError> {
         let syntax_dir = syntax_dir
             .to_str()
             .ok_or_else(|| SourceSyntaxError::NonUtf8Directory(syntax_dir.to_owned()))?;
@@ -148,8 +151,9 @@ impl SourceEditor {
             "carve-writing-focus-dark",
             "dark writing-focus Carve style scheme",
         )?;
+        let initial_style = if dark { &dark_style } else { &light_style };
         let buffer = sourceview5::Buffer::builder()
-            .style_scheme(&light_style)
+            .style_scheme(initial_style)
             .build();
         let view = sourceview5::View::with_buffer(&buffer);
         view.set_widget_name("source-editor");

@@ -648,22 +648,22 @@ pub(crate) fn build_editor(
     editor_stack.set_widget_name("editor-mode-stack");
     mode_group.set_stack(Some(&editor_stack));
     let rendering = Rc::new(Cell::new(false));
-    let source_editor = SourceEditor::new(source_syntax_dir)?;
+    let theme = editor_theme();
+    let source_editor = SourceEditor::new(source_syntax_dir, theme.dark)?;
     let source_buffer = source_editor.buffer().clone();
     let source = source_editor.view().clone();
     let asset_scope = preview::asset_scope();
-    let rich_theme = editor_theme();
     let rich = RichEditor::new(
         assets_dir.clone(),
         &asset_scope,
         allow_remote_images,
-        &rich_theme,
+        &theme,
         dispatcher,
         &source_buffer,
         toast_overlay,
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
-    rich.set_theme(&rich_theme);
+    rich.set_theme(&theme);
     let split_preview = build_preview(
         assets_dir.as_deref(),
         &asset_scope,

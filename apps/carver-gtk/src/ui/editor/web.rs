@@ -903,8 +903,7 @@ mod tests {
     #[test]
     fn editor_theme_should_match_the_native_backdrop_to_the_scheme() {
         let accent = gtk::gdk::RGBA::new(0.208, 0.557, 0.271, 1.0);
-        let dark_background =
-            gtk::gdk::RGBA::parse("#1d1d20").unwrap_or(gtk::gdk::RGBA::BLACK);
+        let dark_background = gtk::gdk::RGBA::parse("#1d1d20").unwrap_or(gtk::gdk::RGBA::BLACK);
 
         assert_eq!(editor_theme(true, &accent).background, dark_background);
         assert_eq!(
