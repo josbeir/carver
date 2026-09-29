@@ -67,6 +67,23 @@ The script requires the Cargo and Node generators from
 They are intentionally development-only tools; Flatpak CI consumes the
 generated manifests and never downloads dependencies while compiling.
 
+## Runtime locale data
+
+The GNOME runtime keeps its locale definitions as symlinks into the
+`org.gnome.Platform.Locale` extension. Flathub installs that extension for the
+user's languages automatically, but a local or bundle install must add it or
+GLib falls back to the `C` locale. That shows an English interface and, because
+`WebKit` launches its web process through the Flatpak portal, can abort the UI
+process when the environment carries non-ASCII values. Install it for the
+runtime branch in use:
+
+```sh
+flatpak install --user flathub org.gnome.Platform.Locale//51
+```
+
+`separate-locales` is disabled in the manifest so Carver's own gettext catalogs
+are embedded in the app rather than an app locale extension a bundle does not
+carry.
 
 ## Media previews
 

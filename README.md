@@ -66,6 +66,16 @@ flatpak install --user --or-update --bundle ./carver-*.flatpak
 flatpak run io.github.josbeir.Carver
 ```
 
+Carver's interface and the embedded editor need the runtime's locale data (the
+`org.gnome.Platform.Locale` extension). Flathub installs it automatically, but a
+bundle install does not; without it Carver falls back to English and the editor
+may fail to start when your locale is not `en_US`. Install the extension once
+for the runtime branch Carver uses (currently `51`):
+
+```sh
+flatpak install --user flathub org.gnome.Platform.Locale//51
+```
+
 Keep only the version you want to install in that directory so the wildcard matches
 one bundle and one checksum. Release bundles do not update automatically yet;
 download a newer bundle and repeat the install command to update.
