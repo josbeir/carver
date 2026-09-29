@@ -6,6 +6,8 @@ mod base_query;
 mod migrations;
 
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     fs,
     io::Write,
     path::{Component, Path, PathBuf},
@@ -33,6 +35,16 @@ use uuid::Uuid;
 pub struct SqliteLibrary {
     connection: Connection,
     assets_dir: PathBuf,
+    /// Flattened frontmatter descriptors keyed by the revision that produced them.
+    ///
+    /// Descriptor discovery parses every active note's projected frontmatter, so it is cached
+    /// until `frontmatter_revision` changes. The key ignores body-only and title-only edits.
+    descriptors_cache: RefCell<Option<(u64, Vec<PropertyDescriptor>)>>,
+    /// Base row counts keyed by the revision that produced them.
+    ///
+    /// Counting every saved Base runs each Base's filter over the whole library. The counts only
+    /// change when notes, categories, or Bases change, so they are cached by `change_revision`.
+    base_counts_cache: RefCell<Option<(u64, HashMap<BaseId, usize>)>>,
 }
 
 /// Returns SQLite files whose changes can wake a consumer to query the library revision.
@@ -208,7 +220,24 @@ impl SqliteLibrary {
         Ok(Self {
             connection,
             assets_dir: assets_dir.to_owned(),
+            descriptors_cache: RefCell::new(None),
+            base_counts_cache: RefCell::new(None),
         })
+    }
+
+    /// Returns the revision that changes only when the discovered descriptors can change.
+    ///
+    /// Body-only and title-only edits leave frontmatter descriptors untouched, so the cache keyed
+    /// by this revision survives them; a frontmatter, trash, or category-membership change bumps
+    /// it (see the frontmatter revision triggers in the migrations).
+    fn frontmatter_revision(&self) -> Result<u64, StorageError> {
+        let revision: i64 = self.connection.query_row(
+            "SELECT frontmatter_revision FROM library_metadata WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        u64::try_from(revision)
+            .map_err(|_| StorageError::Corrupt("frontmatter revision is negative".to_owned()))
     }
 
     /// Returns the semantic revision for the current committed library state.
@@ -307,10 +336,26 @@ impl SqliteLibrary {
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
-        for definition in &mut definitions {
-            definition.row_count =
-                self.base_row_count(definition.filter_mode, &definition.filters)?;
+        let revision = self.change_revision()?.0;
+        let cached = self.base_counts_cache.borrow().clone();
+        if let Some((cached_revision, counts)) = cached
+            && cached_revision == revision
+            && definitions
+                .iter()
+                .all(|definition| counts.contains_key(&definition.id))
+        {
+            for definition in &mut definitions {
+                definition.row_count = counts.get(&definition.id).copied().unwrap_or(0);
+            }
+            return Ok(definitions);
         }
+        let mut counts = HashMap::with_capacity(definitions.len());
+        for definition in &mut definitions {
+            let count = self.base_row_count(definition.filter_mode, &definition.filters)?;
+            definition.row_count = count;
+            counts.insert(definition.id, count);
+        }
+        self.base_counts_cache.replace(Some((revision, counts)));
         Ok(definitions)
     }
 
@@ -532,6 +577,13 @@ impl SqliteLibrary {
     ///
     /// Returns an error when indexed JSON cannot be read.
     pub fn property_descriptors(&self) -> Result<Vec<PropertyDescriptor>, StorageError> {
+        let revision = self.frontmatter_revision()?;
+        let cached = self.descriptors_cache.borrow().clone();
+        if let Some((cached_revision, descriptors)) = cached
+            && cached_revision == revision
+        {
+            return Ok(descriptors);
+        }
         let mut statement = self.connection.prepare(
             "SELECT n.frontmatter_json FROM notes n JOIN categories c ON c.id = n.category_id
              WHERE n.trashed_at IS NULL AND c.trashed_at IS NULL AND n.frontmatter_json IS NOT NULL",
@@ -550,7 +602,10 @@ impl SqliteLibrary {
                 }
             }
         }
-        Ok(found.into_values().collect())
+        let descriptors = found.into_values().collect::<Vec<_>>();
+        self.descriptors_cache
+            .replace(Some((revision, descriptors.clone())));
+        Ok(descriptors)
     }
 
     /// Creates a category at the end of the sidebar.

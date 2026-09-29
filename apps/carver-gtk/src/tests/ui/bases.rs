@@ -2004,9 +2004,12 @@ pub(super) fn base_grid_date_picker_should_commit_on_close() -> TestResult {
     assert!(run_main_context_until(|| display.is_mapped()));
     let picker = widget_as::<gtk::MenuButton>(&base_widget, "cell-date-picker").ok_or("picker")?;
     picker.popup();
-    assert!(run_main_context_until(|| picker.is_visible()));
-    let calendar =
-        widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar").ok_or("calendar")?;
+    // The calendar is built lazily when the popover opens.
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar").is_some()
+    }));
+    let calendar = widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar")
+        .ok_or("calendar-commit-on-close")?;
     calendar.set_day(15);
     calendar.emit_by_name::<()>("day-selected", &[]);
     widget_as::<gtk::Popover>(&base_widget, "cell-date-popover")
@@ -2201,11 +2204,15 @@ pub(super) fn base_date_picker_should_release_widgets_after_column_rebuild() -> 
 
     let picker = widget_as::<gtk::MenuButton>(&base_widget, "cell-date-picker").ok_or("picker")?;
     assert!(run_main_context_until(|| picker.is_mapped()));
-    drop(picker);
+    // The calendar is built lazily on first open, so open it before checking its lifetime.
+    picker.popup();
+    assert!(run_main_context_until(|| picker.is_visible()));
     let calendar =
         widget_as::<gtk::Calendar>(&base_widget, "cell-date-calendar").ok_or("calendar")?;
     let weak_calendar = calendar.downgrade();
     drop(calendar);
+    picker.popdown();
+    drop(picker);
 
     // Replace the date column with a plain one, which rebuilds the grid's columns.
     let rebuilt = carver_sdk::BaseDefinition {

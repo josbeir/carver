@@ -565,6 +565,9 @@ pub(super) fn ad_hoc_collapsed_date_picker_should_save_the_picked_value() -> Tes
     let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
         .ok_or("calendar picker")?;
     picker.popup();
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").is_some()
+    }));
     let calendar =
         widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
     calendar.set_day(20);
@@ -748,6 +751,13 @@ pub(super) fn date_time_default_should_edit_the_picker() -> TestResult {
     let dialog = open_properties_dialog(&fixture)?;
     let root = dialog.upcast_ref();
 
+    // The calendar is built lazily when the picker opens.
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    picker.popup();
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").is_some()
+    }));
     let calendar =
         widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
     let hour_up =
@@ -1078,6 +1088,12 @@ pub(super) fn date_default_picker_should_edit_and_save() -> TestResult {
     // Reopen and pick a different day.
     let dialog = open_properties_dialog(&fixture)?;
     let root = dialog.upcast_ref();
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("calendar picker")?;
+    picker.popup();
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").is_some()
+    }));
     let calendar =
         widget_as::<gtk::Calendar>(root, "document-property-value-1-calendar").ok_or("calendar")?;
     calendar.set_day(20);

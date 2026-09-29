@@ -122,7 +122,58 @@ fn migrations() -> Migrations<'static> {
         M::up_with_hook("", migrate_derived_titles),
         M::up(ASSET_OWNERSHIP_SCHEMA),
         M::up_with_hook(NOTE_LINKS_SCHEMA, migrate_note_links),
+        M::up_with_hook("", migrate_frontmatter_revision),
     ])
+}
+
+/// Adds the frontmatter-affecting revision used to cache descriptor discovery.
+///
+/// The main `change_revision` bumps on every note update, including body- and title-only edits
+/// that cannot change discovered descriptors. This counter only moves when a note's projected
+/// frontmatter, membership, or trash state changes, so the descriptor cache survives the common
+/// autosave path. The column is added defensively because legacy databases can be re-adopted from
+/// `user_version = 0`.
+fn migrate_frontmatter_revision(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("PRAGMA table_info(library_metadata)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+    if !columns
+        .iter()
+        .any(|column| column == "frontmatter_revision")
+    {
+        transaction.execute_batch(
+            "ALTER TABLE library_metadata ADD COLUMN frontmatter_revision INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    transaction.execute_batch(
+        "CREATE TRIGGER IF NOT EXISTS notes_frontmatter_revision_after_insert
+            AFTER INSERT ON notes
+            BEGIN
+                UPDATE library_metadata SET frontmatter_revision = frontmatter_revision + 1 WHERE singleton = 1;
+            END;
+        CREATE TRIGGER IF NOT EXISTS notes_frontmatter_revision_after_delete
+            AFTER DELETE ON notes
+            BEGIN
+                UPDATE library_metadata SET frontmatter_revision = frontmatter_revision + 1 WHERE singleton = 1;
+            END;
+        CREATE TRIGGER IF NOT EXISTS notes_frontmatter_revision_after_update
+            AFTER UPDATE ON notes
+            WHEN NEW.frontmatter_json IS NOT OLD.frontmatter_json
+              OR NEW.trashed_at IS NOT OLD.trashed_at
+              OR NEW.category_id IS NOT OLD.category_id
+            BEGIN
+                UPDATE library_metadata SET frontmatter_revision = frontmatter_revision + 1 WHERE singleton = 1;
+            END;
+        CREATE TRIGGER IF NOT EXISTS categories_frontmatter_revision_after_update
+            AFTER UPDATE ON categories
+            WHEN NEW.trashed_at IS NOT OLD.trashed_at
+            BEGIN
+                UPDATE library_metadata SET frontmatter_revision = frontmatter_revision + 1 WHERE singleton = 1;
+            END;",
+    )?;
+    Ok(())
 }
 
 fn migrate_note_links(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {

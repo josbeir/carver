@@ -444,10 +444,6 @@ impl DatePicker {
         content.set_margin_top(6);
         content.set_margin_bottom(6);
 
-        let calendar = gtk::Calendar::new();
-        calendar.set_widget_name(&format!("{name}-calendar"));
-        content.append(&calendar);
-
         let time = TimeSpinner::new(name);
         if !date_only {
             content.append(time.widget());
@@ -479,39 +475,70 @@ impl DatePicker {
         let applying = Rc::new(Cell::new(false));
         let cleared = Rc::new(Cell::new(false));
         let time_control = time.control();
-        apply_picker_state(field_type, &state, &calendar, &time_control);
 
-        // Signal handlers keep weak references to the widgets and a lightweight value view, so a
-        // handler stored on a control can never keep that control (or the picker) alive through a
-        // reference cycle. The calendar and spinner handlers previously captured the widgets
-        // strongly, leaking one picker per grid rebuild.
-        let update: Rc<dyn Fn()> = {
-            let calendar = calendar.downgrade();
+        // The calendar is the expensive control in this popover and every Base cell builds one, so
+        // it is created on first open instead of eagerly. `calendar_cell` owns it once built; the
+        // handlers below reference the calendar weakly so no handler can keep it alive in a cycle.
+        let calendar_cell: Rc<RefCell<Option<gtk::Calendar>>> = Rc::new(RefCell::new(None));
+        let ensure_calendar: Rc<dyn Fn() -> Option<gtk::Calendar>> = {
+            let content = content.clone();
+            let calendar_cell = Rc::clone(&calendar_cell);
+            let name = name.to_owned();
             let control = time_control.clone();
             let state = Rc::clone(&state);
             let on_changed = Rc::clone(&on_changed);
             let applying = Rc::clone(&applying);
             let cleared = Rc::clone(&cleared);
             Rc::new(move || {
-                if applying.get() {
-                    return;
+                if let Some(calendar) = calendar_cell.borrow().clone() {
+                    return Some(calendar);
                 }
-                let Some(calendar) = calendar.upgrade() else {
-                    return;
-                };
-                // A calendar or time interaction replaces any pending clear.
-                cleared.set(false);
-                *state.borrow_mut() = read_picker(field_type, &calendar, &control);
-                notify_changed(&on_changed);
+                let calendar = gtk::Calendar::new();
+                calendar.set_widget_name(&format!("{name}-calendar"));
+                {
+                    let weak = calendar.downgrade();
+                    let control = control.clone();
+                    let state = Rc::clone(&state);
+                    let on_changed = Rc::clone(&on_changed);
+                    let applying = Rc::clone(&applying);
+                    let cleared = Rc::clone(&cleared);
+                    calendar.connect_day_selected(move |_| {
+                        if applying.get() {
+                            return;
+                        }
+                        let Some(calendar) = weak.upgrade() else {
+                            return;
+                        };
+                        // A calendar interaction replaces any pending clear.
+                        cleared.set(false);
+                        *state.borrow_mut() = read_picker(field_type, &calendar, &control);
+                        notify_changed(&on_changed);
+                    });
+                }
+                // The calendar belongs above the time spinner and actions.
+                content.prepend(&calendar);
+                calendar_cell.replace(Some(calendar.clone()));
+                Some(calendar)
             })
         };
         {
-            let update = Rc::clone(&update);
-            calendar.connect_day_selected(move |_| update());
-        }
-        {
-            let update = Rc::clone(&update);
-            time.connect_changed(move || update());
+            let calendar_cell = Rc::clone(&calendar_cell);
+            let control = time_control.clone();
+            let state = Rc::clone(&state);
+            let on_changed = Rc::clone(&on_changed);
+            let applying = Rc::clone(&applying);
+            let cleared = Rc::clone(&cleared);
+            time.connect_changed(move || {
+                if applying.get() {
+                    return;
+                }
+                let Some(calendar) = calendar_cell.borrow().clone() else {
+                    return;
+                };
+                cleared.set(false);
+                *state.borrow_mut() = read_picker(field_type, &calendar, &control);
+                notify_changed(&on_changed);
+            });
         }
         {
             let state = Rc::clone(&state);
@@ -536,28 +563,27 @@ impl DatePicker {
             });
         }
         {
-            let calendar = calendar.downgrade();
+            let ensure_calendar = Rc::clone(&ensure_calendar);
             let control = time_control.clone();
             let state = Rc::clone(&state);
             let applying = Rc::clone(&applying);
             let cleared = Rc::clone(&cleared);
             let on_seed = Rc::clone(&on_seed);
             popover.connect_show(move |_| {
-                let Some(seed) = on_seed.borrow().clone() else {
-                    return;
-                };
-                let Some(calendar) = calendar.upgrade() else {
+                let Some(calendar) = ensure_calendar() else {
                     return;
                 };
                 applying.set(true);
-                cleared.set(false);
-                *state.borrow_mut() = picker_value(field_type, &seed());
+                if let Some(seed) = on_seed.borrow().clone() {
+                    cleared.set(false);
+                    *state.borrow_mut() = picker_value(field_type, &seed());
+                }
                 apply_picker_state(field_type, &state, &calendar, &control);
                 applying.set(false);
             });
         }
         {
-            let calendar = calendar.downgrade();
+            let calendar_cell = Rc::clone(&calendar_cell);
             let control = time_control.clone();
             let state = Rc::clone(&state);
             let cleared = Rc::clone(&cleared);
@@ -566,12 +592,14 @@ impl DatePicker {
                 let Some(commit) = on_commit.borrow().clone() else {
                     return;
                 };
+                let current = state.borrow().clone();
                 let value = if cleared.get() {
                     None
                 } else {
-                    state.borrow().clone().or_else(|| {
-                        calendar
-                            .upgrade()
+                    current.or_else(|| {
+                        calendar_cell
+                            .borrow()
+                            .clone()
                             .and_then(|calendar| read_picker(field_type, &calendar, &control))
                     })
                 };

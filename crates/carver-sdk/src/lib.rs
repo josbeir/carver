@@ -2,9 +2,9 @@
 
 #![forbid(unsafe_code)]
 
-use std::{error::Error, path::Path, thread};
+use std::{collections::VecDeque, error::Error, path::Path, thread};
 
-use async_channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender, TryRecvError};
 use carver_config::{AppPaths, ConfigError};
 pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty};
 pub use carver_domain::{
@@ -21,6 +21,21 @@ use thiserror::Error;
 use time::OffsetDateTime;
 
 type Job<B> = Box<dyn FnOnce(&B) + Send + 'static>;
+
+/// How a queued request competes for the single backend worker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum JobPriority {
+    /// A user-facing read or mutation that must not wait behind eager discovery.
+    Interactive,
+    /// Discovery and refresh work that yields to interactive requests.
+    Background,
+}
+
+/// One queued backend operation with the priority it competes at.
+struct QueuedJob<B> {
+    priority: JobPriority,
+    run: Job<B>,
+}
 
 /// Maximum number of storage operations that can wait behind the active worker operation.
 ///
@@ -86,7 +101,7 @@ pub fn open_local_library(
 /// Use the `*_async` methods from a UI. The synchronous counterparts exist for short-lived
 /// bootstrap code and deterministic tests; calling them from a UI callback defeats the worker.
 pub struct LibraryClient<B> {
-    requests: Sender<Job<B>>,
+    requests: Sender<QueuedJob<B>>,
 }
 
 impl<B> Clone for LibraryClient<B> {
@@ -172,7 +187,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub async fn categories_with_note_counts_async(
         &self,
     ) -> Result<Vec<CategorySummary>, LibraryError<B::Error>> {
-        self.request(LibraryBackend::categories_with_note_counts)
+        self.request_background(LibraryBackend::categories_with_note_counts)
             .await
     }
 
@@ -287,7 +302,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
 
     /// Lists saved bases without blocking the caller.
     pub async fn bases_async(&self) -> Result<Vec<BaseDefinition>, LibraryError<B::Error>> {
-        self.request(LibraryBackend::bases).await
+        self.request_background(LibraryBackend::bases).await
     }
 
     /// Deletes a saved base without deleting notes.
@@ -326,20 +341,22 @@ impl<B: LibraryBackend> LibraryClient<B> {
         filter_mode: BaseFilterMode,
         filters: Vec<BaseFilter>,
     ) -> Result<usize, LibraryError<B::Error>> {
-        self.request(move |backend| backend.base_row_count(filter_mode, &filters))
+        self.request_background(move |backend| backend.base_row_count(filter_mode, &filters))
             .await
     }
 
     /// Discovers current frontmatter properties without blocking the caller.
     pub async fn property_paths_async(&self) -> Result<Vec<PropertyPath>, LibraryError<B::Error>> {
-        self.request(LibraryBackend::property_paths).await
+        self.request_background(LibraryBackend::property_paths)
+            .await
     }
 
     /// Discovers typed frontmatter property descriptors without blocking the caller.
     pub async fn property_descriptors_async(
         &self,
     ) -> Result<Vec<PropertyDescriptor>, LibraryError<B::Error>> {
-        self.request(LibraryBackend::property_descriptors).await
+        self.request_background(LibraryBackend::property_descriptors)
+            .await
     }
 
     /// Creates a blank note without blocking the caller.
@@ -475,7 +492,8 @@ impl<B: LibraryBackend> LibraryClient<B> {
 
     /// Lists recoverable trash contents without blocking the caller.
     pub async fn trash_contents_async(&self) -> Result<TrashContents, LibraryError<B::Error>> {
-        self.request(LibraryBackend::trash_contents).await
+        self.request_background(LibraryBackend::trash_contents)
+            .await
     }
 
     /// Permanently removes trash without blocking the caller.
@@ -594,7 +612,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
     pub fn categories_with_note_counts(
         &self,
     ) -> Result<Vec<CategorySummary>, LibraryError<B::Error>> {
-        self.blocking(LibraryBackend::categories_with_note_counts)
+        self.blocking_background(LibraryBackend::categories_with_note_counts)
     }
 
     /// Counts category notes synchronously for bootstrap code and tests.
@@ -727,7 +745,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
 
     /// Lists trash synchronously for bootstrap code and tests.
     pub fn trash_contents(&self) -> Result<TrashContents, LibraryError<B::Error>> {
-        self.blocking(LibraryBackend::trash_contents)
+        self.blocking_background(LibraryBackend::trash_contents)
     }
 
     /// Permanently removes trash synchronously for bootstrap code and tests.
@@ -810,12 +828,39 @@ impl<B: LibraryBackend> LibraryClient<B> {
     where
         T: Send + 'static,
     {
+        self.request_with_priority(JobPriority::Interactive, operation)
+            .await
+    }
+
+    /// Queues an eager discovery or refresh operation that may yield to interactive requests.
+    async fn request_background<T>(
+        &self,
+        operation: impl FnOnce(&B) -> Result<T, B::Error> + Send + 'static,
+    ) -> Result<T, LibraryError<B::Error>>
+    where
+        T: Send + 'static,
+    {
+        self.request_with_priority(JobPriority::Background, operation)
+            .await
+    }
+
+    async fn request_with_priority<T>(
+        &self,
+        priority: JobPriority,
+        operation: impl FnOnce(&B) -> Result<T, B::Error> + Send + 'static,
+    ) -> Result<T, LibraryError<B::Error>>
+    where
+        T: Send + 'static,
+    {
         let (reply_sender, reply_receiver) = async_channel::bounded(1);
         self.requests
-            .send(Box::new(move |backend| {
-                let _ =
-                    reply_sender.send_blocking(operation(backend).map_err(LibraryError::Backend));
-            }))
+            .send(QueuedJob {
+                priority,
+                run: Box::new(move |backend| {
+                    let _ = reply_sender
+                        .send_blocking(operation(backend).map_err(LibraryError::Backend));
+                }),
+            })
             .await
             .map_err(|_| LibraryError::Unavailable)?;
         reply_receiver
@@ -831,12 +876,37 @@ impl<B: LibraryBackend> LibraryClient<B> {
     where
         T: Send + 'static,
     {
+        self.blocking_with_priority(JobPriority::Interactive, operation)
+    }
+
+    /// Runs an eager discovery or refresh operation synchronously for bootstrap code and tests.
+    fn blocking_background<T>(
+        &self,
+        operation: impl FnOnce(&B) -> Result<T, B::Error> + Send + 'static,
+    ) -> Result<T, LibraryError<B::Error>>
+    where
+        T: Send + 'static,
+    {
+        self.blocking_with_priority(JobPriority::Background, operation)
+    }
+
+    fn blocking_with_priority<T>(
+        &self,
+        priority: JobPriority,
+        operation: impl FnOnce(&B) -> Result<T, B::Error> + Send + 'static,
+    ) -> Result<T, LibraryError<B::Error>>
+    where
+        T: Send + 'static,
+    {
         let (reply_sender, reply_receiver) = async_channel::bounded(1);
         self.requests
-            .send_blocking(Box::new(move |backend| {
-                let _ =
-                    reply_sender.send_blocking(operation(backend).map_err(LibraryError::Backend));
-            }))
+            .send_blocking(QueuedJob {
+                priority,
+                run: Box::new(move |backend| {
+                    let _ = reply_sender
+                        .send_blocking(operation(backend).map_err(LibraryError::Backend));
+                }),
+            })
             .map_err(|_| LibraryError::Unavailable)?;
         reply_receiver
             .recv_blocking()
@@ -848,10 +918,34 @@ impl<B: LibraryBackend> LibraryClient<B> {
     clippy::needless_pass_by_value,
     reason = "the worker must own both the backend and receiver for its full lifetime"
 )]
-fn run_worker<B: LibraryBackend>(backend: B, receiver: Receiver<Job<B>>) {
-    while let Ok(job) = receiver.recv_blocking() {
-        job(&backend);
+fn run_worker<B>(backend: B, receiver: Receiver<QueuedJob<B>>) {
+    let mut deferred = VecDeque::new();
+    while let Some(job) = next_job(&receiver, &mut deferred) {
+        (job.run)(&backend);
     }
+}
+
+/// Picks the next request, letting queued interactive work jump ahead of discovery.
+///
+/// The worker still runs one operation at a time, but an in-flight background scan no longer
+/// makes every queued interactive request (such as opening a Base) wait for all other background
+/// refreshes: they run before any deferred background job.
+fn next_job<B>(
+    receiver: &Receiver<QueuedJob<B>>,
+    deferred: &mut VecDeque<QueuedJob<B>>,
+) -> Option<QueuedJob<B>> {
+    loop {
+        match receiver.try_recv() {
+            Ok(job) if job.priority == JobPriority::Interactive => return Some(job),
+            Ok(job) => deferred.push_back(job),
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Closed) => return deferred.pop_front(),
+        }
+    }
+    if let Some(job) = deferred.pop_front() {
+        return Some(job);
+    }
+    receiver.recv_blocking().ok()
 }
 
 #[cfg(test)]
