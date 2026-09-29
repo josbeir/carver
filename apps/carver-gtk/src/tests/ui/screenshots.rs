@@ -668,10 +668,14 @@ fn reset_source_scroll(fixture: &WindowFixture) -> TestResult {
 }
 
 /// Captures a full window in both themes.
+///
+/// Drops keyboard focus first: a focused editor draws a blinking caret, and a
+/// capture that lands on its visible phase would bake the cursor into the PNG.
 fn capture_theme_pair(fixture: &WindowFixture, directory: &Path, name: &str) -> TestResult {
     let window = fixture.window.clone().upcast::<gtk::Widget>();
     for (suffix, dark) in [("light", false), ("dark", true)] {
         apply_color_scheme(dark);
+        gtk::prelude::GtkWindowExt::set_focus(&fixture.window, None::<&gtk::Widget>);
         settle();
         capture_widget(&window, &directory.join(format!("{name}-{suffix}.png")))?;
     }
