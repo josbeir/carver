@@ -36,11 +36,6 @@ pub enum AgentClient {
 pub enum InstallChannel {
     /// A native package exposes `carver-mcp` on `PATH`.
     Native,
-    /// An `AppImage` bundles the MCP executable.
-    AppImage {
-        /// Absolute path to the `AppImage`, supplied by its runtime.
-        path: String,
-    },
     /// A Flatpak application owns the MCP executable.
     Flatpak {
         /// Installed Flatpak application identifier.
@@ -74,9 +69,6 @@ impl InstallChannel {
         if let Ok(name) = env::var("SNAP_NAME") {
             return Self::Snap { name };
         }
-        if let Ok(path) = env::var("APPIMAGE") {
-            return Self::AppImage { path };
-        }
         Self::Native
     }
 
@@ -87,13 +79,6 @@ impl InstallChannel {
             Self::Native => McpInvocation {
                 command: "carver-mcp".to_owned(),
                 arguments: Vec::new(),
-            },
-            Self::AppImage { path } => McpInvocation {
-                command: path.clone(),
-                arguments: vec![
-                    "--appimage-extract-and-run".to_owned(),
-                    "--command=carver-mcp".to_owned(),
-                ],
             },
             Self::Flatpak { app_id } => McpInvocation {
                 command: "flatpak".to_owned(),

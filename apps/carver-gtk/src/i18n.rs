@@ -57,8 +57,8 @@ macro_rules! tr_fmt {
     }};
 }
 
-/// Resolves the message catalog directory for system, Flatpak, `AppImage`, and
-/// source-tree development installs.
+/// Resolves the message catalog directory for system, Flatpak, and source-tree
+/// development installs.
 fn locate_localedir() -> PathBuf {
     let override_dir =
         std::env::var_os("CARVER_LOCALEDIR").or_else(|| std::env::var_os("TEXTDOMAINDIR"));

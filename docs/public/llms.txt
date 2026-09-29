@@ -31,5 +31,4 @@
 
 - [Carve markup format](https://markup-carve.github.io/carve/)
 - [README](https://github.com/josbeir/carver#readme)
-- [AppImage packaging notes](https://github.com/josbeir/carver/blob/main/packaging/appimage/README.md)
 - [Contributor guide](https://github.com/josbeir/carver/blob/main/AGENTS.md)
