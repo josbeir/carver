@@ -156,12 +156,18 @@ fn worker_queue_applies_backpressure_when_the_backend_is_busy()
         assert!(
             client
                 .requests
-                .try_send(Box::new(|_: &TestBackend| {}))
+                .try_send(QueuedJob {
+                    priority: JobPriority::Interactive,
+                    run: Box::new(|_: &TestBackend| {}),
+                })
                 .is_ok()
         );
     }
     assert!(matches!(
-        client.requests.try_send(Box::new(|_: &TestBackend| {})),
+        client.requests.try_send(QueuedJob {
+            priority: JobPriority::Interactive,
+            run: Box::new(|_: &TestBackend| {}),
+        }),
         Err(async_channel::TrySendError::Full(_))
     ));
 
@@ -181,4 +187,64 @@ fn asset_metadata_should_propagate_backend_errors() -> Result<(), LibraryError<T
         client.note_asset_size_async(NoteId::new(), "assets/a.pdf".into()),
     ));
     Ok(())
+}
+
+#[test]
+fn queued_interactive_work_should_overtake_background_discovery() {
+    let (sender, receiver) = async_channel::bounded(8);
+    let order = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    for (priority, label) in [
+        (JobPriority::Background, "background-1"),
+        (JobPriority::Interactive, "interactive"),
+        (JobPriority::Background, "background-2"),
+    ] {
+        let order = std::sync::Arc::clone(&order);
+        sender
+            .send_blocking(QueuedJob {
+                priority,
+                run: Box::new(move |_backend: &()| {
+                    if let Ok(mut order) = order.lock() {
+                        order.push(label);
+                    }
+                }),
+            })
+            .unwrap_or_else(|_| panic!("queueing the test job failed"));
+    }
+    drop(sender);
+
+    let mut deferred = VecDeque::new();
+    while let Some(job) = next_job(&receiver, &mut deferred) {
+        (job.run)(&());
+    }
+
+    assert_eq!(
+        *order
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        vec!["interactive", "background-1", "background-2"]
+    );
+}
+
+#[test]
+fn deferred_background_work_should_stay_bounded() {
+    let capacity = REQUEST_QUEUE_CAPACITY * 4;
+    let (sender, receiver) = async_channel::bounded(capacity);
+    for _ in 0..capacity {
+        sender
+            .send_blocking(QueuedJob {
+                priority: JobPriority::Background,
+                run: Box::new(|_backend: &()| {}),
+            })
+            .unwrap_or_else(|_| panic!("queueing the test job failed"));
+    }
+    drop(sender);
+
+    let mut deferred = VecDeque::new();
+    while let Some(job) = next_job(&receiver, &mut deferred) {
+        assert!(
+            deferred.len() <= REQUEST_QUEUE_CAPACITY,
+            "parked background work must not exceed the bounded request capacity"
+        );
+        (job.run)(&());
+    }
 }

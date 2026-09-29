@@ -246,9 +246,13 @@ pub(crate) fn render_base(
     let definition_changed = refs.rendered_definition.borrow().as_ref() != Some(definition);
     let editors_changed = refs.rendered_editors.borrow().as_deref() != Some(editors.as_slice());
     if definition_changed || editors_changed {
-        rebuild_columns(refs, definition, &editors, dispatcher);
+        // Release the rows before removing the columns. Removing a column whose list items are
+        // still bound makes the view tear every realized cell down synchronously, which costs tens
+        // of milliseconds after visiting a larger Base; emptying the model first keeps the column
+        // rebuild cheap and makes switching back to a Base feel instant.
         refs.rows.remove_all();
         refs.rendered_rows.borrow_mut().clear();
+        rebuild_columns(refs, definition, &editors, dispatcher);
         refs.rendered_definition.replace(Some(definition.clone()));
         refs.rendered_editors.replace(Some(editors));
     }
