@@ -314,6 +314,11 @@ impl SqliteLibrary {
     ///
     /// Returns an error when stored values are malformed or cannot be read.
     pub fn bases(&self) -> Result<Vec<BaseDefinition>, StorageError> {
+        // Snapshot the revision before reading definitions, so a concurrent writer cannot pair
+        // counts computed from one library state with a definition from another. The revision is
+        // verified again before the cache is used or updated; because the GTK app and MCP
+        // companion share the installed library, that writer is a supported deployment context.
+        let revision = self.change_revision()?.0;
         let mut statement = self.connection.prepare(
             "SELECT b.id, b.name, b.definition_json, b.revision
              FROM bases b ORDER BY b.name COLLATE NOCASE",
@@ -336,13 +341,13 @@ impl SqliteLibrary {
             })?
             .collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::Database)?;
-        let revision = self.change_revision()?.0;
         let cached = self.base_counts_cache.borrow().clone();
         if let Some((cached_revision, counts)) = cached
             && cached_revision == revision
             && definitions
                 .iter()
                 .all(|definition| counts.contains_key(&definition.id))
+            && self.change_revision()?.0 == revision
         {
             for definition in &mut definitions {
                 definition.row_count = counts.get(&definition.id).copied().unwrap_or(0);
@@ -355,7 +360,10 @@ impl SqliteLibrary {
             definition.row_count = count;
             counts.insert(definition.id, count);
         }
-        self.base_counts_cache.replace(Some((revision, counts)));
+        // Only publish the cache when the library did not change while it was being read.
+        if self.change_revision()?.0 == revision {
+            self.base_counts_cache.replace(Some((revision, counts)));
+        }
         Ok(definitions)
     }
 

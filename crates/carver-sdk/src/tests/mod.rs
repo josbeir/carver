@@ -224,3 +224,27 @@ fn queued_interactive_work_should_overtake_background_discovery() {
         vec!["interactive", "background-1", "background-2"]
     );
 }
+
+#[test]
+fn deferred_background_work_should_stay_bounded() {
+    let capacity = REQUEST_QUEUE_CAPACITY * 4;
+    let (sender, receiver) = async_channel::bounded(capacity);
+    for _ in 0..capacity {
+        sender
+            .send_blocking(QueuedJob {
+                priority: JobPriority::Background,
+                run: Box::new(|_backend: &()| {}),
+            })
+            .unwrap_or_else(|_| panic!("queueing the test job failed"));
+    }
+    drop(sender);
+
+    let mut deferred = VecDeque::new();
+    while let Some(job) = next_job(&receiver, &mut deferred) {
+        assert!(
+            deferred.len() <= REQUEST_QUEUE_CAPACITY,
+            "parked background work must not exceed the bounded request capacity"
+        );
+        (job.run)(&());
+    }
+}

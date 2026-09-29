@@ -930,6 +930,10 @@ fn run_worker<B>(backend: B, receiver: Receiver<QueuedJob<B>>) {
 /// The worker still runs one operation at a time, but an in-flight background scan no longer
 /// makes every queued interactive request (such as opening a Base) wait for all other background
 /// refreshes: they run before any deferred background job.
+///
+/// At most [`REQUEST_QUEUE_CAPACITY`] background requests are parked here. Without that bound the
+/// drain loop would move an unbounded number of jobs out of the bounded channel into this queue,
+/// letting producers refill the channel and defeat the documented backpressure.
 fn next_job<B>(
     receiver: &Receiver<QueuedJob<B>>,
     deferred: &mut VecDeque<QueuedJob<B>>,
@@ -937,7 +941,14 @@ fn next_job<B>(
     loop {
         match receiver.try_recv() {
             Ok(job) if job.priority == JobPriority::Interactive => return Some(job),
-            Ok(job) => deferred.push_back(job),
+            Ok(job) => {
+                if deferred.len() >= REQUEST_QUEUE_CAPACITY {
+                    // Keep the parked background work bounded; the oldest entry runs next.
+                    deferred.push_back(job);
+                    break;
+                }
+                deferred.push_back(job);
+            }
             Err(TryRecvError::Empty) => break,
             Err(TryRecvError::Closed) => return deferred.pop_front(),
         }
