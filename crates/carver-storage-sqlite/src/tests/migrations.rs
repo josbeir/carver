@@ -15,7 +15,7 @@ fn reopening_a_versioned_library_should_not_have_pending_migrations() {
         .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
     drop(library);
 
-    assert_eq!(schema_version(&database_path), 5);
+    assert_eq!(schema_version(&database_path), 6);
     let connection = rusqlite::Connection::open(&database_path)
         .unwrap_or_else(|error| panic!("database open failed: {error}"));
     assert_eq!(
@@ -62,7 +62,7 @@ fn opening_an_unversioned_current_library_should_adopt_the_schema() {
         LibraryRevision(0)
     );
     drop(adopted);
-    assert_eq!(schema_version(&database_path), 5);
+    assert_eq!(schema_version(&database_path), 6);
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn asset_ownership_migration_should_reshape_legacy_asset_tables() {
     let migrated = SqliteLibrary::open(&database_path, &assets_dir)
         .unwrap_or_else(|error| panic!("library migration failed: {error}"));
 
-    assert_eq!(schema_version(&database_path), 5);
+    assert_eq!(schema_version(&database_path), 6);
     assert_eq!(
         migrated
             .note_asset_bytes(note.id, "assets/legacy.png")
@@ -215,6 +215,58 @@ fn asset_ownership_migration_should_reshape_legacy_asset_tables() {
             .note_asset_bytes(note.id, &path)
             .unwrap_or_else(|error| panic!("fresh asset lookup failed: {error}")),
         Some(b"fresh".to_vec())
+    );
+}
+
+#[test]
+fn note_link_migration_should_backfill_existing_sources() {
+    let directory =
+        tempfile::tempdir().unwrap_or_else(|error| panic!("temporary directory failed: {error}"));
+    let database_path = directory.path().join("library.sqlite3");
+    let assets_dir = directory.path().join("assets");
+    let library = SqliteLibrary::open(&database_path, &assets_dir)
+        .unwrap_or_else(|error| panic!("library open failed: {error}"));
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Links", now)
+        .unwrap_or_else(|error| panic!("category creation failed: {error}"));
+    let target = library
+        .create_note_with_source(category.id, "# Target", now)
+        .unwrap_or_else(|error| panic!("target creation failed: {error}"));
+    let source = library
+        .create_note_with_source(
+            category.id,
+            &format!(
+                "# Source\n\nSee [Target]({}).\n",
+                carver_domain::note_link_destination(target.id)
+            ),
+            now,
+        )
+        .unwrap_or_else(|error| panic!("source creation failed: {error}"));
+    drop(library);
+
+    let connection = rusqlite::Connection::open(&database_path)
+        .unwrap_or_else(|error| panic!("database open failed: {error}"));
+    connection
+        .execute("DELETE FROM note_links", [])
+        .unwrap_or_else(|error| panic!("link reset failed: {error}"));
+    connection
+        .pragma_update(None, "user_version", 5_i32)
+        .unwrap_or_else(|error| panic!("schema version reset failed: {error}"));
+    drop(connection);
+
+    let migrated = SqliteLibrary::open(&database_path, &assets_dir)
+        .unwrap_or_else(|error| panic!("library migration failed: {error}"));
+    let links = migrated
+        .note_links(source.id)
+        .unwrap_or_else(|error| panic!("link query failed: {error}"));
+    assert_eq!(
+        links
+            .outgoing
+            .iter()
+            .map(|note| note.id)
+            .collect::<Vec<_>>(),
+        vec![target.id]
     );
 }
 

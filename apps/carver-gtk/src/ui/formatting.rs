@@ -9,7 +9,7 @@ use gtk::prelude::*;
 use libadwaita as adw;
 
 use super::editor::{focus::EditorFocusRestorer, source_commands};
-use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarget, SourceCommand};
+use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, ImportFileSource, ImportTarget};
 
 /// Indexed cells making up the table-size hover grid.
 ///
@@ -423,84 +423,20 @@ pub(crate) fn append_table_picker(
 }
 
 pub(crate) fn show_source_link_dialog(
-    anchor: &impl IsA<gtk::Widget>,
+    _anchor: &impl IsA<gtk::Widget>,
     buffer: &gtk::TextBuffer,
     dispatcher: &AppDispatcher,
-    focus: &EditorFocusRestorer,
+    _focus: &EditorFocusRestorer,
 ) {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    let text = gtk::Entry::new();
-    text.set_placeholder_text(Some(&gettext("Link text")));
-    if let Some((start, end)) = buffer.selection_bounds() {
-        text.set_text(&buffer.text(&start, &end, false));
-    }
-    let url = gtk::Entry::new();
-    url.set_placeholder_text(Some("https://example.com"));
-    url.set_input_purpose(gtk::InputPurpose::Url);
-    content.append(&gtk::Label::new(Some(&gettext("Text"))));
-    content.append(&text);
-    content.append(&gtk::Label::new(Some(&gettext("Address"))));
-    content.append(&url);
-    let dialog = adw::AlertDialog::builder()
-        .heading(gettext("Insert Link"))
-        .extra_child(&content)
-        .default_response("insert")
-        .close_response("cancel")
-        .build();
-    let cancel = gettext("Cancel");
-    let insert = gettext("Insert");
-    dialog.add_responses(&[("cancel", cancel.as_str()), ("insert", insert.as_str())]);
-    let source = buffer.clone();
-    let selection = Rc::new(RefCell::new(capture_selection(&source)));
-    let selection_for_response = Rc::clone(&selection);
-    let dispatcher = dispatcher.clone();
-    let focus = focus.clone();
-    dialog.connect_response(None, move |_dialog, response| {
-        let selection = selection_for_response
-            .borrow_mut()
-            .take()
-            .map(|selection| selection.into_range(&source));
-        if response == "insert" {
-            let destination = url.text();
-            let link_text = text.text();
-            if !destination.trim().is_empty() && !link_text.trim().is_empty() {
-                let selection =
-                    selection.unwrap_or_else(|| source_commands::selection_from_buffer(&source));
-                let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplySourceCommand {
-                    command: SourceCommand::InsertLink {
-                        text: link_text.to_string(),
-                        destination: destination.to_string(),
-                    },
-                    selection,
-                }));
-            }
-        }
-        focus.restore_later();
-    });
-    dialog.present(anchor.root().as_ref());
-}
-
-struct SelectionMarks {
-    start: gtk::TextMark,
-    end: gtk::TextMark,
-}
-
-impl SelectionMarks {
-    fn into_range(self, buffer: &gtk::TextBuffer) -> std::ops::Range<usize> {
-        let start = buffer.iter_at_mark(&self.start).offset();
-        let end = buffer.iter_at_mark(&self.end).offset();
-        buffer.delete_mark(&self.start);
-        buffer.delete_mark(&self.end);
-        usize::try_from(start).unwrap_or_default()..usize::try_from(end).unwrap_or_default()
-    }
-}
-
-fn capture_selection(buffer: &gtk::TextBuffer) -> Option<SelectionMarks> {
-    let (start, end) = buffer.selection_bounds()?;
-    Some(SelectionMarks {
-        start: buffer.create_mark(None, &start, true),
-        end: buffer.create_mark(None, &end, false),
-    })
+    let selection = source_commands::selection_from_buffer(buffer);
+    let text = buffer
+        .selection_bounds()
+        .map_or_else(String::new, |(start, end)| {
+            buffer.text(&start, &end, false).to_string()
+        });
+    let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::LinkDialogRequested {
+        origin: crate::mvu::LinkDialogOrigin::Source { selection, text },
+    }));
 }
 
 #[cfg(test)]

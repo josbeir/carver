@@ -144,6 +144,13 @@ pub enum EditorEvent {
         /// Selected state.
         state: SelectionState,
     },
+    /// The user activated a link, for example with a modifier-click.
+    OpenLink {
+        /// Host document session.
+        session: u64,
+        /// Activated link destination.
+        href: String,
+    },
     /// A rich-editor selection should be published through the native clipboard adapter.
     CopySelection {
         /// Host document session.

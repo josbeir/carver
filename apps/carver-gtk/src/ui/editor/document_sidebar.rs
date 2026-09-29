@@ -6,6 +6,7 @@ use gtk::prelude::*;
 use libadwaita::{self as adw, prelude::*};
 use std::cell::RefCell;
 
+mod links;
 mod media;
 mod outline;
 
@@ -22,13 +23,24 @@ pub(super) struct DocumentSidebar {
     outline_section: Section,
     media_list: gtk::ListBox,
     media: Section,
+    linked_list: gtk::ListBox,
+    linked_section: Section,
+    backlink_list: gtk::ListBox,
+    backlinks_section: Section,
     thumbnails: RefCell<ThumbnailCache>,
     rendered_media_files:
         RefCell<std::collections::BTreeMap<String, Option<crate::mvu::MediaFile>>>,
+    rendered_links: RefCell<Option<carver_sdk::NoteLinks>>,
     rendered_document: RefCell<Option<(EditorSessionId, u64)>>,
 }
 
 impl DocumentSidebar {
+    // CONTEXT: Construction wires four independent sidebar sections in one place so their
+    // shared split view, breakpoint, and ordered appends stay auditable.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the sidebar composition keeps its section ordering explicit"
+    )]
     pub fn new(
         content: &impl IsA<gtk::Widget>,
         toggle: gtk::ToggleButton,
@@ -67,9 +79,39 @@ impl DocumentSidebar {
             Some(&add_files),
             media_list.upcast_ref(),
         );
+        let linked_list = gtk::ListBox::new();
+        linked_list.set_widget_name("editor-linked-list");
+        linked_list.set_selection_mode(gtk::SelectionMode::None);
+        linked_list.set_valign(gtk::Align::Start);
+        linked_list.add_css_class("boxed-list");
+        let linked_section = Section::new(
+            &pgettext("document sidebar", "Linked notes"),
+            "linked",
+            &gettext("No linked notes yet"),
+            &gettext("Insert a link to another note to see it here."),
+            None,
+            linked_list.upcast_ref(),
+        );
+        let backlink_list = gtk::ListBox::new();
+        backlink_list.set_widget_name("editor-backlinks-list");
+        backlink_list.set_selection_mode(gtk::SelectionMode::None);
+        backlink_list.set_valign(gtk::Align::Start);
+        backlink_list.add_css_class("boxed-list");
+        let backlinks_section = Section::new(
+            &pgettext("document sidebar", "Backlinks"),
+            "backlinks",
+            &gettext("No backlinks yet"),
+            &gettext("Notes that link here will appear in this list."),
+            None,
+            backlink_list.upcast_ref(),
+        );
         root.append(&outline_section.root);
         root.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         root.append(&media.root);
+        root.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+        root.append(&linked_section.root);
+        root.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+        root.append(&backlinks_section.root);
         content.set_hexpand(true);
         content.set_vexpand(true);
         let split = adw::OverlaySplitView::new();
@@ -104,8 +146,13 @@ impl DocumentSidebar {
             outline_section,
             media_list,
             media,
+            linked_list,
+            linked_section,
+            backlink_list,
+            backlinks_section,
             thumbnails: RefCell::default(),
             rendered_media_files: RefCell::default(),
+            rendered_links: RefCell::default(),
             rendered_document: RefCell::default(),
         }
     }
@@ -150,6 +197,35 @@ impl DocumentSidebar {
                 .replace(document.media_files.clone());
         }
         self.rendered_document.replace(Some(identity));
+        let ready_links = match &document.links.state {
+            crate::mvu::LoadState::Ready(links) => Some(links.clone()),
+            _ => None,
+        };
+        if *self.rendered_links.borrow() != ready_links {
+            links::render_note_list(
+                &self.linked_list,
+                ready_links.as_ref().map(|links| links.outgoing.as_slice()),
+                "editor-linked-note",
+                dispatcher,
+            );
+            links::render_note_list(
+                &self.backlink_list,
+                ready_links.as_ref().map(|links| links.backlinks.as_slice()),
+                "editor-backlink-note",
+                dispatcher,
+            );
+            self.rendered_links.replace(ready_links.clone());
+        }
+        self.linked_section.show_empty(
+            ready_links
+                .as_ref()
+                .is_none_or(|links| links.outgoing.is_empty()),
+        );
+        self.backlinks_section.show_empty(
+            ready_links
+                .as_ref()
+                .is_none_or(|links| links.backlinks.is_empty()),
+        );
         self.outline_section
             .show_empty(document.analysis.headings().is_empty());
         self.media.show_empty(document.analysis.media().is_empty());

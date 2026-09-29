@@ -11,9 +11,9 @@ pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
     CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
-    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteSummary, PropertyDescriptor,
-    PropertyKind, PropertyPath, PropertyType, Revision, SearchHit, TrashContents, TrashPurgeResult,
-    TrashedCategorySummary, TrashedNoteSummary, assess_import,
+    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary,
+    PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit,
+    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -515,6 +515,15 @@ impl<B: LibraryBackend> LibraryClient<B> {
             .await
     }
 
+    /// Loads a note's outgoing links and backlinks without blocking the caller.
+    pub async fn note_links_async(
+        &self,
+        note_id: NoteId,
+    ) -> Result<NoteLinks, LibraryError<B::Error>> {
+        self.request(move |backend| backend.note_links(note_id))
+            .await
+    }
+
     /// Stores a managed file asset without blocking the caller.
     pub async fn store_asset_async(
         &self,
@@ -754,6 +763,11 @@ impl<B: LibraryBackend> LibraryClient<B> {
     ) -> Result<Page<SearchHit>, LibraryError<B::Error>> {
         let query = query.to_owned();
         self.blocking(move |backend| backend.search(&query, category_id, page))
+    }
+
+    /// Loads a note's outgoing links and backlinks synchronously for bootstrap and tests.
+    pub fn note_links(&self, note_id: NoteId) -> Result<NoteLinks, LibraryError<B::Error>> {
+        self.blocking(move |backend| backend.note_links(note_id))
     }
 
     /// Searches one saved Base synchronously for bootstrap code and tests.

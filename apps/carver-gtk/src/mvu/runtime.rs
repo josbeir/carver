@@ -295,16 +295,25 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::ShowDocumentProperties { .. }
             | Effect::ShowEditorExportWarning { .. }
             | Effect::UpdateBaseConfigurationPreview { .. }
+            | Effect::ShowLinkDialog { .. }
             | Effect::ExportEditorPdf { .. }) => self.run_editor_effect(effect),
             effect @ (Effect::PrepareEditorExport { .. }
             | Effect::WriteEditorExport { .. }
             | Effect::DiscardEditorExport { .. }) => self.run_editor_export_effect(effect),
+            Effect::ScheduleLinkSearch { timer_id } => self.schedule_link_search(timer_id),
+            Effect::SearchLinkCandidates { request_id, query } => {
+                self.search_link_candidates(request_id, query);
+            }
             Effect::LoadMediaFile {
                 session,
                 note_id,
                 path,
                 image,
             } => self.load_media_file(session, note_id, path, image),
+            Effect::LoadNoteLinks {
+                request_id,
+                note_id,
+            } => self.load_note_links(request_id, note_id),
             Effect::PrepareMediaPreview {
                 session,
                 note_id,
@@ -535,6 +544,39 @@ impl<B: LibraryBackend> AppRuntime<B> {
         glib::spawn_future_local(async move {
             glib::timeout_future(std::time::Duration::from_millis(250)).await;
             runtime.dispatch(AppMsg::Bases(super::BasesMsg::SearchTimerFired(timer_id)));
+        });
+    }
+
+    fn schedule_link_search(&self, timer_id: super::TimerId) {
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(std::time::Duration::from_millis(250)).await;
+            runtime.dispatch(AppMsg::Editor(super::EditorMsg::LinkDialogSearchElapsed {
+                timer_id,
+            }));
+        });
+    }
+
+    fn search_link_candidates(&self, request_id: super::RequestId, query: String) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .search_async(
+                    query,
+                    None,
+                    PageRequest {
+                        limit: 20,
+                        offset: 0,
+                    },
+                )
+                .await
+                .map(|page| page.items.into_iter().map(|hit| hit.note).collect())
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::LinkCandidatesLoaded {
+                request_id,
+                result,
+            }));
         });
     }
 
@@ -1187,6 +1229,22 @@ impl<B: LibraryBackend> AppRuntime<B> {
         });
     }
 
+    fn load_note_links(&self, request_id: super::RequestId, note_id: carver_sdk::NoteId) {
+        let client = self.inner.client.clone();
+        let runtime = self.clone();
+        glib::spawn_future_local(async move {
+            let result = client
+                .note_links_async(note_id)
+                .await
+                .map_err(display_error);
+            runtime.dispatch(AppMsg::Library(LibraryReply::NoteLinksLoaded {
+                request_id,
+                note_id,
+                result,
+            }));
+        });
+    }
+
     fn store_editor_asset(
         &self,
         target: super::ImportTarget,
@@ -1246,6 +1304,14 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     }));
                     return;
                 }
+            };
+            let source = if matches!(
+                format,
+                carver_export::ExportFormat::Markdown | carver_export::ExportFormat::Html
+            ) {
+                resolve_portable_source(&client, &source).await
+            } else {
+                source
             };
             let result = if include_assets {
                 stage_portable_export(client, note_id, source, filename_stem, format, html_profile)
@@ -1556,6 +1622,28 @@ async fn stage_portable_export<B: LibraryBackend>(
 
 fn display_error(error: impl std::fmt::Display) -> UiError {
     UiError::new(error.to_string())
+}
+
+/// Replaces internal note-link destinations with portable targets for an export.
+///
+/// The export crate is deliberately library-blind, so the host resolves note titles here before
+/// handing source to it. Targets that no longer resolve fall back to their bare identifier, which
+/// keeps the `carver:` scheme out of the exported document.
+async fn resolve_portable_source<B: LibraryBackend>(
+    client: &LibraryClient<B>,
+    source: &str,
+) -> String {
+    let targets = carver_domain::extract_note_link_targets(source);
+    if targets.is_empty() {
+        return source.to_owned();
+    }
+    let mut replacements = std::collections::BTreeMap::new();
+    for target in targets {
+        if let Ok(Some(note)) = client.note_async(target).await {
+            replacements.insert(target, carver_export::sanitized_filename_stem(&note.title));
+        }
+    }
+    carver_domain::rewrite_note_link_destinations(source, &replacements)
 }
 
 #[cfg(test)]

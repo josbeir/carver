@@ -32,6 +32,7 @@ mod find;
 pub(crate) mod focus;
 mod frontmatter_source;
 mod html;
+pub(crate) mod link_dialog;
 mod media_preview;
 #[cfg(test)]
 pub(crate) use media_preview::tests::preview_service_should_receive_a_copy_and_support_portal_export;
@@ -630,9 +631,19 @@ pub(crate) fn build_editor(
     );
     let remote_images = Rc::new(Cell::new(allow_remote_images));
     refresh_rich_theme(&rich);
-    let split_preview = build_preview(assets_dir.as_deref(), &asset_scope, toast_overlay);
+    let split_preview = build_preview(
+        assets_dir.as_deref(),
+        &asset_scope,
+        toast_overlay,
+        dispatcher,
+    );
     split_preview.set_widget_name("source-split-preview");
-    let rendered_preview = build_preview(assets_dir.as_deref(), &asset_scope, toast_overlay);
+    let rendered_preview = build_preview(
+        assets_dir.as_deref(),
+        &asset_scope,
+        toast_overlay,
+        dispatcher,
+    );
     rendered_preview.set_widget_name("editor-rendered-preview");
     let rendered_navigation = document_navigation::PreviewNavigation::new(
         &rendered_preview,
@@ -1690,7 +1701,7 @@ pub(crate) fn export_rendered_snapshot(
     let toast_overlay = adw::ToastOverlay::new();
     let asset_scope = preview::asset_scope();
     asset_scope.replace(Some(note_id));
-    let preview = build_preview(assets_dir, &asset_scope, &toast_overlay);
+    let preview = build_preview(assets_dir, &asset_scope, &toast_overlay, &dispatcher);
     let source = source.to_owned();
     let target_uri = target_uri.to_owned();
     let parent = parent.cloned();

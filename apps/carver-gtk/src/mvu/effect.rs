@@ -10,7 +10,7 @@ use carver_sdk::{
 use super::{
     ActionKey, EditorCopyRequest, EditorExportDialogRequest, EditorExportFormat,
     EditorExportWarningRequest, EditorPdfExportRequest, EditorPropertiesRequest, EditorSaveRequest,
-    EditorSessionId, FrontmatterEdit, RequestId, SourceImageTarget, TimerId,
+    EditorSessionId, FrontmatterEdit, LinkDialogOrigin, RequestId, SourceImageTarget, TimerId,
 };
 
 /// Work that the runtime performs after rendering an updated model.
@@ -169,6 +169,27 @@ pub enum Effect {
         /// Immutable protocol command accepted by the reducer.
         command: EditorCommand,
     },
+    /// Present the unified note-link dialog.
+    ShowLinkDialog {
+        /// Identity of the presented dialog session.
+        dialog_id: RequestId,
+        /// Editor lifetime that opened the dialog.
+        session: EditorSessionId,
+        /// Insert target and prefill.
+        origin: LinkDialogOrigin,
+    },
+    /// Wait before searching notes for the latest link-dialog query.
+    ScheduleLinkSearch {
+        /// Identity used to ignore a superseded debounce timer.
+        timer_id: TimerId,
+    },
+    /// Search notes for link-dialog candidates.
+    SearchLinkCandidates {
+        /// Identity for stale-completion protection.
+        request_id: RequestId,
+        /// Note-search input.
+        query: String,
+    },
     /// Reload the rich-text projection after an asynchronous source mutation.
     ReloadRichEditor {
         /// Active editor lifetime that owns the rich-text projection.
@@ -213,6 +234,13 @@ pub enum Effect {
         note_id: NoteId,
         /// Canonical asset path.
         path: String,
+    },
+    /// Load a note's outgoing internal links and backlinks.
+    LoadNoteLinks {
+        /// Identity for stale-completion protection and coalesced reloads.
+        request_id: RequestId,
+        /// Note whose link index is requested.
+        note_id: NoteId,
     },
     /// Focus a document occurrence through the active projection.
     FocusDocumentTarget {

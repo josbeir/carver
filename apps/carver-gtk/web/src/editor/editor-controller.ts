@@ -126,6 +126,7 @@ export class EditorController implements RichEditorApi {
         handleDOMEvents: {
           copy: (_view, event) => this.copySelection(event),
           paste: (view, event) => this.pasteText(view, event),
+          click: (_view, event) => this.openLink(event),
         },
         transformPasted: (slice, view, plain) =>
           this.pasteSanitizer.resolvePastedSlice(slice, plain, (source) => {
@@ -438,6 +439,23 @@ export class EditorController implements RichEditorApi {
 
   private send(event: EditorEvent): void {
     this.host?.postMessage(JSON.stringify(event));
+  }
+
+  /** Opens a link on modifier-click without letting the web view navigate. */
+  private openLink(event: Event): boolean {
+    const mouse = event as MouseEvent;
+    if (!mouse.metaKey && !mouse.ctrlKey) return false;
+    const target = mouse.target;
+    const anchor =
+      target instanceof Element
+        ? (target.closest('a') as HTMLAnchorElement | null)
+        : null;
+    const href = anchor?.getAttribute('href') ?? '';
+    if (!href) return false;
+    mouse.preventDefault();
+    mouse.stopPropagation();
+    this.send({ type: 'open-link', session: this.session, href });
+    return true;
   }
 
   private onUpdate(editor: RuntimeEditor): void {

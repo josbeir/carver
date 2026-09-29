@@ -437,19 +437,25 @@ fn media_details_should_load_once_and_ignore_replies_from_a_closed_document() {
     let session = document.session;
     let effects = update(&mut model, AppMsg::Editor(EditorMsg::ToggleDocumentSidebar));
     assert_eq!(
-        effects,
-        vec![
-            Effect::PersistConfig {
-                config: model.config.clone()
-            },
-            Effect::LoadMediaFile {
-                session,
-                note_id,
-                path: String::from("assets/a.png"),
-                image: true
-            },
-        ]
+        effects.first(),
+        Some(&Effect::PersistConfig {
+            config: model.config.clone()
+        })
     );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::LoadNoteLinks { .. }))
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::LoadMediaFile {
+            session: found_session,
+            note_id: found_note_id,
+            path,
+            image: true,
+        } if *found_session == session && *found_note_id == note_id && path == "assets/a.png"
+    )));
     let Some(document) = model.editor.as_ref() else {
         panic!("editor should exist");
     };

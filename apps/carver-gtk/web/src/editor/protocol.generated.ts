@@ -35,6 +35,17 @@ export type EditorEvent =
     }
   | {
       /**
+       * Activated link destination.
+       */
+      href: string;
+      /**
+       * Host document session.
+       */
+      session: number;
+      type: 'open-link';
+    }
+  | {
+      /**
        * Host document session.
        */
       session: number;

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-27 20:02+0200\n"
+"POT-Creation-Date: 2026-09-28 15:18+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -148,10 +148,12 @@ msgstr "Ascendente"
 #: apps/carver-gtk/src/ui/bases/actions.rs
 #: apps/carver-gtk/src/ui/bases/editing.rs
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
-#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -392,7 +394,8 @@ msgid "Selected"
 msgstr "Seleccionado"
 
 #: apps/carver-gtk/src/ui/bases/field_picker.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/property.rs
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+#: apps/carver-gtk/src/ui/property.rs
 msgid "Text"
 msgstr "Texto"
 
@@ -1122,8 +1125,22 @@ msgid "Add headings to navigate your document."
 msgstr "Añade encabezados para navegar por tu documento."
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Backlinks"
+msgstr "Retroenlaces"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "Hide document sidebar"
 msgstr "Ocultar la barra lateral del documento"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Insert a link to another note to see it here."
+msgstr "Inserta un enlace a otra nota para verla aquí."
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgctxt "document sidebar"
+msgid "Linked notes"
+msgstr "Notas vinculadas"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1131,12 +1148,24 @@ msgid "Media"
 msgstr "Multimedia"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "No backlinks yet"
+msgstr "Aún no hay retroenlaces"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "No headings yet"
 msgstr "Aún no hay encabezados"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "No linked notes yet"
+msgstr "Aún no hay notas vinculadas"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgid "No media yet"
 msgstr "Aún no hay multimedia"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar.rs
+msgid "Notes that link here will appear in this list."
+msgstr "Las notas que enlacen aquí aparecerán en esta lista."
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 msgctxt "document sidebar"
@@ -1186,6 +1215,27 @@ msgid "{count} match"
 msgid_plural "{count} matches"
 msgstr[0] "{count} coincidencia"
 msgstr[1] "{count} coincidencias"
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Address"
+msgstr "Dirección"
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+#: apps/carver-gtk/src/ui/formatting.rs
+msgid "Insert"
+msgstr "Insertar"
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Insert Link"
+msgstr "Insertar enlace"
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Link"
+msgstr "Enlace"
+
+#: apps/carver-gtk/src/ui/editor/link_dialog.rs
+msgid "Suggestions"
+msgstr "Sugerencias"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Add to Favorites"
@@ -1466,30 +1516,9 @@ msgstr "Estilo de texto"
 msgid "Underline (Ctrl+U)"
 msgstr "Subrayado (Ctrl+U)"
 
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Address"
-msgstr "Dirección"
-
 #: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
 msgstr "No se pudo leer la imagen pegada"
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Insert"
-msgstr "Insertar"
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Insert Link"
-msgstr "Insertar enlace"
-
-#: apps/carver-gtk/src/ui/editor/web.rs apps/carver-gtk/src/ui/formatting.rs
-msgid "Link text"
-msgstr "Texto del enlace"
-
-#: apps/carver-gtk/src/ui/editor/web.rs
-msgctxt "link dialog"
-msgid "Text"
-msgstr "Texto"
 
 #: apps/carver-gtk/src/ui/editor/web.rs
 #, rust-format

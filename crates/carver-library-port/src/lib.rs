@@ -9,8 +9,8 @@ use std::error::Error;
 
 use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
-    CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteSummary, PropertyDescriptor,
-    PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteLinks, NoteSummary,
+    PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -231,6 +231,8 @@ pub trait LibraryBackend: Send + 'static {
         category_id: Option<CategoryId>,
         page: PageRequest,
     ) -> Result<Page<SearchHit>, Self::Error>;
+    /// Loads a note's outgoing internal links and backlinks.
+    fn note_links(&self, note_id: NoteId) -> Result<NoteLinks, Self::Error>;
     /// Stores note-owned managed file bytes and returns their relative Carve path.
     ///
     /// The bytes are written under the note's private asset directory, while the returned

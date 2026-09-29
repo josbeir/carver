@@ -315,6 +315,10 @@ impl LibraryBackend for TestBackend {
         Self::unsupported()
     }
 
+    fn note_links(&self, _note_id: NoteId) -> Result<NoteLinks, Self::Error> {
+        Self::unsupported()
+    }
+
     fn search_base_rows(
         &self,
         _base_id: BaseId,

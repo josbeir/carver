@@ -20,9 +20,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Navigation(NavigationMsg::SelectCategory(category_id)) => {
             select_category(model, category_id)
         }
-        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => {
-            request_editor_load(model, note_id, false)
-        }
+        AppMsg::Navigation(NavigationMsg::OpenNote(note_id)) => open_note(model, note_id),
         AppMsg::Navigation(NavigationMsg::ExportNote(note_id)) => {
             request_editor_load(model, note_id, true)
         }
@@ -437,6 +435,20 @@ fn request_editor_load(
     }]
 }
 
+/// Opens a note, closing a dirty editor first so its edits are saved before the switch.
+fn open_note(model: &mut AppModel, note_id: carver_sdk::NoteId) -> Vec<Effect> {
+    if model.route == super::Route::Editor && model.editor.is_some() {
+        model.pending_navigation = Some(PendingNavigation::Note(note_id));
+        let effects = request_editor_close(model);
+        return if model.editor.is_none() {
+            complete_pending_navigation(model)
+        } else {
+            effects
+        };
+    }
+    request_editor_load(model, note_id, false)
+}
+
 fn select_category(
     model: &mut AppModel,
     category_id: Option<carver_sdk::CategoryId>,
@@ -466,6 +478,7 @@ fn complete_pending_navigation(model: &mut AppModel) -> Vec<Effect> {
             reload_browser(model).into_iter().collect()
         }
         PendingNavigation::Base(base_id) => open_base(model, base_id),
+        PendingNavigation::Note(note_id) => request_editor_load(model, note_id, false),
     }
 }
 
@@ -752,6 +765,20 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             update_source_command(model, command, selection)
         }
         EditorMsg::ApplyRichCommand(command) => update_rich_command(model, command),
+        EditorMsg::LinkDialogRequested { origin } => open_link_dialog(model, origin),
+        EditorMsg::LinkDialogQueryChanged(query) => update_link_dialog_query(model, query),
+        EditorMsg::LinkDialogSearchElapsed { timer_id } => {
+            update_link_dialog_search(model, timer_id)
+        }
+        EditorMsg::LinkDialogConfirmed {
+            dialog_id,
+            text,
+            destination,
+        } => confirm_link_dialog(model, dialog_id, &text, &destination),
+        EditorMsg::LinkDialogDismissed(dialog_id) => {
+            dismiss_link_dialog(model, dialog_id);
+            Vec::new()
+        }
         EditorMsg::PreviewElapsed { session, timer_id }
             if model.preview_timer == Some((session, timer_id)) =>
         {
@@ -1017,12 +1044,18 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             Vec::new()
         }
         EditorMsg::ToggleDocumentSidebar => {
-            if let Some(document) = model.editor.as_mut() {
+            let visible = if let Some(document) = model.editor.as_mut() {
                 document.document_sidebar = document.document_sidebar.toggled();
                 model.config.editor.show_document_sidebar = document.document_sidebar.is_visible();
-                return persist_config_effect(model);
+                document.document_sidebar.is_visible()
+            } else {
+                return Vec::new();
+            };
+            let mut effects = persist_config_effect(model);
+            if visible {
+                effects.extend(reload_note_links(model));
             }
-            Vec::new()
+            effects
         }
         EditorMsg::FocusDocumentTarget {
             session,
@@ -1101,6 +1134,127 @@ fn update_editor_load(
     Vec::new()
 }
 
+/// Opens the unified link dialog for the active editor and presents it.
+fn open_link_dialog(model: &mut AppModel, origin: super::LinkDialogOrigin) -> Vec<Effect> {
+    let Some(session) = model.editor.as_ref().map(|document| document.session) else {
+        return Vec::new();
+    };
+    let dialog_id = model.next_request_id();
+    model.editor_link_dialog = Some(super::EditorLinkDialog {
+        dialog_id,
+        session,
+        origin: origin.clone(),
+        query: String::new(),
+        search_timer: None,
+        candidates: super::Resource::default(),
+    });
+    vec![Effect::ShowLinkDialog {
+        dialog_id,
+        session,
+        origin,
+    }]
+}
+
+/// Records a new link-dialog query and debounces its note search.
+fn update_link_dialog_query(model: &mut AppModel, query: String) -> Vec<Effect> {
+    if model.editor_link_dialog.is_none() {
+        return Vec::new();
+    }
+    let timer_id = model.next_timer_id();
+    if let Some(dialog) = model.editor_link_dialog.as_mut() {
+        dialog.query = query;
+        dialog.search_timer = Some(timer_id);
+    }
+    vec![Effect::ScheduleLinkSearch { timer_id }]
+}
+
+/// Starts or coalesces a note search for the dialog's current query.
+fn search_link_candidates(model: &mut AppModel) -> Vec<Effect> {
+    let request_id = model.next_request_id();
+    let Some(dialog) = model.editor_link_dialog.as_mut() else {
+        return Vec::new();
+    };
+    let query = dialog.query.clone();
+    if query.trim().is_empty() {
+        dialog.candidates = super::Resource::default();
+        return Vec::new();
+    }
+    if dialog.candidates.begin_reload(request_id) {
+        vec![Effect::SearchLinkCandidates { request_id, query }]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Runs the debounced note search when its timer is still current.
+fn update_link_dialog_search(model: &mut AppModel, timer_id: super::TimerId) -> Vec<Effect> {
+    let current = model
+        .editor_link_dialog
+        .as_ref()
+        .is_some_and(|dialog| dialog.search_timer == Some(timer_id));
+    if !current {
+        return Vec::new();
+    }
+    if let Some(dialog) = model.editor_link_dialog.as_mut() {
+        dialog.search_timer = None;
+    }
+    search_link_candidates(model)
+}
+
+/// Applies a confirmed link dialog edit through the originating editor surface.
+fn confirm_link_dialog(
+    model: &mut AppModel,
+    dialog_id: super::RequestId,
+    text: &str,
+    destination: &str,
+) -> Vec<Effect> {
+    let Some(dialog) = model
+        .editor_link_dialog
+        .as_ref()
+        .filter(|dialog| dialog.dialog_id == dialog_id)
+    else {
+        return Vec::new();
+    };
+    let origin = dialog.origin.clone();
+    model.editor_link_dialog = None;
+    let text = text.trim();
+    let destination = destination.trim();
+    if text.is_empty() || destination.is_empty() {
+        return Vec::new();
+    }
+    match origin {
+        super::LinkDialogOrigin::Rich { .. } => {
+            vec![Effect::ApplyRichEditorCommand {
+                command: carver_editor_protocol::EditorCommand::InsertLink(
+                    carver_editor_protocol::LinkCommand {
+                        text: text.to_owned(),
+                        destination: destination.to_owned(),
+                    },
+                ),
+            }]
+        }
+        super::LinkDialogOrigin::Source { selection, .. } => update_source_command(
+            model,
+            super::SourceCommand::InsertLink {
+                text: text.to_owned(),
+                destination: destination.to_owned(),
+            },
+            selection,
+        ),
+    }
+}
+
+/// Clears the active link dialog if it is the one being dismissed.
+fn dismiss_link_dialog(model: &mut AppModel, dialog_id: super::RequestId) {
+    if model
+        .editor_link_dialog
+        .as_ref()
+        .is_some_and(|dialog| dialog.dialog_id == dialog_id)
+    {
+        model.editor_link_dialog = None;
+    }
+}
+
 fn update_source_command(
     model: &mut AppModel,
     command: super::SourceCommand,
@@ -1173,6 +1327,7 @@ fn close_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> Vec
     model.editor_export_warning_request = None;
     model.editor_export_progress = None;
     model.editor_pdf_export_request = None;
+    model.editor_link_dialog = None;
     model.preview_timer = None;
     model.editor_load_request = None;
     model.editor_export_after_load = None;
@@ -1373,6 +1528,7 @@ fn open_editor(
     model.editor_export_warning_request = None;
     model.editor_export_progress = None;
     model.editor_pdf_export_request = None;
+    model.editor_link_dialog = None;
     model.preview_timer = None;
     session
 }
@@ -1922,6 +2078,22 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         LibraryReply::EditorLoaded { request_id, result } => {
             update_editor_loaded(model, request_id, result)
         }
+        LibraryReply::NoteLinksLoaded {
+            request_id,
+            note_id,
+            result,
+        } => update_note_links_loaded(model, request_id, note_id, result),
+        LibraryReply::LinkCandidatesLoaded { request_id, result } => {
+            let reload = model
+                .editor_link_dialog
+                .as_mut()
+                .is_some_and(|dialog| dialog.candidates.finish(request_id, result));
+            if reload {
+                search_link_candidates(model)
+            } else {
+                Vec::new()
+            }
+        }
         LibraryReply::EditorAssetStored {
             image,
             session,
@@ -2418,17 +2590,51 @@ fn update_editor_loaded(
                 note.source,
             );
             model.route = super::Route::Editor;
-            if export_after_load {
+            let mut effects = if export_after_load {
                 request_editor_export_dialog(model)
             } else {
                 vec![Effect::FocusEditor { session }]
-            }
+            };
+            effects.extend(reload_note_links(model));
+            effects
         }
         Err(error) => {
             model.set_notice(error);
             Vec::new()
         }
     }
+}
+
+fn update_note_links_loaded(
+    model: &mut AppModel,
+    request_id: super::RequestId,
+    note_id: carver_sdk::NoteId,
+    result: Result<carver_sdk::NoteLinks, UiError>,
+) -> Vec<Effect> {
+    let reload = model
+        .editor
+        .as_mut()
+        .filter(|document| document.note_id == note_id)
+        .is_some_and(|document| document.links.finish(request_id, result));
+    if reload {
+        reload_note_links(model).into_iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Requests the active note's link index, coalescing reloads while one is in flight.
+fn reload_note_links(model: &mut AppModel) -> Option<Effect> {
+    let note_id = model.editor.as_ref()?.note_id;
+    let request_id = model.next_request_id();
+    let document = model.editor.as_mut()?;
+    document
+        .links
+        .begin_reload(request_id)
+        .then_some(Effect::LoadNoteLinks {
+            request_id,
+            note_id,
+        })
 }
 
 fn update_editor_export_prepared(
@@ -2756,6 +2962,9 @@ fn update_editor_save(
         } else {
             effects.extend(pending_effects);
         }
+    }
+    if !close_requested {
+        effects.extend(reload_note_links(model));
     }
     effects.extend(request_library_revision(
         model,

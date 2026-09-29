@@ -1,6 +1,6 @@
 //! SQLite schema versioning and data migrations for the managed library.
 
-use carver_domain::{derive_content, project_frontmatter};
+use carver_domain::{derive_content, extract_note_link_targets, project_frontmatter};
 use rusqlite::{Connection, Transaction, params};
 use rusqlite_migration::{M, Migrations};
 
@@ -100,6 +100,20 @@ const ASSET_OWNERSHIP_SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS assets_note_idx ON assets(note_id);
 ";
 
+/// Indexes internal note-to-note links so outgoing links and backlinks can be queried.
+///
+/// The table is rebuilt per note whenever its source changes. Rows are scoped to their owning
+/// note and cascade when a note is permanently removed, so the in-app trash keeps backlinks
+/// intact until a hard delete.
+const NOTE_LINKS_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS note_links (
+        source_note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        target_note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        PRIMARY KEY(source_note_id, target_note_id)
+    );
+    CREATE INDEX IF NOT EXISTS note_links_target_idx ON note_links(target_note_id);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up_with_hook(INITIAL_SCHEMA, migrate_category_appearance_columns),
@@ -107,7 +121,30 @@ fn migrations() -> Migrations<'static> {
         M::up_with_hook("", migrate_bases),
         M::up_with_hook("", migrate_derived_titles),
         M::up(ASSET_OWNERSHIP_SCHEMA),
+        M::up_with_hook(NOTE_LINKS_SCHEMA, migrate_note_links),
     ])
+}
+
+fn migrate_note_links(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("SELECT id, source FROM notes")?;
+    let notes = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+
+    for (id, source) in notes {
+        for target in extract_note_link_targets(&source) {
+            // Skip dangling targets; the foreign key would otherwise abort the migration.
+            transaction.execute(
+                "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id)
+                 SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?2)",
+                params![id, target.to_string()],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn migrate_derived_titles(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {

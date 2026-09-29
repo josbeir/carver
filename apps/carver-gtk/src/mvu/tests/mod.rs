@@ -28,6 +28,7 @@ mod editor_refresh;
 mod editor_save;
 mod export_failures;
 mod favorites;
+mod link_dialog;
 mod mutations;
 mod preferences;
 mod runtime;
