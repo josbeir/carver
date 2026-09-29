@@ -1,0 +1,220 @@
+---
+import type { BaseViewSlide } from '../data/screenshots';
+import ThemedScreenshot from './ThemedScreenshot.astro';
+
+interface Props {
+  slides: BaseViewSlide[];
+  /** Accessible name for the carousel region. */
+  label: string;
+  /** Responsive sizes hint handed to each screenshot. */
+  sizes?: string;
+}
+
+const {
+  slides,
+  label,
+  sizes = '(min-width: 1152px) 744px, (min-width: 1024px) 65vw, calc(100vw - 32px)',
+} = Astro.props;
+---
+
+<div class="carousel" data-carousel role="group" aria-roledescription="carousel" aria-label={label}>
+  <div class="carousel__track" data-carousel-track tabindex="0" aria-label={`${label} screenshots`}>
+    {slides.map((slide, index) => (
+      <div
+        class="carousel__slide"
+        data-carousel-slide
+        role="group"
+        aria-roledescription="slide"
+        aria-label={`${index + 1} of ${slides.length}: ${slide.label}`}
+      >
+        <ThemedScreenshot
+          shot={{ ...slide.shot, caption: slide.label }}
+          shadow="subtle"
+          sizes={sizes}
+        />
+      </div>
+    ))}
+  </div>
+
+  {slides.length > 1 && (
+    <div class="carousel__controls">
+      <button
+        type="button"
+        class="carousel__button"
+        data-carousel-prev
+        aria-label={`Previous: ${label}`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <div class="carousel__dots">
+        {slides.map((slide) => (
+          <button
+            type="button"
+            class="carousel__dot"
+            data-carousel-dot
+            aria-label={`Show: ${slide.label}`}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        class="carousel__button"
+        data-carousel-next
+        aria-label={`Next: ${label}`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+    </div>
+  )}
+</div>
+
+<script>
+  document.querySelectorAll('[data-carousel]').forEach((carousel) => {
+    const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
+    if (!track) return;
+    const slides = [...track.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    const prev = carousel.querySelector<HTMLButtonElement>('[data-carousel-prev]');
+    const next = carousel.querySelector<HTMLButtonElement>('[data-carousel-next]');
+    const dots = [...carousel.querySelectorAll<HTMLButtonElement>('[data-carousel-dot]')];
+
+    const activeIndex = (): number => {
+      const center = track.scrollLeft + track.clientWidth / 2;
+      let closest = 0;
+      let distance = Infinity;
+      slides.forEach((slide, index) => {
+        const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+        const diff = Math.abs(slideCenter - center);
+        if (diff < distance) {
+          distance = diff;
+          closest = index;
+        }
+      });
+      return closest;
+    };
+
+    const update = () => {
+      const index = activeIndex();
+      dots.forEach((dot, dotIndex) => {
+        if (dotIndex === index) {
+          dot.setAttribute('aria-current', 'true');
+        } else {
+          dot.removeAttribute('aria-current');
+        }
+      });
+      if (prev) prev.disabled = track.scrollLeft <= 1;
+      if (next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+    };
+
+    const goTo = (index: number) => {
+      const slide = slides[index];
+      if (slide) track.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+    };
+
+    prev?.addEventListener('click', () => goTo(activeIndex() - 1));
+    next?.addEventListener('click', () => goTo(activeIndex() + 1));
+    dots.forEach((dot, index) => dot.addEventListener('click', () => goTo(index)));
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+</script>
+
+<style>
+  .carousel__track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    /* Keep the focus ring inside the rounded screenshots. */
+    border-radius: 0.75rem;
+  }
+  .carousel__track::-webkit-scrollbar {
+    display: none;
+  }
+  .carousel__slide {
+    flex: 0 0 100%;
+    min-width: 100%;
+    scroll-snap-align: center;
+  }
+  .carousel__controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .carousel__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in oklab, currentColor 20%, transparent);
+    border-radius: 9999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      opacity 120ms ease;
+  }
+  .carousel__button:hover:not(:disabled) {
+    background: color-mix(in oklab, currentColor 10%, transparent);
+  }
+  .carousel__button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .carousel__button svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  .carousel__dots {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .carousel__dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.25;
+    cursor: pointer;
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+  .carousel__dot[aria-current='true'] {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .carousel__track {
+      scroll-behavior: auto;
+    }
+  }
+</style>

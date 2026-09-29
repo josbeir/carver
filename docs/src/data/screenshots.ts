@@ -2,6 +2,10 @@ import type { ImageMetadata } from 'astro';
 
 import agentDark from '../assets/screenshots/agent-dark.png';
 import agentLight from '../assets/screenshots/agent-light.png';
+import baseConfigDark from '../assets/screenshots/base-config-dark.png';
+import baseConfigLight from '../assets/screenshots/base-config-light.png';
+import baseListDark from '../assets/screenshots/base-list-dark.png';
+import baseListLight from '../assets/screenshots/base-list-light.png';
 import basesDark from '../assets/screenshots/bases-dark.png';
 import basesLight from '../assets/screenshots/bases-light.png';
 import editorDark from '../assets/screenshots/editor-dark.png';
@@ -86,3 +90,40 @@ export const shots: Partial<Record<ShotName, Shot>> = {
     dark: settingsDark,
   },
 };
+
+/** One labelled slide in the Properties & Bases carousel. */
+export interface BaseViewSlide {
+  label: string;
+  shot: Shot;
+}
+
+/**
+ * The Base workflow shown in the Properties & Bases section: build a saved
+ * view, choose how it presents notes, then switch between the grid and list.
+ */
+export const baseViewSlides: BaseViewSlide[] = [
+  {
+    label: 'A saved Base built from your frontmatter properties',
+    shot: {
+      alt: 'A saved Base with text, boolean, and date columns',
+      light: basesLight,
+      dark: basesDark,
+    },
+  },
+  {
+    label: 'Choose columns, filters, sort rules, and how notes are shown',
+    shot: {
+      alt: "A Base's configuration form with its visible fields and view options",
+      light: baseConfigLight,
+      dark: baseConfigDark,
+    },
+  },
+  {
+    label: 'Switch to a notes list to browse the same rows as cards',
+    shot: {
+      alt: 'A Base shown as a scrollable list of note cards',
+      light: baseListLight,
+      dark: baseListDark,
+    },
+  },
+];

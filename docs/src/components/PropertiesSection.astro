@@ -1,6 +1,6 @@
 ---
-import ThemedScreenshot from './ThemedScreenshot.astro';
-import { shots } from '../data/screenshots';
+import ScreenshotCarousel from './ScreenshotCarousel.astro';
+import { baseViewSlides } from '../data/screenshots';
 
 const source = `---
 status: In progress
@@ -35,13 +35,7 @@ due: 2026-10-02
         </figcaption>
         <pre class="overflow-x-auto p-5 font-mono text-sm/7 text-base-content/85"><code>{source}</code></pre>
       </figure>
-      {shots.bases && (
-        <ThemedScreenshot
-          shot={shots.bases}
-          shadow="subtle"
-          sizes="(min-width: 1152px) 744px, (min-width: 1024px) 65vw, calc(100vw - 32px)"
-        />
-      )}
+      <ScreenshotCarousel slides={baseViewSlides} label="Base views" />
     </div>
 
     <div class="mt-8 grid gap-6 md:grid-cols-3">

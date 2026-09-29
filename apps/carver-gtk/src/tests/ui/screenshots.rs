@@ -231,7 +231,10 @@ struct Showcase {
     review: carver_sdk::NoteId,
     media: carver_sdk::NoteId,
     focus: carver_sdk::NoteId,
+    /// The saved Base captured in its grid view.
     base: carver_sdk::BaseId,
+    /// A second Base saved in its list view.
+    list_base: carver_sdk::BaseId,
 }
 
 /// A prose note for the distraction-free writing view.
@@ -321,11 +324,13 @@ fn seed_showcase(
         }
     }
 
+    let (base, list_base) = seed_bases(client)?;
     Ok(Showcase {
         review: review.id,
         media: seed_media_note(client, groups.notes)?,
         focus: seed_note(client, groups.notes, FOCUS_NOTE, 6)?.id,
-        base: seed_bases(client)?.id,
+        base: base.id,
+        list_base: list_base.id,
     })
 }
 
@@ -376,11 +381,11 @@ fn sample_png(base: u32, band: u32) -> Result<Vec<u8>, Box<dyn std::error::Error
     Ok(image.save_to_bufferv("png", &[])?)
 }
 
-/// Creates the saved Bases; the roadmap's text, boolean, and date columns are
-/// the ones the site shows.
+/// Creates the saved Bases the site shows: the roadmap's text, boolean, and date
+/// columns for the grid, and a Reading list saved in its list view.
 fn seed_bases(
     client: &TestLibraryClient,
-) -> Result<carver_sdk::BaseDefinition, Box<dyn std::error::Error>> {
+) -> Result<(carver_sdk::BaseDefinition, carver_sdk::BaseDefinition), Box<dyn std::error::Error>> {
     let roadmap = glib::MainContext::default().block_on(client.create_base_async(
         "Roadmap".to_owned(),
         vec![
@@ -392,15 +397,25 @@ fn seed_bases(
             carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/due".to_owned())),
         ],
     ))?;
-    let _ = glib::MainContext::default().block_on(client.create_base_async(
-        "Reading list".to_owned(),
-        vec![
-            carver_sdk::BaseColumn::Name,
-            carver_sdk::BaseColumn::Category,
-            carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned())),
-        ],
-    ))?;
-    Ok(roadmap)
+    let reading =
+        glib::MainContext::default().block_on(client.create_base_with_configuration_async(
+            "Reading list".to_owned(),
+            vec![
+                carver_sdk::BaseColumn::Name,
+                carver_sdk::BaseColumn::Category,
+                carver_sdk::BaseColumn::Updated,
+                carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/done".to_owned())),
+                carver_sdk::BaseColumn::Property(carver_sdk::PropertyPath("/status".to_owned())),
+            ],
+            carver_sdk::BaseFilterMode::All,
+            Vec::new(),
+            vec![carver_sdk::BaseSort {
+                field: carver_sdk::BaseColumn::Updated,
+                direction: carver_sdk::BaseSortDirection::Descending,
+            }],
+            carver_sdk::BaseView::List,
+        ))?;
+    Ok((roadmap, reading))
 }
 
 /// Creates a category with an explicit icon and accent colour.
@@ -525,6 +540,20 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
         .is_some_and(|model| model.n_items() >= 8)));
     capture_theme_pair(fixture, directory, "bases")?;
 
+    // The Base configuration form over the same Base.
+    capture_base_configuration(fixture, directory)?;
+
+    // A second Base saved in its list view, showing the same rows as note cards.
+    assert!(sidebar_select(
+        &sidebar,
+        &format!("base-count:{}", showcase.list_base)
+    ));
+    let bases_list = widget_as::<gtk::ListView>(&root, "bases-list").ok_or("bases list")?;
+    assert!(run_main_context_until(|| bases_list
+        .model()
+        .is_some_and(|model| model.n_items() >= 8)));
+    capture_theme_pair(fixture, directory, "base-list")?;
+
     // Return to the notes browser so dialogs sit over a familiar surface.
     capture_dialogs(fixture, directory)?;
 
@@ -599,6 +628,33 @@ fn capture_focus(
     sidebar_toggle.set_active(true);
     assert!(run_main_context_until(|| !navigation.is_collapsed()));
     toolbar.set_visible(true);
+    Ok(())
+}
+
+/// The Base configuration form over the currently selected Base.
+fn capture_base_configuration(fixture: &WindowFixture, directory: &Path) -> TestResult {
+    let root = fixture.root()?;
+    let configure =
+        widget_as::<gtk::Button>(&root, "configure-base-button").ok_or("configure base button")?;
+    assert!(run_main_context_until(|| configure.is_mapped()));
+    configure.emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some()));
+    let dialog = fixture
+        .window
+        .visible_dialog()
+        .ok_or("configuration dialog")?;
+    assert!(run_main_context_until(|| {
+        widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-view-section").is_some()
+    }));
+    settle();
+    capture_theme_pair(fixture, directory, "base-config")?;
+    dialog.close();
+    let _ = run_main_context_until_for(Duration::from_millis(200), || {
+        fixture.window.visible_dialog().is_none()
+    });
     Ok(())
 }
 
