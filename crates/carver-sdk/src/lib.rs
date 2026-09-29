@@ -9,8 +9,8 @@ use carver_config::{AppPaths, ConfigError};
 pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty};
 pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
-    BaseSort, BaseSortDirection, Category, CategoryAppearance, CategoryColor, CategoryIcon,
-    CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
+    BaseSort, BaseSortDirection, BaseView, Category, CategoryAppearance, CategoryColor,
+    CategoryIcon, CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
     DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary,
     PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit,
     TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, assess_import,
@@ -263,9 +263,17 @@ impl<B: LibraryBackend> LibraryClient<B> {
         filter_mode: BaseFilterMode,
         filters: Vec<BaseFilter>,
         sorts: Vec<BaseSort>,
+        view: BaseView,
     ) -> Result<BaseDefinition, LibraryError<B::Error>> {
         self.request(move |backend| {
-            backend.create_base_with_configuration(&name, &columns, filter_mode, &filters, &sorts)
+            backend.create_base_with_configuration(
+                &name,
+                &columns,
+                filter_mode,
+                &filters,
+                &sorts,
+                view,
+            )
         })
         .await
     }
@@ -285,6 +293,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
         filter_mode: BaseFilterMode,
         filters: Vec<BaseFilter>,
         sorts: Vec<BaseSort>,
+        view: BaseView,
     ) -> Result<BaseDefinition, LibraryError<B::Error>> {
         self.request(move |backend| {
             backend.update_base(
@@ -295,6 +304,7 @@ impl<B: LibraryBackend> LibraryClient<B> {
                 filter_mode,
                 &filters,
                 &sorts,
+                view,
             )
         })
         .await

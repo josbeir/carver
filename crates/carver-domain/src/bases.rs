@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::frontmatter::{FrontmatterValue, is_reserved_key, unescape_pointer_segment};
 use crate::properties::PropertyType;
-use crate::{NoteId, Revision};
+use crate::{CategoryId, NoteId, Revision};
 
 /// A stable saved-base identifier.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -111,6 +111,18 @@ impl PropertyDescriptor {
             _ => {}
         }
     }
+}
+
+/// How a saved Base presents its rows.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "kebab-case")]
+pub enum BaseView {
+    /// An editable column grid.
+    #[default]
+    Grid,
+    /// A read-only list of note cards.
+    List,
 }
 
 /// A column displayed by a saved base.
@@ -243,6 +255,9 @@ pub struct BaseDefinition {
     /// Ordered sort rules.
     #[serde(default)]
     pub sorts: Vec<BaseSort>,
+    /// How the GTK frontend presents the rows.
+    #[serde(default)]
+    pub view: BaseView,
     /// Optimistic concurrency token.
     pub revision: Revision,
     /// Number of active notes currently represented by this view.
@@ -266,6 +281,7 @@ impl BaseDefinition {
             filter_mode: BaseFilterMode::All,
             filters: Vec::new(),
             sorts: Vec::new(),
+            view: BaseView::Grid,
             revision,
             row_count: 0,
         }
@@ -284,6 +300,12 @@ pub struct BaseRow {
     pub name: String,
     /// Owning category name.
     pub category: String,
+    /// Owning category identity, used to resolve its accent color.
+    #[serde(default)]
+    pub category_id: CategoryId,
+    /// Short plaintext excerpt used by the list presentation.
+    #[serde(default)]
+    pub excerpt: String,
     /// RFC 3339 update time.
     pub updated: String,
     /// Extracted property document, or null for notes without supported frontmatter.
@@ -702,6 +724,9 @@ mod tests {
                 category: String::new(),
                 updated: String::new(),
                 properties,
+
+                category_id: CategoryId::default(),
+                excerpt: String::new(),
             })
             .collect();
             let sorted = project_base_rows(
@@ -757,6 +782,9 @@ mod tests {
             category: String::new(),
             updated: String::new(),
             properties: Value::Null,
+
+            category_id: CategoryId::default(),
+            excerpt: String::new(),
         };
         for (operator, text) in [
             (BaseFilterOperator::Equals, "e\u{301}TAT STRASSE ς"),
@@ -975,6 +1003,39 @@ mod tests {
     }
 
     #[test]
+    fn base_view_should_default_to_grid_and_decode_legacy_definitions() {
+        let definition = BaseDefinition::defaults(
+            BaseId::new(),
+            "All".to_owned(),
+            vec![BaseColumn::Name],
+            Revision(1),
+        );
+        assert_eq!(definition.view, BaseView::Grid);
+
+        let encoded = serde_json::to_value(&definition).unwrap_or_default();
+        assert_eq!(encoded["view"], serde_json::json!("grid"));
+        let decoded: BaseDefinition =
+            serde_json::from_value(encoded.clone()).unwrap_or_else(|error| panic!("{error}"));
+        assert_eq!(decoded.view, BaseView::Grid);
+
+        // A definition persisted before `view` existed still decodes as the grid.
+        let mut legacy = encoded;
+        if let Some(object) = legacy.as_object_mut() {
+            object.remove("view");
+        }
+        let decoded: BaseDefinition =
+            serde_json::from_value(legacy).unwrap_or_else(|error| panic!("{error}"));
+        assert_eq!(decoded.view, BaseView::Grid);
+
+        let list = BaseDefinition {
+            view: BaseView::List,
+            ..definition
+        };
+        let encoded = serde_json::to_value(&list).unwrap_or_default();
+        assert_eq!(encoded["view"], serde_json::json!("list"));
+    }
+
+    #[test]
     fn base_id_should_round_trip_its_uuid_and_display() {
         let id = BaseId::default();
         assert_eq!(BaseId::from_uuid(id.as_uuid()), id);
@@ -990,6 +1051,9 @@ mod tests {
             category: "Work".to_owned(),
             updated: format!("2026-01-0{id}T00:00:00Z"),
             properties: serde_json::json!({"priority": priority, "tags": tags}),
+
+            category_id: CategoryId::default(),
+            excerpt: String::new(),
         };
         let rows = project_base_rows(
             vec![
@@ -1020,6 +1084,9 @@ mod tests {
             category: "Work".to_owned(),
             updated: String::new(),
             properties: Value::Null,
+
+            category_id: CategoryId::default(),
+            excerpt: String::new(),
         };
         assert!(base_row_matches(&row, BaseFilterMode::Any, &[]));
     }
@@ -1036,6 +1103,9 @@ mod tests {
             category: String::new(),
             updated: String::new(),
             properties,
+
+            category_id: CategoryId::default(),
+            excerpt: String::new(),
         }
     }
 

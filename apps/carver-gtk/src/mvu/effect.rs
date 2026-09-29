@@ -3,8 +3,8 @@
 use carver_config::{Config, DocumentProperty};
 use carver_editor_protocol::EditorCommand;
 use carver_sdk::{
-    BaseColumn, BaseFilter, BaseFilterMode, BaseId, BaseSort, CategoryAppearance, CategoryId,
-    DocumentImportFormat, NoteId, Revision,
+    BaseColumn, BaseFilter, BaseFilterMode, BaseId, BaseSort, BaseView, CategoryAppearance,
+    CategoryId, DocumentImportFormat, NoteId, Revision,
 };
 
 use super::{
@@ -118,6 +118,8 @@ pub enum Effect {
         filters: Vec<BaseFilter>,
         /// Ordered sort rules.
         sorts: Vec<BaseSort>,
+        /// How the Base presents its rows.
+        view: BaseView,
     },
     /// Save a complete Base configuration.
     UpdateBase {
@@ -135,6 +137,8 @@ pub enum Effect {
         filters: Vec<BaseFilter>,
         /// Ordered sort rules.
         sorts: Vec<BaseSort>,
+        /// How the Base presents its rows.
+        view: BaseView,
     },
     /// Read and store native files sequentially with a bounded per-file read.
     ImportEditorFiles {

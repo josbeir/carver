@@ -189,6 +189,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             filter_mode,
             filters,
             sorts,
+            view,
         } => {
             let name = name.trim().to_owned();
             if name.is_empty() {
@@ -205,6 +206,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                     filter_mode,
                     filters,
                     sorts,
+                    view,
                 }]
             }
         }
@@ -256,6 +258,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
             filter_mode,
             filters,
             sorts,
+            view,
         } => {
             let name = name.trim().to_owned();
             if name.is_empty() {
@@ -274,6 +277,7 @@ fn update_bases(model: &mut AppModel, message: BasesMsg) -> Vec<Effect> {
                     filter_mode,
                     filters,
                     sorts,
+                    view,
                 }]
             }
         }
@@ -1073,6 +1077,7 @@ fn save_base_sorts(model: &mut AppModel, sorts: Vec<carver_sdk::BaseSort>) -> Ve
             filter_mode: definition.filter_mode,
             filters: definition.filters,
             sorts,
+            view: definition.view,
         },
     )
 }

@@ -8,7 +8,7 @@ use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, RequestId, TabOrigin, TabsMsg}
 use carver_config::DocumentProperty;
 use carver_sdk::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseSort,
-    BaseSortDirection,
+    BaseSortDirection, BaseView,
 };
 use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
@@ -335,6 +335,15 @@ fn operator_combo(initial: Option<BaseFilterOperator>, id: u64) -> adw::ComboRow
         initial.unwrap_or(BaseFilterOperator::Equals),
     ));
     combo
+}
+
+/// Maps the native view selector position to the persisted presentation.
+fn base_view_from_selection(selected: u32) -> BaseView {
+    if selected == 1 {
+        BaseView::List
+    } else {
+        BaseView::Grid
+    }
 }
 
 fn selected_filter_mode(combo: &adw::ComboRow) -> BaseFilterMode {
@@ -766,6 +775,22 @@ pub(crate) fn build_base_configuration_form(
     name_group.add(&name);
     page.add(&name_group);
 
+    let view_group = adw::PreferencesGroup::new();
+    view_group.set_widget_name("base-view-section");
+    view_group.set_title(&gettext("View"));
+    view_group.set_description(Some(&gettext("Choose how this Base presents its notes.")));
+    let view = adw::ComboRow::new();
+    view.set_widget_name("base-view");
+    view.set_use_markup(false);
+    view.set_title(&gettext("Layout"));
+    view.set_model(Some(&gtk::StringList::new(&[
+        gettext("Grid").as_str(),
+        gettext("Notes list").as_str(),
+    ])));
+    view.set_selected(u32::from(matches!(definition.view, BaseView::List)));
+    view_group.add(&view);
+    page.add(&view_group);
+
     let catalog = FieldCatalog::new(definition, property_descriptors, default_properties);
     let selected_columns = Rc::new(RefCell::new(visible_columns(definition)));
     let visible_group = adw::PreferencesGroup::new();
@@ -999,6 +1024,7 @@ pub(crate) fn build_base_configuration_form(
         let page = page.clone();
         let dispatcher = dispatcher.clone();
         let name_for_save = name.clone();
+        let view_for_save = view.clone();
         save.connect_clicked(move |save| {
             if !save.is_sensitive() {
                 return;
@@ -1008,6 +1034,7 @@ pub(crate) fn build_base_configuration_form(
             let columns = selected_columns.borrow().clone();
             let filters = selected_filters(&filter_widgets.borrow());
             let sorts = selected_sorts(&sort_widgets.borrow());
+            let view = base_view_from_selection(view_for_save.selected());
             let message = match mode {
                 BaseConfigurationMode::Create => BasesMsg::CreateConfigured {
                     name: name_for_save.text().to_string(),
@@ -1015,6 +1042,7 @@ pub(crate) fn build_base_configuration_form(
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
+                    view,
                 },
                 BaseConfigurationMode::Update { base_id, revision } => BasesMsg::Update {
                     base_id,
@@ -1024,6 +1052,7 @@ pub(crate) fn build_base_configuration_form(
                     filter_mode: selected_filter_mode(&filter_mode),
                     filters,
                     sorts,
+                    view,
                 },
             };
             let _ = dispatcher.dispatch(AppMsg::Bases(message));

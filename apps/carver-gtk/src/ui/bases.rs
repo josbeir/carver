@@ -8,20 +8,30 @@ use std::rc::Rc;
 use carver_config::DocumentProperty;
 use carver_domain::{FrontmatterValue, PropertyDescriptor};
 use carver_sdk::{
-    BaseColumn, BaseDefinition, BaseRow, BaseSort, BaseSortDirection, NoteId, Revision,
+    BaseColumn, BaseDefinition, BaseRow, BaseSort, BaseSortDirection, BaseView, CategoryColor,
+    CategorySummary, NoteId, Revision,
 };
 use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use self::editing::{
     CellEdit, CellEditor, build_boolean_cell, build_select_cell, resolve_editor, seed_value,
     select_index, select_labels, select_value, show_cell_editor,
 };
-use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, NavigationMsg};
+use crate::mvu::{AppDispatcher, AppMsg, BasesMsg, LoadState, NavigationMsg};
 use crate::ui::property::{DatePicker, display_date};
 use crate::ui::search::{build_search_controls, connect_search_controls, install_search_shortcut};
 use crate::ui::sidebar::{CompactNavigation, back_to_notes_button, sidebar_toggle_button};
+
+/// Categories and note metadata shared by the Base list rows during a bind.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct BaseListContext {
+    /// Active categories, used to resolve a row's category accent color.
+    pub(crate) sidebar: LoadState<Vec<CategorySummary>>,
+}
 
 /// Widgets needed to render the current saved base.
 pub(crate) struct BaseViewRefs {
@@ -41,6 +51,9 @@ pub(crate) struct BaseViewRefs {
     pub(crate) search_toggle: gtk::ToggleButton,
     pub(crate) last_search_open: std::cell::Cell<bool>,
     pub(crate) grid: gtk::ColumnView,
+    pub(crate) list: gtk::ListView,
+    pub(crate) display_stack: gtk::Stack,
+    pub(crate) list_context: std::rc::Rc<std::cell::RefCell<BaseListContext>>,
     pub(crate) pages: gtk::Stack,
     pub(crate) status: adw::StatusPage,
     pub(crate) load_more: gtk::Button,
@@ -124,6 +137,37 @@ pub(crate) fn build_base(
     scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
     scroll.set_vexpand(true);
     scroll.set_child(Some(&grid));
+
+    let list_context = std::rc::Rc::new(std::cell::RefCell::new(BaseListContext::default()));
+    let list = gtk::ListView::new(
+        Some(gtk::NoSelection::new(Some(rows.clone()))),
+        Some(base_list_factory(
+            dispatcher,
+            std::rc::Rc::clone(&list_context),
+        )),
+    );
+    list.set_widget_name("bases-list");
+    list.add_css_class("note-feed");
+    list.set_single_click_activate(true);
+    let list_clamp = adw::ClampScrollable::new();
+    list_clamp.set_widget_name("base-list-clamp");
+    list_clamp.set_maximum_size(720);
+    list_clamp.set_tightening_threshold(520);
+    list_clamp.set_child(Some(&list));
+    let list_scroll = gtk::ScrolledWindow::new();
+    list_scroll.set_widget_name("base-list-scroll");
+    list_scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    list_scroll.set_vexpand(true);
+    list_scroll.set_child(Some(&list_clamp));
+
+    let display_stack = gtk::Stack::new();
+    display_stack.set_widget_name("base-display-stack");
+    display_stack.set_hexpand(true);
+    display_stack.set_vexpand(true);
+    display_stack.add_named(&scroll, Some("grid"));
+    display_stack.add_named(&list_scroll, Some("list"));
+    display_stack.set_visible_child_name("grid");
+
     let status = adw::StatusPage::builder()
         .icon_name("view-grid-symbolic")
         .title(gettext("No matching notes"))
@@ -137,27 +181,35 @@ pub(crate) fn build_base(
     load_more.set_visible(false);
     let grid_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     grid_content.set_vexpand(true);
-    grid_content.append(&scroll);
+    grid_content.append(&display_stack);
     grid_content.append(&load_more);
     let pages = gtk::Stack::new();
     pages.set_widget_name("base-pages");
-    pages.add_named(&grid_content, Some("grid"));
+    pages.add_named(&grid_content, Some("contents"));
     pages.add_named(&status, Some("status"));
-    pages.set_visible_child_name("grid");
+    pages.set_visible_child_name("contents");
     toolbar.set_content(Some(&pages));
     let dispatcher_for_button = dispatcher.clone();
     load_more.connect_clicked(move |_| {
         let _ = dispatcher_for_button.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
     });
-    let dispatcher_for_scroll = dispatcher.clone();
-    scroll
-        .vadjustment()
-        .connect_value_changed(move |adjustment| {
-            let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
-            if remaining <= adjustment.page_size() * 2.0 {
-                let _ = dispatcher_for_scroll.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
-            }
-        });
+    connect_load_more_on_scroll(dispatcher, &scroll);
+    connect_load_more_on_scroll(dispatcher, &list_scroll);
+    let dispatcher_for_list = dispatcher.clone();
+    list.connect_activate(move |view, position| {
+        let Some(note_id) = view
+            .model()
+            .and_then(|model| model.item(position))
+            .and_downcast::<glib::BoxedAnyObject>()
+            .map(|object| object.borrow::<BaseRow>().note_id)
+        else {
+            return;
+        };
+        let _ = dispatcher_for_list.dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id,
+            intent: crate::mvu::NoteOpenIntent::Default,
+        }));
+    });
     connect_search_controls(
         dispatcher,
         &search,
@@ -184,6 +236,9 @@ pub(crate) fn build_base(
             search_toggle: search.toggle,
             last_search_open: std::cell::Cell::new(false),
             grid,
+            list,
+            display_stack,
+            list_context,
             pages,
             status,
             load_more,
@@ -194,6 +249,103 @@ pub(crate) fn build_base(
             rendered_rows: std::cell::RefCell::new(Vec::new()),
         },
     )
+}
+
+/// Advances the Base window when a scroll view nears its end.
+fn connect_load_more_on_scroll(dispatcher: &AppDispatcher, scroll: &gtk::ScrolledWindow) {
+    let dispatcher = dispatcher.clone();
+    scroll
+        .vadjustment()
+        .connect_value_changed(move |adjustment| {
+            let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
+            if remaining <= adjustment.page_size() * 2.0 {
+                let _ = dispatcher.dispatch(AppMsg::Bases(BasesMsg::LoadMoreRows));
+            }
+        });
+}
+
+/// Builds the read-only note list used when a Base selects the list view.
+fn base_list_factory(
+    dispatcher: &AppDispatcher,
+    context: std::rc::Rc<std::cell::RefCell<BaseListContext>>,
+) -> gtk::SignalListItemFactory {
+    let factory = gtk::SignalListItemFactory::new();
+    factory.connect_setup({
+        let dispatcher = dispatcher.clone();
+        move |_, item| {
+            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                return;
+            };
+            let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            item.set_child(Some(&card));
+            let weak_item = item.downgrade();
+            crate::ui::intent::connect_modified_note_open_with(&card, &dispatcher, move || {
+                base_list_note_id(&weak_item)
+            });
+        }
+    });
+    factory.connect_bind(move |_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+            return;
+        };
+        let Some(card) = item.child().and_downcast::<gtk::Box>() else {
+            return;
+        };
+        crate::ui::browser::reset_note_card_surface(&card);
+        let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+            return;
+        };
+        let row = object.borrow::<BaseRow>();
+        let category_color = base_category_color(&row, &context.borrow().sidebar);
+        card.set_margin_start(18);
+        card.set_margin_end(18);
+        crate::ui::browser::fill_note_card(
+            &card,
+            &crate::ui::browser::NoteCardData {
+                note_id: row.note_id,
+                title: &row.name,
+                excerpt: &row.excerpt,
+                category_name: &row.category,
+                category_color,
+                updated_at: base_row_updated_at(&row),
+                show_category: true,
+                name_prefix: "base-list-note",
+            },
+        );
+    });
+    factory
+}
+
+/// Resolves the note bound to a recycled Base list row.
+fn base_list_note_id(item: &glib::WeakRef<gtk::ListItem>) -> Option<NoteId> {
+    let item = item.upgrade()?;
+    let object = item.item().and_downcast::<glib::BoxedAnyObject>()?;
+    Some(object.borrow::<BaseRow>().note_id)
+}
+
+/// Parses a Base row's stored update time, falling back to now for malformed values.
+fn base_row_updated_at(row: &BaseRow) -> OffsetDateTime {
+    OffsetDateTime::parse(&row.updated, &Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc())
+}
+
+/// Resolves a Base row's category accent color from the active sidebar.
+fn base_category_color(
+    row: &BaseRow,
+    sidebar: &LoadState<Vec<CategorySummary>>,
+) -> Option<CategoryColor> {
+    let LoadState::Ready(categories) = sidebar else {
+        return None;
+    };
+    categories
+        .iter()
+        .find(|summary| summary.category.id == row.category_id)
+        .map(|summary| {
+            summary
+                .category
+                .appearance
+                .color
+                .resolved_for(row.category_id)
+        })
 }
 
 pub(crate) fn render_base_status(refs: &BaseViewRefs, title: &str, description: &str) {
@@ -226,7 +378,12 @@ pub(crate) fn render_base_search(refs: &BaseViewRefs, open: bool, query: &str) {
         });
     }
     if closing {
-        refs.grid.grab_focus();
+        // Return focus to whichever presentation is currently visible.
+        if refs.display_stack.visible_child_name().as_deref() == Some("list") {
+            refs.list.grab_focus();
+        } else {
+            refs.grid.grab_focus();
+        }
     }
 }
 
@@ -236,10 +393,13 @@ pub(crate) fn render_base(
     rows: &[BaseRow],
     descriptors: &[PropertyDescriptor],
     default_properties: &[DocumentProperty],
+    sidebar: &LoadState<Vec<CategorySummary>>,
     dispatcher: &AppDispatcher,
 ) {
     refs.title.set_text(&definition.name);
     refs.grid.set_sensitive(true);
+    refs.list.set_sensitive(true);
+    refs.list_context.borrow_mut().sidebar = sidebar.clone();
     // The editor per column depends on the definition, the observed descriptors, and the
     // configured defaults, so any change among them must rebuild the columns.
     let editors = resolve_column_editors(definition, descriptors, default_properties);
@@ -257,8 +417,16 @@ pub(crate) fn render_base(
         refs.rendered_editors.replace(Some(editors));
     }
     append_rows(refs, rows);
-    refs.pages
-        .set_visible_child_name(if rows.is_empty() { "status" } else { "grid" });
+    refs.display_stack
+        .set_visible_child_name(match definition.view {
+            BaseView::List => "list",
+            BaseView::Grid => "grid",
+        });
+    refs.pages.set_visible_child_name(if rows.is_empty() {
+        "status"
+    } else {
+        "contents"
+    });
 }
 
 /// Resolves the editor for each configured column, aligned with `definition.columns`.
@@ -1038,6 +1206,9 @@ mod tests {
             category: "Projects".to_owned(),
             updated: "2026-09-09T12:00:00Z".to_owned(),
             properties,
+
+            category_id: carver_sdk::CategoryId::default(),
+            excerpt: String::new(),
         }
     }
 

@@ -15,6 +15,8 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
         sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     };
     model.route = Route::Base;
     model.bases.selected = Some(definition.id);
@@ -347,6 +349,7 @@ fn configured_base_creation_should_trim_its_name_and_preserve_its_query() {
                 filter_mode: BaseFilterMode::Any,
                 filters: vec![filter.clone()],
                 sorts: vec![sort.clone()],
+                view: carver_sdk::BaseView::Grid,
             }),
         ),
         vec![Effect::CreateConfiguredBase {
@@ -355,6 +358,7 @@ fn configured_base_creation_should_trim_its_name_and_preserve_its_query() {
             filter_mode: BaseFilterMode::Any,
             filters: vec![filter],
             sorts: vec![sort],
+            view: carver_sdk::BaseView::Grid,
         }]
     );
     assert!(model.bases.saving_configuration);
@@ -371,6 +375,7 @@ fn failed_configured_base_creation_should_reenable_the_new_base_draft() {
             filter_mode: BaseFilterMode::All,
             filters: Vec::new(),
             sorts: Vec::new(),
+            view: carver_sdk::BaseView::Grid,
         }),
     );
 
@@ -571,6 +576,8 @@ fn creating_a_base_should_keep_a_dirty_editor_open_when_saving_fails() {
         sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let effects = update(
         &mut model,
@@ -635,6 +642,8 @@ fn created_base_should_reload_definitions_and_open_its_grid() {
         sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     };
 
     let effects = update(
@@ -851,6 +860,8 @@ fn external_base_deletion_should_redirect_a_missing_pending_base_navigation() {
         sorts: Vec::new(),
         revision: Revision(1),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     };
     let selected_base_id = selected_base.id;
     let removed_base = BaseId::new();
@@ -939,10 +950,20 @@ fn base_update_should_forward_configuration_and_reload_rows() {
             filter_mode: BaseFilterMode::All,
             filters: Vec::new(),
             sorts: Vec::new(),
+            view: carver_sdk::BaseView::List,
         }),
     );
     assert!(
-        matches!(effects.as_slice(), [Effect::UpdateBase { base_id: id, revision: Revision(3), .. }] if *id == base_id)
+        matches!(
+            effects.as_slice(),
+            [Effect::UpdateBase {
+                base_id: id,
+                revision: Revision(3),
+                view: carver_sdk::BaseView::List,
+                ..
+            }] if *id == base_id
+        ),
+        "the selected view should be forwarded with the rest of the configuration"
     );
 }
 
@@ -959,6 +980,8 @@ fn base_header_sorts_should_forward_the_native_sort_order() {
         sorts: Vec::new(),
         revision: Revision(3),
         row_count: 0,
+
+        view: carver_sdk::BaseView::Grid,
     };
     model.route = Route::Base;
     model.bases.selected = Some(base_id);

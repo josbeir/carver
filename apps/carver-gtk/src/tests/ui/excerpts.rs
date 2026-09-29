@@ -20,7 +20,16 @@ pub(super) fn note_card_should_display_the_complete_final_grapheme() -> TestResu
         .items
         .pop()
         .ok_or("summary")?;
-    let details = crate::ui::browser::note_card_details(&summary, false, None);
+    let details = crate::ui::browser::note_card_details(&crate::ui::browser::NoteCardData {
+        note_id: summary.id,
+        title: &summary.title,
+        excerpt: &summary.excerpt,
+        category_name: &summary.category_name,
+        category_color: None,
+        updated_at: summary.updated_at,
+        show_category: false,
+        name_prefix: "note",
+    });
     let window = gtk::Window::builder().child(&details).build();
     window.present();
     let label =

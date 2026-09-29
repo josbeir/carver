@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 08:00+0200\n"
+"POT-Creation-Date: 2026-09-29 11:23+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -173,6 +173,10 @@ msgid "Cancel"
 msgstr "取消"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Choose how this Base presents its notes."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "选择此视图库中显示的列。名称始终包含在内。"
 
@@ -207,6 +211,14 @@ msgstr "字段"
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Filters"
 msgstr "筛选"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Grid"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Layout"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Match all filters"
@@ -249,6 +261,11 @@ msgid "New Base"
 msgstr "新建视图库"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+#, fuzzy
+msgid "Notes list"
+msgstr "历久弥新的笔记"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
 msgstr "仅会删除此视图库。您的笔记及其属性不会更改。"
 
@@ -286,6 +303,10 @@ msgstr "使用箭头设置规则优先级，或移除不再需要的规则。"
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Value"
 msgstr "值"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "View"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Visible fields"

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 08:00+0200\n"
+"POT-Creation-Date: 2026-09-29 11:23+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -173,6 +173,10 @@ msgid "Cancel"
 msgstr "Abbrechen"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Choose how this Base presents its notes."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Wähle die Spalten, die in dieser Basis angezeigt werden. Name ist immer enthalten."
 
@@ -208,6 +212,14 @@ msgstr "Feld"
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Filters"
 msgstr "Filter"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Grid"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "Layout"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Match all filters"
@@ -250,6 +262,11 @@ msgid "New Base"
 msgstr "Neue Basis"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+#, fuzzy
+msgid "Notes list"
+msgstr "Notizen, die bleiben"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Only this Base will be deleted. Your notes and their properties will not be changed."
 msgstr "Nur diese Basis wird gelöscht. Deine Notizen und ihre Eigenschaften werden nicht verändert."
 
@@ -287,6 +304,10 @@ msgstr "Nutze die Pfeile, um die Priorität der Regeln festzulegen, oder entfern
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Value"
 msgstr "Wert"
+
+#: apps/carver-gtk/src/ui/bases/actions.rs
+msgid "View"
+msgstr ""
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
 msgid "Visible fields"

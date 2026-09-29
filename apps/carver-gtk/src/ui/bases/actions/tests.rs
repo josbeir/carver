@@ -59,4 +59,13 @@ fn new_base_definition_should_start_with_only_the_implicit_title() {
         definition.columns.is_empty(),
         "a new Base shows only the implicit Title column until fields are added"
     );
+    assert_eq!(definition.view, BaseView::Grid);
+}
+
+#[test]
+fn base_view_selection_should_map_to_the_grid_and_list() {
+    assert_eq!(base_view_from_selection(0), BaseView::Grid);
+    assert_eq!(base_view_from_selection(1), BaseView::List);
+    // An out-of-range position falls back to the stable grid presentation.
+    assert_eq!(base_view_from_selection(9), BaseView::Grid);
 }

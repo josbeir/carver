@@ -8,9 +8,10 @@
 use std::error::Error;
 
 use carver_domain::{
-    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, Category,
-    CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteLinks, NoteSummary,
-    PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents, TrashPurgeResult,
+    BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, BaseView,
+    Category, CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteLinks,
+    NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
+    TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -159,6 +160,7 @@ pub trait LibraryBackend: Send + 'static {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, Self::Error>;
     /// Updates a saved view guarded by its current revision.
     // CONTEXT: Keep the persistence boundary explicit; each configuration component maps to one
@@ -176,6 +178,7 @@ pub trait LibraryBackend: Send + 'static {
         filter_mode: BaseFilterMode,
         filters: &[BaseFilter],
         sorts: &[BaseSort],
+        view: BaseView,
     ) -> Result<BaseDefinition, Self::Error>;
     /// Lists saved bases in name order.
     fn bases(&self) -> Result<Vec<BaseDefinition>, Self::Error>;

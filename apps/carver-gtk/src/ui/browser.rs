@@ -471,15 +471,7 @@ fn bind_browser_row(
     context: &Rc<RefCell<BrowserFeedContext>>,
     dispatcher: &AppDispatcher,
 ) {
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
-    }
-    container.set_css_classes(&[]);
-    container.set_widget_name("");
-    container.set_margin_start(0);
-    container.set_margin_end(0);
-    container.set_margin_top(0);
-    container.set_margin_bottom(0);
+    reset_note_card_surface(container);
     let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
         return;
     };
@@ -596,11 +588,16 @@ fn populate_note_card(
         .show_category
         .then(|| note_category_color(note, &feed_context.sidebar))
         .flatten();
-    content.append(&note_card_details(
-        note,
-        feed_context.show_category,
+    content.append(&note_card_details(&NoteCardData {
+        note_id: note.id,
+        title: &note.title,
+        excerpt: &note.excerpt,
+        category_name: &note.category_name,
         category_color,
-    ));
+        updated_at: note.updated_at,
+        show_category: feed_context.show_category,
+        name_prefix: "note",
+    }));
     if let (LoadState::Ready(categories), Some(dispatcher)) = (&feed_context.sidebar, dispatcher) {
         content.append(&note_actions(note, categories, dispatcher));
     }
@@ -872,25 +869,72 @@ fn note_count_label(note_count: usize) -> String {
     )
 }
 
-/// Builds the shared note-card details rendered from browser snapshots.
-pub(crate) fn note_card_details(
-    note: &NoteSummary,
-    show_category: bool,
-    category_color: Option<CategoryColor>,
-) -> gtk::Box {
+/// Field values the shared read-only note card renders.
+///
+/// Both the browser feed and the Base list present notes through this type, so a
+/// change to the card template applies everywhere without diverging copies.
+pub(crate) struct NoteCardData<'a> {
+    /// Note identity, used to build stable widget names.
+    pub note_id: carver_sdk::NoteId,
+    /// Derived title.
+    pub title: &'a str,
+    /// Short plaintext excerpt.
+    pub excerpt: &'a str,
+    /// Owning category display name.
+    pub category_name: &'a str,
+    /// Resolved category accent color for the pill.
+    pub category_color: Option<CategoryColor>,
+    /// Last edit time.
+    pub updated_at: OffsetDateTime,
+    /// Whether the category pill is shown.
+    pub show_category: bool,
+    /// Widget-name prefix, such as `note` or `base-list-note`.
+    pub name_prefix: &'a str,
+}
+
+/// Applies the shared note-card surface to a recycled row container and appends its body.
+pub(crate) fn fill_note_card(container: &gtk::Box, data: &NoteCardData<'_>) {
+    container.set_widget_name(&format!("{}:{}", data.name_prefix, data.note_id));
+    container.set_css_classes(&["card", "activatable", "note-card"]);
+    container.set_margin_top(6);
+    container.set_margin_bottom(6);
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    content.set_margin_start(12);
+    content.set_margin_end(8);
+    content.set_margin_top(10);
+    content.set_margin_bottom(10);
+    content.append(&note_card_details(data));
+    container.append(&content);
+}
+
+/// Clears a recycled list-row surface before it is bound again.
+pub(crate) fn reset_note_card_surface(container: &gtk::Box) {
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+    container.set_css_classes(&[]);
+    container.set_widget_name("");
+    container.set_margin_start(0);
+    container.set_margin_end(0);
+    container.set_margin_top(0);
+    container.set_margin_bottom(0);
+}
+
+/// Builds the shared title/excerpt/metadata body for a note card.
+pub(crate) fn note_card_details(data: &NoteCardData<'_>) -> gtk::Box {
     let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
     details.set_hexpand(true);
-    let title = gtk::Label::new(Some(&note.title));
-    title.set_widget_name(&format!("note-title:{}", note.id));
+    let title = gtk::Label::new(Some(data.title));
+    title.set_widget_name(&format!("{}-title:{}", data.name_prefix, data.note_id));
     title.set_xalign(0.0);
     title.add_css_class("note-card-title");
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
     title.set_single_line_mode(true);
     details.append(&title);
-    let excerpt_text = compact_note_excerpt(&note.title, &note.excerpt);
+    let excerpt_text = compact_note_excerpt(data.title, data.excerpt);
     if !excerpt_text.is_empty() {
         let excerpt = gtk::Label::new(Some(&excerpt_text));
-        excerpt.set_widget_name(&format!("note-excerpt:{}", note.id));
+        excerpt.set_widget_name(&format!("{}-excerpt:{}", data.name_prefix, data.note_id));
         excerpt.set_xalign(0.0);
         excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
         excerpt.set_single_line_mode(true);
@@ -900,23 +944,23 @@ pub(crate) fn note_card_details(
     let metadata = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     metadata.set_margin_top(8);
     metadata.add_css_class("note-card-metadata");
-    if show_category {
-        let category = gtk::Label::new(Some(&note.category_name));
-        category.set_widget_name(&format!("note-category:{}", note.id));
+    if data.show_category {
+        let category = gtk::Label::new(Some(data.category_name));
+        category.set_widget_name(&format!("{}-category:{}", data.name_prefix, data.note_id));
         category.set_ellipsize(gtk::pango::EllipsizeMode::End);
         category.set_single_line_mode(true);
         category.set_max_width_chars(18);
         category.add_css_class("note-category-pill");
-        if let Some(color) = category_color {
+        if let Some(color) = data.category_color {
             category.add_css_class(category_color_css_class(color));
         }
         metadata.append(&category);
     }
     let updated = gtk::Label::new(Some(&tr_fmt!(
         gettext("Updated {time}"),
-        time = relative_update_time(note.updated_at, OffsetDateTime::now_utc())
+        time = relative_update_time(data.updated_at, OffsetDateTime::now_utc())
     )));
-    updated.set_widget_name(&format!("note-updated:{}", note.id));
+    updated.set_widget_name(&format!("{}-updated:{}", data.name_prefix, data.note_id));
     updated.add_css_class("note-card-updated");
     updated.set_xalign(0.0);
     updated.set_ellipsize(gtk::pango::EllipsizeMode::End);
