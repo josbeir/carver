@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compile PO catalogs and the translated desktop/metainfo files into a
-# destination tree (for example /app/share for Flatpak or the AppDir for
-# AppImage). Translations are validated with `msgfmt --check`.
+# destination tree (for example /app/share for Flatpak). Translations are
+# validated with `msgfmt --check`.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
