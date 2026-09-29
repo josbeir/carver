@@ -78,6 +78,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     bases::assert_base_note_keyboard_activation()?;
     crate::ui::editor::preview_service_should_receive_a_copy_and_support_portal_export()?;
     document_sidebar::webkit_views_should_disable_smooth_scrolling()?;
+    document_sidebar::webkit_views_should_paint_the_document_background()?;
     document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
     properties::document_properties_button_should_follow_mode_and_setting()?;
     properties::default_properties_should_always_show_without_removal()?;

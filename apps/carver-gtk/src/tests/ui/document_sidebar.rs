@@ -103,6 +103,30 @@ pub(super) fn webkit_views_should_disable_smooth_scrolling() -> TestResult {
     Ok(())
 }
 
+pub(super) fn webkit_views_should_paint_the_document_background() -> TestResult {
+    let fixture = fixture()?;
+
+    // WebKit paints this native color before the page stylesheet composites, so
+    // it must match the active scheme instead of the default white.
+    let dark = adw::StyleManager::default().is_dark();
+    let expected = gtk::gdk::RGBA::parse(if dark { "#1d1d20" } else { "#ffffff" })?;
+    for name in [
+        "rich-editor",
+        "source-split-preview",
+        "editor-rendered-preview",
+    ] {
+        let view = widget_as::<webkit6::WebView>(&fixture.surface, name).ok_or(name)?;
+        assert_eq!(
+            webkit6::prelude::WebViewExt::background_color(&view),
+            expected,
+            "{name} should paint the document surface behind its page"
+        );
+    }
+
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn media_sidebar_should_show_file_details_in_an_isolated_editor() -> TestResult {
     let fixture = fixture()?;
     let category = fixture.client.create_category("Media")?;
