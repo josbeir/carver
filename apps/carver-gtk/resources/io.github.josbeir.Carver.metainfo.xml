@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>io.github.josbeir.Carver</id>
   <name>Carver</name>
-  <summary>A native GNOME home for notes that last</summary>
+  <summary>Local-first notes for Linux</summary>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <developer id="io.github.josbeir">
@@ -13,7 +13,14 @@
   <url type="vcs-browser">https://github.com/josbeir/carver</url>
   <launchable type="desktop-id">io.github.josbeir.Carver.desktop</launchable>
   <description>
-    <p>Carver is a native GNOME home for notes that last. Capture ideas in a polished writing space, keep them organized without ceremony, and reach for the source whenever you want full control.</p>
+    <p>Carver is a local-first note-taking app that stays out of your way. Quick to open and ready to catch an idea, it keeps your notes and images on your own computer.</p>
+    <ul>
+      <li>Write in rich text or Carve source, with a live preview and a distraction-free focus view.</li>
+      <li>Organize notes into categories, search your library, and recover deleted notes from Trash.</li>
+      <li>Give notes structure with frontmatter properties, and build saved views called Bases with configurable columns, filters, and sort rules.</li>
+      <li>Import Carve or Markdown, and export to Carve, Markdown, PDF, or a portable archive.</li>
+      <li>Optionally connect an assistant such as Claude Code, Codex, Copilot, or OpenCode through local, read-only MCP access.</li>
+    </ul>
   </description>
   <screenshots>
     <screenshot type="default">
