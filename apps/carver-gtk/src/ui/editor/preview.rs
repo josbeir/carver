@@ -153,7 +153,7 @@ fn connect_link_handler(
     });
 }
 
-fn is_external_link(uri: &str) -> bool {
+pub(super) fn is_external_link(uri: &str) -> bool {
     matches!(uri.split_once(':'), Some(("http" | "https", _)))
 }
 

@@ -430,6 +430,20 @@ impl RichEditor {
                     if let Some(note_id) = carver_domain::parse_note_link_destination(&href) {
                         let _ = dispatcher
                             .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote(note_id)));
+                    } else if super::preview::is_external_link(&href) {
+                        let toast_overlay = toast_overlay.clone();
+                        gtk::gio::AppInfo::launch_default_for_uri_async(
+                            href.as_str(),
+                            None::<&gtk::gio::AppLaunchContext>,
+                            None::<&gtk::gio::Cancellable>,
+                            move |result| {
+                                if result.is_err() {
+                                    toast_overlay.add_toast(libadwaita::Toast::new(&gettext(
+                                        "Could not open the link in your default browser.",
+                                    )));
+                                }
+                            },
+                        );
                     }
                 }
                 EditorEvent::Selection { .. }

@@ -107,6 +107,19 @@ fn rewriting_destinations_should_remove_the_carver_scheme() {
 }
 
 #[test]
+fn rewriting_should_match_uppercase_and_unhyphenated_uuid_spellings() {
+    let uppercase = TARGET.to_uppercase();
+    let simple = TARGET.replace('-', "");
+    let source =
+        format!("See [A]({NOTE_LINK_SCHEME}{uppercase}) and [B]({NOTE_LINK_SCHEME}{simple}).\n");
+    let mut replacements = std::collections::BTreeMap::new();
+    replacements.insert(note_id(TARGET), "release-checklist".to_owned());
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(!rewritten.contains(NOTE_LINK_SCHEME));
+    assert_eq!(rewritten.matches("release-checklist").count(), 2);
+}
+
+#[test]
 fn rewriting_should_leave_a_literal_scheme_in_code_untouched() {
     let source = format!("See [A]({NOTE_LINK_SCHEME}{TARGET}) and `{NOTE_LINK_SCHEME}{TARGET}`.\n");
     let mut replacements = std::collections::BTreeMap::new();

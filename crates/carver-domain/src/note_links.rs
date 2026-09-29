@@ -142,12 +142,12 @@ fn note_link_destination_spans(source: &str) -> Vec<(Range<usize>, NoteId)> {
 
     let mut spans = Vec::new();
     for link in links {
-        if let Some(range) = find_inline_destination(source, link.range, link.target) {
+        if let Some(range) = find_destination(source, link.range, link.target) {
             spans.push((range, link.target));
         }
     }
     for (range, target) in definitions {
-        if let Some(found) = find_definition_destination(source, range, target) {
+        if let Some(found) = find_destination(source, range, target) {
             spans.push((found, target));
         }
     }
@@ -155,38 +155,33 @@ fn note_link_destination_spans(source: &str) -> Vec<(Range<usize>, NoteId)> {
     spans
 }
 
-/// Locates an inline link's destination, which follows the `(` or `<` delimiter.
-fn find_inline_destination(
-    source: &str,
-    range: Range<usize>,
-    target: NoteId,
-) -> Option<Range<usize>> {
+/// Locates the authored `carver:note/...` destination for `target` inside one node's source slice.
+///
+/// The span is recovered from the scheme and validated by parsing rather than by rebuilding the
+/// canonical spelling, because `Uuid` also accepts uppercase and un-hyphenated forms.
+fn find_destination(source: &str, range: Range<usize>, target: NoteId) -> Option<Range<usize>> {
     let range = byte_range(source, range)?;
     let slice = source.get(range.clone())?;
-    let needle = note_link_destination(target);
+    let bytes = slice.as_bytes();
     let mut search = 0;
-    while let Some(offset) = slice.get(search..)?.find(&needle) {
+    while let Some(offset) = slice.get(search..)?.find(NOTE_LINK_SCHEME) {
         let start = search + offset;
-        let delimiter = start == 0 || matches!(slice.as_bytes()[start - 1], b'(' | b'<');
-        if delimiter {
-            return Some(range.start + start..range.start + start + needle.len());
+        search = start + NOTE_LINK_SCHEME.len();
+        // Only a destination follows `(`, `<`, `:`, or whitespace; a label occurrence is skipped.
+        if start != 0 && !matches!(bytes[start - 1], b'(' | b'<' | b':' | b' ' | b'\t') {
+            continue;
         }
-        search = start + needle.len();
+        let end = slice[search..]
+            .char_indices()
+            .take_while(|(_, character)| character.is_ascii_hexdigit() || *character == '-')
+            .map(|(index, character)| index + character.len_utf8())
+            .last()
+            .unwrap_or(0);
+        if parse_note_link_destination(&slice[start..search + end]) == Some(target) {
+            return Some(range.start + start..range.start + search + end);
+        }
     }
     None
-}
-
-/// Locates a link reference definition's destination, which is the last occurrence on the line.
-fn find_definition_destination(
-    source: &str,
-    range: Range<usize>,
-    target: NoteId,
-) -> Option<Range<usize>> {
-    let range = byte_range(source, range)?;
-    let slice = source.get(range.clone())?;
-    let needle = note_link_destination(target);
-    let offset = slice.rfind(&needle)?;
-    Some(range.start + offset..range.start + offset + needle.len())
 }
 
 /// Converts a Carve `Pos` codepoint range into a byte range of `source`.
