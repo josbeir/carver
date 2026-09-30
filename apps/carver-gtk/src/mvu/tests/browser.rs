@@ -510,6 +510,15 @@ fn failed_favorites_should_not_discard_successful_browser_notes() {
     assert!(!model.browser.loading_indicator_visible);
 }
 
+fn text_property(key: &str, value: &str) -> carver_config::DocumentProperty {
+    carver_config::DocumentProperty {
+        key: key.to_owned(),
+        field_type: carver_config::DocumentPropertyType::Text,
+        multiple: false,
+        value: serde_json::Value::String(value.to_owned()),
+    }
+}
+
 #[test]
 fn clipboard_note_should_keep_plain_text_verbatim() {
     let mut model = AppModel::new(&Config::default());
@@ -523,6 +532,7 @@ fn clipboard_note_should_keep_plain_text_verbatim() {
             AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
                 text: text.to_string(),
                 intent: carver_domain::PasteIntent::Auto,
+                category_id: Some(category_id),
             }),
         ),
         vec![Effect::CreateNote {
@@ -547,11 +557,92 @@ fn clipboard_note_should_convert_markdown_source() {
             AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
                 text: text.to_string(),
                 intent: carver_domain::PasteIntent::Markdown,
+                category_id: Some(category_id),
             }),
         ),
         vec![Effect::CreateNote {
             category_id,
             source: converted,
+        }]
+    );
+}
+
+#[test]
+fn clipboard_note_should_seed_default_properties_when_absent() {
+    let mut config = Config::default();
+    config.document_properties.enabled = true;
+    config.document_properties.entries = vec![text_property("author", "Jane")];
+    let defaults = config.document_properties.default_source();
+    let mut model = AppModel::new(&config);
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
+            text: "Body text".to_string(),
+            intent: carver_domain::PasteIntent::Auto,
+            category_id: Some(category_id),
+        }),
+    );
+
+    assert!(!defaults.is_empty());
+    assert_eq!(
+        effects,
+        vec![Effect::CreateNote {
+            category_id,
+            source: format!("{defaults}Body text"),
+        }]
+    );
+}
+
+#[test]
+fn clipboard_note_should_preserve_pasted_frontmatter() {
+    let mut config = Config::default();
+    config.document_properties.enabled = true;
+    config.document_properties.entries = vec![text_property("author", "Jane")];
+    let mut model = AppModel::new(&config);
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+    let text = "---\ntitle: Pasted\n---\nBody";
+
+    let converted = carver_domain::import_document(text, carver_sdk::DocumentImportFormat::Carve);
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
+                text: text.to_string(),
+                intent: carver_domain::PasteIntent::Carve,
+                category_id: Some(category_id),
+            }),
+        ),
+        vec![Effect::CreateNote {
+            category_id,
+            source: converted,
+        }]
+    );
+}
+
+#[test]
+fn clipboard_note_should_use_the_captured_category() {
+    let mut model = AppModel::new(&Config::default());
+    let captured = CategoryId::new();
+    model.selected_category = Some(CategoryId::new());
+
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
+            text: "Body".to_string(),
+            intent: carver_domain::PasteIntent::Auto,
+            category_id: Some(captured),
+        }),
+    );
+
+    assert_eq!(
+        effects,
+        vec![Effect::CreateNote {
+            category_id: captured,
+            source: "Body".to_string(),
         }]
     );
 }
@@ -566,6 +657,7 @@ fn empty_clipboard_should_not_create_a_note() {
         AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
             text: "   \n".to_string(),
             intent: carver_domain::PasteIntent::Auto,
+            category_id: Some(CategoryId::new()),
         }),
     );
 

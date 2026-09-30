@@ -397,13 +397,19 @@ fn install_clipboard_note_action(
     let runtime = runtime.clone();
     let activation_window = window.clone();
     action.connect_activate(move |_, _| {
-        if runtime.model().route == Route::Browser {
-            read_clipboard_note(
-                activation_window.upcast_ref::<gtk::Window>(),
-                dispatcher.clone(),
-                intent,
-            );
+        let model = runtime.model();
+        if model.route != Route::Browser {
+            return;
         }
+        // Bind the destination now so a delayed clipboard read cannot retarget the note.
+        let category_id = model.active_category_id();
+        read_clipboard_note(
+            activation_window.upcast_ref::<gtk::Window>(),
+            dispatcher.clone(),
+            runtime.clone(),
+            intent,
+            category_id,
+        );
     });
     window.add_action(&action);
 }
@@ -412,10 +418,16 @@ fn install_clipboard_note_action(
 fn read_clipboard_note(
     window: &gtk::Window,
     dispatcher: AppDispatcher,
+    runtime: AppRuntime<SqliteLibrary>,
     intent: carver_domain::PasteIntent,
+    category_id: Option<CategoryId>,
 ) {
     let clipboard = gtk::prelude::WidgetExt::display(window).clipboard();
     clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+        // The user may have left the browser while the clipboard was read.
+        if runtime.model().route != Route::Browser {
+            return;
+        }
         let text = match result {
             Ok(Some(text)) => text.to_string(),
             _ => String::new(),
@@ -423,6 +435,7 @@ fn read_clipboard_note(
         let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
             text,
             intent,
+            category_id,
         }));
     });
 }

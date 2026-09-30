@@ -1028,6 +1028,21 @@ impl AppModel {
         }
     }
 
+    /// Returns the selected category, falling back to the first active category.
+    ///
+    /// Resolves the destination for note creation. The clipboard path captures this at activation
+    /// so a delayed clipboard read cannot retarget the note.
+    #[must_use]
+    pub fn active_category_id(&self) -> Option<carver_sdk::CategoryId> {
+        self.selected_category
+            .or_else(|| match &self.sidebar.state {
+                LoadState::Ready(categories) => {
+                    categories.first().map(|category| category.category.id)
+                }
+                _ => None,
+            })
+    }
+
     /// Resolves an editor document by session across the active and background tabs.
     #[must_use]
     pub fn document_for_session(&self, session: EditorSessionId) -> Option<&EditorDocument> {
