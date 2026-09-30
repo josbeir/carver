@@ -180,6 +180,60 @@ pub(super) fn media_sidebar_should_show_file_details_in_an_isolated_editor() -> 
     Ok(())
 }
 
+/// A managed attachment exposes a download action that saves its bytes to a chosen target.
+pub(super) fn media_download_should_save_a_managed_attachment_copy() -> TestResult {
+    let fixture = fixture()?;
+    let category = fixture.client.create_category("Media download")?;
+    let note = fixture.client.create_note(category.id)?;
+    let bytes: &[u8] = b"downloadable bytes";
+    let path = fixture.client.store_asset(note.id, "txt", bytes)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: format!("[Report]({path})"),
+    }));
+    let toggle = widget_as::<gtk::ToggleButton>(&fixture.surface, "editor-document-sidebar-toggle")
+        .ok_or("document sidebar toggle")?;
+    toggle.set_active(true);
+    show_sidebar_page(&fixture.surface, "media");
+    assert!(run_main_context_until(|| widget_as::<gtk::Button>(
+        &fixture.surface,
+        "editor-media-download"
+    )
+    .is_some()));
+    let download = widget_as::<gtk::Button>(&fixture.surface, "editor-media-download")
+        .ok_or("download button")?;
+    assert!(download.is_sensitive());
+    let session = fixture
+        .runtime
+        .model()
+        .editor
+        .as_ref()
+        .map(|document| document.session)
+        .ok_or("editor session")?;
+    // Bypass the native save dialog: the reducer owns the chosen-target contract.
+    let directory = tempfile::tempdir()?;
+    let target = directory.path().join("report.txt");
+    let target_uri = gtk::gio::File::for_path(&target).uri().to_string();
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::MediaDownloadRequested {
+            session,
+            path: path.clone(),
+            target_uri,
+        }));
+    assert!(run_main_context_until(|| target.exists()));
+    assert_eq!(std::fs::read(&target)?, bytes);
+    assert!(run_main_context_until(|| fixture
+        .runtime
+        .model()
+        .notice
+        .as_ref()
+        .is_some_and(|notice| notice.message == "File saved")));
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn heading_navigation_should_preserve_content_and_focus() -> TestResult {
     let fixture = fixture()?;
     let root = &fixture.surface;

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 11:05+0200\n"
+"POT-Creation-Date: 2026-09-30 15:58+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -75,6 +75,10 @@ msgstr "Notities"
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "Kon notitie niet opslaan: {error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "File saved"
+msgstr "Bestand opgeslagen"
 
 #: apps/carver-gtk/src/mvu/update.rs
 msgid "There is no text on the clipboard."
@@ -311,7 +315,7 @@ msgstr "Veld verwijderen"
 msgid "Remove {noun}"
 msgstr "{noun} verwijderen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Save"
 msgstr "Opslaan"
@@ -1292,6 +1296,10 @@ msgid "Preview file"
 msgstr "Bestand bekijken"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
+msgid "Save a copy"
+msgstr "Kopie opslaan"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Unavailable"
 msgstr "Niet beschikbaar"
 
@@ -1433,6 +1441,10 @@ msgstr "Voorbeeld"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Print…"
 msgstr "Afdrukken…"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save file"
+msgstr "Bestand opslaan"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show rendered preview"

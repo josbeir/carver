@@ -167,6 +167,26 @@ pub enum Effect {
         /// Path of the isolated copy.
         path: std::path::PathBuf,
     },
+    /// Present a native save dialog for a managed attachment copy.
+    ShowMediaDownloadDialog {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Canonical managed asset path.
+        path: String,
+        /// Friendly filename suggested by the save dialog.
+        label: String,
+    },
+    /// Write a managed attachment's bytes to a user-selected URI.
+    WriteMediaDownload {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Note that owns the asset.
+        note_id: NoteId,
+        /// Canonical managed asset path.
+        path: String,
+        /// URI selected by the user through the GTK file dialog.
+        target_uri: String,
+    },
 
     /// Apply an editor command through the selected rich-text projection.
     ApplyRichEditorCommand {

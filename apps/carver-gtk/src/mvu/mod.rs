@@ -4,6 +4,7 @@
 //! [`AppModel`] and returns typed [`Effect`] values for the runtime to execute.
 
 mod effect;
+mod media_filename;
 mod model;
 mod msg;
 mod runtime;
@@ -28,6 +29,8 @@ pub use msg::{
 pub use runtime::{AppDispatcher, AppRuntime};
 pub use source_edit::{SourceCommand, SourceEdit};
 pub use update::update;
+
+pub(crate) use media_filename::safe_media_filename;
 
 #[cfg(test)]
 pub(crate) mod tests;

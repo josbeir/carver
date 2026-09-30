@@ -576,6 +576,139 @@ fn prepared_preview_should_be_ignored_after_switching_documents() {
 }
 
 #[test]
+fn download_should_present_a_save_dialog_only_for_a_managed_attachment() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("[Brief](assets/brief.pdf)"),
+        }),
+    );
+    let Some(document) = model.editor.as_ref() else {
+        panic!("document");
+    };
+    let selection = document.analysis.media()[0].range.clone();
+    let session = document.session;
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::DownloadMedia { selection })
+        ),
+        vec![Effect::ShowMediaDownloadDialog {
+            session,
+            path: String::from("assets/brief.pdf"),
+            label: String::from("Brief"),
+        }]
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::DownloadMedia {
+                selection: 100..200
+            })
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn media_download_requested_should_target_the_active_note_only() {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: String::from("[Brief](assets/brief.pdf)"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::MediaDownloadRequested {
+                session,
+                path: String::from("assets/brief.pdf"),
+                target_uri: String::from("file:///tmp/brief.pdf"),
+            })
+        ),
+        vec![Effect::WriteMediaDownload {
+            session,
+            note_id,
+            path: String::from("assets/brief.pdf"),
+            target_uri: String::from("file:///tmp/brief.pdf"),
+        }]
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::MediaDownloadRequested {
+                session: EditorSessionId(999),
+                path: String::from("assets/brief.pdf"),
+                target_uri: String::from("file:///tmp/brief.pdf"),
+            })
+        )
+        .is_empty()
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::MediaDownloadRequested {
+                session,
+                path: String::from("../secret"),
+                target_uri: String::from("file:///tmp/secret"),
+            })
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn finished_media_download_should_report_a_notice_only_while_active() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: String::from("note"),
+        }),
+    );
+    let session = model
+        .editor
+        .as_ref()
+        .map_or(EditorSessionId(0), |document| document.session);
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Editor(EditorMsg::MediaDownloadFinished {
+                session: EditorSessionId(999),
+                result: Ok(()),
+            })
+        )
+        .is_empty()
+    );
+    assert!(model.notice.is_none());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::MediaDownloadFinished {
+            session,
+            result: Ok(()),
+        }),
+    );
+    assert_eq!(
+        model.notice.as_ref().map(|notice| notice.message.as_str()),
+        Some("File saved")
+    );
+}
+
+#[test]
 fn editor_media_selection_should_track_occurrences_without_editing_source() {
     let mut model = AppModel::new(&Config::default());
     let source = "Before\n\n![One](assets/a.png)\n\n![Two](assets/a.png)";

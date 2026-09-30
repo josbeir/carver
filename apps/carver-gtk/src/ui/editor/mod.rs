@@ -450,6 +450,21 @@ impl EditorViewRefs {
         media_preview::launch(path, parent.as_ref(), session, &self.dispatcher);
     }
 
+    /// Presents the native save dialog for a managed attachment after the reducer admits it.
+    pub(crate) fn show_media_download(&self, session: EditorSessionId, path: &str, label: &str) {
+        if self.loaded_session.borrow().as_ref() != Some(&session) {
+            return;
+        }
+        let parent = self.sidebar.root.root().and_downcast::<gtk::Window>();
+        show_media_save_dialog(
+            session,
+            path,
+            label,
+            parent.as_ref(),
+            self.dispatcher.clone(),
+        );
+    }
+
     /// Executes a clipboard effect after the reducer has admitted its immutable request.
     pub(crate) fn copy_document(&self, request: &EditorCopyRequest) {
         let dispatcher = self.dispatcher.clone();
@@ -1729,6 +1744,32 @@ pub(crate) fn show_export_warning_dialog(
     });
     dialog.present(parent);
     dialog
+}
+
+/// Presents a native save dialog for one managed attachment and reports the chosen target.
+pub(crate) fn show_media_save_dialog(
+    session: EditorSessionId,
+    path: &str,
+    label: &str,
+    parent: Option<&gtk::Window>,
+    dispatcher: AppDispatcher,
+) {
+    let dialog = gtk::FileDialog::builder()
+        .title(gettext("Save file"))
+        .accept_label(gettext("Save"))
+        .initial_name(crate::mvu::safe_media_filename(path, label))
+        .build();
+    let path = path.to_owned();
+    dialog.save(parent, None::<&gtk::gio::Cancellable>, move |result| {
+        let Ok(file) = result else {
+            return;
+        };
+        let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::MediaDownloadRequested {
+            session,
+            path: path.clone(),
+            target_uri: file.uri().to_string(),
+        }));
+    });
 }
 
 #[expect(

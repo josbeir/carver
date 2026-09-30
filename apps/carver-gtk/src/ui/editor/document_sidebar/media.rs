@@ -82,9 +82,24 @@ pub(super) fn render_media_list(
                 selection: preview_selection.clone(),
             }));
         });
+        let download = gtk::Button::from_icon_name("document-save-symbolic");
+        download.set_widget_name("editor-media-download");
+        download.add_css_class("flat");
+        download.set_valign(gtk::Align::Center);
+        download.set_tooltip_text(Some(&gettext("Save a copy")));
+        download.update_property(&[gtk::accessible::Property::Label(&gettext("Save a copy"))]);
+        download.set_sensitive(item.path.starts_with("assets/"));
+        let download_dispatcher = dispatcher.clone();
+        let download_selection = item.range.clone();
+        download.connect_clicked(move |_| {
+            let _ = download_dispatcher.dispatch(AppMsg::Editor(EditorMsg::DownloadMedia {
+                selection: download_selection.clone(),
+            }));
+        });
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         actions.append(&button);
         actions.append(&preview);
+        actions.append(&download);
         row.set_child(Some(&actions));
         let target = carver_editor_protocol::DocumentTarget::Media {
             path: item.path.clone(),

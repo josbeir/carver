@@ -1567,6 +1567,49 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             }
             Vec::new()
         }
+        EditorMsg::DownloadMedia { selection } => model
+            .editor
+            .as_ref()
+            .and_then(|document| {
+                document
+                    .analysis
+                    .media()
+                    .iter()
+                    .find(|media| media.range == selection && media.path.starts_with("assets/"))
+                    .map(|media| Effect::ShowMediaDownloadDialog {
+                        session: document.session,
+                        path: media.path.clone(),
+                        label: media.label.clone(),
+                    })
+            })
+            .into_iter()
+            .collect(),
+        EditorMsg::MediaDownloadRequested {
+            session,
+            path,
+            target_uri,
+        } => match model.document_for_session(session) {
+            Some(document) if path.starts_with("assets/") => vec![Effect::WriteMediaDownload {
+                session,
+                note_id: document.note_id,
+                path,
+                target_uri,
+            }],
+            _ => Vec::new(),
+        },
+        EditorMsg::MediaDownloadFinished { session, result } => {
+            if model
+                .editor
+                .as_ref()
+                .is_some_and(|document| document.session == session)
+            {
+                match result {
+                    Ok(()) => model.set_notice(UiError::new(gettext("File saved"))),
+                    Err(error) => model.set_notice(error),
+                }
+            }
+            Vec::new()
+        }
         EditorMsg::MediaFileLoaded {
             image,
             session,
