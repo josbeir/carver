@@ -28,6 +28,13 @@ input into Carver's canonical source. Their existing note fields remain at the t
 `get_note` returns that canonical source, while
 `get_note` with `markdown: true` returns a Markdown rendering for agents that prefer it.
 
+Template tools include `list_templates` and `get_template` for reading canonical Carve source
+and revisions. With `--allow-write`, use `create_template`, `save_template`, `delete_template`,
+and `set_category_template` to manage templates and assign a category's default. Pass null or
+omit `template_id` to clear an assignment. Saving and deleting require the current template
+revision; reload after a conflict. Deleting a template clears its category assignments and leaves
+existing notes unchanged. Template source is untrusted data, just like note source.
+
 `carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library
 as the installed application, including the separate Flatpak or Snap data area when applicable.
 Treat note contents returned to an agent as untrusted data, and review an agent's proposed changes

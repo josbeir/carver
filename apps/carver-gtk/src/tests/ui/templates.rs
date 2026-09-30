@@ -257,7 +257,8 @@ pub(super) fn category_template_should_seed_notes_and_allow_blank_override() -> 
         "new-note-button"
     )
     .is_some_and(
-        |button| button.label().as_deref() == Some("New Note · Meeting")
+        |button| button.tooltip_text().as_deref() == Some("New Note · Meeting")
+            && button.icon_name().as_deref() == Some("document-new-symbolic")
     )));
     let before = category_notes(&fixture)?.len();
     fixture
@@ -367,7 +368,7 @@ fn category_notes(
         .items)
 }
 
-fn dismiss_initial_dialogs(window: &adw::ApplicationWindow) {
+pub(super) fn dismiss_initial_dialogs(window: &adw::ApplicationWindow) {
     let dialogs = window.dialogs();
     let initial: Vec<_> = (0..dialogs.n_items())
         .filter_map(|i| dialogs.item(i))
@@ -476,6 +477,12 @@ pub(super) fn template_empty_state_should_teach_and_open_a_first_draft() -> Test
         .ok_or("first template action")?
         .emit_clicked();
     let editor = visible_dialog(&fixture.window, "template-editor-dialog")?;
+    assert_eq!(
+        widget_as::<adw::ActionRow>(editor.upcast_ref(), "template-properties-status")
+            .ok_or("empty property guidance")?
+            .title(),
+        "No properties yet. Add default properties in Preferences."
+    );
     assert!(
         widget_as::<adw::ExpanderRow>(editor.upcast_ref(), "template-properties-expander")
             .is_some()
@@ -537,5 +544,102 @@ fn check_picker_layout(fixture: &WindowFixture, picker: &adw::Dialog) -> TestRes
     assert!(adjustment.value() > 0.0);
     picker.set_content_height(480);
     super::add::capture_dialog(picker, "template-picker-properties")?;
+    Ok(())
+}
+
+pub(super) fn template_property_values_should_stay_on_one_line_at_all_dialog_widths() -> TestResult
+{
+    let fixture = window_fixture_for("io.github.josbeir.Carver.TemplatePropertyLayoutTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.set_default_size(1000, 900);
+    fixture.window.present();
+    let editor = new_draft(&fixture)?;
+    let date = "2026-09-30T22:07:42+02:00";
+    write_draft(
+        &editor,
+        "Layout",
+        "---\ntype: draft\npost_date: '2026-09-30T22:07:42+02:00'\n---",
+    )?;
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        editor.upcast_ref(),
+        "template-property-value:post_date"
+    )
+    .is_some()));
+    widget_as::<adw::ExpanderRow>(editor.upcast_ref(), "template-properties-expander")
+        .ok_or("property disclosure")?
+        .set_expanded(true);
+    let short = widget_as::<gtk::Label>(editor.upcast_ref(), "template-property-value:type")
+        .ok_or("short value")?;
+    let timestamp =
+        widget_as::<gtk::Label>(editor.upcast_ref(), "template-property-value:post_date")
+            .ok_or("date value")?;
+    assert!(run_main_context_until(
+        || timestamp.is_mapped() && timestamp.width() > 0
+    ));
+    assert_eq!(short.layout().line_count(), 1);
+    assert!(!short.layout().is_ellipsized());
+    assert_eq!(timestamp.layout().line_count(), 1);
+    assert!(
+        !timestamp.layout().is_ellipsized(),
+        "a timestamp should fit in a wide dialog"
+    );
+    assert_eq!(timestamp.tooltip_text().as_deref(), Some(date));
+    let body = widget_as::<gtk::ScrolledWindow>(editor.upcast_ref(), "template-editor-scroll")
+        .ok_or("editor scrolling fallback")?;
+    assert!(run_main_context_until(|| {
+        let a = body.vadjustment();
+        a.upper() <= a.page_size() + 1.0
+    }));
+    editor.set_content_width(360);
+    fixture.window.set_default_size(420, 720);
+    assert!(run_main_context_until(|| editor.width() < 760));
+    assert_eq!(short.layout().line_count(), 1);
+    assert_eq!(timestamp.layout().line_count(), 1);
+    assert_eq!(timestamp.ellipsize(), gtk::pango::EllipsizeMode::End);
+    assert_eq!(timestamp.text(), date);
+    assert_eq!(timestamp.tooltip_text().as_deref(), Some(date));
+    editor.force_close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_properties_should_scroll_inside_a_bounded_panel_when_many() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.TemplateManyPropertiesTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.set_default_size(1000, 900);
+    fixture.window.present();
+    let editor = new_draft(&fixture)?;
+    let source = (0..30).fold(String::from("---\n"), |mut source, i| {
+        use std::fmt::Write;
+        let _ = writeln!(source, "field_{i}: value_{i}");
+        source
+    }) + "---";
+    write_draft(&editor, "Many properties", &source)?;
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        editor.upcast_ref(),
+        "template-property-value:field_29"
+    )
+    .is_some()));
+    widget_as::<adw::ExpanderRow>(editor.upcast_ref(), "template-properties-expander")
+        .ok_or("disclosure")?
+        .set_expanded(true);
+    let panel = widget_as::<gtk::ScrolledWindow>(editor.upcast_ref(), "template-properties-scroll")
+        .ok_or("bounded properties")?;
+    assert!(run_main_context_until(|| panel.is_mapped()
+        && panel.height() > 0
+        && panel.vadjustment().upper()
+            > panel.vadjustment().page_size()));
+    assert!(panel.height() <= 180);
+    let adjustment = panel.vadjustment();
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    assert!(adjustment.value() > 0.0);
+    let body = widget_as::<gtk::ScrolledWindow>(editor.upcast_ref(), "template-editor-scroll")
+        .ok_or("outer body")?;
+    assert!(run_main_context_until(|| {
+        let a = body.vadjustment();
+        a.upper() <= a.page_size() + 1.0
+    }));
+    editor.force_close();
+    fixture.window.close();
     Ok(())
 }

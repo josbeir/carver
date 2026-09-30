@@ -44,11 +44,34 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
     let new_note =
         widget_as::<adw::SplitButton>(&root, "new-note-button").ok_or("new note split button")?;
     let note_menu_model = new_note.menu_model().ok_or("new note menu model")?;
-    let note_actions: Vec<String> = (0..note_menu_model.n_items())
-        .filter_map(|index| {
-            note_menu_model
-                .item_attribute_value(index, "action", None)
-                .and_then(|value| value.get::<String>())
+    assert_eq!(
+        new_note.icon_name().as_deref(),
+        Some("document-new-symbolic")
+    );
+    assert!(new_note.label().is_none_or(|label| label.is_empty()));
+    assert_eq!(
+        note_menu_model.n_items(),
+        2,
+        "two sections provide the divider"
+    );
+    let creation = note_menu_model
+        .item_link(0, gtk::gio::MENU_LINK_SECTION)
+        .ok_or("creation section")?;
+    let import = note_menu_model
+        .item_link(1, gtk::gio::MENU_LINK_SECTION)
+        .ok_or("import section")?;
+    assert_eq!(creation.n_items(), 2);
+    assert_eq!(import.n_items(), 3);
+    let note_actions: Vec<String> = [&creation, &import]
+        .into_iter()
+        .flat_map(|section| {
+            (0..section.n_items())
+                .filter_map(|index| {
+                    section
+                        .item_attribute_value(index, "action", None)
+                        .and_then(|value| value.get::<String>())
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     assert_eq!(

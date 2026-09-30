@@ -238,7 +238,7 @@ pub(crate) fn show_editor(
             gettext("New Template")
         })
         .content_width(760)
-        .content_height(600)
+        .content_height(720)
         .build();
     dialog.set_widget_name("template-editor-dialog");
     let toolbar = adw::ToolbarView::new();
@@ -275,7 +275,7 @@ pub(crate) fn show_editor(
     editor.view().set_widget_name("template-source-view");
     let scroll = gtk::ScrolledWindow::builder()
         .child(editor.view())
-        .height_request(220)
+        .height_request(160)
         .vexpand(true)
         .hexpand(true)
         .build();
@@ -299,6 +299,7 @@ pub(crate) fn show_editor(
         .hscrollbar_policy(gtk::PolicyType::Never)
         .child(&content)
         .build();
+    body.set_widget_name("template-editor-scroll");
     toolbar.set_content(Some(&body));
     dialog.set_child(Some(&toolbar));
     let new_draft = original.is_none();

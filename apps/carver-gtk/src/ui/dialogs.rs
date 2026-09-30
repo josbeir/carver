@@ -899,6 +899,21 @@ fn document_properties_floating_row(
     floating
 }
 
+/// Renders the default-property summary from the current MVU configuration snapshot.
+pub(crate) fn render_document_property_count(root: &gtk::Widget, count: usize) {
+    if root.widget_name() == "document-properties-row" {
+        if let Some(row) = root.downcast_ref::<adw::ActionRow>() {
+            row.set_subtitle(&document_property_count(count));
+        }
+        return;
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        render_document_property_count(&widget, count);
+        child = widget.next_sibling();
+    }
+}
+
 fn document_property_count(count: usize) -> String {
     tr_fmt!(
         ngettext(

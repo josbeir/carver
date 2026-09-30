@@ -24,7 +24,14 @@ impl PropertiesHandle {
             list.add_css_class("boxed-list");
             group.add(&list);
         } else {
-            expander.add_row(&list);
+            let scroll = gtk::ScrolledWindow::builder()
+                .hscrollbar_policy(gtk::PolicyType::Never)
+                .propagate_natural_height(true)
+                .max_content_height(180)
+                .child(&list)
+                .build();
+            scroll.set_widget_name("template-properties-scroll");
+            expander.add_row(&scroll);
             group.add(&expander);
         }
         Self { group, list }
@@ -52,10 +59,11 @@ impl PropertiesHandle {
                     row.set_widget_name(&format!("template-property:{}", property.key));
                     let value = gtk::Label::builder()
                         .label(&property.value)
-                        .wrap(true)
-                        .wrap_mode(gtk::pango::WrapMode::WordChar)
+                        .ellipsize(gtk::pango::EllipsizeMode::End)
+                        .width_chars(8)
+                        .hexpand(true)
                         .xalign(1.0)
-                        .max_width_chars(28)
+                        .max_width_chars(40)
                         .selectable(true)
                         .build();
                     value.set_widget_name(&format!("template-property-value:{}", property.key));
@@ -67,10 +75,11 @@ impl PropertiesHandle {
             result => {
                 let text = result.map_or_else(
                     |error| error.message.clone(),
-                    |_| gettext("No properties will be added."),
+                    |_| gettext("No properties yet. Add default properties in Preferences."),
                 );
                 let row = adw::ActionRow::builder().title(&text).build();
                 row.set_use_markup(false);
+                row.set_widget_name("template-properties-status");
                 row.set_title_lines(0);
                 self.list.append(&row);
             }

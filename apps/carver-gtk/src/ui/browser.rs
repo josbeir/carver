@@ -368,24 +368,29 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
 /// discoverable without a standalone overflow menu whose only entry it was.
 fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton {
     let menu = gtk::gio::Menu::new();
-    menu.append(
+    let creation = gtk::gio::Menu::new();
+    let import = gtk::gio::Menu::new();
+    creation.append(
         Some(&gettext("Choose Template…")),
         Some("win.new-from-template"),
     );
-    menu.append(Some(&gettext("New Blank Note")), Some("win.new-blank-note"));
-    menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
-    menu.append(
+    creation.append(Some(&gettext("New Blank Note")), Some("win.new-blank-note"));
+    import.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
+    import.append(
         Some(&gettext("New from Clipboard")),
         Some(NEW_NOTE_FROM_CLIPBOARD_ACTION),
     );
-    menu.append(
+    import.append(
         Some(&gettext("New from Clipboard as Markdown")),
         Some(NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION),
     );
 
+    menu.append_section(None, &creation);
+    menu.append_section(None, &import);
+
     let button = adw::SplitButton::new();
     button.set_widget_name("new-note-button");
-    button.set_label(&gettext("New Note"));
+    button.set_icon_name("document-new-symbolic");
     button.set_tooltip_text(Some(&gettext("New Note")));
     button.set_dropdown_tooltip(&gettext("More options"));
     button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);

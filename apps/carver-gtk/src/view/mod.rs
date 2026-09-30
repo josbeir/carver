@@ -489,6 +489,7 @@ fn find_toolbar_view(widget: &gtk::Widget) -> Option<adw::ToolbarView> {
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
+    rendered_default_property_count: Cell<Option<usize>>,
     template_category_form: RefCell<Option<Rc<crate::ui::dialogs::CategoryForm>>>,
     template_choices: RefCell<Option<Vec<carver_sdk::NoteTemplate>>>,
     browser_new_note: Option<adw::SplitButton>,
@@ -545,6 +546,7 @@ impl ViewRefs {
         Self {
             template_category_form: RefCell::new(None),
             template_choices: RefCell::new(None),
+            rendered_default_property_count: Cell::new(None),
             browser_new_note: None,
             template_list: RefCell::new(None),
             template_editor: RefCell::new(None),
@@ -683,6 +685,12 @@ impl ViewRefs {
     /// Renders one immutable model snapshot without invoking application actions.
     pub fn render(&self, model: &AppModel) {
         self.rendering.set(true);
+        let count = model.config.document_properties.entries.len();
+        if self.rendered_default_property_count.replace(Some(count)) != Some(count)
+            && let Some(root) = self.route_stack.root()
+        {
+            crate::ui::dialogs::render_document_property_count(root.upcast_ref(), count);
+        }
         if let Some(child) = match model.route {
             Route::Browser => Some("browser"),
             Route::Base => Some("base"),
@@ -1431,7 +1439,6 @@ impl ViewRefs {
                 || gettext("New Note"),
                 |name| tr_fmt!(gettext("New Note · {template}"), template = name),
             );
-            button.set_label(&label);
             button.set_tooltip_text(Some(&label));
             button.update_property(&[gtk::accessible::Property::Label(&label)]);
         }
