@@ -321,6 +321,58 @@ fn open_and_load(model: &mut AppModel, note_id: NoteId) -> crate::mvu::TabId {
     tab_id
 }
 
+/// Opens a note as a background tab and completes its asynchronous load.
+fn open_in_background_and_load(model: &mut AppModel, note_id: NoteId) -> crate::mvu::TabId {
+    let effects = update(
+        model,
+        AppMsg::Tabs(TabsMsg::OpenNote {
+            note_id,
+            intent: NoteOpenIntent::Background,
+        }),
+    );
+    let (request_id, tab_id) = match effects.as_slice() {
+        [
+            Effect::LoadEditorNote {
+                request_id, tab_id, ..
+            },
+        ] => (*request_id, *tab_id),
+        _ => panic!("a background open should start one load"),
+    };
+    let _ = update(
+        model,
+        AppMsg::Library(LibraryReply::EditorLoaded {
+            request_id,
+            tab_id,
+            result: Ok(loaded_note(note_id)),
+        }),
+    );
+    tab_id
+}
+
+#[test]
+fn activating_a_background_tab_should_publish_its_preview() {
+    let mut model = AppModel::new(&Config::default());
+    let _first = open_and_load(&mut model, NoteId::new());
+    let second = NoteId::new();
+    let second_tab = open_in_background_and_load(&mut model, second);
+
+    let _ = update(&mut model, AppMsg::Tabs(TabsMsg::Activate(second_tab)));
+
+    let document = model
+        .editor
+        .as_ref()
+        .unwrap_or_else(|| panic!("the background tab should become active"));
+    assert_eq!(document.note_id, second);
+    assert_eq!(
+        model.editor_preview.as_ref(),
+        Some(&crate::mvu::EditorPreview {
+            session: document.session,
+            source: document.source.clone(),
+        }),
+        "activating a background tab should render its own preview"
+    );
+}
+
 #[test]
 fn creating_a_note_should_open_a_new_tab() {
     let mut model = AppModel::new(&Config::default());
