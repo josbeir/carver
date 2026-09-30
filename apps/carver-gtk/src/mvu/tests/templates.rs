@@ -93,3 +93,32 @@ fn ordinary_note_creation_should_resolve_category_template_in_the_runtime() {
         vec![Effect::CreateCategoryNote { category_id: id }]
     );
 }
+
+#[test]
+fn new_category_should_load_choices_for_the_shared_creation_form() {
+    let mut model = AppModel::new(&Config::default());
+    let effects = update(&mut model, AppMsg::Templates(TemplatesMsg::NewCategory));
+    assert!(matches!(
+        &effects[..],
+        [Effect::LoadTemplates {
+            purpose: TemplatePurpose::NewCategory,
+            ..
+        }]
+    ));
+}
+
+#[test]
+fn category_creation_should_forward_the_selected_template() {
+    let mut model = AppModel::new(&Config::default());
+    let template_id = carver_sdk::TemplateId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
+            name: " Work ".into(),
+            appearance: carver_sdk::CategoryAppearance::default(),
+            template_id: Some(template_id),
+        }),
+    );
+    assert!(effects.iter().any(|effect| matches!(effect,
+        Effect::CreateCategoryWithAppearance { name, template_id: Some(id), .. } if name == "Work" && *id == template_id)));
+}

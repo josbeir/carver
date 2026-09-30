@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 19:03+0200\n"
+"POT-Creation-Date: 2026-09-30 19:48+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1290,7 +1290,7 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Used when creating a new note here."
+msgid "Used for new notes. Existing notes stay unchanged."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs

@@ -142,6 +142,19 @@ impl LibraryBackend for TestBackend {
         self.update_category(category.id, name, appearance, now)
     }
 
+    fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        if template_id.is_some() {
+            return Err(TestError);
+        }
+        self.create_category_with_appearance(name, appearance, now)
+    }
+
     fn categories(&self) -> Result<Vec<Category>, Self::Error> {
         self.categories
             .lock()

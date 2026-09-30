@@ -275,6 +275,27 @@ impl<B: LibraryBackend> LibraryClient<B> {
         .await
     }
 
+    /// Creates a category with its appearance and default template atomically.
+    ///
+    /// # Errors
+    /// Returns validation, unavailable-template, or worker/backend errors.
+    pub async fn create_category_with_template_async(
+        &self,
+        name: String,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.create_category_with_template(
+                &name,
+                appearance,
+                template_id,
+                OffsetDateTime::now_utc(),
+            )
+        })
+        .await
+    }
+
     /// Lists sidebar categories without blocking the caller.
     pub async fn categories_async(&self) -> Result<Vec<Category>, LibraryError<B::Error>> {
         self.request(LibraryBackend::categories).await

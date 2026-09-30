@@ -8,6 +8,8 @@ use gettextrs::gettext;
 pub enum TemplatePurpose {
     /// Manage reusable templates.
     Manage,
+    /// Load choices for the shared creation form.
+    NewCategory,
     /// Choose a template for a captured destination.
     Pick(CategoryId),
     /// Edit a category and its template assignment.
@@ -18,6 +20,8 @@ pub enum TemplatePurpose {
 pub enum TemplatesMsg {
     /// Open the template manager.
     Manage,
+    /// Load choices for the Add dialog.
+    NewCategory,
     /// Open a picker in the current category.
     Pick,
     /// Open a category's editing dialog.
@@ -112,6 +116,7 @@ pub enum TemplatesMsg {
 pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect> {
     match message {
         TemplatesMsg::Manage => load(model, TemplatePurpose::Manage),
+        TemplatesMsg::NewCategory => load(model, TemplatePurpose::NewCategory),
         TemplatesMsg::Pick => model
             .active_category_id()
             .map_or_else(Vec::new, |id| load(model, TemplatePurpose::Pick(id))),

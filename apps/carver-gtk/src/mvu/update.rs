@@ -2496,12 +2496,15 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::CreateCategory(name) => {
             category_name_effect(&name, |name| Effect::CreateCategory { name })
         }
-        ActionMsg::CreateCategoryWithAppearance { name, appearance } => {
-            category_name_effect(&name, |name| Effect::CreateCategoryWithAppearance {
-                name,
-                appearance,
-            })
-        }
+        ActionMsg::CreateCategoryWithAppearance {
+            name,
+            appearance,
+            template_id,
+        } => category_name_effect(&name, |name| Effect::CreateCategoryWithAppearance {
+            name,
+            appearance,
+            template_id,
+        }),
         ActionMsg::CreateCategoryAndMoveNote { name, note_id, .. } => {
             category_name_effect(&name, |name| Effect::CreateCategoryAndMoveNote {
                 action: key,

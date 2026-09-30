@@ -91,6 +91,12 @@
 .category-color-purple { background: #9676bf; }
 .category-color-auto { background: alpha(@accent_bg_color, 0.60); }
 
+.category-color-swatch {
+  min-width: 12px;
+  min-height: 12px;
+  border-radius: 50%;
+}
+
 .category-appearance-option {
   min-width: 36px;
   min-height: 36px;
@@ -395,7 +401,6 @@ popover button:checked {
   min-height: 0;
 }
 
-.sidebar-add-panel { padding: 8px 18px 18px; }
 
 .bases-grid row:nth-child(even) {
   background: alpha(currentColor, 0.025);

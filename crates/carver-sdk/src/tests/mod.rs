@@ -277,3 +277,35 @@ fn template_requests_should_propagate_backend_failures() -> Result<(), LibraryEr
     )));
     Ok(())
 }
+
+#[test]
+fn category_form_should_create_without_a_template_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let appearance = CategoryAppearance {
+        icon: CategoryIcon::Book,
+        color: CategoryColor::Teal,
+    };
+    let created =
+        block_on(client.create_category_with_template_async("Work".into(), appearance, None))?;
+    assert_eq!(created.appearance, appearance);
+    assert_eq!(created.default_template_id, None);
+    assert_eq!(block_on(client.categories_async())?, vec![created]);
+    Ok(())
+}
+
+#[test]
+fn category_form_should_propagate_creation_failure_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    assert!(matches!(
+        block_on(client.create_category_with_template_async(
+            "Work".into(),
+            CategoryAppearance::default(),
+            Some(TemplateId::new())
+        )),
+        Err(LibraryError::Backend(TestError))
+    ));
+    assert!(block_on(client.categories_async())?.is_empty());
+    Ok(())
+}

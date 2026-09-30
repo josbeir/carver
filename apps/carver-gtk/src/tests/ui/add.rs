@@ -17,6 +17,8 @@ use libadwaita::{self as adw, prelude::*};
 )]
 pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> TestResult {
     let (_temporary, client) = test_state()?;
+    let template = glib::MainContext::default()
+        .block_on(client.create_template_async("Meeting".into(), "# Agenda".into()))?;
     let dispatcher = AppDispatcher::default();
     let routes = gtk::Stack::new();
     routes.add_named(
@@ -81,9 +83,33 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     entry.set_text("  ");
     assert!(!create.is_sensitive());
     entry.set_text("  Work  ");
+    assert!(create.ancestor(adw::HeaderBar::static_type()).is_some());
+    let selector = widget_as::<adw::ComboRow>(root, "category-default-template")
+        .ok_or("template selector in creation")?;
+    assert!(run_main_context_until(|| selector.is_sensitive()));
+    assert_eq!(selector.selected(), 0);
+    selector.set_selected(1);
+    let icon_picker =
+        widget_as::<gtk::MenuButton>(root, "category-icon-picker").ok_or("compact icon picker")?;
+    icon_picker.popup();
     widget_as::<gtk::ToggleButton>(root, "category-icon-book")
         .ok_or("book icon")?
         .set_active(true);
+    assert_eq!(
+        icon_picker.icon_name().as_deref(),
+        Some("x-office-document-symbolic")
+    );
+    let color_picker = widget_as::<gtk::MenuButton>(root, "category-color-picker")
+        .ok_or("compact colour picker")?;
+    color_picker.popup();
+    widget_as::<gtk::ToggleButton>(root, "category-color-teal")
+        .ok_or("teal colour")?
+        .set_active(true);
+    assert!(
+        widget_as::<gtk::Box>(root, "category-color-swatch")
+            .ok_or("colour swatch")?
+            .has_css_class("category-color-teal")
+    );
     // Pressing Enter must create the category without touching the Create button.
     entry.emit_by_name::<()>("entry-activated", &[]);
     assert!(run_main_context_until(|| client
@@ -91,9 +117,31 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         .is_ok_and(|items| items.len() == 1)));
     assert_eq!(client.categories()?[0].name, "Work");
     assert_eq!(
+        client.categories()?[0].default_template_id,
+        Some(template.id)
+    );
+    assert_eq!(
+        client.categories()?[0].appearance.color,
+        carver_sdk::CategoryColor::Teal
+    );
+    assert_eq!(
         client.categories()?[0].appearance.icon,
         carver_sdk::CategoryIcon::Book
     );
+
+    // Cancel discards form changes, and reopening resets the template choice.
+    button.emit_clicked();
+    let canceled = window
+        .visible_dialog()
+        .ok_or("cancelable category dialog")?;
+    widget_as::<adw::EntryRow>(canceled.upcast_ref(), "category-name-entry")
+        .ok_or("cancelable name")?
+        .set_text("Discard me");
+    widget_as::<gtk::Button>(canceled.upcast_ref(), "category-cancel")
+        .ok_or("header Cancel")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+    assert_eq!(client.categories()?.len(), 1);
 
     // The Base tab prepares its form lazily, only once it has been selected.
     button.emit_clicked();
@@ -101,6 +149,11 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
     let root = dialog.upcast_ref::<gtk::Widget>();
     let stack = widget_as::<adw::ViewStack>(root, "add-stack").ok_or("fresh tabs")?;
     assert_eq!(stack.visible_child_name().as_deref(), Some("category"));
+    let selector =
+        widget_as::<adw::ComboRow>(root, "category-default-template").ok_or("reopened selector")?;
+    assert!(run_main_context_until(|| selector.is_sensitive()));
+    assert_eq!(selector.selected(), 0);
+
     assert!(run_main_context_until(|| dialog.height() > 250));
     let content = dialog.child().ok_or("dialog content")?;
     assert!(run_main_context_until(
@@ -230,6 +283,18 @@ pub(super) fn add_dialog_should_balance_page_sizes() -> TestResult {
     ));
     let category_height = content.height();
     let category_width = content.width();
+    let form = widget_as::<gtk::Box>(root, "category-dialog-content").ok_or("shared form")?;
+    let scroll = form
+        .ancestor(gtk::ScrolledWindow::static_type())
+        .and_downcast::<gtk::ScrolledWindow>()
+        .ok_or("category scroller")?;
+    assert!(
+        run_main_context_until(|| {
+            let adjustment = scroll.vadjustment();
+            adjustment.page_size() > 0.0 && adjustment.upper() <= adjustment.page_size() + 1.0
+        }),
+        "all category rows should fit on a desktop without scrolling"
+    );
     capture_dialog(&dialog, "tabs-category-desktop")?;
     stack.set_visible_child_name("base");
     assert!(run_main_context_until(|| {

@@ -620,6 +620,8 @@ pub enum Effect {
         name: String,
         /// Selected visual identity.
         appearance: CategoryAppearance,
+        /// Default template selected in the category form.
+        template_id: Option<carver_sdk::TemplateId>,
     },
     /// Create a category, then move a note into it as one user action.
     CreateCategoryAndMoveNote {

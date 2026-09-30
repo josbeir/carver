@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use super::dialogs::category_form;
+use super::dialogs::{CategoryForm, category_form};
 use crate::mvu::{ActionMsg, AppDispatcher, AppMsg, BasesMsg, RequestId};
 use carver_sdk::CategoryAppearance;
 use gettextrs::{gettext, pgettext};
@@ -17,6 +17,7 @@ use libadwaita::{self as adw, prelude::*};
 pub(crate) struct AddDialogHost {
     pub(crate) dialog: adw::Dialog,
     pub(crate) stack: adw::ViewStack,
+    pub(crate) category: Rc<CategoryForm>,
     pub(crate) base_slot: gtk::Box,
     pub(crate) base_footer: gtk::Box,
     pub(crate) base_requested: Cell<bool>,
@@ -39,7 +40,11 @@ impl AddDialogHost {
         } else {
             self.dialog.content_width().max(1)
         };
-        let (_, natural, _, _) = page.measure(gtk::Orientation::Vertical, width);
+        let Some(content) = self.dialog.child() else {
+            return;
+        };
+        // Include the shared header as well as the visible page in the dialog size.
+        let (_, natural, _, _) = content.measure(gtk::Orientation::Vertical, width);
         let available = self
             .dialog
             .root()
@@ -78,6 +83,7 @@ pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Bu
         let host = Rc::new(AddDialogHost {
             dialog: dialog.clone(),
             stack: stack.clone(),
+            category: Rc::new(category_form("", CategoryAppearance::default())),
             base_slot: gtk::Box::new(gtk::Orientation::Vertical, 0),
             base_footer: gtk::Box::new(gtk::Orientation::Horizontal, 0),
             base_requested: Cell::new(false),
@@ -112,6 +118,7 @@ pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Bu
             }
         });
         dialog.present(Some(&parent));
+        let _ = dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::NewCategory));
     });
     button
 }
@@ -123,7 +130,7 @@ fn dialog_content(dispatcher: &AppDispatcher, host: &Rc<AddDialogHost>) -> adw::
     switcher.set_policy(adw::ViewSwitcherPolicy::Wide);
     switcher.set_stack(Some(stack));
 
-    let category = category_page(&host.dialog, dispatcher);
+    let category = host.category.scroller();
     stack.add_titled(
         &category,
         Some("category"),
@@ -151,8 +158,15 @@ fn dialog_content(dispatcher: &AppDispatcher, host: &Rc<AddDialogHost>) -> adw::
         }
     });
 
-    let header = adw::HeaderBar::new();
-    header.set_title_widget(Some(&switcher));
+    let (header, create) = host
+        .category
+        .header(&host.dialog, &switcher, &gettext("Create"));
+    connect_category_submit(host, dispatcher, &create);
+    let create_for_tab = create.clone();
+    stack.connect_visible_child_name_notify(move |stack| {
+        let category = stack.visible_child_name().as_deref() == Some("category");
+        create_for_tab.set_visible(category);
+    });
 
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
@@ -160,62 +174,34 @@ fn dialog_content(dispatcher: &AppDispatcher, host: &Rc<AddDialogHost>) -> adw::
     toolbar
 }
 
-/// Builds the New Category tab with its Create action.
-fn category_page(dialog: &adw::Dialog, dispatcher: &AppDispatcher) -> adw::ToolbarView {
-    let category = category_form("", CategoryAppearance::default());
-    category.content.add_css_class("sidebar-add-panel");
-    let submitted = Rc::new(Cell::new(false));
-    let create = gtk::Button::with_label(&gettext("Create"));
+/// Translates submission of the shared category fields into one MVU mutation.
+fn connect_category_submit(
+    host: &Rc<AddDialogHost>,
+    dispatcher: &AppDispatcher,
+    create: &gtk::Button,
+) {
     create.set_widget_name("add-category-create");
-    create.add_css_class("suggested-action");
-    create.set_sensitive(!category.entry.text().trim().is_empty());
-    {
-        let create = create.clone();
-        category.entry.connect_changed(move |entry| {
-            create.set_sensitive(!entry.text().trim().is_empty());
-        });
-    }
-    {
-        let create = create.clone();
-        category.entry.connect_entry_activated(move |_| {
-            create.emit_clicked();
-        });
-    }
-    {
-        let entry = category.entry.clone();
-        let icon = Rc::clone(&category.icon);
-        let color = Rc::clone(&category.color);
-        let submitted = Rc::clone(&submitted);
-        let dispatcher = dispatcher.clone();
-        let weak_dialog = dialog.downgrade();
-        create.connect_clicked(move |_| {
-            let name = entry.text().trim().to_owned();
-            if name.is_empty() || submitted.replace(true) {
-                return;
-            }
-            if let Some(dialog) = weak_dialog.upgrade() {
-                dialog.close();
-            }
-            let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
-                name,
-                appearance: CategoryAppearance {
-                    icon: icon.get(),
-                    color: color.get(),
-                },
-            }));
-        });
-    }
-    let toolbar = adw::ToolbarView::new();
-    toolbar.set_content(Some(&category.content));
-    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    footer.set_halign(gtk::Align::End);
-    footer.set_margin_top(6);
-    footer.set_margin_bottom(6);
-    footer.set_margin_start(12);
-    footer.set_margin_end(12);
-    footer.append(&create);
-    toolbar.add_bottom_bar(&footer);
-    toolbar
+    let submitted = Cell::new(false);
+    let form = Rc::clone(&host.category);
+    let dispatcher = dispatcher.clone();
+    let weak_dialog = host.dialog.downgrade();
+    create.connect_clicked(move |_| {
+        let name = form.entry.text().trim().to_owned();
+        if name.is_empty() || submitted.replace(true) {
+            return;
+        }
+        let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::CreateCategoryWithAppearance {
+            name,
+            appearance: CategoryAppearance {
+                icon: form.icon.get(),
+                color: form.color.get(),
+            },
+            template_id: form.selected_template(),
+        }));
+        if let Some(dialog) = weak_dialog.upgrade() {
+            dialog.close();
+        }
+    });
 }
 
 /// Builds the New Base tab, which shows a spinner until its form is mounted.

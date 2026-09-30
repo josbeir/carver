@@ -194,3 +194,77 @@ fn template_should_reject_invalid_content_and_blank_names() {
             .is_empty()
     );
 }
+
+#[test]
+fn category_creation_should_persist_all_form_fields_together() {
+    let (_dir, library) = library();
+    let now = OffsetDateTime::from_unix_timestamp(1_700_000_000)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let template = library
+        .insert_template("Meeting", "# Agenda", now)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let appearance = CategoryAppearance {
+        icon: CategoryIcon::Book,
+        color: CategoryColor::Teal,
+    };
+    let category = library
+        .create_category_with_template(" Work ", appearance, Some(template.id), now)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    assert_eq!(category.name, "Work");
+    assert_eq!(category.appearance, appearance);
+    assert_eq!(category.default_template_id, Some(template.id));
+    assert_eq!(
+        library
+            .list_categories()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        vec![category]
+    );
+}
+
+#[test]
+fn category_creation_should_rollback_when_selected_template_is_unavailable() {
+    let (_dir, library) = library();
+    let now = OffsetDateTime::from_unix_timestamp(1_700_000_000)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let before = library
+        .change_revision()
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    assert!(matches!(
+        library.create_category_with_template(
+            "Work",
+            CategoryAppearance::default(),
+            Some(TemplateId::new()),
+            now
+        ),
+        Err(StorageError::TemplateConflict)
+    ));
+    assert!(
+        library
+            .list_categories()
+            .unwrap_or_else(|error| panic!("{error:?}"))
+            .is_empty()
+    );
+    assert_eq!(
+        library
+            .change_revision()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        before
+    );
+}
+
+#[test]
+fn category_creation_should_allow_no_default_template() {
+    let (_dir, library) = library();
+    let now = OffsetDateTime::from_unix_timestamp(1_700_000_000)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    let category = library
+        .create_category_with_template("Work", CategoryAppearance::default(), None, now)
+        .unwrap_or_else(|error| panic!("{error:?}"));
+    assert_eq!(category.default_template_id, None);
+    assert_eq!(
+        library
+            .list_categories()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        vec![category]
+    );
+}

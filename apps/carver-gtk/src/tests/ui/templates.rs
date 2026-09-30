@@ -152,9 +152,16 @@ fn assign_default(fixture: &WindowFixture, template_id: carver_sdk::TemplateId) 
         .ok_or("category template selector")?;
     assert_eq!(selector.selected(), 0);
     selector.set_selected(1);
-    let dialog = dialog.downcast::<adw::AlertDialog>().map_err(|_| "alert")?;
-    dialog.emit_by_name_with_details::<()>("response", glib::Quark::from_str("save"), &[&"save"]);
-    dialog.close();
+    let save =
+        widget_as::<gtk::Button>(dialog.upcast_ref(), "category-save").ok_or("header Save")?;
+    assert!(save.ancestor(adw::HeaderBar::static_type()).is_some());
+    let name = widget_as::<adw::EntryRow>(dialog.upcast_ref(), "category-name-entry")
+        .ok_or("category name")?;
+    let previous_name = name.text();
+    name.set_text("  ");
+    assert!(!save.is_sensitive());
+    name.set_text(&previous_name);
+    save.emit_clicked();
     assert!(run_main_context_until(|| fixture
         .client
         .categories()

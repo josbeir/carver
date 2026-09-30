@@ -1590,6 +1590,16 @@ impl LibraryBackend for SqliteLibrary {
         Self::create_category_with_appearance(self, name, appearance, now)
     }
 
+    fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        Self::create_category_with_template(self, name, appearance, template_id, now)
+    }
+
     fn categories(&self) -> Result<Vec<Category>, Self::Error> {
         self.list_categories()
     }

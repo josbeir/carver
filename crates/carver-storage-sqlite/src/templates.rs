@@ -6,6 +6,27 @@ use super::{
 };
 
 impl SqliteLibrary {
+    /// Creates a category with all form fields in one transaction.
+    ///
+    /// # Errors
+    /// Returns validation, unavailable-template, or database errors without creating a category.
+    pub fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<carver_domain::Category, StorageError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        let mut category = self.create_category_with_appearance(name, appearance, now)?;
+        if template_id.is_some() {
+            self.assign_category_template(category.id, template_id, now)?;
+        }
+        category.default_template_id = template_id;
+        transaction.commit()?;
+        Ok(category)
+    }
+
     /// Updates all category form fields in one transaction.
     ///
     /// # Errors

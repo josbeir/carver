@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 19:02+0200\n"
+"POT-Creation-Date: 2026-09-30 19:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1264,8 +1264,8 @@ msgid "Use the system document font, comfortable width, and default line spacing
 msgstr "使用系统文档字体、舒适宽度和默认行距。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Used when creating a new note here."
-msgstr "在此创建新笔记时使用。"
+msgid "Used for new notes. Existing notes stay unchanged."
+msgstr "用于新建笔记。现有笔记保持不变。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "VS Code Copilot"

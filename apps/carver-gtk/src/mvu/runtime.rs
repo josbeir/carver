@@ -479,8 +479,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::RestoreNote { note_id } => self.restore_note(note_id),
             Effect::EmptyTrash => self.empty_trash(),
             Effect::CreateCategory { name } => self.create_category(name),
-            Effect::CreateCategoryWithAppearance { name, appearance } => {
-                self.create_category_with_appearance(name, appearance);
+            Effect::CreateCategoryWithAppearance {
+                name,
+                appearance,
+                template_id,
+            } => {
+                self.create_category_with_appearance(name, appearance, template_id);
             }
             Effect::CreateCategoryAndMoveNote {
                 action,
@@ -1466,11 +1470,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
         &self,
         name: String,
         appearance: carver_sdk::CategoryAppearance,
+        template_id: Option<carver_sdk::TemplateId>,
     ) {
         let client = self.inner.client.clone();
         self.complete_action(ActionKey::CreateCategory, async move {
             client
-                .create_category_with_appearance_async(name, appearance)
+                .create_category_with_template_async(name, appearance, template_id)
                 .await
                 .map(|_| ())
         });

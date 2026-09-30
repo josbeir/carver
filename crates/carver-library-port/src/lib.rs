@@ -129,6 +129,17 @@ pub trait LibraryBackend: Send + 'static {
         appearance: CategoryAppearance,
         now: OffsetDateTime,
     ) -> Result<Category, Self::Error>;
+    /// Creates a category and assigns its default template atomically.
+    ///
+    /// # Errors
+    /// Returns validation, unavailable-template, or backend errors without creating a category.
+    fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error>;
     /// Lists active categories in their display order.
     fn categories(&self) -> Result<Vec<Category>, Self::Error>;
     /// Lists active categories with their active-note counts in display order.

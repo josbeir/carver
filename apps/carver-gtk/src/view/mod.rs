@@ -943,6 +943,17 @@ impl ViewRefs {
         };
         match effect {
             Effect::ShowTemplates { templates, purpose } => {
+                if purpose == crate::mvu::TemplatePurpose::NewCategory {
+                    let host = self
+                        .add_dialog
+                        .as_ref()
+                        .and_then(|slot| slot.borrow().clone());
+                    if let Some(host) = host {
+                        host.category.set_templates(&templates, None);
+                        host.sync_height();
+                    }
+                    return;
+                }
                 let previous = self.template_list.borrow_mut().take();
                 if let Some(dialog) = previous
                     && dialog.is_mapped()

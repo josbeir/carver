@@ -1532,28 +1532,131 @@ pub(crate) fn show_category_name_dialog(
     dialog.present(parent);
 }
 
-/// Presents one category form with a validated name and an explicit visual identity.
+/// Shared creation and editing fields, including the template-choice widget mapping.
 pub(crate) struct CategoryForm {
     pub(crate) content: gtk::Box,
     pub(crate) entry: adw::EntryRow,
     pub(crate) icon: Rc<std::cell::Cell<CategoryIcon>>,
     pub(crate) color: Rc<std::cell::Cell<CategoryColor>>,
+    selector: adw::ComboRow,
+    template_ids: RefCell<Vec<carver_sdk::TemplateId>>,
+}
+
+impl CategoryForm {
+    /// Replaces loading choices with an immutable library snapshot.
+    pub(crate) fn set_templates(
+        &self,
+        templates: &[carver_sdk::NoteTemplate],
+        selected: Option<carver_sdk::TemplateId>,
+    ) {
+        let mut names = vec![pgettext("template choice", "None")];
+        names.extend(templates.iter().map(|t| t.name.clone()));
+        let list = gtk::StringList::new(&names.iter().map(String::as_str).collect::<Vec<_>>());
+        *self.template_ids.borrow_mut() = templates.iter().map(|t| t.id).collect();
+        self.selector.set_model(Some(&list));
+        self.selector.set_selected(
+            templates
+                .iter()
+                .position(|t| Some(t.id) == selected)
+                .and_then(|i| u32::try_from(i + 1).ok())
+                .unwrap_or(0),
+        );
+        self.selector.set_sensitive(true);
+    }
+
+    pub(crate) fn selected_template(&self) -> Option<carver_sdk::TemplateId> {
+        usize::try_from(self.selector.selected())
+            .ok()
+            .and_then(|i| i.checked_sub(1))
+            .and_then(|i| self.template_ids.borrow().get(i).copied())
+    }
+
+    /// Builds the same header actions and Enter-key behavior for both workflows.
+    pub(crate) fn header(
+        &self,
+        dialog: &adw::Dialog,
+        title: &impl IsA<gtk::Widget>,
+        action_label: &str,
+    ) -> (adw::HeaderBar, gtk::Button) {
+        let header = adw::HeaderBar::new();
+        header.set_show_start_title_buttons(false);
+        header.set_show_end_title_buttons(false);
+        header.set_title_widget(Some(title));
+        let cancel = gtk::Button::with_label(&gettext("Cancel"));
+        cancel.set_widget_name("category-cancel");
+        let weak = dialog.downgrade();
+        cancel.connect_clicked(move |_| {
+            if let Some(dialog) = weak.upgrade() {
+                dialog.close();
+            }
+        });
+        header.pack_start(&cancel);
+        let submit = gtk::Button::with_label(action_label);
+        submit.add_css_class("suggested-action");
+        submit.set_sensitive(!self.entry.text().trim().is_empty());
+        let weak = submit.downgrade();
+        self.entry.connect_changed(move |entry| {
+            if let Some(submit) = weak.upgrade() {
+                submit.set_sensitive(!entry.text().trim().is_empty());
+            }
+        });
+        let weak = submit.downgrade();
+        self.entry.connect_entry_activated(move |_| {
+            if let Some(submit) = weak.upgrade()
+                && submit.is_sensitive()
+            {
+                submit.emit_clicked();
+            }
+        });
+        header.pack_end(&submit);
+        (header, submit)
+    }
+
+    pub(crate) fn scroller(&self) -> gtk::ScrolledWindow {
+        let clamp = adw::Clamp::builder()
+            .maximum_size(560)
+            .child(&self.content)
+            .build();
+        gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .propagate_natural_height(true)
+            .child(&clamp)
+            .build()
+    }
 }
 
 pub(crate) fn category_form(
     initial_name: &str,
     initial_appearance: CategoryAppearance,
 ) -> CategoryForm {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
     content.set_widget_name("category-dialog-content");
+    content.set_margin_top(12);
+    content.set_margin_bottom(24);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
     let entry = adw::EntryRow::new();
     entry.set_widget_name("category-name-entry");
     entry.set_title(&gettext("Category name"));
     entry.set_text(initial_name);
     entry.set_activates_default(true);
-    let name_group = adw::PreferencesGroup::new();
-    name_group.add(&entry);
-    content.append(&name_group);
+    let group = adw::PreferencesGroup::new();
+    group.add(&entry);
+    let selector = adw::ComboRow::builder()
+        .title(gettext("Default template"))
+        .subtitle(gettext(
+            "Used for new notes. Existing notes stay unchanged.",
+        ))
+        .model(&gtk::StringList::new(&[&pgettext(
+            "template choice",
+            "None",
+        )]))
+        .build();
+    selector.set_use_markup(false);
+    selector.set_widget_name("category-default-template");
+    selector.set_sensitive(false);
+    group.add(&selector);
+    content.append(&group);
     let (picker, icon, color) = category_appearance_picker(initial_appearance);
     content.append(&picker);
     CategoryForm {
@@ -1561,6 +1664,8 @@ pub(crate) fn category_form(
         entry,
         icon,
         color,
+        selector,
+        template_ids: RefCell::new(Vec::new()),
     }
 }
 
@@ -1577,6 +1682,7 @@ pub(crate) fn show_category_dialog(
         entry,
         icon,
         color,
+        ..
     } = category_form(initial_name, initial_appearance);
     entry.set_activates_default(true);
     let dialog = adw::AlertDialog::builder()
@@ -1614,50 +1720,97 @@ pub(crate) fn show_category_dialog(
 fn category_appearance_picker(
     initial: CategoryAppearance,
 ) -> (
-    gtk::Box,
+    adw::PreferencesGroup,
     Rc<std::cell::Cell<CategoryIcon>>,
     Rc<std::cell::Cell<CategoryColor>>,
 ) {
-    let picker = gtk::Box::new(gtk::Orientation::Vertical, 6);
-    let icon_label = gtk::Label::new(Some(&pgettext("category appearance", "Icon")));
-    icon_label.set_xalign(0.0);
-    icon_label.add_css_class("heading");
-    picker.append(&icon_label);
+    let group = adw::PreferencesGroup::new();
+    let (icon, selected_icon) = category_icon_picker(initial.icon);
+    let (color, selected_color) = category_color_picker(initial.color);
+    group.add(&icon);
+    group.add(&color);
+    (group, selected_icon, selected_color)
+}
+
+fn category_icon_picker(
+    initial: CategoryIcon,
+) -> (adw::ActionRow, Rc<std::cell::Cell<CategoryIcon>>) {
+    let icon_row = adw::ActionRow::builder()
+        .title(pgettext("category appearance", "Icon"))
+        .build();
+    let icon_button = gtk::MenuButton::new();
+    icon_button.set_widget_name("category-icon-picker");
+    icon_button.set_icon_name(category_icon_name(initial));
+    icon_button.set_valign(gtk::Align::Center);
+    let icon_popover = gtk::Popover::new();
     let icons = gtk::FlowBox::new();
+    icons.set_min_children_per_line(5);
     icons.set_max_children_per_line(5);
     icons.set_selection_mode(gtk::SelectionMode::None);
     icons.set_column_spacing(6);
     icons.set_row_spacing(6);
-    let selected_icon = Rc::new(std::cell::Cell::new(initial.icon));
+    let selected_icon = Rc::new(std::cell::Cell::new(initial));
     let mut icon_group = None;
     for icon in CATEGORY_ICONS {
         let button = gtk::ToggleButton::new();
         button.set_widget_name(&format!("category-icon-{}", category_icon_id(icon)));
         button.set_tooltip_text(Some(category_icon_label(icon).as_str()));
         button.add_css_class("category-appearance-option");
-        button.set_active(icon == initial.icon);
+        button.set_active(icon == initial);
         button.set_child(Some(&gtk::Image::from_icon_name(category_icon_name(icon))));
         button.set_group(icon_group.as_ref());
         icon_group.get_or_insert_with(|| button.clone());
         let selected_icon = Rc::clone(&selected_icon);
+        let weak_button = icon_button.downgrade();
+        let weak_popover = icon_popover.downgrade();
         button.connect_toggled(move |button| {
             if button.is_active() {
                 selected_icon.set(icon);
+                if let Some(button) = weak_button.upgrade() {
+                    button.set_icon_name(category_icon_name(icon));
+                }
+                if let Some(popover) = weak_popover.upgrade() {
+                    popover.popdown();
+                }
             }
         });
         icons.insert(&button, -1);
     }
-    picker.append(&icons);
-    let color_label = gtk::Label::new(Some(&pgettext("category appearance", "Colour")));
-    color_label.set_xalign(0.0);
-    color_label.add_css_class("heading");
-    picker.append(&color_label);
+    icon_popover.set_child(Some(&icons));
+    icon_button.set_popover(Some(&icon_popover));
+    icon_row.add_suffix(&icon_button);
+    icon_row.set_activatable_widget(Some(&icon_button));
+    (icon_row, selected_icon)
+}
+
+fn category_color_picker(
+    initial: CategoryColor,
+) -> (adw::ActionRow, Rc<std::cell::Cell<CategoryColor>>) {
+    let color_row = adw::ActionRow::builder()
+        .title(pgettext("category appearance", "Colour"))
+        .build();
+    let color_button = gtk::MenuButton::new();
+    color_button.set_widget_name("category-color-picker");
+    let color_preview = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let swatch = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    swatch.set_widget_name("category-color-swatch");
+    swatch.add_css_class("category-color-swatch");
+    swatch.add_css_class(category_color_css_class(initial));
+    swatch.set_valign(gtk::Align::Center);
+    let color_label = gtk::Label::new(Some(&category_color_label(initial)));
+    color_preview.append(&swatch);
+    color_preview.append(&color_label);
+    color_preview.append(&gtk::Image::from_icon_name("pan-down-symbolic"));
+    color_button.set_child(Some(&color_preview));
+    color_button.set_valign(gtk::Align::Center);
+    let color_popover = gtk::Popover::new();
     let colors = gtk::FlowBox::new();
-    colors.set_max_children_per_line(4);
+    colors.set_min_children_per_line(2);
+    colors.set_max_children_per_line(2);
     colors.set_selection_mode(gtk::SelectionMode::None);
     colors.set_column_spacing(6);
     colors.set_row_spacing(6);
-    let selected_color = Rc::new(std::cell::Cell::new(initial.color));
+    let selected_color = Rc::new(std::cell::Cell::new(initial));
     let mut color_group = None;
     for color in CATEGORY_COLORS {
         let button = gtk::ToggleButton::with_label(&category_color_label(color));
@@ -1665,19 +1818,35 @@ fn category_appearance_picker(
         button.set_tooltip_text(Some(category_color_label(color).as_str()));
         button.add_css_class("category-color-option");
         button.add_css_class(category_color_css_class(color));
-        button.set_active(color == initial.color);
+        button.set_active(color == initial);
         button.set_group(color_group.as_ref());
         color_group.get_or_insert_with(|| button.clone());
         let selected_color = Rc::clone(&selected_color);
+        let weak_swatch = swatch.downgrade();
+        let weak_label = color_label.downgrade();
+        let weak_popover = color_popover.downgrade();
         button.connect_toggled(move |button| {
             if button.is_active() {
-                selected_color.set(color);
+                let previous = selected_color.replace(color);
+                if let Some(swatch) = weak_swatch.upgrade() {
+                    swatch.remove_css_class(category_color_css_class(previous));
+                    swatch.add_css_class(category_color_css_class(color));
+                }
+                if let Some(label) = weak_label.upgrade() {
+                    label.set_label(&category_color_label(color));
+                }
+                if let Some(popover) = weak_popover.upgrade() {
+                    popover.popdown();
+                }
             }
         });
         colors.insert(&button, -1);
     }
-    picker.append(&colors);
-    (picker, selected_icon, selected_color)
+    color_popover.set_child(Some(&colors));
+    color_button.set_popover(Some(&color_popover));
+    color_row.add_suffix(&color_button);
+    color_row.set_activatable_widget(Some(&color_button));
+    (color_row, selected_color)
 }
 
 const CATEGORY_ICONS: [CategoryIcon; 10] = [
@@ -2048,62 +2217,39 @@ pub(crate) fn show_category_template_dialog(
     category: &carver_sdk::Category,
     templates: &[carver_sdk::NoteTemplate],
 ) {
-    let CategoryForm {
-        content,
-        entry,
-        icon,
-        color,
-    } = category_form(&category.name, category.appearance);
-    let group = adw::PreferencesGroup::new();
-    let mut names = vec![pgettext("template choice", "None")];
-    names.extend(templates.iter().map(|t| t.name.clone()));
-    let list = gtk::StringList::new(&names.iter().map(String::as_str).collect::<Vec<_>>());
-    let selector = adw::ComboRow::builder()
-        .title(gettext("Default template"))
-        .subtitle(gettext("Used when creating a new note here."))
-        .model(&list)
+    let form = Rc::new(category_form(&category.name, category.appearance));
+    form.set_templates(templates, category.default_template_id);
+    let dialog = adw::Dialog::builder()
+        .title(gettext("Edit Category"))
+        .content_width(560)
         .build();
-    selector.set_use_markup(false);
-    selector.set_widget_name("category-default-template");
-    let selected = templates
-        .iter()
-        .position(|t| Some(t.id) == category.default_template_id)
-        .and_then(|i| u32::try_from(i + 1).ok())
-        .unwrap_or(0);
-    selector.set_selected(selected);
-    group.add(&selector);
-    content.append(&group);
-    let dialog = adw::AlertDialog::builder()
-        .heading(gettext("Edit Category"))
-        .extra_child(&content)
-        .default_response("save")
-        .close_response("cancel")
-        .build();
-    dialog.add_responses(&[("cancel", &gettext("Cancel")), ("save", &gettext("Save"))]);
-    let weak = dialog.downgrade();
-    entry.connect_changed(move |entry| {
-        if let Some(dialog) = weak.upgrade() {
-            dialog.set_response_enabled("save", !entry.text().trim().is_empty());
-        }
-    });
-    let templates = templates.to_vec();
+    let title = adw::WindowTitle::new(&gettext("Edit Category"), "");
+    let (header, save) = form.header(&dialog, &title, &gettext("Save"));
+    save.set_widget_name("category-save");
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+    toolbar.set_content(Some(&form.scroller()));
+    dialog.set_child(Some(&toolbar));
     let category = category.clone();
     let dispatcher = dispatcher.clone();
-    dialog.connect_response(Some("save"), move |_, _| {
-        let template_id = usize::try_from(selector.selected())
-            .ok()
-            .and_then(|i| i.checked_sub(1))
-            .and_then(|i| templates.get(i))
-            .map(|t| t.id);
+    let weak = dialog.downgrade();
+    save.connect_clicked(move |_| {
+        let name = form.entry.text().trim().to_owned();
+        if name.is_empty() {
+            return;
+        }
         let _ = dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::SaveCategory {
             category: category.clone(),
-            name: entry.text().trim().to_owned(),
+            name,
             appearance: CategoryAppearance {
-                icon: icon.get(),
-                color: color.get(),
+                icon: form.icon.get(),
+                color: form.color.get(),
             },
-            template_id,
+            template_id: form.selected_template(),
         }));
+        if let Some(dialog) = weak.upgrade() {
+            dialog.close();
+        }
     });
     dialog.present(Some(parent));
 }
