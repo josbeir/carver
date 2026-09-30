@@ -586,12 +586,10 @@ impl DatePicker {
             let calendar_cell = Rc::clone(&calendar_cell);
             let control = time_control.clone();
             let state = Rc::clone(&state);
+            let on_changed = Rc::clone(&on_changed);
             let cleared = Rc::clone(&cleared);
             let on_commit = Rc::clone(&on_commit);
             popover.connect_closed(move |_| {
-                let Some(commit) = on_commit.borrow().clone() else {
-                    return;
-                };
                 let current = state.borrow().clone();
                 let value = if cleared.get() {
                     None
@@ -603,7 +601,24 @@ impl DatePicker {
                             .and_then(|calendar| read_picker(field_type, &calendar, &control))
                     })
                 };
-                commit(value);
+                // Confirming the picker commits what it displayed, even when the user did not move
+                // the calendar. Writing the value back into the shared state lets a surface without
+                // a commit callback (the properties dialog) read the shown value on save.
+                let changed = {
+                    let mut slot = state.borrow_mut();
+                    if *slot == value {
+                        false
+                    } else {
+                        slot.clone_from(&value);
+                        true
+                    }
+                };
+                if changed {
+                    notify_changed(&on_changed);
+                }
+                if let Some(commit) = on_commit.borrow().clone() {
+                    commit(value);
+                }
             });
         }
 
@@ -729,8 +744,9 @@ fn apply_picker_state(
     let iso = state.borrow().clone();
     let Some(iso) = iso.as_deref() else {
         // An absent value must not leave a reused picker on the previous row's selection, or a
-        // confirmed unset cell would commit stale data. Reset to the fresh default: today, 00:00.
-        reset_to_today(calendar, spinner);
+        // confirmed unset cell would commit stale data. Reset to the fresh default: today at the
+        // current system time, matching what a new date-time default would show.
+        reset_to_now(calendar, spinner);
         return;
     };
     if field_type == PropertyType::Date {
@@ -756,14 +772,19 @@ fn apply_picker_state(
     );
 }
 
-/// Resets a calendar and time spinner to their fresh default: today at 00:00.
-fn reset_to_today(calendar: &gtk::Calendar, spinner: &TimeControl) {
+/// Resets a calendar and time spinner to their fresh default: today at the current system time.
+fn reset_to_now(calendar: &gtk::Calendar, spinner: &TimeControl) {
     if let Ok(now) = glib::DateTime::now_local() {
         calendar.set_year(now.year());
         calendar.set_month(now.month() - 1);
         calendar.set_day(now.day_of_month());
+        spinner.set_time(
+            u8::try_from(now.hour()).unwrap_or(0),
+            u8::try_from(now.minute()).unwrap_or(0),
+        );
+    } else {
+        spinner.set_time(0, 0);
     }
-    spinner.set_time(0, 0);
 }
 
 /// Reads the picker's calendar and time into an ISO 8601 string.

@@ -94,6 +94,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     properties::date_picker_should_offer_clear_and_done_controls()?;
     properties::default_properties_dialog_should_persist_typed_entries()?;
     properties::date_time_default_should_edit_the_picker()?;
+    properties::ad_hoc_date_time_picker_should_save_the_shown_now()?;
     properties::time_spinner_should_follow_a_twelve_hour_clock()?;
     properties::typed_defaults_should_save_edited_values()?;
     properties::title_frontmatter_should_fill_the_title_row()?;
