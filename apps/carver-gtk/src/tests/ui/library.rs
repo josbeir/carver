@@ -17,6 +17,10 @@ fn menu_labels(model: &gtk::gio::MenuModel) -> Vec<String> {
     labels
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one display-backed scenario sequences note creation from each split-button segment"
+)]
 pub(super) fn browser_actions_should_import_and_create_a_note(
     fixture: &WindowFixture,
 ) -> Result<carver_sdk::NoteSummary, Box<dyn std::error::Error>> {
@@ -24,6 +28,7 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
     let client = &fixture.client;
     let root = fixture.root()?;
     let sidebar = fixture.sidebar()?;
+    let route_stack = fixture.route_stack()?;
     let browser_view =
         widget_as::<adw::ToolbarView>(&root, "browser-surface").ok_or("browser view")?;
     let browser_controllers = browser_view.observe_controllers();
@@ -36,20 +41,32 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         browser_shortcuts.propagation_phase(),
         gtk::PropagationPhase::Capture
     );
-    assert!(widget_as::<gtk::Button>(&root, "new-note-button").is_some());
-    let browser_menu = widget_as::<gtk::MenuButton>(&root, "browser-menu-button")
-        .ok_or("browser overflow menu")?;
+    let new_note =
+        widget_as::<adw::SplitButton>(&root, "new-note-button").ok_or("new note split button")?;
+    let note_menu_model = new_note.menu_model().ok_or("new note menu model")?;
+    let note_actions: Vec<String> = (0..note_menu_model.n_items())
+        .filter_map(|index| {
+            note_menu_model
+                .item_attribute_value(index, "action", None)
+                .and_then(|value| value.get::<String>())
+        })
+        .collect();
     assert_eq!(
-        browser_menu.menu_model().map(|model| model.n_items()),
-        Some(1)
-    );
-    assert!(
-        browser_menu
-            .popover()
-            .and_downcast::<gtk::PopoverMenu>()
-            .is_some()
+        note_actions,
+        [
+            "win.import-note",
+            "win.new-note-from-clipboard",
+            "win.new-note-from-markdown-clipboard"
+        ],
+        "the New Note dropdown should group import and clipboard actions"
     );
     assert!(window.lookup_action("import-note").is_some());
+    assert!(window.lookup_action("new-note-from-clipboard").is_some());
+    assert!(
+        window
+            .lookup_action("new-note-from-markdown-clipboard")
+            .is_some()
+    );
     assert_eq!(
         crate::ui::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
         Some(carver_sdk::DocumentImportFormat::Carve)
@@ -83,6 +100,85 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         window.upcast_ref(),
         crate::mvu::AppDispatcher::default(),
     );
+    // Dropdown segment: "New from Clipboard" creates the note from the clipboard text.
+    let clipboard = gtk::prelude::WidgetExt::display(&window).clipboard();
+    clipboard.set_text("clipboard note body");
+    assert!(
+        gtk::prelude::WidgetExt::activate_action(
+            &window,
+            crate::ui::dialogs::NEW_NOTE_FROM_CLIPBOARD_ACTION,
+            None::<&glib::Variant>
+        )
+        .is_ok(),
+        "the clipboard action should be activatable"
+    );
+    assert!(run_main_context_until(|| client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0
+            }
+        )
+        .is_ok_and(|notes| notes.items.len() == 1)));
+    let pasted = client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0,
+            },
+        )?
+        .items
+        .into_iter()
+        .next()
+        .ok_or("clipboard note")?;
+    assert!(run_main_context_until(|| client
+        .note(pasted.id)
+        .ok()
+        .flatten()
+        .is_some_and(|saved| saved.source == "clipboard note body")));
+    client.trash_note(pasted.id)?;
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+    }));
+
+    // Primary segment: clicking New Note creates a blank note.
+    new_note.emit_clicked();
+    assert!(run_main_context_until(|| client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0
+            }
+        )
+        .is_ok_and(|notes| notes.items.len() == 1)));
+    let blank = client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 10,
+                offset: 0,
+            },
+        )?
+        .items
+        .into_iter()
+        .next()
+        .ok_or("blank note")?;
+    assert!(run_main_context_until(|| client
+        .note(blank.id)
+        .ok()
+        .flatten()
+        .is_some_and(|saved| saved.source.is_empty())));
+    client.trash_note(blank.id)?;
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    assert!(run_main_context_until(|| {
+        route_stack.visible_child_name().as_deref() == Some("browser")
+    }));
+
+    // Shortcut segment: Ctrl+N still creates the note this scenario returns.
     let new_note_handled = browser_shortcuts.emit_by_name::<bool>(
         "key-pressed",
         &[

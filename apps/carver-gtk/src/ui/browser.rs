@@ -11,7 +11,8 @@ use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{
     dialogs::{
-        IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
+        IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, NEW_NOTE_FROM_CLIPBOARD_ACTION,
+        NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION, category_color_css_class, category_icon_name,
         show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
     },
     editor::{EditorSurface, build_editor},
@@ -204,10 +205,7 @@ pub(crate) fn build_browser(
     let view = adw::ToolbarView::new();
     view.set_widget_name("browser-surface");
     let header = adw::HeaderBar::new();
-    let new_note = gtk::Button::from_icon_name("document-new-symbolic");
-    new_note.set_widget_name("new-note-button");
-    new_note.set_tooltip_text(Some(&gettext("New Note")));
-    header.pack_end(&browser_menu_button());
+    let new_note = browser_new_note_split_button(dispatcher);
     header.pack_end(&new_note);
     header.pack_start(&sidebar_toggle_button(
         split_view,
@@ -336,7 +334,7 @@ pub(crate) fn build_browser(
         empty_new_note_button: empty_new_note,
         status,
     };
-    connect_browser_actions(dispatcher, &references, &new_note);
+    connect_browser_actions(dispatcher, &references);
     connect_browser_paging(dispatcher, &references);
     install_browser_shortcuts(&view);
     (view.upcast(), references)
@@ -361,16 +359,35 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
     });
 }
 
-fn browser_menu_button() -> gtk::MenuButton {
+/// Builds the header's note-creation split button.
+///
+/// The primary action creates a blank note; the dropdown groups the related
+/// actions that add a note to the library. A split button keeps `Import Note`
+/// discoverable without a standalone overflow menu whose only entry it was.
+fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton {
     let menu = gtk::gio::Menu::new();
     menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
+    menu.append(
+        Some(&gettext("New from Clipboard")),
+        Some(NEW_NOTE_FROM_CLIPBOARD_ACTION),
+    );
+    menu.append(
+        Some(&gettext("New from Clipboard as Markdown")),
+        Some(NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION),
+    );
 
-    let button = gtk::MenuButton::new();
-    button.set_widget_name("browser-menu-button");
-    button.set_icon_name("view-more-symbolic");
-    button.set_tooltip_text(Some(&gettext("More options")));
-    button.add_css_class("flat");
+    let button = adw::SplitButton::new();
+    button.set_widget_name("new-note-button");
+    button.set_icon_name("document-new-symbolic");
+    button.set_tooltip_text(Some(&gettext("New Note")));
+    button.set_dropdown_tooltip(&gettext("More options"));
+    button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);
     button.set_menu_model(Some(&menu));
+
+    let dispatcher = dispatcher.clone();
+    button.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
+    });
     button
 }
 
@@ -432,12 +449,7 @@ fn install_browser_shortcuts(view: &adw::ToolbarView) {
     action_host.add_controller(controller);
 }
 
-fn connect_browser_actions(
-    dispatcher: &AppDispatcher,
-    references: &BrowserViewRefs,
-    new_note: &gtk::Button,
-) {
-    connect_new_note_action(dispatcher, new_note);
+fn connect_browser_actions(dispatcher: &AppDispatcher, references: &BrowserViewRefs) {
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
 }
 

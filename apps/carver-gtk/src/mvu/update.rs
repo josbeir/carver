@@ -50,6 +50,11 @@ fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
             import_note_effect(model, format, source)
         }
+        AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
+            text,
+            intent,
+            category_id,
+        }) => create_note_from_clipboard_effect(model, &text, intent, category_id),
         AppMsg::Navigation(NavigationMsg::ImportFailed(message)) => {
             model.set_notice(UiError::new(message));
             Vec::new()
@@ -1924,15 +1929,20 @@ fn persist_config_effect(model: &AppModel) -> Vec<Effect> {
 }
 
 fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
-    let category_id = model
-        .selected_category
-        .or_else(|| match &model.sidebar.state {
-            super::LoadState::Ready(categories) => {
-                categories.first().map(|category| category.category.id)
-            }
-            _ => None,
-        });
     let source = model.config.document_properties.default_source();
+    create_note_with_source_effect(model, source)
+}
+
+fn create_note_with_source_effect(model: &mut AppModel, source: String) -> Vec<Effect> {
+    let category_id = model.active_category_id();
+    create_note_in_category_effect(model, category_id, source)
+}
+
+fn create_note_in_category_effect(
+    model: &mut AppModel,
+    category_id: Option<carver_sdk::CategoryId>,
+    source: String,
+) -> Vec<Effect> {
     category_id.map_or_else(
         || {
             model.set_notice(UiError::new("No category is available for the new note."));
@@ -1945,6 +1955,38 @@ fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
             }]
         },
     )
+}
+
+/// Creates a note from clipboard text, converting it with the requested intent.
+///
+/// The destination category is resolved when the command is invoked, not when the
+/// asynchronous clipboard read completes, so switching category mid-read cannot retarget it.
+fn create_note_from_clipboard_effect(
+    model: &mut AppModel,
+    text: &str,
+    intent: carver_domain::PasteIntent,
+    category_id: Option<carver_sdk::CategoryId>,
+) -> Vec<Effect> {
+    if text.trim().is_empty() {
+        model.set_notice(UiError::new(gettext("There is no text on the clipboard.")));
+        return Vec::new();
+    }
+    let source = carver_domain::import_pasted_text(text, intent).source;
+    let source = seed_default_properties(model, source);
+    create_note_in_category_effect(model, category_id, source)
+}
+
+/// Prepends the configured default properties when a document has no frontmatter of its own.
+fn seed_default_properties(model: &AppModel, source: String) -> String {
+    if carver_domain::frontmatter_raw(&source).is_some() {
+        return source;
+    }
+    let defaults = model.config.document_properties.default_source();
+    if defaults.is_empty() {
+        source
+    } else {
+        format!("{defaults}{source}")
+    }
 }
 
 fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
@@ -2048,14 +2090,7 @@ fn import_note_effect(
     format: carver_sdk::DocumentImportFormat,
     source: String,
 ) -> Vec<Effect> {
-    let category_id = model
-        .selected_category
-        .or_else(|| match &model.sidebar.state {
-            super::LoadState::Ready(categories) => {
-                categories.first().map(|category| category.category.id)
-            }
-            _ => None,
-        });
+    let category_id = model.active_category_id();
     category_id.map_or_else(
         || {
             model.set_notice(UiError::new(

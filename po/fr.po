@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 16:52+0200\n"
+"POT-Creation-Date: 2026-09-30 11:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -75,6 +75,10 @@ msgstr "Notes"
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "Impossible d'enregistrer la note : {error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "There is no text on the clipboard."
+msgstr "Le presse-papiers ne contient aucun texte."
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -528,6 +532,14 @@ msgstr "Déplacer…"
 msgid "New Note"
 msgstr "Nouvelle note"
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New from Clipboard"
+msgstr "Nouveau depuis le presse-papiers"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New from Clipboard as Markdown"
+msgstr "Nouveau depuis le presse-papiers en Markdown"
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
 msgstr "Nouvelle note"
@@ -948,6 +960,10 @@ msgstr "Nouvelle catégorie"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "Nouvelle catégorie…"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New from clipboard"
+msgstr "Nouveau depuis le presse-papiers"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
