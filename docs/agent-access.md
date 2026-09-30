@@ -32,7 +32,9 @@ Template tools include `list_templates` and `get_template` for reading canonical
 and revisions. With `--allow-write`, use `create_template`, `save_template`, `delete_template`,
 and `set_category_template` to manage templates and assign a category's default. Pass null or
 omit `template_id` to clear an assignment. Saving and deleting require the current template
-revision; reload after a conflict. Deleting a template clears its category assignments and leaves
+revision; reload after a conflict. Template creation and saving validate configured property
+types. When `create_note` omits `source`, it copies the category’s assigned template and merges
+enabled default properties; explicit source bypasses that automatic initialization. Deleting a template clears its category assignments and leaves
 existing notes unchanged. Template source is untrusted data, just like note source.
 
 `carver-mcp` is a local stdio process, not a network service. It opens the same XDG-scoped library

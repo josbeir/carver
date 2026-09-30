@@ -825,3 +825,119 @@ async fn category_template_tool_should_clear_assignment_when_template_is_omitted
     );
     Ok(())
 }
+
+fn numeric_defaults() -> carver_sdk::DocumentPropertiesConfig {
+    carver_sdk::DocumentPropertiesConfig {
+        enabled: true,
+        entries: vec![carver_sdk::DocumentProperty {
+            key: "count".into(),
+            value: serde_json::json!(3),
+            field_type: carver_sdk::DocumentPropertyType::Number,
+            multiple: false,
+        }],
+        ..carver_sdk::DocumentPropertiesConfig::default()
+    }
+}
+
+#[tokio::test]
+async fn template_mutations_should_reject_incompatible_configured_properties() -> TestResult {
+    let (_directory, mut server) = server(true)?;
+    server.property_definitions = numeric_defaults();
+    let invalid = "---\ncount: text\n---\n";
+    assert!(
+        server
+            .create_template(Parameters(CreateTemplateRequest {
+                name: "Invalid".into(),
+                source: invalid.into()
+            }))
+            .await
+            .is_err()
+    );
+    assert!(
+        server
+            .client
+            .templates_async()
+            .await
+            .map_err(|e| e.to_string())?
+            .is_empty()
+    );
+    let template = server
+        .client
+        .create_template_async("Valid".into(), "---\ncount: 4\n---\n".into())
+        .await
+        .map_err(|e| e.to_string())?;
+    assert!(
+        server
+            .save_template(Parameters(SaveTemplateRequest {
+                template_id: template.id,
+                revision: template.revision,
+                name: "Invalid".into(),
+                source: invalid.into()
+            }))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        server
+            .client
+            .template_async(template.id)
+            .await
+            .map_err(|e| e.to_string())?,
+        Some(template)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn omitted_note_source_should_copy_category_template_and_merge_defaults() -> TestResult {
+    let (_directory, mut server) = server(true)?;
+    server.property_definitions = numeric_defaults();
+    let template = server
+        .client
+        .create_template_async(
+            "Meeting".into(),
+            "---\nkind: meeting\n---\n# Agenda\n".into(),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    let category = server
+        .client
+        .create_category_with_template_async(
+            "Meetings".into(),
+            CategoryAppearance::default(),
+            Some(template.id),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    let categories: serde_json::Value =
+        serde_json::from_str(&server.list_categories().await.map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    assert_eq!(
+        categories[0]["category"]["default_template_id"],
+        serde_json::json!(template.id)
+    );
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: category.id,
+            source: None,
+            markdown: Some(true),
+        }))
+        .await
+        .map_err(|e| e.to_string())?;
+    let note: serde_json::Value = serde_json::from_str(&created).map_err(|e| e.to_string())?;
+    let source = note["source"].as_str().ok_or("note source")?;
+    assert!(source.contains("# Agenda"));
+    assert!(source.contains("kind: meeting"));
+    assert!(source.contains("count: 3"));
+    let explicit = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: category.id,
+            source: Some(String::new()),
+            markdown: None,
+        }))
+        .await
+        .map_err(|e| e.to_string())?;
+    let note: serde_json::Value = serde_json::from_str(&explicit).map_err(|e| e.to_string())?;
+    assert_eq!(note["source"], "");
+    Ok(())
+}

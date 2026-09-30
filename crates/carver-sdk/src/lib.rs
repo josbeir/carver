@@ -6,7 +6,7 @@ use std::{collections::VecDeque, error::Error, path::Path, thread};
 
 use async_channel::{Receiver, Sender, TryRecvError};
 use carver_config::{AppPaths, ConfigError};
-pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty};
+pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty, DocumentPropertyType};
 pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, BaseView, Category, CategoryAppearance, CategoryColor,
@@ -1089,3 +1089,76 @@ fn next_job<B>(
 
 #[cfg(test)]
 mod tests;
+
+/// Template validation against the user's configured property definitions.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfiguredTemplateError {
+    /// Canonical template source is invalid.
+    #[error(transparent)]
+    Source(#[from] carver_domain::TemplateError),
+    /// An authored property conflicts with its configured type.
+    #[error("property {0} does not match its configured type")]
+    PropertyType(String),
+}
+
+/// Validates canonical template source and configured property types, even when defaults are disabled.
+///
+/// # Errors
+/// Returns an error for invalid source, managed assets, or incompatible property values.
+pub fn validate_configured_template(
+    source: &str,
+    definitions: &[DocumentProperty],
+) -> Result<(), ConfiguredTemplateError> {
+    carver_domain::validate_template_source(source)?;
+    if let Some(document) = carver_domain::parse_frontmatter_document(source) {
+        for field in document.fields {
+            if let Some(definition) = definitions.iter().find(|d| d.key == field.key) {
+                let shape = definition.resolved();
+                let valid = if shape.field_type == carver_domain::PropertyType::List {
+                    match &field.value {
+                        carver_domain::FrontmatterValue::Null => true,
+                        carver_domain::FrontmatterValue::Text(_) => !shape.multiple,
+                        carver_domain::FrontmatterValue::List(values) => {
+                            shape.multiple
+                                && values
+                                    .iter()
+                                    .all(|v| matches!(v, carver_domain::FrontmatterValue::Text(_)))
+                        }
+                        _ => false,
+                    }
+                } else {
+                    shape.field_type.accepts_value(&field.value)
+                };
+                if !valid {
+                    return Err(ConfiguredTemplateError::PropertyType(field.key));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Resolves a template copy with enabled default properties using the configured frontmatter format.
+///
+/// # Errors
+/// Returns an error if source or configured property types are invalid.
+pub fn instantiate_configured_template(
+    source: &str,
+    config: &DocumentPropertiesConfig,
+) -> Result<String, ConfiguredTemplateError> {
+    validate_configured_template(source, &config.entries)?;
+    let defaults = if config.enabled {
+        config
+            .entries
+            .iter()
+            .filter_map(DocumentProperty::default_field)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Ok(carver_domain::merge_template_source(
+        source,
+        &defaults,
+        config.format,
+    )?)
+}

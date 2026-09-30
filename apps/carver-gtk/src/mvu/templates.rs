@@ -478,43 +478,20 @@ pub(super) fn validate(
     source: &str,
     defaults: &[carver_config::DocumentProperty],
 ) -> Result<(), UiError> {
-    carver_domain::validate_template_source(source).map_err(|error| {
+    carver_sdk::validate_configured_template(source, defaults).map_err(|error| {
         UiError::new(match error {
-            carver_domain::TemplateError::ManagedAssets => {
-                gettext("Templates cannot contain managed images or attachments.")
+            carver_sdk::ConfiguredTemplateError::Source(
+                carver_domain::TemplateError::ManagedAssets,
+            ) => gettext("Templates cannot contain managed images or attachments."),
+            carver_sdk::ConfiguredTemplateError::Source(_) => {
+                gettext("The template frontmatter is invalid or contains duplicate properties.")
             }
-            _ => gettext("The template frontmatter is invalid or contains duplicate properties."),
+            carver_sdk::ConfiguredTemplateError::PropertyType(key) => tr_fmt!(
+                gettext("Property {key} does not match its configured type."),
+                key = key
+            ),
         })
-    })?;
-    if let Some(document) = carver_domain::parse_frontmatter_document(source) {
-        for field in document.fields {
-            if let Some(default) = defaults.iter().find(|d| d.key == field.key) {
-                let shape = default.resolved();
-                let valid = if shape.field_type == carver_domain::PropertyType::List {
-                    match &field.value {
-                        carver_domain::FrontmatterValue::Null => true,
-                        carver_domain::FrontmatterValue::Text(_) => !shape.multiple,
-                        carver_domain::FrontmatterValue::List(values) => {
-                            shape.multiple
-                                && values
-                                    .iter()
-                                    .all(|v| matches!(v, carver_domain::FrontmatterValue::Text(_)))
-                        }
-                        _ => false,
-                    }
-                } else {
-                    shape.field_type.accepts_value(&field.value)
-                };
-                if !valid {
-                    return Err(UiError::new(tr_fmt!(
-                        gettext("Property {key} does not match its configured type."),
-                        key = field.key
-                    )));
-                }
-            }
-        }
-    }
-    Ok(())
+    })
 }
 
 // Templates do not modify existing notes. Record our own write before the next focus wakeup

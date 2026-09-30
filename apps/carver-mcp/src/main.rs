@@ -43,16 +43,18 @@ struct CarverServer {
     allow_write: bool,
     /// Canonical Carve seeded into new notes when a request omits `source`.
     default_source: String,
+    property_definitions: carver_sdk::DocumentPropertiesConfig,
     tool_router: ToolRouter<Self>,
     prompt_router: PromptRouter<Self>,
 }
 
 impl CarverServer {
     fn new(client: Client, allow_write: bool) -> Self {
-        let default_source = carver_sdk::load_installed_config()
-            .document_properties
-            .default_source();
-        Self::with_default_source(client, allow_write, default_source)
+        let property_definitions = carver_sdk::load_installed_config().document_properties;
+        let mut server =
+            Self::with_default_source(client, allow_write, property_definitions.default_source());
+        server.property_definitions = property_definitions;
+        server
     }
 
     fn with_default_source(client: Client, allow_write: bool, default_source: String) -> Self {
@@ -60,6 +62,7 @@ impl CarverServer {
             client,
             allow_write,
             default_source,
+            property_definitions: carver_sdk::DocumentPropertiesConfig::default(),
             tool_router: Self::tool_router(),
             prompt_router: Self::prompt_router(),
         }
@@ -134,7 +137,7 @@ struct UpdateCategoryRequest {
 #[derive(Deserialize, JsonSchema)]
 struct CreateNoteRequest {
     category_id: CategoryId,
-    /// Canonical Carve source. Omit it to seed the configured default properties.
+    /// Canonical Carve source. Omit it to copy the category template and merge enabled default properties.
     source: Option<String>,
     /// Interpret `source` as `CommonMark` and convert it to canonical Carve.
     markdown: Option<bool>,
@@ -242,6 +245,11 @@ impl CarverServer {
         Parameters(request): Parameters<CreateTemplateRequest>,
     ) -> Result<String, ErrorData> {
         self.require_write()?;
+        carver_sdk::validate_configured_template(
+            &request.source,
+            &self.property_definitions.entries,
+        )
+        .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?;
         self.client
             .create_template_async(request.name, request.source)
             .await
@@ -256,6 +264,11 @@ impl CarverServer {
         Parameters(request): Parameters<SaveTemplateRequest>,
     ) -> Result<String, ErrorData> {
         self.require_write()?;
+        carver_sdk::validate_configured_template(
+            &request.source,
+            &self.property_definitions.entries,
+        )
+        .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?;
         self.client
             .save_template_async(
                 request.template_id,
@@ -455,7 +468,7 @@ impl CarverServer {
 
     /// Creates a note from canonical Carve or, with `markdown: true`, `CommonMark` source.
     ///
-    /// Omitting `source` seeds the configured default document properties as canonical Carve;
+    /// Omitting `source` copies the category template and merges enabled default properties;
     /// `markdown` only applies to an explicitly supplied `source`. The response carries the note
     /// fields plus a `report` with the version 2 importer-fidelity assessment; a
     /// `fidelity-unverified` diagnostic marks a conversion whose fidelity could not be confirmed.
@@ -466,9 +479,35 @@ impl CarverServer {
     ) -> Result<String, ErrorData> {
         self.require_write()?;
         let explicit_source = request.source.is_some();
-        let source = request
-            .source
-            .unwrap_or_else(|| self.default_source.clone());
+        let source = if let Some(source) = request.source {
+            source
+        } else {
+            let category = self
+                .client
+                .categories_with_note_counts_async()
+                .await
+                .map_err(storage_error)?
+                .into_iter()
+                .find(|entry| entry.category.id == request.category_id)
+                .ok_or_else(|| ErrorData::invalid_params("active category was not found", None))?;
+            if let Some(id) = category.category.default_template_id {
+                let template = self
+                    .client
+                    .template_async(id)
+                    .await
+                    .map_err(storage_error)?
+                    .ok_or_else(|| {
+                        ErrorData::invalid_params("category template was not found", None)
+                    })?;
+                carver_sdk::instantiate_configured_template(
+                    &template.source,
+                    &self.property_definitions,
+                )
+                .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?
+            } else {
+                self.default_source.clone()
+            }
+        };
         let format = if explicit_source {
             document_format(request.markdown)
         } else {
