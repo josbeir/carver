@@ -22,8 +22,18 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
     );
     let new_note =
         widget_as::<adw::SplitButton>(&root, "new-note-button").ok_or("new note split button")?;
-    assert_eq!(new_note.menu_model().map(|model| model.n_items()), Some(1));
+    assert_eq!(
+        new_note.menu_model().map(|model| model.n_items()),
+        Some(3),
+        "the New Note dropdown should group import and clipboard actions"
+    );
     assert!(window.lookup_action("import-note").is_some());
+    assert!(window.lookup_action("new-note-from-clipboard").is_some());
+    assert!(
+        window
+            .lookup_action("new-note-from-markdown-clipboard")
+            .is_some()
+    );
     assert_eq!(
         crate::ui::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
         Some(carver_sdk::DocumentImportFormat::Carve)

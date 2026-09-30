@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 16:52+0200\n"
+"POT-Creation-Date: 2026-09-30 10:58+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -87,6 +87,10 @@ msgstr ""
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not save note: {error}"
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "There is no text on the clipboard."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
@@ -543,6 +547,14 @@ msgstr ""
 msgid "New Note"
 msgstr ""
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard as Markdown"
+msgstr ""
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
 msgstr ""
@@ -962,6 +974,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note from clipboard"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs

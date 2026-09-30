@@ -11,7 +11,8 @@ use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{
     dialogs::{
-        IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, category_color_css_class, category_icon_name,
+        IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, NEW_NOTE_FROM_CLIPBOARD_ACTION,
+        NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION, category_color_css_class, category_icon_name,
         show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
     },
     editor::{EditorSurface, build_editor},
@@ -338,6 +339,14 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
 fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton {
     let menu = gtk::gio::Menu::new();
     menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
+    menu.append(
+        Some(&gettext("New Note from Clipboard")),
+        Some(NEW_NOTE_FROM_CLIPBOARD_ACTION),
+    );
+    menu.append(
+        Some(&gettext("New Note from Clipboard as Markdown")),
+        Some(NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION),
+    );
 
     let button = adw::SplitButton::new();
     button.set_widget_name("new-note-button");

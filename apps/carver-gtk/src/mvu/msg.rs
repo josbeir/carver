@@ -210,6 +210,14 @@ pub enum NavigationMsg {
         /// UTF-8 source read by the GTK file adapter.
         source: String,
     },
+    /// Create a note from clipboard text in the selected category, or the first active
+    /// category, converting the text with the supplied intent.
+    CreateNoteFromClipboard {
+        /// UTF-8 text read by the GTK clipboard adapter.
+        text: String,
+        /// How the clipboard text should be interpreted before the note is created.
+        intent: carver_domain::PasteIntent,
+    },
     /// Surface a selected-file failure without creating a note.
     ImportFailed(String),
     /// Show the trash surface.

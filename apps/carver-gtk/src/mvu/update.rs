@@ -50,6 +50,9 @@ fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
             import_note_effect(model, format, source)
         }
+        AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard { text, intent }) => {
+            create_note_from_clipboard_effect(model, &text, intent)
+        }
         AppMsg::Navigation(NavigationMsg::ImportFailed(message)) => {
             model.set_notice(UiError::new(message));
             Vec::new()
@@ -1924,16 +1927,12 @@ fn persist_config_effect(model: &AppModel) -> Vec<Effect> {
 }
 
 fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
-    let category_id = model
-        .selected_category
-        .or_else(|| match &model.sidebar.state {
-            super::LoadState::Ready(categories) => {
-                categories.first().map(|category| category.category.id)
-            }
-            _ => None,
-        });
     let source = model.config.document_properties.default_source();
-    category_id.map_or_else(
+    create_note_with_source_effect(model, source)
+}
+
+fn create_note_with_source_effect(model: &mut AppModel, source: String) -> Vec<Effect> {
+    active_category_id(model).map_or_else(
         || {
             model.set_notice(UiError::new("No category is available for the new note."));
             Vec::new()
@@ -1945,6 +1944,32 @@ fn create_note_effect(model: &mut AppModel) -> Vec<Effect> {
             }]
         },
     )
+}
+
+/// Creates a note from clipboard text, converting it with the requested intent.
+fn create_note_from_clipboard_effect(
+    model: &mut AppModel,
+    text: &str,
+    intent: carver_domain::PasteIntent,
+) -> Vec<Effect> {
+    if text.trim().is_empty() {
+        model.set_notice(UiError::new(gettext("There is no text on the clipboard.")));
+        return Vec::new();
+    }
+    let source = carver_domain::import_pasted_text(text, intent).source;
+    create_note_with_source_effect(model, source)
+}
+
+/// Returns the selected category, falling back to the first active category.
+fn active_category_id(model: &AppModel) -> Option<carver_sdk::CategoryId> {
+    model
+        .selected_category
+        .or_else(|| match &model.sidebar.state {
+            super::LoadState::Ready(categories) => {
+                categories.first().map(|category| category.category.id)
+            }
+            _ => None,
+        })
 }
 
 fn open_properties_effect(model: &AppModel) -> Vec<Effect> {
@@ -2048,15 +2073,7 @@ fn import_note_effect(
     format: carver_sdk::DocumentImportFormat,
     source: String,
 ) -> Vec<Effect> {
-    let category_id = model
-        .selected_category
-        .or_else(|| match &model.sidebar.state {
-            super::LoadState::Ready(categories) => {
-                categories.first().map(|category| category.category.id)
-            }
-            _ => None,
-        });
-    category_id.map_or_else(
+    active_category_id(model).map_or_else(
         || {
             model.set_notice(UiError::new(
                 "No category is available for the imported note.",

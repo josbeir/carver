@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 16:52+0200\n"
+"POT-Creation-Date: 2026-09-30 10:58+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -75,6 +75,10 @@ msgstr "Notizen"
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "Notiz konnte nicht gespeichert werden: {error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "There is no text on the clipboard."
+msgstr "Es befindet sich kein Text in der Zwischenablage."
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -528,6 +532,14 @@ msgstr "Verschieben…"
 msgid "New Note"
 msgstr "Neue Notiz"
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard"
+msgstr "Neue Notiz aus der Zwischenablage"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard as Markdown"
+msgstr "Neue Notiz aus der Zwischenablage als Markdown"
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
 msgstr "Neue Notiz"
@@ -948,6 +960,10 @@ msgstr "Neue Kategorie"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "Neue Kategorie…"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note from clipboard"
+msgstr "Neue Notiz aus der Zwischenablage"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"

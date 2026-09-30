@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-29 16:52+0200\n"
+"POT-Creation-Date: 2026-09-30 10:58+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -75,6 +75,10 @@ msgstr "笔记"
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "无法保存笔记：{error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "There is no text on the clipboard."
+msgstr "剪贴板中没有文本。"
 
 #: apps/carver-gtk/src/ui/add.rs apps/carver-gtk/src/ui/bases/field_picker.rs
 msgid "Add"
@@ -526,6 +530,14 @@ msgstr "移动…"
 msgid "New Note"
 msgstr "新建笔记"
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard"
+msgstr "从剪贴板新建笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New Note from Clipboard as Markdown"
+msgstr "从剪贴板新建 Markdown 笔记"
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
 msgstr "新建笔记"
@@ -942,6 +954,10 @@ msgstr "新建分类"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New Category…"
 msgstr "新建分类…"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New note from clipboard"
+msgstr "从剪贴板新建笔记"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"

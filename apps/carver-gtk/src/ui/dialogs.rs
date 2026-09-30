@@ -25,6 +25,9 @@ use gettextrs::{gettext, ngettext, pgettext};
 
 pub(crate) const NEW_NOTE_ACTION: &str = "win.new-note";
 pub(crate) const IMPORT_NOTE_ACTION: &str = "win.import-note";
+pub(crate) const NEW_NOTE_FROM_CLIPBOARD_ACTION: &str = "win.new-note-from-clipboard";
+pub(crate) const NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION: &str =
+    "win.new-note-from-markdown-clipboard";
 pub(crate) const EXPORT_NOTE_ACTION: &str = "win.export-note";
 pub(crate) const PRINT_NOTE_ACTION: &str = "win.print-note";
 pub(crate) const TRASH_NOTE_ACTION: &str = "win.trash-note";
@@ -62,6 +65,10 @@ static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
         Shortcut {
             title: gettext("Import note"),
             accelerator: "<Control>o",
+        },
+        Shortcut {
+            title: gettext("New note from clipboard"),
+            accelerator: "<Control><Shift>n",
         },
     ]
 });
@@ -320,6 +327,21 @@ fn install_note_actions(
     });
     window.add_action(&import_note);
 
+    install_clipboard_note_action(
+        window,
+        dispatcher,
+        runtime,
+        "new-note-from-clipboard",
+        carver_domain::PasteIntent::Auto,
+    );
+    install_clipboard_note_action(
+        window,
+        dispatcher,
+        runtime,
+        "new-note-from-markdown-clipboard",
+        carver_domain::PasteIntent::Markdown,
+    );
+
     let export_note = gtk::gio::SimpleAction::new("export-note", None);
     let dispatcher_for_export = dispatcher.clone();
     let runtime_for_export = runtime.clone();
@@ -362,6 +384,49 @@ fn install_note_actions(
     window.add_action(&toggle_favorite);
 }
 
+/// Registers a window action that creates a note from the current clipboard text.
+fn install_clipboard_note_action(
+    window: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
+    name: &str,
+    intent: carver_domain::PasteIntent,
+) {
+    let action = gtk::gio::SimpleAction::new(name, None);
+    let dispatcher = dispatcher.clone();
+    let runtime = runtime.clone();
+    let activation_window = window.clone();
+    action.connect_activate(move |_, _| {
+        if runtime.model().route == Route::Browser {
+            read_clipboard_note(
+                activation_window.upcast_ref::<gtk::Window>(),
+                dispatcher.clone(),
+                intent,
+            );
+        }
+    });
+    window.add_action(&action);
+}
+
+/// Reads clipboard text and dispatches a note-creation request for the given intent.
+fn read_clipboard_note(
+    window: &gtk::Window,
+    dispatcher: AppDispatcher,
+    intent: carver_domain::PasteIntent,
+) {
+    let clipboard = gtk::prelude::WidgetExt::display(window).clipboard();
+    clipboard.read_text_async(None::<&gtk::gio::Cancellable>, move |result| {
+        let text = match result {
+            Ok(Some(text)) => text.to_string(),
+            _ => String::new(),
+        };
+        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNoteFromClipboard {
+            text,
+            intent,
+        }));
+    });
+}
+
 fn install_application_accelerators(window: &adw::ApplicationWindow) {
     let Some(application) = window.application() else {
         return;
@@ -369,6 +434,7 @@ fn install_application_accelerators(window: &adw::ApplicationWindow) {
     for (action, accelerator) in [
         (NEW_NOTE_ACTION, "<Control>n"),
         (IMPORT_NOTE_ACTION, "<Control>o"),
+        (NEW_NOTE_FROM_CLIPBOARD_ACTION, "<Control><Shift>n"),
         (EXPORT_NOTE_ACTION, "<Control>e"),
         (PRINT_NOTE_ACTION, "<Control>p"),
         (TRASH_NOTE_ACTION, "<Control>d"),
