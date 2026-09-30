@@ -251,7 +251,7 @@ fn assert_preferences_grouping(preferences_dialog: &adw::PreferencesDialog) -> T
         ("source-syntax-style-setting", "Source", "Appearance"),
         (
             "document-properties-setting",
-            "New note properties",
+            "Properties for all new notes",
             "Properties",
         ),
     ] {

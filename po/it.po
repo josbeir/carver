@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 22:16+0200\n"
+"POT-Creation-Date: 2026-09-30 22:27+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -692,6 +692,10 @@ msgid "Add default properties to new notes"
 msgstr "Aggiungi proprietà predefinite alle nuove note"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Added to every new note. Templates can provide their own values."
+msgstr "Aggiunte a ogni nuova nota. I modelli possono fornire i propri valori."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Adjust the space between lines in Edit and Preview."
 msgstr "Regola lo spazio tra le righe in Modifica e Anteprima."
 
@@ -1036,10 +1040,6 @@ msgid "New from clipboard"
 msgstr "Nuova dagli appunti"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note properties"
-msgstr "Proprietà delle nuove note"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New notes start with a copy of this template. Existing notes stay unchanged."
 msgstr "Le nuove note iniziano con una copia di questo modello. Le note esistenti restano invariate."
 
@@ -1130,6 +1130,10 @@ msgid "Properties"
 msgstr "Proprietà"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties for all new notes"
+msgstr "Proprietà per tutte le nuove note"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Purple"
 msgstr "Viola"
 
@@ -1157,10 +1161,6 @@ msgstr "Cerca righe della base"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search categories"
 msgstr "Cerca categorie"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Seed each new note with the default properties below."
-msgstr "Compila ogni nuova nota con le proprietà predefinite seguenti."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Select a Carve (.crv) or Markdown (.md) file."

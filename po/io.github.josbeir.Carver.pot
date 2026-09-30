@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 22:18+0200\n"
+"POT-Creation-Date: 2026-09-30 22:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -707,6 +707,10 @@ msgid "Add default properties to new notes"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Added to every new note. Templates can provide their own values."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Adjust the space between lines in Edit and Preview."
 msgstr ""
 
@@ -1051,10 +1055,6 @@ msgid "New from clipboard"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note properties"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs
 msgid ""
 "New notes start with a copy of this template. Existing notes stay unchanged."
 msgstr ""
@@ -1148,6 +1148,10 @@ msgid "Properties"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties for all new notes"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Purple"
 msgstr ""
 
@@ -1176,10 +1180,6 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search categories"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Seed each new note with the default properties below."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs

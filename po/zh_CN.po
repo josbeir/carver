@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 22:16+0200\n"
+"POT-Creation-Date: 2026-09-30 22:27+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -686,6 +686,10 @@ msgid "Add default properties to new notes"
 msgstr "为新笔记添加默认属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Added to every new note. Templates can provide their own values."
+msgstr "添加到每条新笔记中。模板可以提供自己的值。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Adjust the space between lines in Edit and Preview."
 msgstr "调整编辑和预览中的行间距。"
 
@@ -1030,10 +1034,6 @@ msgid "New from clipboard"
 msgstr "从剪贴板新建"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note properties"
-msgstr "新笔记属性"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New notes start with a copy of this template. Existing notes stay unchanged."
 msgstr "新笔记以此模板的副本开始。现有笔记保持不变。"
 
@@ -1124,6 +1124,10 @@ msgid "Properties"
 msgstr "属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties for all new notes"
+msgstr "所有新笔记的属性"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Purple"
 msgstr "紫色"
 
@@ -1151,10 +1155,6 @@ msgstr "搜索视图库行"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search categories"
 msgstr "搜索分类"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Seed each new note with the default properties below."
-msgstr "用以下默认属性填充每个新笔记。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Select a Carve (.crv) or Markdown (.md) file."

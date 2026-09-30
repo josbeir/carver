@@ -814,12 +814,12 @@ fn document_properties_group(
     config: &carver_config::Config,
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    group.set_title(&gettext("New note properties"));
+    group.set_title(&gettext("Properties for all new notes"));
 
     let enabled = preference_switch_row(
         "document-properties-setting",
         &gettext("Add default properties to new notes"),
-        &gettext("Seed each new note with the default properties below."),
+        &gettext("Added to every new note. Templates can provide their own values."),
         config.document_properties.enabled,
     );
     group.add(&enabled);
