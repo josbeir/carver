@@ -97,6 +97,9 @@ pub(super) fn render_media_list(
             }));
         });
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        // Mirror the card content's start margin so the trailing action is not flush
+        // with the boxed-list edge.
+        actions.set_margin_end(8);
         actions.append(&button);
         actions.append(&preview);
         actions.append(&download);

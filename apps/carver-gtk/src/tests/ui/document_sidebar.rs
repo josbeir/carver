@@ -204,6 +204,12 @@ pub(super) fn media_download_should_save_a_managed_attachment_copy() -> TestResu
     let download = widget_as::<gtk::Button>(&fixture.surface, "editor-media-download")
         .ok_or("download button")?;
     assert!(download.is_sensitive());
+    // The trailing action keeps the same padding as the card content.
+    let actions = download
+        .parent()
+        .and_downcast::<gtk::Box>()
+        .ok_or("media actions")?;
+    assert_eq!(actions.margin_end(), 8);
     let session = fixture
         .runtime
         .model()
