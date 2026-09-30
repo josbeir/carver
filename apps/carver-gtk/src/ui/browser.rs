@@ -635,6 +635,11 @@ pub(crate) fn note_category_color(
         })
 }
 
+/// Builds a note row's overflow menu from a `Gio::Menu` model.
+///
+/// A model-driven `GtkPopoverMenu` gets the standard libadwaita menu
+/// presentation—left-aligned `modelbutton` rows, section separators, keyboard
+/// navigation, and menu accessibility roles—that a box of flat buttons lacks.
 fn note_actions(
     note: &NoteSummary,
     categories: &[CategorySummary],
@@ -645,45 +650,45 @@ fn note_actions(
     menu.set_icon_name("view-more-symbolic");
     menu.set_tooltip_text(Some(&gettext("Note actions")));
     menu.add_css_class("flat");
-    let popover = gtk::Popover::new();
-    let actions = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let favorite_button = gtk::Button::with_label(&if note.is_favorite {
-        gettext("Remove from Favorites")
-    } else {
-        gettext("Mark as Favorite")
-    });
-    favorite_button.set_widget_name(&format!("favorite-note-menu-button:{}", note.id));
-    favorite_button.add_css_class("flat");
+
+    // Each row owns its actions so the menu targets this note, mirroring the
+    // context-scoped groups registered by the Base card actions.
+    let actions = gtk::gio::SimpleActionGroup::new();
+
+    let favorite = gtk::gio::SimpleAction::new("favorite", None);
     let dispatcher_for_favorite = dispatcher.clone();
-    let popover_for_favorite = popover.clone();
     let note_id = note.id;
     let revision = note.revision;
     let is_favorite = note.is_favorite;
-    favorite_button.connect_clicked(move |_| {
-        popover_for_favorite.popdown();
+    favorite.connect_activate(move |_, _| {
         let _ = dispatcher_for_favorite.dispatch(AppMsg::Action(ActionMsg::SetNoteFavorite {
             note_id,
             revision,
             is_favorite: !is_favorite,
         }));
     });
-    actions.append(&favorite_button);
-    let move_button = gtk::Button::with_label(&gettext("Move…"));
-    move_button.set_widget_name(&format!("move-note-button:{}", note.id));
-    move_button.add_css_class("flat");
+    actions.add_action(&favorite);
+
+    // A `SimpleAction` activation carries no widget, so resolve the dialog's
+    // transient parent from the button. The button is held weakly to avoid a
+    // button -> action group -> action -> closure reference cycle.
+    let move_action = gtk::gio::SimpleAction::new("move", None);
+    let weak_menu = menu.downgrade();
     let dispatcher_for_move = dispatcher.clone();
     let note_id = note.id;
     let source_category_id = note.category_id;
     let note_title = note.title.clone();
     let categories = categories.to_vec();
-    let popover_for_move = popover.clone();
-    move_button.connect_clicked(move |button| {
-        popover_for_move.popdown();
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
+    move_action.connect_activate(move |_, _| {
+        let Some(parent) = weak_menu
+            .upgrade()
+            .and_then(|button| button.root())
+            .and_downcast::<gtk::Window>()
+        else {
+            return;
+        };
         show_move_note_dialog(
-            parent.as_ref(),
+            Some(&parent),
             &dispatcher_for_move,
             note_id,
             source_category_id,
@@ -691,30 +696,40 @@ fn note_actions(
             &categories,
         );
     });
-    actions.append(&move_button);
-    let export_button = gtk::Button::with_label(&gettext("Export note…"));
-    export_button.set_widget_name(&format!("export-note-button:{}", note.id));
-    export_button.add_css_class("flat");
+    actions.add_action(&move_action);
+
+    let export = gtk::gio::SimpleAction::new("export", None);
     let dispatcher_for_export = dispatcher.clone();
     let note_id = note.id;
-    let popover_for_export = popover.clone();
-    export_button.connect_clicked(move |_| {
-        popover_for_export.popdown();
+    export.connect_activate(move |_, _| {
         let _ =
             dispatcher_for_export.dispatch(AppMsg::Navigation(NavigationMsg::ExportNote(note_id)));
     });
-    actions.append(&export_button);
-    let trash_button = gtk::Button::with_label(&gettext("Move to Trash"));
-    trash_button.add_css_class("flat");
-    trash_button.add_css_class("destructive-action");
-    let dispatcher = dispatcher.clone();
+    actions.add_action(&export);
+
+    let trash = gtk::gio::SimpleAction::new("trash", None);
+    let dispatcher_for_trash = dispatcher.clone();
     let note_id = note.id;
-    trash_button.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::TrashNote(note_id)));
+    trash.connect_activate(move |_, _| {
+        let _ = dispatcher_for_trash.dispatch(AppMsg::Action(ActionMsg::TrashNote(note_id)));
     });
-    actions.append(&trash_button);
-    popover.set_child(Some(&actions));
-    menu.set_popover(Some(&popover));
+    actions.add_action(&trash);
+
+    menu.insert_action_group("note", Some(&actions));
+
+    let model = gtk::gio::Menu::new();
+    let favorite_label = if note.is_favorite {
+        gettext("Remove from Favorites")
+    } else {
+        gettext("Mark as Favorite")
+    };
+    model.append(Some(&favorite_label), Some("note.favorite"));
+    model.append(Some(&gettext("Move…")), Some("note.move"));
+    model.append(Some(&gettext("Export note…")), Some("note.export"));
+    let danger = gtk::gio::Menu::new();
+    danger.append(Some(&gettext("Move to Trash")), Some("note.trash"));
+    model.append_section(None, &danger);
+    menu.set_menu_model(Some(&model));
     menu
 }
 

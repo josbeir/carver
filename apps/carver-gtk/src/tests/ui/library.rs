@@ -1,6 +1,22 @@
 //! Display-backed browser note cards, favorites, move picker, and search coverage.
 use super::*;
 
+/// Collects the labels of every item in a menu model, descending into sections.
+fn menu_labels(model: &gtk::gio::MenuModel) -> Vec<String> {
+    let mut labels = Vec::new();
+    for index in 0..model.n_items() {
+        if let Some(value) = model.item_attribute_value(index, "label", None) {
+            labels.push(value.str().unwrap_or_default().to_string());
+        }
+        for link in [gtk::gio::MENU_LINK_SECTION, gtk::gio::MENU_LINK_SUBMENU] {
+            if let Some(section) = model.item_link(index, link) {
+                labels.extend(menu_labels(&section));
+            }
+        }
+    }
+    labels
+}
+
 pub(super) fn browser_actions_should_import_and_create_a_note(
     fixture: &WindowFixture,
 ) -> Result<carver_sdk::NoteSummary, Box<dyn std::error::Error>> {
@@ -127,23 +143,28 @@ pub(super) fn note_cards_should_group_and_favorite(
     assert!(
         note_menu
             .popover()
-            .and_then(|popover| popover.child())
-            .and_then(|actions| {
-                find_widget(&actions, &format!("export-note-button:{}", note.id))
-            })
-            .and_downcast::<gtk::Button>()
+            .and_downcast::<gtk::PopoverMenu>()
             .is_some(),
-        "note actions should expose export"
+        "note actions should use the standard model-driven popover menu"
     );
-    let favorite_button = note_menu
-        .popover()
-        .and_then(|popover| popover.child())
-        .and_then(|actions| {
-            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
-        })
-        .and_downcast::<gtk::Button>()
-        .ok_or("favorite note action")?;
-    favorite_button.emit_clicked();
+    let model = note_menu.menu_model().ok_or("note menu model")?;
+    assert_eq!(
+        menu_labels(&model),
+        ["Mark as Favorite", "Move…", "Export note…", "Move to Trash"].map(str::to_string),
+        "note actions should group favorite, move, and export above a trash section"
+    );
+    assert!(
+        model
+            .item_link(3, gtk::gio::MENU_LINK_SECTION)
+            .is_some_and(|section| section.n_items() == 1),
+        "the destructive action should sit in its own menu section"
+    );
+    assert!(
+        note_menu
+            .activate_action("note.favorite", None::<&glib::Variant>)
+            .is_ok(),
+        "the note card should expose a favorite action"
+    );
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
@@ -162,15 +183,18 @@ pub(super) fn note_cards_should_group_and_favorite(
     let favorite_menu =
         widget_as::<gtk::MenuButton>(favorite_row.upcast_ref(), &format!("note-menu:{}", note.id))
             .ok_or("favorite note actions")?;
-    let favorite_remove = favorite_menu
-        .popover()
-        .and_then(|popover| popover.child())
-        .and_then(|actions| {
-            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
-        })
-        .and_downcast::<gtk::Button>()
-        .ok_or("favorite card removal")?;
-    favorite_remove.emit_clicked();
+    assert!(
+        favorite_menu.menu_model().is_some_and(|model| {
+            menu_labels(&model).first().map(String::as_str) == Some("Remove from Favorites")
+        }),
+        "a favorite note should offer removal instead of marking"
+    );
+    assert!(
+        favorite_menu
+            .activate_action("note.favorite", None::<&glib::Variant>)
+            .is_ok(),
+        "the favorite card should expose a removal action"
+    );
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
@@ -182,15 +206,12 @@ pub(super) fn note_cards_should_group_and_favorite(
     let refreshed_note_menu =
         widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
             .ok_or("refreshed note actions")?;
-    let refavorite_button = refreshed_note_menu
-        .popover()
-        .and_then(|popover| popover.child())
-        .and_then(|actions| {
-            find_widget(&actions, &format!("favorite-note-menu-button:{}", note.id))
-        })
-        .and_downcast::<gtk::Button>()
-        .ok_or("re-favorite note action")?;
-    refavorite_button.emit_clicked();
+    assert!(
+        refreshed_note_menu
+            .activate_action("note.favorite", None::<&glib::Variant>)
+            .is_ok(),
+        "the note card should expose a re-favorite action"
+    );
     assert!(run_main_context_until(|| client
         .note(note.id)
         .ok()
@@ -214,13 +235,12 @@ pub(super) fn move_picker_should_filter_and_move_notes(
     let refreshed_note_menu =
         widget_as::<gtk::MenuButton>(&root, &format!("note-menu:{}", note.id))
             .ok_or("second refreshed note actions")?;
-    let move_button = refreshed_note_menu
-        .popover()
-        .and_then(|popover| popover.child())
-        .and_then(|actions| find_widget(&actions, &format!("move-note-button:{}", note.id)))
-        .and_downcast::<gtk::Button>()
-        .ok_or("move note action")?;
-    move_button.emit_clicked();
+    assert!(
+        refreshed_note_menu
+            .activate_action("note.move", None::<&glib::Variant>)
+            .is_ok(),
+        "the note card should expose a move action"
+    );
     let move_search =
         widget_as::<gtk::SearchEntry>(&root, "move-note-search").ok_or("move picker search")?;
     let source_row = find_widget(&root, &format!("move-note-category:{}", category.id))
