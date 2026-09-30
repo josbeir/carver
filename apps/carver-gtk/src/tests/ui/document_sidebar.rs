@@ -180,6 +180,37 @@ pub(super) fn media_sidebar_should_show_file_details_in_an_isolated_editor() -> 
     Ok(())
 }
 
+/// Clicks a media action and closes the native save dialog it presents.
+fn click_and_dismiss_save_dialog(download: &gtk::Button, parent: &gtk::Window) -> bool {
+    let presented = Rc::new(Cell::new(false));
+    let presented_for_timeout = Rc::clone(&presented);
+    let parent_weak = parent.downgrade();
+    let attempts = Rc::new(Cell::new(0_u8));
+    let attempts_for_timeout = Rc::clone(&attempts);
+    glib::timeout_add_local(Duration::from_millis(20), move || {
+        let Some(parent) = parent_weak.upgrade() else {
+            return glib::ControlFlow::Break;
+        };
+        let dialog = gtk::Window::list_toplevels()
+            .into_iter()
+            .filter_map(|widget| widget.downcast::<gtk::Window>().ok())
+            .find(|candidate| candidate.transient_for().as_ref() == Some(&parent));
+        if let Some(dialog) = dialog {
+            presented_for_timeout.set(true);
+            dialog.close();
+            return glib::ControlFlow::Break;
+        }
+        if attempts_for_timeout.get() == 50 {
+            return glib::ControlFlow::Break;
+        }
+        attempts_for_timeout.update(|attempt| attempt + 1);
+        glib::ControlFlow::Continue
+    });
+    download.emit_clicked();
+    let _ = run_main_context_until(|| presented.get());
+    presented.get()
+}
+
 /// A managed attachment exposes a download action that saves its bytes to a chosen target.
 pub(super) fn media_download_should_save_a_managed_attachment_copy() -> TestResult {
     let fixture = fixture()?;
@@ -210,6 +241,12 @@ pub(super) fn media_download_should_save_a_managed_attachment_copy() -> TestResu
         .and_downcast::<gtk::Box>()
         .ok_or("media actions")?;
     assert_eq!(actions.margin_end(), 8);
+    // The action reaches the native save dialog through the GTK boundary.
+    let parent = fixture.window.clone().upcast::<gtk::Window>();
+    assert!(
+        click_and_dismiss_save_dialog(&download, &parent),
+        "the download action should present a save dialog"
+    );
     let session = fixture
         .runtime
         .model()

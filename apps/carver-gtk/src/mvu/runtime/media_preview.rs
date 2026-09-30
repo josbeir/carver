@@ -4,6 +4,7 @@ use std::{io::Write, os::unix::fs::PermissionsExt, path::PathBuf};
 
 use super::super::safe_media_filename;
 use super::{AppMsg, AppRuntime, LibraryBackend, UiError, display_error, gio};
+use gettextrs::gettext;
 use gtk::gio::prelude::FileExt;
 
 #[derive(Debug, thiserror::Error)]
@@ -52,7 +53,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                                 preview_path,
                             })
                     }
-                    Ok(None) => Err(UiError::new("This file is no longer available.")),
+                    Ok(None) => Err(UiError::new(gettext("This file is no longer available."))),
                     Err(error) => Err(display_error(error)),
                 }
             };
@@ -117,7 +118,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 }
                 Ok(None) => runtime.finish_media_download(
                     session,
-                    Err(UiError::new("This file is no longer available.")),
+                    Err(UiError::new(gettext("This file is no longer available."))),
                 ),
                 Err(error) => runtime.finish_media_download(session, Err(display_error(error))),
             }

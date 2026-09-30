@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 15:58+0200\n"
+"POT-Creation-Date: 2026-09-30 16:11+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -82,6 +82,10 @@ msgstr ""
 #: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/media_preview.rs
+msgid "This file is no longer available."
 msgstr ""
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
