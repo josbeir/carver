@@ -148,6 +148,7 @@ fn browser_view_refs(
         search_entry: gtk::SearchEntry::new(),
         search_toggle: gtk::ToggleButton::new(),
         empty_new_note_button: gtk::Button::new(),
+        new_note: libadwaita::SplitButton::new(),
         status,
     }
 }

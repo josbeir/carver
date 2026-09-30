@@ -4,12 +4,18 @@ use crate::mvu::TemplatesMsg;
 use gettextrs::gettext;
 
 impl<B: LibraryBackend> AppRuntime<B> {
+    // CONTEXT: One SDK effect dispatch table retains typed completion routing.
+    #[expect(clippy::too_many_lines, reason = "template SDK effect routing")]
     pub(super) fn run_template_effect(&self, effect: Effect) {
         let client = self.inner.client.clone();
         let runtime = self.clone();
         let config = self.inner.model.borrow().config.document_properties.clone();
         glib::spawn_future_local(async move {
             let message = match effect {
+                Effect::LoadTemplateCatalog { request_id } => TemplatesMsg::CatalogLoaded {
+                    request_id,
+                    result: client.templates_async().await.map_err(template_error),
+                },
                 Effect::LoadTemplates {
                     request_id,
                     purpose,

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 19:48+0200\n"
+"POT-Creation-Date: 2026-09-30 20:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -93,6 +93,7 @@ msgid "The template is no longer available."
 msgstr "Il modello non è più disponibile."
 
 #: apps/carver-gtk/src/mvu/runtime/templates.rs
+#: apps/carver-gtk/src/mvu/templates/preview.rs
 msgid "The template properties could not be merged."
 msgstr "Impossibile unire le proprietà del modello."
 
@@ -243,7 +244,8 @@ msgstr "Sfoglia le note come schede di sola lettura."
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Annulla"
 
@@ -531,6 +533,10 @@ msgstr "{label} · {value}"
 msgid "All notes"
 msgstr "Tutte le note"
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Choose Template…"
+msgstr "Scegli modello…"
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "Create a note to get started."
 msgstr "Crea una nota per iniziare."
@@ -580,7 +586,7 @@ msgstr "Sposta…"
 msgid "New Blank Note"
 msgstr "Nuova nota vuota"
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "New Note"
 msgstr "Nuova nota"
 
@@ -591,10 +597,6 @@ msgstr "Nuova dagli appunti"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "Nuova dagli appunti come Markdown"
-
-#: apps/carver-gtk/src/ui/browser.rs
-msgid "New from Template…"
-msgstr "Nuova da modello…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -991,6 +993,10 @@ msgstr "Carica automaticamente le immagini remote"
 msgid "MCP setup"
 msgstr "Configurazione MCP"
 
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Manage Templates…"
+msgstr "Gestisci modelli…"
+
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Move note to Trash"
 msgstr "Sposta nota nel cestino"
@@ -1032,6 +1038,10 @@ msgstr "Nuova dagli appunti"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
 msgstr "Proprietà delle nuove note"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New notes start with a copy of this template. Existing notes stay unchanged."
+msgstr "Le nuove note iniziano con una copia di questo modello. Le note esistenti restano invariate."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New tab"
@@ -1268,10 +1278,6 @@ msgstr "Usa carattere monospazio di sistema"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Use the system document font, comfortable width, and default line spacing."
 msgstr "Usa il carattere di sistema per i documenti, una larghezza confortevole e l'interlinea predefinita."
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Used for new notes. Existing notes stay unchanged."
-msgstr "Usato per le nuove note. Le note esistenti rimangono invariate."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "VS Code Copilot"
@@ -1833,8 +1839,8 @@ msgid "Categories using this template will return to blank notes. Existing notes
 msgstr "Le categorie che usano questo modello torneranno a creare note vuote. Le note esistenti non cambieranno."
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "Create a template to reuse its properties and content in new notes."
-msgstr "Crea un modello per riutilizzarne le proprietà e il contenuto nelle nuove note."
+msgid "Create Template"
+msgstr "Crea modello"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Delete"
@@ -1861,24 +1867,22 @@ msgid "Edit Template"
 msgstr "Modifica modello"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "Manage Templates…"
-msgstr "Gestisci modelli…"
-
-#: apps/carver-gtk/src/ui/templates.rs
 msgid "New Template"
 msgstr "Nuovo modello"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "New from Template"
-msgstr "Nuova da modello"
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "No matching templates"
+msgstr "Nessun modello corrispondente"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "No Templates"
-msgstr "Nessun modello"
-
-#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr "Cerca modelli…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Start with a template"
+msgstr "Inizia con un modello"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Template actions"
@@ -1893,12 +1897,64 @@ msgid "Template properties override matching defaults. Other enabled default pro
 msgstr "Le proprietà del modello sostituiscono i valori predefiniti corrispondenti. Le altre proprietà predefinite attive vengono aggiunte alla creazione di una nota."
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr "Modelli"
 
 #: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates are reusable starting points for new notes. Save a note as a template, or create one here."
+msgstr "I modelli sono punti di partenza riutilizzabili per nuove note. Salva una nota come modello o creane uno qui."
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Try a different search."
+msgstr "Prova un’altra ricerca."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "You can also use Save as Template… from a note’s menu. Each new note gets its own copy."
+msgstr "Puoi anche usare Salva come modello… dal menu di una nota. Ogni nuova nota riceve la propria copia."
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Your unsaved template changes will be lost."
 msgstr "Le modifiche non salvate al modello andranno perse."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "Scegli modello"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Create Note"
+msgstr "Crea nota"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "New notes get their own copy. Editing a template won’t change existing notes."
+msgstr "Le nuove note ricevono la propria copia. Modificare un modello non cambia le note esistenti."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+#, fuzzy
+msgid "Preview"
+msgstr "Anteprima"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From template"
+msgstr "Dal modello"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+#, rust-format
+msgid "From template · replaces default: {value}"
+msgstr "Dal modello · sostituisce il valore predefinito: {value}"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From your default properties"
+msgstr "Dalle tue proprietà predefinite"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "No properties will be added."
+msgstr "Non verranno aggiunte proprietà."
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "Properties for new notes"
+msgstr "Proprietà delle nuove note"
 
 #: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
@@ -2005,6 +2061,11 @@ msgstr "Nota spostata"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "Nota spostata nel cestino"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "New Note · {template}"
+msgstr "Nuova nota · {template}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Note"

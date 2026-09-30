@@ -847,6 +847,9 @@ impl DocumentSidebarVisibility {
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
+    /// Cached reusable templates for creation labels.
+    pub template_catalog: Resource<Vec<carver_sdk::NoteTemplate>>,
+    pub(crate) template_picker: Option<super::templates::PickerState>,
     /// Current template list load identity.
     pub template_request: Option<RequestId>,
     /// Current template editing lifetime.
@@ -929,6 +932,8 @@ impl AppModel {
     #[must_use]
     pub fn new(config: &Config) -> Self {
         Self {
+            template_catalog: Resource::default(),
+            template_picker: None,
             template_request: None,
             template_editor: None,
             config: config.clone(),

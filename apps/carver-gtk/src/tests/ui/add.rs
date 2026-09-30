@@ -366,7 +366,7 @@ pub(super) fn add_dialog_should_cancel_base_setup_when_closed_while_loading() ->
     Ok(())
 }
 
-fn capture_dialog(dialog: &adw::Dialog, name: &str) -> TestResult {
+pub(super) fn capture_dialog(dialog: &adw::Dialog, name: &str) -> TestResult {
     let Some(directory) = std::env::var_os("CARVER_ADD_SCREENSHOTS") else {
         return Ok(());
     };

@@ -55,6 +55,12 @@ pub(super) fn templates_should_manage_validate_duplicate_and_delete() -> TestRes
     dismiss_initial_dialogs(&fixture.window);
     fixture.window.present();
     let draft = new_draft(&fixture)?;
+    write_draft(&draft, "Meeting", "---\nstatus: draft\n---\n# Content")?;
+    assert!(run_main_context_until(|| widget_as::<adw::ActionRow>(
+        draft.upcast_ref(),
+        "template-property:status"
+    )
+    .is_some()));
     write_draft(&draft, "Meeting", "![Photo](assets/photo.png)")?;
     save_draft(&draft)?;
     let error =
@@ -193,6 +199,17 @@ fn assign_default(fixture: &WindowFixture, template_id: carver_sdk::TemplateId) 
     name.set_text("  ");
     assert!(!save.is_sensitive());
     name.set_text(&previous_name);
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "category-manage-templates")
+        .ok_or("manage from category")?
+        .emit_clicked();
+    let manager = visible_dialog(&fixture.window, "templates-dialog")?;
+    manager.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(|current| current == dialog)));
+    assert_eq!(name.text(), previous_name);
+    assert_eq!(selector.selected(), 1);
     save.emit_clicked();
     assert!(run_main_context_until(|| fixture
         .client
@@ -224,6 +241,13 @@ pub(super) fn category_template_should_seed_notes_and_allow_blank_override() -> 
         "---\ntype: meeting\n---\n\n# Agenda\n".into(),
     ))?;
     assign_default(&fixture, template.id)?;
+    assert!(run_main_context_until(|| widget_as::<adw::SplitButton>(
+        fixture.window.upcast_ref(),
+        "new-note-button"
+    )
+    .is_some_and(
+        |button| button.label().as_deref() == Some("New Note · Meeting")
+    )));
     let before = category_notes(&fixture)?.len();
     fixture
         .window
@@ -268,6 +292,20 @@ pub(super) fn category_template_should_seed_notes_and_allow_blank_override() -> 
     )
     .ok_or("picker row")?
     .emit_by_name::<()>("activated", &[]);
+    assert_eq!(category_notes(&fixture)?.len(), before + 2);
+    let author = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:author")
+        .ok_or("effective default")?;
+    assert_eq!(
+        author.subtitle().as_deref(),
+        Some("From your default properties")
+    );
+    check_picker_layout(&fixture, &picker)?;
+    let own = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:type")
+        .ok_or("template property")?;
+    assert_eq!(own.subtitle().as_deref(), Some("From template"));
+    widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("explicit create")?
+        .emit_clicked();
     assert!(run_main_context_until(
         || category_notes(&fixture).is_ok_and(|notes| notes.len() == before + 3)
     ));
@@ -400,5 +438,69 @@ pub(super) fn saving_as_template_should_copy_unsaved_editor_source() -> TestResu
     );
     manager.close();
     fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_empty_state_should_teach_and_open_a_first_draft() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.TemplateOnboardingTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Templates(TemplatesMsg::Manage));
+    let manager = visible_dialog(&fixture.window, "templates-dialog")?;
+    widget_as::<gtk::Button>(manager.upcast_ref(), "create-first-template")
+        .ok_or("first template action")?
+        .emit_clicked();
+    let editor = visible_dialog(&fixture.window, "template-editor-dialog")?;
+    assert!(
+        widget_as::<adw::ExpanderRow>(editor.upcast_ref(), "template-properties-expander")
+            .is_some()
+    );
+    editor.close();
+    fixture.window.close();
+    Ok(())
+}
+
+fn check_picker_layout(fixture: &WindowFixture, picker: &adw::Dialog) -> TestResult {
+    let split =
+        widget_as::<adw::NavigationSplitView>(picker.upcast_ref(), "template-preview-split")
+            .ok_or("preview navigation")?;
+    assert!(run_main_context_until(|| split.width() > 600));
+    let search = widget_as::<gtk::SearchEntry>(picker.upcast_ref(), "templates-search")
+        .ok_or("picker search")?;
+    let create = widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("preview create")?;
+    let row = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:type")
+        .ok_or("property preview")?;
+    assert!(row.is_visible());
+    search.set_text("no matching template");
+    assert!(run_main_context_until(|| !create.is_sensitive()));
+    search.set_text("");
+    let list = widget_as::<gtk::ListBox>(picker.upcast_ref(), "template-picker-list")
+        .ok_or("picker list")?;
+    assert!(run_main_context_until(|| list
+        .row_at_index(0)
+        .is_some_and(|row| row.is_visible())));
+    list.select_row(list.row_at_index(0).as_ref());
+    assert!(run_main_context_until(|| create.is_sensitive()));
+    let view = widget_as::<webkit6::WebView>(picker.upcast_ref(), "template-content-preview")
+        .ok_or("read-only content")?;
+    assert!(!view.is_editable());
+    assert_web_script_should_be_true(
+        &view,
+        "document.body.innerText.includes('Agenda') && document.querySelector('h1') !== null",
+    );
+    super::add::capture_dialog(picker, "template-picker-wide")?;
+    fixture.window.set_default_size(420, 720);
+    assert!(run_main_context_until(|| split.is_collapsed()));
+    assert!(split.width() <= fixture.window.width());
+    split.set_show_content(true);
+    assert!(run_main_context_until(|| split.shows_content()));
+    assert_web_script_should_be_true(
+        &view,
+        "document.documentElement.scrollWidth <= window.innerWidth && parseFloat(getComputedStyle(document.querySelector('h1')).fontSize) >= 14",
+    );
+    super::add::capture_dialog(picker, "template-picker-narrow")?;
     Ok(())
 }

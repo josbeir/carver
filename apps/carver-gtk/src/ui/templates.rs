@@ -1,12 +1,64 @@
 //! Native template dialogs. Callbacks translate input into MVU messages.
+mod picker;
+mod properties;
+
 use super::editor::source::{SourceEditor, SourceSyntaxError};
-use crate::mvu::{AppDispatcher, AppMsg, RequestId, TemplatePurpose, TemplatesMsg, UiError};
+use crate::mvu::{
+    AppDispatcher, AppMsg, RequestId, TemplatePreview, TemplatePurpose, TemplatesMsg, UiError,
+};
 use adw::prelude::*;
 use carver_sdk::NoteTemplate;
 use gettextrs::gettext;
 use gtk::prelude::*;
 use libadwaita as adw;
 use std::path::Path;
+
+pub(crate) struct ListHandle {
+    pub(crate) id: RequestId,
+    pub(crate) dialog: adw::Dialog,
+    preview: Option<picker::PreviewHandle>,
+}
+impl ListHandle {
+    pub(crate) fn render_preview(&self, preview: Option<&Result<TemplatePreview, UiError>>) {
+        if let Some(handle) = &self.preview {
+            handle.render(preview, true);
+        }
+    }
+}
+fn set_margins(widget: &impl IsA<gtk::Widget>) {
+    widget.set_margin_top(18);
+    widget.set_margin_bottom(18);
+    widget.set_margin_start(18);
+    widget.set_margin_end(18);
+}
+fn help_label(text: &str) -> gtk::Label {
+    let label = gtk::Label::builder()
+        .label(text)
+        .wrap(true)
+        .xalign(0.0)
+        .build();
+    label.add_css_class("dim-label");
+    label
+}
+fn empty_state(dialog: &adw::Dialog, dispatcher: &AppDispatcher, visible: bool) -> adw::StatusPage {
+    let page = adw::StatusPage::builder().title(gettext("Start with a template"))
+        .description(gettext("Templates are reusable starting points for new notes. Save a note as a template, or create one here."))
+        .icon_name("document-new-symbolic").visible(visible).build();
+    let create = gtk::Button::with_label(&gettext("Create Template"));
+    create.set_widget_name("create-first-template");
+    create.add_css_class("suggested-action");
+    create.set_halign(gtk::Align::Center);
+    let weak = dialog.downgrade();
+    let d = dispatcher.clone();
+    create.connect_clicked(move |_| {
+        if let Some(dialog) = weak.upgrade() {
+            dialog.close();
+        }
+        let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(None)));
+    });
+    page.set_child(Some(&create));
+    page
+}
 
 pub(crate) struct EditorHandle {
     pub(crate) id: RequestId,
@@ -16,8 +68,12 @@ pub(crate) struct EditorHandle {
     editor: SourceEditor,
     entry: adw::EntryRow,
     cancel: gtk::Button,
+    properties: properties::PropertiesHandle,
 }
 impl EditorHandle {
+    pub(crate) fn render_properties(&self, preview: &Result<TemplatePreview, UiError>) {
+        self.properties.render(preview.as_ref());
+    }
     pub(crate) fn finish(&self, error: Option<&UiError>) {
         if let Some(error) = error {
             self.error.set_text(&error.message);
@@ -32,31 +88,34 @@ impl EditorHandle {
     }
 }
 
-// CONTEXT: The native list assembly keeps row activation and menu bindings beside their widgets.
-#[expect(
-    clippy::too_many_lines,
-    reason = "native template list construction and signal bindings"
-)]
 pub(crate) fn show_list(
     parent: &gtk::Window,
     dispatcher: &AppDispatcher,
     templates: &[NoteTemplate],
     purpose: &TemplatePurpose,
-) -> adw::Dialog {
-    let picking = matches!(purpose, TemplatePurpose::Pick(_));
+    request_id: RequestId,
+    initial_preview: Option<&Result<TemplatePreview, UiError>>,
+    selected: Option<carver_sdk::TemplateId>,
+) -> ListHandle {
+    if matches!(purpose, TemplatePurpose::Pick(_)) {
+        return picker::show(
+            parent,
+            dispatcher,
+            request_id,
+            templates,
+            initial_preview,
+            selected,
+        );
+    }
     let dialog = adw::Dialog::builder()
-        .title(if picking {
-            gettext("New from Template")
-        } else {
-            gettext("Templates")
-        })
+        .title(gettext("Templates"))
         .content_width(480)
-        .content_height(500)
+        .content_height(560)
         .build();
     dialog.set_widget_name("templates-dialog");
     let toolbar = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
-    let new = gtk::Button::from_icon_name("list-add-symbolic");
+    let new = gtk::Button::with_label(&gettext("New Template"));
     new.set_tooltip_text(Some(&gettext("New Template")));
     new.set_widget_name("new-template-button");
     header.pack_end(&new);
@@ -90,36 +149,25 @@ pub(crate) fn show_list(
         let weak = dialog.downgrade();
         let d = dispatcher.clone();
         let template_for_open = template.clone();
-        let purpose = purpose.clone();
         row.connect_activated(move |_| {
             if let Some(dialog) = weak.upgrade() {
                 dialog.close();
             }
-            let message = match &purpose {
-                TemplatePurpose::Pick(category_id) => TemplatesMsg::Create {
-                    category_id: *category_id,
-                    template_id: template_for_open.id,
-                },
-                _ => TemplatesMsg::Edit(Some(template_for_open.clone())),
-            };
-            let _ = d.dispatch(AppMsg::Templates(message));
+            let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(Some(
+                template_for_open.clone(),
+            ))));
         });
-        if !picking {
-            row.add_suffix(&template_menu(parent, &dialog, dispatcher, template));
-        }
+        row.add_suffix(&template_menu(parent, &dialog, dispatcher, template));
         group.add(&row);
         rows.push((template.name.to_lowercase(), row));
     }
     content.append(&group);
-    let empty = adw::StatusPage::builder()
-        .title(gettext("No Templates"))
-        .description(gettext(
-            "Create a template to reuse its properties and content in new notes.",
-        ))
-        .icon_name("document-new-symbolic")
-        .build();
-    empty.set_visible(templates.is_empty());
+    let empty = empty_state(&dialog, dispatcher, templates.is_empty());
     content.append(&empty);
+    content.append(&help_label(&gettext(
+        "You can also use Save as Template… from a note’s menu. Each new note gets its own copy.",
+    )));
+    let templates_empty = templates.is_empty();
     search.connect_search_changed(move |entry| {
         let query = entry.text().to_lowercase();
         let mut any = false;
@@ -129,19 +177,12 @@ pub(crate) fn show_list(
             any |= visible;
         }
         empty.set_visible(!any);
+        if !templates_empty {
+            empty.set_title(&gettext("No matching templates"));
+            empty.set_description(Some(&gettext("Try a different search.")));
+            empty.set_child(gtk::Widget::NONE);
+        }
     });
-    if picking {
-        let manage = gtk::Button::with_label(&gettext("Manage Templates…"));
-        let d = dispatcher.clone();
-        let weak = dialog.downgrade();
-        manage.connect_clicked(move |_| {
-            if let Some(dialog) = weak.upgrade() {
-                dialog.close();
-            }
-            let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Manage));
-        });
-        content.append(&manage);
-    }
     let scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         .child(&content)
@@ -150,7 +191,11 @@ pub(crate) fn show_list(
     toolbar.set_content(Some(&scroll));
     dialog.set_child(Some(&toolbar));
     dialog.present(Some(parent));
-    dialog
+    ListHandle {
+        id: request_id,
+        dialog,
+        preview: None,
+    }
 }
 fn template_menu(
     parent: &gtk::Window,
@@ -204,6 +249,7 @@ pub(crate) struct EditorDraft<'a> {
     pub(crate) original: Option<NoteTemplate>,
     pub(crate) name: &'a str,
     pub(crate) source: &'a str,
+    pub(crate) properties: &'a Result<TemplatePreview, UiError>,
 }
 
 // CONTEXT: Source-only dialog signals bind directly to their widgets and immutable draft snapshot.
@@ -223,6 +269,7 @@ pub(crate) fn show_editor(
         original,
         name,
         source,
+        properties: initial_properties,
     } = draft;
     let editor = SourceEditor::new(syntax, adw::StyleManager::default().is_dark())?;
     editor.render_preferences(preferences, adw::StyleManager::default().is_dark());
@@ -271,11 +318,15 @@ pub(crate) fn show_editor(
     editor.view().set_widget_name("template-source-view");
     let scroll = gtk::ScrolledWindow::builder()
         .child(editor.view())
+        .height_request(220)
         .vexpand(true)
         .hexpand(true)
         .build();
     scroll.add_css_class("card");
     content.append(&scroll);
+    let properties = properties::PropertiesHandle::new(false);
+    properties.render(initial_properties.as_ref());
+    content.append(&properties.group);
     let error = gtk::Label::builder()
         .wrap(true)
         .xalign(0.0)
@@ -287,7 +338,11 @@ pub(crate) fn show_editor(
     let help = gtk::Label::builder().label(gettext("Template properties override matching defaults. Other enabled default properties are added when creating a note.")).wrap(true).xalign(0.0).build();
     help.add_css_class("dim-label");
     content.append(&help);
-    toolbar.set_content(Some(&content));
+    let body = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .child(&content)
+        .build();
+    toolbar.set_content(Some(&body));
     dialog.set_child(Some(&toolbar));
     let new_draft = original.is_none();
     let original_name = name.to_owned();
@@ -315,7 +370,17 @@ pub(crate) fn show_editor(
     let update = std::rc::Rc::new(update);
     let changed = std::rc::Rc::clone(&update);
     entry.connect_changed(move |_| changed());
-    buffer.connect_changed(move |_| update());
+    let d = dispatcher.clone();
+    buffer.connect_changed(move |buffer| {
+        update();
+        let source = buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), true)
+            .to_string();
+        let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PreviewDraft {
+            request_id: id,
+            source,
+        }));
+    });
     let weak = dialog.downgrade();
     cancel.connect_clicked(move |_| {
         if let Some(dialog) = weak.upgrade() {
@@ -376,5 +441,6 @@ pub(crate) fn show_editor(
         editor,
         entry,
         cancel,
+        properties,
     })
 }

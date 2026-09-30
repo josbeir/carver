@@ -102,6 +102,7 @@ pub(crate) struct BrowserViewRefs {
     pub(crate) search_toggle: gtk::ToggleButton,
     pub(crate) empty_new_note_button: gtk::Button,
     pub(crate) status: adw::StatusPage,
+    pub(crate) new_note: adw::SplitButton,
 }
 
 /// The complete content surface and the view references it creates.
@@ -332,6 +333,7 @@ pub(crate) fn build_browser(
         search_entry: search.entry,
         search_toggle: search.toggle,
         empty_new_note_button: empty_new_note,
+        new_note,
         status,
     };
     connect_browser_actions(dispatcher, &references);
@@ -367,7 +369,7 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
 fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton {
     let menu = gtk::gio::Menu::new();
     menu.append(
-        Some(&gettext("New from Template…")),
+        Some(&gettext("Choose Template…")),
         Some("win.new-from-template"),
     );
     menu.append(Some(&gettext("New Blank Note")), Some("win.new-blank-note"));
@@ -383,7 +385,7 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
 
     let button = adw::SplitButton::new();
     button.set_widget_name("new-note-button");
-    button.set_icon_name("document-new-symbolic");
+    button.set_label(&gettext("New Note"));
     button.set_tooltip_text(Some(&gettext("New Note")));
     button.set_dropdown_tooltip(&gettext("More options"));
     button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);

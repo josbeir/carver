@@ -91,6 +91,7 @@ pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Bu
             base_dialog_id: Cell::new(None),
             form: RefCell::new(None),
         });
+        host.category.connect_template_management(&dispatcher);
         dialog.set_child(Some(&dialog_content(&dispatcher, &host)));
         *slot.borrow_mut() = Some(Rc::clone(&host));
 

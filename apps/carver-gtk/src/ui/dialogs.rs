@@ -1543,6 +1543,18 @@ pub(crate) struct CategoryForm {
 }
 
 impl CategoryForm {
+    pub(crate) fn connect_template_management(&self, dispatcher: &AppDispatcher) {
+        let button = gtk::Button::with_label(&gettext("Manage Templates…"));
+        button.set_widget_name("category-manage-templates");
+        button.set_halign(gtk::Align::Start);
+        button.add_css_class("flat");
+        let d = dispatcher.clone();
+        button.connect_clicked(move |_| {
+            let _ = d.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::Manage));
+        });
+        self.content.append(&button);
+    }
+
     /// Replaces loading choices with an immutable library snapshot.
     pub(crate) fn set_templates(
         &self,
@@ -1645,7 +1657,7 @@ pub(crate) fn category_form(
     let selector = adw::ComboRow::builder()
         .title(gettext("Default template"))
         .subtitle(gettext(
-            "Used for new notes. Existing notes stay unchanged.",
+            "New notes start with a copy of this template. Existing notes stay unchanged.",
         ))
         .model(&gtk::StringList::new(&[&pgettext(
             "template choice",
@@ -2216,9 +2228,10 @@ pub(crate) fn show_category_template_dialog(
     dispatcher: &AppDispatcher,
     category: &carver_sdk::Category,
     templates: &[carver_sdk::NoteTemplate],
-) {
+) -> Rc<CategoryForm> {
     let form = Rc::new(category_form(&category.name, category.appearance));
     form.set_templates(templates, category.default_template_id);
+    form.connect_template_management(dispatcher);
     let dialog = adw::Dialog::builder()
         .title(gettext("Edit Category"))
         .content_width(560)
@@ -2233,6 +2246,7 @@ pub(crate) fn show_category_template_dialog(
     let category = category.clone();
     let dispatcher = dispatcher.clone();
     let weak = dialog.downgrade();
+    let returned_form = Rc::clone(&form);
     save.connect_clicked(move |_| {
         let name = form.entry.text().trim().to_owned();
         if name.is_empty() {
@@ -2252,4 +2266,5 @@ pub(crate) fn show_category_template_dialog(
         }
     });
     dialog.present(Some(parent));
+    returned_form
 }

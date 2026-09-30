@@ -2738,7 +2738,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         }
         LibraryReply::NoteMoved { action, result } => update_note_moved(model, action, result),
         LibraryReply::SidebarLoaded { request_id, result } => {
-            reload_sidebar_after(model.sidebar.finish(request_id, result), model)
+            let mut effects = reload_sidebar_after(model.sidebar.finish(request_id, result), model);
+            if matches!(&model.sidebar.state, super::LoadState::Ready(categories) if categories.iter().any(|c| c.category.default_template_id.is_some()))
+            {
+                effects.extend(super::templates::refresh_catalog(model));
+            }
+            effects
         }
         LibraryReply::BrowserLoaded {
             request_id,

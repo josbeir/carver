@@ -212,14 +212,17 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
-            effect @ (Effect::LoadTemplates { .. }
+            effect @ (Effect::LoadTemplateCatalog { .. }
+            | Effect::LoadTemplates { .. }
             | Effect::LoadTemplateNote { .. }
             | Effect::SaveTemplate { .. }
             | Effect::DeleteTemplate { .. }
             | Effect::CreateCategoryNote { .. }
             | Effect::CreateTemplateNote { .. }
             | Effect::SaveTemplateCategory { .. }) => self.run_template_effect(effect),
-            effect @ (Effect::ShowTemplates { .. }
+            effect @ (Effect::ShowTemplatePreview { .. }
+            | Effect::ShowDraftProperties { .. }
+            | Effect::ShowTemplates { .. }
             | Effect::ShowTemplateEditor { .. }
             | Effect::FinishTemplateEdit { .. }) => self.inner.view.run_template_effect(effect),
             Effect::LoadBases { request_id } => self.load_bases(request_id),

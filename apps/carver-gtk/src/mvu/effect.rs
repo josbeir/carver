@@ -16,6 +16,25 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Refresh the template names used by note-creation controls.
+    LoadTemplateCatalog {
+        /// Coalesced refresh identity.
+        request_id: RequestId,
+    },
+    /// Update the read-only preview in an existing picker.
+    ShowTemplatePreview {
+        /// Picker lifetime.
+        request_id: RequestId,
+        /// Selected source and effective properties, or cleared selection.
+        preview: Option<Result<super::TemplatePreview, super::UiError>>,
+    },
+    /// Update effective properties in an existing source-only editor.
+    ShowDraftProperties {
+        /// Editor lifetime.
+        request_id: RequestId,
+        /// Effective properties, or a localized validation error.
+        preview: Result<super::TemplatePreview, super::UiError>,
+    },
     /// Load templates for a captured dialog purpose.
     LoadTemplates {
         /// Identity guarding asynchronous completions.
@@ -25,6 +44,12 @@ pub enum Effect {
     },
     /// Present a manager, picker, or category form.
     ShowTemplates {
+        /// Initially selected template.
+        selected: Option<carver_sdk::TemplateId>,
+        /// Captured dialog lifetime.
+        request_id: RequestId,
+        /// Initial picker preview, absent for a manager/category form.
+        initial_preview: Option<Result<super::TemplatePreview, super::UiError>>,
         /// Current reusable template snapshot.
         templates: Vec<carver_sdk::NoteTemplate>,
         /// Captured dialog destination and purpose.
@@ -32,6 +57,8 @@ pub enum Effect {
     },
     /// Present a source-only draft editor.
     ShowTemplateEditor {
+        /// Effective properties for the initial source.
+        properties: Result<super::TemplatePreview, super::UiError>,
         /// Source editor presentation settings.
         preferences: super::SourceEditorPreferences,
         /// Identity guarding asynchronous completions.

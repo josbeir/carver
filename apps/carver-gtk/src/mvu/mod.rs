@@ -11,7 +11,9 @@ mod runtime;
 mod source_edit;
 mod templates;
 mod update;
-pub use templates::{TemplatePurpose, TemplatesMsg};
+pub use templates::{
+    TemplatePreview, TemplateProperty, TemplatePropertyOrigin, TemplatePurpose, TemplatesMsg,
+};
 
 pub use effect::Effect;
 pub use model::{

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 19:48+0200\n"
+"POT-Creation-Date: 2026-09-30 20:48+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -93,6 +93,7 @@ msgid "The template is no longer available."
 msgstr "Het sjabloon is niet meer beschikbaar."
 
 #: apps/carver-gtk/src/mvu/runtime/templates.rs
+#: apps/carver-gtk/src/mvu/templates/preview.rs
 msgid "The template properties could not be merged."
 msgstr "De sjablooneigenschappen konden niet worden samengevoegd."
 
@@ -243,7 +244,8 @@ msgstr "Blader door notities als alleen-lezen kaarten."
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Annuleren"
 
@@ -531,6 +533,10 @@ msgstr "{label} · {value}"
 msgid "All notes"
 msgstr "Alle notities"
 
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "Choose Template…"
+msgstr "Sjabloon kiezen…"
+
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "Create a note to get started."
 msgstr "Maak een notitie om te beginnen."
@@ -580,7 +586,7 @@ msgstr "Verplaatsen…"
 msgid "New Blank Note"
 msgstr "Nieuwe lege notitie"
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "New Note"
 msgstr "Nieuwe notitie"
 
@@ -591,10 +597,6 @@ msgstr "Nieuw van klembord"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "Nieuw van klembord als Markdown"
-
-#: apps/carver-gtk/src/ui/browser.rs
-msgid "New from Template…"
-msgstr "Nieuw vanuit sjabloon…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -991,6 +993,10 @@ msgstr "Externe afbeeldingen automatisch laden"
 msgid "MCP setup"
 msgstr "MCP-installatie"
 
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Manage Templates…"
+msgstr "Sjablonen beheren…"
+
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Move note to Trash"
 msgstr "Notitie naar prullenbak verplaatsen"
@@ -1032,6 +1038,10 @@ msgstr "Nieuw van klembord"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"
 msgstr "Eigenschappen van nieuwe notities"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "New notes start with a copy of this template. Existing notes stay unchanged."
+msgstr "Nieuwe notities beginnen met een kopie van dit sjabloon. Bestaande notities blijven ongewijzigd."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New tab"
@@ -1268,10 +1278,6 @@ msgstr "Systeemlettertype met vaste breedte gebruiken"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Use the system document font, comfortable width, and default line spacing."
 msgstr "Gebruik het systeemlettertype voor documenten, een comfortabele breedte en de standaard regelafstand."
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Used for new notes. Existing notes stay unchanged."
-msgstr "Gebruikt voor nieuwe notities. Bestaande notities blijven ongewijzigd."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "VS Code Copilot"
@@ -1833,8 +1839,8 @@ msgid "Categories using this template will return to blank notes. Existing notes
 msgstr "Categorieën die dit sjabloon gebruiken, maken weer lege notities. Bestaande notities blijven ongewijzigd."
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "Create a template to reuse its properties and content in new notes."
-msgstr "Maak een sjabloon om de eigenschappen en inhoud ervan in nieuwe notities te hergebruiken."
+msgid "Create Template"
+msgstr "Sjabloon maken"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Delete"
@@ -1861,24 +1867,22 @@ msgid "Edit Template"
 msgstr "Sjabloon bewerken"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "Manage Templates…"
-msgstr "Sjablonen beheren…"
-
-#: apps/carver-gtk/src/ui/templates.rs
 msgid "New Template"
 msgstr "Nieuw sjabloon"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "New from Template"
-msgstr "Nieuw vanuit sjabloon"
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "No matching templates"
+msgstr "Geen overeenkomende sjablonen"
 
 #: apps/carver-gtk/src/ui/templates.rs
-msgid "No Templates"
-msgstr "Geen sjablonen"
-
-#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr "Sjablonen zoeken…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Start with a template"
+msgstr "Begin met een sjabloon"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Template actions"
@@ -1893,12 +1897,64 @@ msgid "Template properties override matching defaults. Other enabled default pro
 msgstr "Sjablooneigenschappen overschrijven overeenkomstige standaardwaarden. Andere ingeschakelde standaardeigenschappen worden toegevoegd bij het maken van een notitie."
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr "Sjablonen"
 
 #: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates are reusable starting points for new notes. Save a note as a template, or create one here."
+msgstr "Sjablonen zijn herbruikbare startpunten voor nieuwe notities. Sla een notitie op als sjabloon of maak er hier een."
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Try a different search."
+msgstr "Probeer een andere zoekopdracht."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "You can also use Save as Template… from a note’s menu. Each new note gets its own copy."
+msgstr "Je kunt ook Opslaan als sjabloon… gebruiken in het notitiemenu. Elke nieuwe notitie krijgt een eigen kopie."
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Your unsaved template changes will be lost."
 msgstr "Je niet-opgeslagen sjabloonwijzigingen gaan verloren."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "Sjabloon kiezen"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Create Note"
+msgstr "Notitie maken"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "New notes get their own copy. Editing a template won’t change existing notes."
+msgstr "Nieuwe notities krijgen een eigen kopie. Een sjabloon bewerken verandert bestaande notities niet."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+#, fuzzy
+msgid "Preview"
+msgstr "Voorbeeld"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From template"
+msgstr "Uit sjabloon"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+#, rust-format
+msgid "From template · replaces default: {value}"
+msgstr "Uit sjabloon · vervangt standaardwaarde: {value}"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From your default properties"
+msgstr "Uit je standaardeigenschappen"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "No properties will be added."
+msgstr "Er worden geen eigenschappen toegevoegd."
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "Properties for new notes"
+msgstr "Eigenschappen voor nieuwe notities"
 
 #: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
@@ -2005,6 +2061,11 @@ msgstr "Notitie verplaatst"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "Notitie naar prullenbak verplaatst"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "New Note · {template}"
+msgstr "Nieuwe notitie · {template}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Note"

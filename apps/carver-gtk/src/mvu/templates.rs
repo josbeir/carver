@@ -3,6 +3,44 @@ use super::{AppModel, Effect, RequestId, UiError};
 use carver_sdk::{Category, CategoryId, NoteId, NoteTemplate, Revision, TemplateId};
 use gettextrs::gettext;
 
+mod preview;
+
+/// Origin of an effective property for a new note.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TemplatePropertyOrigin {
+    /// Explicitly authored by the template.
+    Template,
+    /// Supplied by enabled default properties.
+    Default,
+    /// Replaces this default value, including explicit empty values.
+    Override(String),
+}
+/// One effective new-note property with its source.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TemplateProperty {
+    /// User-authored property key.
+    pub key: String,
+    /// Canonical display value.
+    pub value: String,
+    /// Source of this value.
+    pub origin: TemplatePropertyOrigin,
+}
+/// Read-only content and resolved properties shown before creation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TemplatePreview {
+    /// Canonical template source rendered read-only.
+    pub source: String,
+    /// Effective values using the same merge rules as note creation.
+    pub properties: Vec<TemplateProperty>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PickerState {
+    pub(crate) request_id: RequestId,
+    pub(crate) category_id: CategoryId,
+    pub(crate) templates: Vec<NoteTemplate>,
+    pub(crate) selected: Option<TemplateId>,
+}
+
 /// Purpose of loading the current template list.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplatePurpose {
@@ -18,6 +56,33 @@ pub enum TemplatePurpose {
 /// Template operations submitted by GTK or the SDK runtime.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplatesMsg {
+    /// Refresh default-template names independently of dialog requests.
+    RefreshCatalog,
+    /// A default-template name refresh completed.
+    CatalogLoaded {
+        /// Captured refresh identity.
+        request_id: RequestId,
+        /// Completed SDK result.
+        result: Result<Vec<NoteTemplate>, UiError>,
+    },
+    /// Select a template for read-only preview, or clear selection.
+    SelectPreview {
+        /// Picker lifetime.
+        request_id: RequestId,
+        /// Chosen template.
+        id: Option<TemplateId>,
+    },
+    /// Create the currently previewed template in the captured category.
+    CreateSelected(RequestId),
+    /// Refresh effective properties for an unsaved source draft.
+    PreviewDraft {
+        /// Editor lifetime.
+        request_id: RequestId,
+        /// Unsaved canonical source.
+        source: String,
+    },
+    /// The picker closed.
+    PickerClosed(RequestId),
     /// Open the template manager.
     Manage,
     /// Load choices for the Add dialog.
@@ -120,6 +185,48 @@ pub enum TemplatesMsg {
 )]
 pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect> {
     match message {
+        TemplatesMsg::RefreshCatalog => refresh_catalog(model).into_iter().collect(),
+        TemplatesMsg::CatalogLoaded { request_id, result } => {
+            if model.template_catalog.finish(request_id, result) {
+                refresh_catalog(model).into_iter().collect()
+            } else {
+                Vec::new()
+            }
+        }
+        TemplatesMsg::SelectPreview { request_id, id } => select_preview(model, request_id, id),
+        TemplatesMsg::CreateSelected(request_id) => {
+            let Some(picker) = &model.template_picker else {
+                return Vec::new();
+            };
+            if picker.request_id != request_id {
+                return Vec::new();
+            }
+            picker.selected.map_or_else(Vec::new, |template_id| {
+                vec![Effect::CreateTemplateNote {
+                    category_id: picker.category_id,
+                    template_id,
+                }]
+            })
+        }
+        TemplatesMsg::PreviewDraft { request_id, source } => {
+            if model.template_editor != Some(request_id) {
+                return Vec::new();
+            }
+            vec![Effect::ShowDraftProperties {
+                request_id,
+                preview: preview::source_preview(&source, &model.config.document_properties),
+            }]
+        }
+        TemplatesMsg::PickerClosed(request_id) => {
+            if model
+                .template_picker
+                .as_ref()
+                .is_some_and(|p| p.request_id == request_id)
+            {
+                model.template_picker = None;
+            }
+            Vec::new()
+        }
         TemplatesMsg::Manage => load(model, TemplatePurpose::Manage),
         TemplatesMsg::NewCategory => load(model, TemplatePurpose::NewCategory),
         TemplatesMsg::Pick => model
@@ -135,7 +242,47 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                 return Vec::new();
             }
             match result {
-                Ok(templates) => vec![Effect::ShowTemplates { templates, purpose }],
+                Ok(templates) => {
+                    model.template_catalog.state = super::LoadState::Ready(templates.clone());
+                    let mut initial_preview = None;
+                    let mut selected_id = None;
+                    if let TemplatePurpose::Pick(category_id) = purpose {
+                        let default_id = match &model.sidebar.state {
+                            super::LoadState::Ready(categories) => categories
+                                .iter()
+                                .find(|c| c.category.id == category_id)
+                                .and_then(|c| c.category.default_template_id),
+                            _ => None,
+                        };
+                        let selected = templates
+                            .iter()
+                            .find(|t| Some(t.id) == default_id)
+                            .or_else(|| templates.first())
+                            .map(|t| t.id);
+                        selected_id = selected;
+                        model.template_picker = Some(PickerState {
+                            request_id,
+                            category_id,
+                            templates: templates.clone(),
+                            selected,
+                        });
+                        initial_preview = selected
+                            .and_then(|id| templates.iter().find(|t| t.id == id))
+                            .map(|t| {
+                                preview::source_preview(
+                                    &t.source,
+                                    &model.config.document_properties,
+                                )
+                            });
+                    }
+                    vec![Effect::ShowTemplates {
+                        selected: selected_id,
+                        request_id,
+                        templates,
+                        purpose,
+                        initial_preview,
+                    }]
+                }
                 Err(error) => {
                     model.set_notice(error);
                     Vec::new()
@@ -319,6 +466,7 @@ fn edit(
     let request_id = model.next_request_id();
     model.template_editor = Some(request_id);
     vec![Effect::ShowTemplateEditor {
+        properties: preview::source_preview(&source, &model.config.document_properties),
         preferences: model.preferences.source_editor.clone(),
         request_id,
         original,
@@ -376,4 +524,32 @@ fn acknowledge_mutation(model: &mut AppModel) -> Option<Effect> {
         model,
         super::model::LibraryRevisionCheckReason::LocalTemplateMutation,
     )
+}
+
+pub(super) fn refresh_catalog(model: &mut AppModel) -> Option<Effect> {
+    let request_id = model.next_request_id();
+    model
+        .template_catalog
+        .begin_reload(request_id)
+        .then_some(Effect::LoadTemplateCatalog { request_id })
+}
+
+fn select_preview(
+    model: &mut AppModel,
+    request_id: RequestId,
+    id: Option<TemplateId>,
+) -> Vec<Effect> {
+    let Some(picker) = &mut model.template_picker else {
+        return Vec::new();
+    };
+    if picker.request_id != request_id {
+        return Vec::new();
+    }
+    let template = id.and_then(|id| picker.templates.iter().find(|t| t.id == id));
+    picker.selected = template.map(|t| t.id);
+    vec![Effect::ShowTemplatePreview {
+        request_id,
+        preview: template
+            .map(|t| preview::source_preview(&t.source, &model.config.document_properties)),
+    }]
 }

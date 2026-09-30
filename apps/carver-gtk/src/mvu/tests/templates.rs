@@ -218,3 +218,102 @@ fn template_deletion_should_clear_only_matching_category_assignments_without_rel
     assert_eq!(categories[0].note_count, 2);
     assert_eq!(categories[1].category, other);
 }
+
+#[test]
+fn picker_should_preview_selection_and_require_explicit_creation() {
+    let mut model = AppModel::new(&Config::default());
+    let category_id = CategoryId::new();
+    model.selected_category = Some(category_id);
+    let template = carver_sdk::NoteTemplate {
+        id: carver_sdk::TemplateId::new(),
+        name: "Meeting".into(),
+        source: "# Agenda".into(),
+        revision: carver_sdk::Revision(1),
+        created_at: time::OffsetDateTime::UNIX_EPOCH,
+        updated_at: time::OffsetDateTime::UNIX_EPOCH,
+    };
+    let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Pick));
+    let request_id = model.template_request.unwrap_or(RequestId(0));
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::Loaded {
+            request_id,
+            purpose: TemplatePurpose::Pick(category_id),
+            result: Ok(vec![template.clone()]),
+        }),
+    );
+    assert!(matches!(
+        &update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::SelectPreview {
+                request_id,
+                id: Some(template.id)
+            })
+        )[..],
+        [Effect::ShowTemplatePreview {
+            preview: Some(Ok(_)),
+            ..
+        }]
+    ));
+    assert_eq!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::CreateSelected(request_id))
+        ),
+        vec![Effect::CreateTemplateNote {
+            category_id,
+            template_id: template.id
+        }]
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::PickerClosed(request_id)),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::CreateSelected(request_id))
+        )
+        .is_empty()
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::SelectPreview {
+                request_id,
+                id: Some(template.id)
+            })
+        )
+        .is_empty()
+    );
+}
+#[test]
+fn draft_preview_should_ignore_a_closed_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Edit(None)));
+    let request_id = model.template_editor.unwrap_or(RequestId(0));
+    assert!(matches!(
+        &update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::PreviewDraft {
+                request_id,
+                source: "# Draft".into()
+            })
+        )[..],
+        [Effect::ShowDraftProperties { preview: Ok(_), .. }]
+    ));
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::EditorClosed(request_id)),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::PreviewDraft {
+                request_id,
+                source: "# Draft".into()
+            })
+        )
+        .is_empty()
+    );
+}
