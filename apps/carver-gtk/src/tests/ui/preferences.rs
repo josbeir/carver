@@ -85,7 +85,7 @@ pub(super) fn document_appearance_should_persist(fixture: &WindowFixture) -> Tes
     let mut purist_config = config.clone();
     purist_config.editor.show_formatting_toolbar = false;
     let purist_config_path = temporary_directory.path().join("purist-config.toml");
-    let purist_window = crate::app::build_window_for_test(
+    let (purist_window, _purist_dispatcher) = crate::app::build_window_for_test(
         &application,
         client.clone(),
         &purist_config,
