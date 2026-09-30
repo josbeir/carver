@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 atomic-write-file.workspace = true
-carver-domain = { path = "../carver-domain", version = "0.4.1" }
+carver-domain = { path = "../carver-domain", version = "0.4.2" }
 directories.workspace = true
 serde.workspace = true
 serde_json.workspace = true
