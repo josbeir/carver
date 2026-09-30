@@ -825,6 +825,13 @@ impl SqliteLibrary {
     ) -> Result<Category, StorageError> {
         let name = category_name(name)?;
         let transaction = self.connection.unchecked_transaction()?;
+        let previous_name = transaction
+            .query_row(
+                "SELECT name FROM categories WHERE id = ?1 AND trashed_at IS NULL",
+                [category_id.to_string()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
         let affected = transaction.execute(
             "UPDATE categories SET name = ?2, icon = ?3, color = ?4, updated_at = ?5
              WHERE id = ?1 AND trashed_at IS NULL",
@@ -839,7 +846,10 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::Corrupt("category was not found".to_owned()));
         }
-        rebuild_category_fts(&transaction, category_id)?;
+        // Appearance-only edits cannot change the indexed name, so skip the expensive rebuild.
+        if previous_name.as_deref() != Some(name) {
+            rebuild_category_fts(&transaction, category_id)?;
+        }
         transaction.commit()?;
         self.connection
             .query_row(

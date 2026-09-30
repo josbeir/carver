@@ -159,6 +159,66 @@ fn renaming_a_category_should_reindex_its_notes_for_search() {
 }
 
 #[test]
+fn updating_a_category_name_should_reindex_its_notes_for_search() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let _note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .update_category(category.id, "Geology", CategoryAppearance::default(), now)
+        .unwrap_or_else(|error| panic!("update failed: {error}"));
+
+    let stale = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("stale search failed: {error}"))
+        .items;
+    let renamed = library
+        .search_notes("Geology", None, page(20))
+        .unwrap_or_else(|error| panic!("renamed search failed: {error}"))
+        .items;
+
+    assert!(stale.is_empty());
+    assert_eq!(renamed.len(), 1);
+}
+
+#[test]
+fn updating_category_appearance_should_keep_its_notes_searchable() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .update_category(
+            category.id,
+            "Astronomy",
+            CategoryAppearance {
+                icon: CategoryIcon::Star,
+                color: CategoryColor::Blue,
+            },
+            now,
+        )
+        .unwrap_or_else(|error| panic!("update failed: {error}"));
+
+    let results = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("search failed: {error}"))
+        .items;
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].note.id, note.id);
+}
+
+#[test]
 fn moving_a_note_should_reindex_its_category_for_search() {
     let (_directory, library) = library();
     let now = OffsetDateTime::UNIX_EPOCH;
