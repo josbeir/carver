@@ -616,7 +616,11 @@ impl DatePicker {
                 if changed {
                     notify_changed(&on_changed);
                 }
-                if let Some(commit) = on_commit.borrow().clone() {
+                // Clone the callback out of its slot before invoking it: the commit dispatches and
+                // renders the view, which may re-enter and mutate the slot, so its `RefCell` must
+                // not stay borrowed across the call.
+                let commit = on_commit.borrow().clone();
+                if let Some(commit) = commit {
                     commit(value);
                 }
             });
