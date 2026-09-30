@@ -67,7 +67,7 @@ fn build_application(application: &adw::Application) {
             return;
         }
     };
-    let _window = build_window(
+    let (_window, _dispatcher) = build_window(
         application,
         client,
         &config,
@@ -121,7 +121,7 @@ fn build_window(
     source_syntax_dir: &Path,
     config_path: Option<&Path>,
     database_path: Option<&Path>,
-) -> adw::ApplicationWindow {
+) -> (adw::ApplicationWindow, AppDispatcher) {
     let window = adw::ApplicationWindow::new(application);
     window.set_title(Some("Carver"));
     window.set_icon_name(Some(APPLICATION_ICON));
@@ -198,7 +198,7 @@ fn build_window(
     });
     let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::Started));
     window.present();
-    window
+    (window, dispatcher)
 }
 
 fn responsive_navigation(
@@ -231,7 +231,7 @@ pub(crate) fn build_window_for_test(
     client: AppLibraryClient,
     config: &Config,
     config_path: &Path,
-) -> Result<adw::ApplicationWindow, crate::ui::editor::SourceSyntaxError> {
+) -> Result<(adw::ApplicationWindow, AppDispatcher), crate::ui::editor::SourceSyntaxError> {
     load_styles();
     let data_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
     let source_syntax_dir = install_syntax_assets(data_dir)?;

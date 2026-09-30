@@ -21,6 +21,8 @@ pub(crate) struct WindowFixture {
     pub client: super::super::support::TestLibraryClient,
     pub application: adw::Application,
     pub window: adw::ApplicationWindow,
+    /// Window-local route for scenarios that must submit MVU messages directly.
+    pub dispatcher: crate::mvu::AppDispatcher,
     pub config: Config,
     pub config_path: std::path::PathBuf,
     pub preferences_dialog: adw::PreferencesDialog,
@@ -95,7 +97,7 @@ where
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     configure(&mut config);
-    let window =
+    let (window, dispatcher) =
         crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
     let preferences_dispatcher = crate::mvu::AppDispatcher::default();
     let preferences_stack = gtk::Stack::new();
@@ -120,6 +122,7 @@ where
         client,
         application,
         window,
+        dispatcher,
         config,
         config_path,
         preferences_dialog,

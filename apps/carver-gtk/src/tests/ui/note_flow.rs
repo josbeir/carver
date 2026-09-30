@@ -1,5 +1,6 @@
 //! Display-backed note lifecycle coverage from editor shortcuts and trash.
 use super::*;
+use crate::mvu::{AppMsg, NoteOpenIntent, PreferencesMsg, TabsMsg};
 
 pub(super) fn note_should_delete_restore_and_favorite_from_shortcuts(
     fixture: &WindowFixture,
@@ -193,4 +194,64 @@ pub(super) fn tab_shortcuts_should_cycle_tabs(
         }));
     }
     Ok(())
+}
+
+/// Opens a note in the background, activates its tab in Rendered mode, and verifies that the
+/// note's own preview renders instead of staying blank.
+pub(super) fn activating_a_background_tab_should_render_its_preview(
+    fixture: &WindowFixture,
+) -> TestResult {
+    let client = &fixture.client;
+    let root = fixture.root()?;
+    let tabs = widget_as::<adw::TabView>(&root, "workspace-tabs").ok_or("tabs")?;
+
+    // Give the document created by the background open a preview mode.
+    assert!(
+        fixture
+            .dispatcher
+            .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+                carver_config::EditorMode::Rendered
+            ),))
+    );
+
+    let created = client.create_note(fixture.category.id)?;
+    let saved = client.save_note(
+        created.id,
+        created.revision,
+        "# Background preview\n\nRendered from a background tab.",
+    )?;
+
+    // Open it without switching to it; the tab loads its document while inactive.
+    assert!(fixture.dispatcher.dispatch(AppMsg::Tabs(TabsMsg::OpenNote {
+        note_id: saved.id,
+        intent: NoteOpenIntent::Background,
+    })));
+    assert!(
+        run_main_context_until(|| find_note_page(&tabs, "Background preview").is_some()),
+        "the background note should open a tab"
+    );
+    let page = find_note_page(&tabs, "Background preview").ok_or("background tab")?;
+    assert_ne!(
+        tabs.selected_page().as_ref(),
+        Some(&page),
+        "opening in the background must not activate the tab"
+    );
+
+    // Activating it must render its own source, not leave the preview blank.
+    tabs.set_selected_page(&page);
+    assert!(run_main_context_until(|| note_tab_is_active(&root)));
+    let preview = widget_as::<webkit6::WebView>(&root, "editor-rendered-preview")
+        .ok_or("rendered preview")?;
+    assert_web_script_should_be_true(
+        &preview,
+        "document.body.textContent.includes('Background preview')",
+    );
+    Ok(())
+}
+
+/// Returns the non-pinned note tab carrying `title`.
+fn find_note_page(tabs: &adw::TabView, title: &str) -> Option<adw::TabPage> {
+    (0..tabs.n_pages())
+        .map(|index| tabs.nth_page(index))
+        .find(|page| !page.is_pinned() && page.title() == title)
 }

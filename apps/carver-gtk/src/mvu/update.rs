@@ -692,7 +692,14 @@ fn show_tab(model: &mut AppModel, tab_id: super::TabId) -> Vec<Effect> {
     model.tabs.active = Some(tab_id);
     model.tabs.last_active = Some(tab_id);
     model.route = super::Route::Editor;
-    model.editor_preview = None;
+    // A restored tab already carries its document, so publish its own preview now. Clearing to
+    // `None` here would leave an active Rendered/Source-split tab blank until its next edit.
+    // A tab whose background load is still in flight has no document yet; its preview arrives
+    // through `open_editor` when the load completes.
+    model.editor_preview = model.editor.as_ref().map(|document| super::EditorPreview {
+        session: document.session,
+        source: document.source.clone(),
+    });
     model.preview_timer = None;
     model.editor_link_dialog = None;
     let mut effects = Vec::new();
