@@ -20,19 +20,9 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         browser_shortcuts.propagation_phase(),
         gtk::PropagationPhase::Capture
     );
-    assert!(widget_as::<gtk::Button>(&root, "new-note-button").is_some());
-    let browser_menu = widget_as::<gtk::MenuButton>(&root, "browser-menu-button")
-        .ok_or("browser overflow menu")?;
-    assert_eq!(
-        browser_menu.menu_model().map(|model| model.n_items()),
-        Some(1)
-    );
-    assert!(
-        browser_menu
-            .popover()
-            .and_downcast::<gtk::PopoverMenu>()
-            .is_some()
-    );
+    let new_note =
+        widget_as::<adw::SplitButton>(&root, "new-note-button").ok_or("new note split button")?;
+    assert_eq!(new_note.menu_model().map(|model| model.n_items()), Some(1));
     assert!(window.lookup_action("import-note").is_some());
     assert_eq!(
         crate::ui::dialogs::import_format_for_file(&gtk::gio::File::for_path("import.crv")),
