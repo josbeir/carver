@@ -2092,23 +2092,3 @@ pub(crate) fn install_source_shortcuts(
 
 #[cfg(test)]
 mod tests;
-
-/// Builds a script-restricted, read-only template preview using the existing renderer.
-pub(crate) fn build_template_preview(
-    dispatcher: &AppDispatcher,
-) -> (adw::ToastOverlay, webkit6::WebView) {
-    let overlay = adw::ToastOverlay::new();
-    let view = preview::build_preview(None, &preview::asset_scope(), &overlay, dispatcher);
-    overlay.set_child(Some(&view));
-    (overlay, view)
-}
-
-/// Renders a static template without loading remote or managed assets.
-pub(crate) fn load_template_preview(view: &webkit6::WebView, source: &str) {
-    preview::load_preview(
-        view,
-        source,
-        false,
-        carver_domain::rendering::HtmlProfile::Enhanced,
-    );
-}

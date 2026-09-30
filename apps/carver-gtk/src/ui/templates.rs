@@ -21,7 +21,7 @@ pub(crate) struct ListHandle {
 impl ListHandle {
     pub(crate) fn render_preview(&self, preview: Option<&Result<TemplatePreview, UiError>>) {
         if let Some(handle) = &self.preview {
-            handle.render(preview, true);
+            handle.render(preview);
         }
     }
 }
@@ -56,6 +56,8 @@ fn empty_state(dialog: &adw::Dialog, dispatcher: &AppDispatcher, visible: bool) 
         }
         let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(None)));
     });
+    page.add_css_class("compact");
+    page.set_widget_name("template-empty-state");
     page.set_child(Some(&create));
     page
 }
@@ -97,7 +99,7 @@ pub(crate) fn show_list(
     initial_preview: Option<&Result<TemplatePreview, UiError>>,
     selected: Option<carver_sdk::TemplateId>,
 ) -> ListHandle {
-    if matches!(purpose, TemplatePurpose::Pick(_)) {
+    if matches!(purpose, TemplatePurpose::Pick(_)) && !templates.is_empty() {
         return picker::show(
             parent,
             dispatcher,
@@ -108,7 +110,11 @@ pub(crate) fn show_list(
         );
     }
     let dialog = adw::Dialog::builder()
-        .title(gettext("Templates"))
+        .title(if matches!(purpose, TemplatePurpose::Pick(_)) {
+            gettext("Choose Template")
+        } else {
+            gettext("Templates")
+        })
         .content_width(480)
         .content_height(560)
         .build();
@@ -118,6 +124,7 @@ pub(crate) fn show_list(
     let new = gtk::Button::with_label(&gettext("New Template"));
     new.set_tooltip_text(Some(&gettext("New Template")));
     new.set_widget_name("new-template-button");
+    new.set_visible(!templates.is_empty());
     header.pack_end(&new);
     let weak = dialog.downgrade();
     let d = dispatcher.clone();
@@ -128,68 +135,18 @@ pub(crate) fn show_list(
         let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(None)));
     });
     toolbar.add_top_bar(&header);
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    content.set_margin_top(18);
-    content.set_margin_bottom(18);
-    content.set_margin_start(18);
-    content.set_margin_end(18);
-    let search = gtk::SearchEntry::new();
-    search.set_widget_name("templates-search");
-    search.set_placeholder_text(Some(&gettext("Search templates…")));
-    content.append(&search);
-    let group = adw::PreferencesGroup::new();
-    let mut rows = Vec::new();
-    for template in templates {
-        let row = adw::ActionRow::builder()
-            .title(&template.name)
-            .activatable(true)
-            .build();
-        row.set_use_markup(false);
-        row.set_widget_name(&format!("template-row-{}", template.id));
-        let weak = dialog.downgrade();
-        let d = dispatcher.clone();
-        let template_for_open = template.clone();
-        row.connect_activated(move |_| {
-            if let Some(dialog) = weak.upgrade() {
-                dialog.close();
-            }
-            let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(Some(
-                template_for_open.clone(),
-            ))));
-        });
-        row.add_suffix(&template_menu(parent, &dialog, dispatcher, template));
-        group.add(&row);
-        rows.push((template.name.to_lowercase(), row));
+    if templates.is_empty() {
+        toolbar.set_content(Some(&empty_state(&dialog, dispatcher, true)));
+    } else {
+        toolbar.set_content(Some(&manager_list(parent, &dialog, dispatcher, templates)));
     }
-    content.append(&group);
-    let empty = empty_state(&dialog, dispatcher, templates.is_empty());
-    content.append(&empty);
-    content.append(&help_label(&gettext(
-        "You can also use Save as Template… from a note’s menu. Each new note gets its own copy.",
-    )));
-    let templates_empty = templates.is_empty();
-    search.connect_search_changed(move |entry| {
-        let query = entry.text().to_lowercase();
-        let mut any = false;
-        for (name, row) in &rows {
-            let visible = name.contains(&query);
-            row.set_visible(visible);
-            any |= visible;
-        }
-        empty.set_visible(!any);
-        if !templates_empty {
-            empty.set_title(&gettext("No matching templates"));
-            empty.set_description(Some(&gettext("Try a different search.")));
-            empty.set_child(gtk::Widget::NONE);
-        }
-    });
-    let scroll = gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Never)
-        .child(&content)
-        .vexpand(true)
-        .build();
-    toolbar.set_content(Some(&scroll));
     dialog.set_child(Some(&toolbar));
+    if matches!(purpose, TemplatePurpose::Pick(_)) {
+        let d = dispatcher.clone();
+        dialog.connect_closed(move |_| {
+            let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PickerClosed(request_id)));
+        });
+    }
     dialog.present(Some(parent));
     ListHandle {
         id: request_id,
@@ -443,4 +400,71 @@ pub(crate) fn show_editor(
         cancel,
         properties,
     })
+}
+
+fn manager_list(
+    parent: &gtk::Window,
+    dialog: &adw::Dialog,
+    dispatcher: &AppDispatcher,
+    templates: &[NoteTemplate],
+) -> gtk::ScrolledWindow {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    let search = gtk::SearchEntry::new();
+    search.set_widget_name("templates-search");
+    search.set_placeholder_text(Some(&gettext("Search templates…")));
+    content.append(&search);
+    let group = adw::PreferencesGroup::new();
+    let mut rows = Vec::new();
+    for template in templates {
+        let row = adw::ActionRow::builder()
+            .title(&template.name)
+            .activatable(true)
+            .build();
+        row.set_use_markup(false);
+        row.set_widget_name(&format!("template-row-{}", template.id));
+        let weak = dialog.downgrade();
+        let d = dispatcher.clone();
+        let template_for_open = template.clone();
+        row.connect_activated(move |_| {
+            if let Some(dialog) = weak.upgrade() {
+                dialog.close();
+            }
+            let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::Edit(Some(
+                template_for_open.clone(),
+            ))));
+        });
+        row.add_suffix(&template_menu(parent, dialog, dispatcher, template));
+        group.add(&row);
+        rows.push((template.name.to_lowercase(), row));
+    }
+    content.append(&group);
+    let empty = adw::StatusPage::builder()
+        .title(gettext("No matching templates"))
+        .description(gettext("Try a different search."))
+        .visible(false)
+        .build();
+    empty.add_css_class("compact");
+    content.append(&empty);
+    content.append(&help_label(&gettext(
+        "You can also use Save as Template… from a note’s menu. Each new note gets its own copy.",
+    )));
+    search.connect_search_changed(move |entry| {
+        let query = entry.text().to_lowercase();
+        let mut any = false;
+        for (name, row) in &rows {
+            let visible = name.contains(&query);
+            row.set_visible(visible);
+            any |= visible;
+        }
+        empty.set_visible(!any);
+    });
+    gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .child(&content)
+        .vexpand(true)
+        .build()
 }

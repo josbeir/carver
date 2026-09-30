@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 20:48+0200\n"
+"POT-Creation-Date: 2026-09-30 21:55+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -1839,6 +1839,11 @@ msgid "Categories using this template will return to blank notes. Existing notes
 msgstr "Kategorien mit dieser Vorlage erstellen wieder leere Notizen. Bestehende Notizen bleiben unverändert."
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "Vorlage auswählen"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Create Template"
 msgstr "Vorlage erstellen"
 
@@ -1871,12 +1876,10 @@ msgid "New Template"
 msgstr "Neue Vorlage"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "No matching templates"
 msgstr "Keine passenden Vorlagen"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr "Vorlagen suchen…"
 
@@ -1897,7 +1900,6 @@ msgid "Template properties override matching defaults. Other enabled default pro
 msgstr "Vorlageneigenschaften überschreiben entsprechende Standardwerte. Andere aktivierte Standardeigenschaften werden beim Erstellen einer Notiz hinzugefügt."
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr "Vorlagen"
 
@@ -1906,7 +1908,6 @@ msgid "Templates are reusable starting points for new notes. Save a note as a te
 msgstr "Vorlagen sind wiederverwendbare Ausgangspunkte für neue Notizen. Speichern Sie eine Notiz als Vorlage oder erstellen Sie hier eine."
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Try a different search."
 msgstr "Versuchen Sie eine andere Suche."
 
@@ -1919,21 +1920,12 @@ msgid "Your unsaved template changes will be lost."
 msgstr "Ihre ungespeicherten Vorlagenänderungen gehen verloren."
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
-msgid "Choose Template"
-msgstr "Vorlage auswählen"
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"
 msgstr "Notiz erstellen"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "New notes get their own copy. Editing a template won’t change existing notes."
 msgstr "Neue Notizen erhalten eine eigene Kopie. Das Bearbeiten einer Vorlage ändert bestehende Notizen nicht."
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
-#, fuzzy
-msgid "Preview"
-msgstr "Vorschau"
 
 #: apps/carver-gtk/src/ui/templates/properties.rs
 msgid "From template"

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 20:48+0200\n"
+"POT-Creation-Date: 2026-09-30 21:55+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1831,6 +1831,11 @@ msgid "Categories using this template will return to blank notes. Existing notes
 msgstr "使用此模板的分类将恢复创建空白笔记。现有笔记不会改变。"
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "选择模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Create Template"
 msgstr "创建模板"
 
@@ -1863,12 +1868,10 @@ msgid "New Template"
 msgstr "新建模板"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "No matching templates"
 msgstr "没有匹配的模板"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr "搜索模板…"
 
@@ -1889,7 +1892,6 @@ msgid "Template properties override matching defaults. Other enabled default pro
 msgstr "模板属性会覆盖匹配的默认值。创建笔记时会添加其他已启用的默认属性。"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr "模板"
 
@@ -1898,7 +1900,6 @@ msgid "Templates are reusable starting points for new notes. Save a note as a te
 msgstr "模板是新笔记可重复使用的起点。将笔记保存为模板，或在此创建模板。"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Try a different search."
 msgstr "请尝试其他搜索条件。"
 
@@ -1911,21 +1912,12 @@ msgid "Your unsaved template changes will be lost."
 msgstr "未保存的模板更改将丢失。"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
-msgid "Choose Template"
-msgstr "选择模板"
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"
 msgstr "创建笔记"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "New notes get their own copy. Editing a template won’t change existing notes."
 msgstr "新笔记都有自己的副本。编辑模板不会更改现有笔记。"
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
-#, fuzzy
-msgid "Preview"
-msgstr "预览"
 
 #: apps/carver-gtk/src/ui/templates/properties.rs
 msgid "From template"

@@ -20,9 +20,15 @@ fn new_draft(fixture: &WindowFixture) -> Result<adw::Dialog, Box<dyn std::error:
         .dispatcher
         .dispatch(AppMsg::Templates(TemplatesMsg::Manage));
     let manager = visible_dialog(&fixture.window, "templates-dialog")?;
-    widget_as::<gtk::Button>(manager.upcast_ref(), "new-template-button")
-        .ok_or("new template")?
-        .emit_clicked();
+    let button = widget_as::<gtk::Button>(manager.upcast_ref(), "new-template-button")
+        .ok_or("new template")?;
+    let button = if button.is_visible() {
+        button
+    } else {
+        widget_as::<gtk::Button>(manager.upcast_ref(), "create-first-template")
+            .ok_or("first template")?
+    };
+    button.emit_clicked();
     visible_dialog(&fixture.window, "template-editor-dialog")
 }
 fn write_draft(dialog: &adw::Dialog, name: &str, source: &str) -> TestResult {
@@ -240,6 +246,11 @@ pub(super) fn category_template_should_seed_notes_and_allow_blank_override() -> 
         "Meeting".into(),
         "---\ntype: meeting\n---\n\n# Agenda\n".into(),
     ))?;
+    glib::MainContext::default().block_on(
+        fixture
+            .client
+            .create_template_async("Planning".into(), "---\ntype: planning\n---".into()),
+    )?;
     assign_default(&fixture, template.id)?;
     assert!(run_main_context_until(|| widget_as::<adw::SplitButton>(
         fixture.window.upcast_ref(),
@@ -286,12 +297,6 @@ pub(super) fn category_template_should_seed_notes_and_allow_blank_override() -> 
         .ok_or("picker action")?
         .activate(None);
     let picker = visible_dialog(&fixture.window, "templates-dialog")?;
-    widget_as::<adw::ActionRow>(
-        picker.upcast_ref(),
-        &format!("template-row-{}", template.id),
-    )
-    .ok_or("picker row")?
-    .emit_by_name::<()>("activated", &[]);
     assert_eq!(category_notes(&fixture)?.len(), before + 2);
     let author = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:author")
         .ok_or("effective default")?;
@@ -449,6 +454,24 @@ pub(super) fn template_empty_state_should_teach_and_open_a_first_draft() -> Test
         .dispatcher
         .dispatch(AppMsg::Templates(TemplatesMsg::Manage));
     let manager = visible_dialog(&fixture.window, "templates-dialog")?;
+    assert!(
+        !widget_as::<gtk::Button>(manager.upcast_ref(), "new-template-button")
+            .ok_or("header action")?
+            .is_visible()
+    );
+    assert!(widget_as::<gtk::SearchEntry>(manager.upcast_ref(), "templates-search").is_none());
+    let page = widget_as::<adw::StatusPage>(manager.upcast_ref(), "template-empty-state")
+        .ok_or("onboarding page")?;
+    assert!(page.has_css_class("compact"));
+    assert!(
+        page.ancestor(gtk::ScrolledWindow::static_type()).is_none(),
+        "status page must own its scrolling without an outer scroller"
+    );
+    manager.set_content_height(220);
+    assert!(run_main_context_until(
+        || page.height() > 0 && page.height() < 300
+    ));
+    super::add::capture_dialog(&manager, "template-empty-short")?;
     widget_as::<gtk::Button>(manager.upcast_ref(), "create-first-template")
         .ok_or("first template action")?
         .emit_clicked();
@@ -458,49 +481,61 @@ pub(super) fn template_empty_state_should_teach_and_open_a_first_draft() -> Test
             .is_some()
     );
     editor.close();
+    let returned_manager = visible_dialog(&fixture.window, "templates-dialog")?;
+    returned_manager.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Templates(TemplatesMsg::Pick));
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    assert!(
+        widget_as::<adw::NavigationSplitView>(picker.upcast_ref(), "template-preview-split")
+            .is_none()
+    );
+    assert!(widget_as::<gtk::SearchEntry>(picker.upcast_ref(), "templates-search").is_none());
+    assert!(widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note").is_none());
+    assert!(widget_as::<gtk::Button>(picker.upcast_ref(), "create-first-template").is_some());
+    picker.close();
     fixture.window.close();
     Ok(())
 }
 
 fn check_picker_layout(fixture: &WindowFixture, picker: &adw::Dialog) -> TestResult {
-    let split =
-        widget_as::<adw::NavigationSplitView>(picker.upcast_ref(), "template-preview-split")
-            .ok_or("preview navigation")?;
-    assert!(run_main_context_until(|| split.width() > 600));
-    let search = widget_as::<gtk::SearchEntry>(picker.upcast_ref(), "templates-search")
-        .ok_or("picker search")?;
+    assert!(
+        widget_as::<webkit6::WebView>(picker.upcast_ref(), "template-content-preview").is_none()
+    );
+    let selector = widget_as::<adw::ComboRow>(picker.upcast_ref(), "template-picker-choice")
+        .ok_or("searchable template choice")?;
+    assert!(selector.enables_search());
     let create = widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
-        .ok_or("preview create")?;
-    let row = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:type")
-        .ok_or("property preview")?;
-    assert!(row.is_visible());
-    search.set_text("no matching template");
-    assert!(run_main_context_until(|| !create.is_sensitive()));
-    search.set_text("");
-    let list = widget_as::<gtk::ListBox>(picker.upcast_ref(), "template-picker-list")
-        .ok_or("picker list")?;
-    assert!(run_main_context_until(|| list
-        .row_at_index(0)
-        .is_some_and(|row| row.is_visible())));
-    list.select_row(list.row_at_index(0).as_ref());
+        .ok_or("explicit create")?;
+    selector.set_selected(1);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        picker.upcast_ref(),
+        "template-property-value:type"
+    )
+    .is_some_and(|value| value.text() == "planning")));
+    selector.set_selected(0);
     assert!(run_main_context_until(|| create.is_sensitive()));
-    let view = widget_as::<webkit6::WebView>(picker.upcast_ref(), "template-content-preview")
-        .ok_or("read-only content")?;
-    assert!(!view.is_editable());
-    assert_web_script_should_be_true(
-        &view,
-        "document.body.innerText.includes('Agenda') && document.querySelector('h1') !== null",
-    );
-    super::add::capture_dialog(picker, "template-picker-wide")?;
     fixture.window.set_default_size(420, 720);
-    assert!(run_main_context_until(|| split.is_collapsed()));
-    assert!(split.width() <= fixture.window.width());
-    split.set_show_content(true);
-    assert!(run_main_context_until(|| split.shows_content()));
-    assert_web_script_should_be_true(
-        &view,
-        "document.documentElement.scrollWidth <= window.innerWidth && parseFloat(getComputedStyle(document.querySelector('h1')).fontSize) >= 14",
-    );
-    super::add::capture_dialog(picker, "template-picker-narrow")?;
+    assert!(run_main_context_until(
+        || picker.width() < 560 && picker.width() <= fixture.window.width()
+    ));
+    let scroll = widget_as::<gtk::ScrolledWindow>(picker.upcast_ref(), "template-picker-scroll")
+        .ok_or("single scroll body")?;
+    assert_eq!(scroll.hscrollbar_policy(), gtk::PolicyType::Never);
+    picker.set_content_height(220);
+    assert!(run_main_context_until(|| {
+        let adjustment = scroll.vadjustment();
+        adjustment.upper() > adjustment.page_size()
+    }));
+    let adjustment = scroll.vadjustment();
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    assert!(adjustment.value() > 0.0);
+    picker.set_content_height(480);
+    super::add::capture_dialog(picker, "template-picker-properties")?;
     Ok(())
 }

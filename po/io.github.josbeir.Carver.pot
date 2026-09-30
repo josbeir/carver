@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 20:53+0200\n"
+"POT-Creation-Date: 2026-09-30 21:57+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1862,6 +1862,11 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Create Template"
 msgstr ""
 
@@ -1894,12 +1899,10 @@ msgid "New Template"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "No matching templates"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr ""
 
@@ -1922,7 +1925,6 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr ""
 
@@ -1933,7 +1935,6 @@ msgid ""
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Try a different search."
 msgstr ""
 
@@ -1948,20 +1949,12 @@ msgid "Your unsaved template changes will be lost."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
-msgid "Choose Template"
-msgstr ""
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid ""
 "New notes get their own copy. Editing a template won’t change existing notes."
-msgstr ""
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
-msgid "Preview"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/templates/properties.rs

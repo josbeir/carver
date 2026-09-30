@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 20:48+0200\n"
+"POT-Creation-Date: 2026-09-30 21:55+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -1839,6 +1839,11 @@ msgid "Categories using this template will return to blank notes. Existing notes
 msgstr "Les catégories utilisant ce modèle créeront à nouveau des notes vierges. Les notes existantes ne changeront pas."
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "Choisir un modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Create Template"
 msgstr "Créer un modèle"
 
@@ -1871,12 +1876,10 @@ msgid "New Template"
 msgstr "Nouveau modèle"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "No matching templates"
 msgstr "Aucun modèle correspondant"
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Search templates…"
 msgstr "Rechercher des modèles…"
 
@@ -1897,7 +1900,6 @@ msgid "Template properties override matching defaults. Other enabled default pro
 msgstr "Les propriétés du modèle remplacent les valeurs par défaut correspondantes. Les autres propriétés par défaut activées sont ajoutées à la création d’une note."
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Templates"
 msgstr "Modèles"
 
@@ -1906,7 +1908,6 @@ msgid "Templates are reusable starting points for new notes. Save a note as a te
 msgstr "Les modèles sont des points de départ réutilisables pour les nouvelles notes. Enregistrez une note comme modèle ou créez-en un ici."
 
 #: apps/carver-gtk/src/ui/templates.rs
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Try a different search."
 msgstr "Essayez une autre recherche."
 
@@ -1919,21 +1920,12 @@ msgid "Your unsaved template changes will be lost."
 msgstr "Les modifications non enregistrées du modèle seront perdues."
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
-msgid "Choose Template"
-msgstr "Choisir un modèle"
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"
 msgstr "Créer une note"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "New notes get their own copy. Editing a template won’t change existing notes."
 msgstr "Les nouvelles notes reçoivent leur propre copie. Modifier un modèle ne change pas les notes existantes."
-
-#: apps/carver-gtk/src/ui/templates/picker.rs
-#, fuzzy
-msgid "Preview"
-msgstr "Aperçu"
 
 #: apps/carver-gtk/src/ui/templates/properties.rs
 msgid "From template"

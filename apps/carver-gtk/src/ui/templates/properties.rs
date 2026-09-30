@@ -19,8 +19,14 @@ impl PropertiesHandle {
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::None);
         list.set_widget_name("template-effective-properties");
-        expander.add_row(&list);
-        group.add(&expander);
+        if initially_open {
+            group.set_title(&gettext("Properties for new notes"));
+            list.add_css_class("boxed-list");
+            group.add(&list);
+        } else {
+            expander.add_row(&list);
+            group.add(&expander);
+        }
         Self { group, list }
     }
     pub(super) fn render(&self, preview: Result<&TemplatePreview, &UiError>) {
@@ -47,9 +53,12 @@ impl PropertiesHandle {
                     let value = gtk::Label::builder()
                         .label(&property.value)
                         .wrap(true)
+                        .wrap_mode(gtk::pango::WrapMode::WordChar)
+                        .xalign(1.0)
                         .max_width_chars(28)
                         .selectable(true)
                         .build();
+                    value.set_widget_name(&format!("template-property-value:{}", property.key));
                     value.set_tooltip_text(Some(&property.value));
                     row.add_suffix(&value);
                     self.list.append(&row);
