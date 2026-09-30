@@ -1144,6 +1144,11 @@ impl ViewRefs {
                 editor.focus_document_target(session, generation, selection, &target);
             }
             Effect::ShowMediaPreview { session, path } => editor.preview_media(session, &path),
+            Effect::ShowMediaDownloadDialog {
+                session,
+                path,
+                label,
+            } => editor.show_media_download(session, &path, &label),
             Effect::CopyEditorDocument { request } => editor.copy_document(&request),
             Effect::ShowEditorExportDialog { request } => editor.show_export_dialog(request),
             Effect::ShowEditorExportWarning { request } => editor.show_export_warning(&request),

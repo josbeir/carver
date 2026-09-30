@@ -383,6 +383,28 @@ pub enum EditorMsg {
         session: EditorSessionId,
     },
 
+    /// Download an attachment referenced by the active document.
+    DownloadMedia {
+        /// Authored occurrence selected by the user.
+        selection: Range<usize>,
+    },
+    /// The native save dialog selected an output target for an attachment.
+    MediaDownloadRequested {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Canonical managed asset path.
+        path: String,
+        /// User-selected output target URI.
+        target_uri: String,
+    },
+    /// The runtime finished writing an attachment copy.
+    MediaDownloadFinished {
+        /// Requesting editor lifetime.
+        session: EditorSessionId,
+        /// Write outcome or a user-visible error.
+        result: Result<(), UiError>,
+    },
+
     /// Asset bytes resolved by the runtime for sidebar presentation.
     MediaFileLoaded {
         /// Thumbnail requirement of this request, used to reject stale kind changes.

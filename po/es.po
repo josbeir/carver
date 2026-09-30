@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 11:05+0200\n"
+"POT-Creation-Date: 2026-09-30 16:11+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -71,10 +71,18 @@ msgstr "Categorías"
 msgid "Notes"
 msgstr "Notas"
 
+#: apps/carver-gtk/src/mvu/runtime/media_preview.rs
+msgid "This file is no longer available."
+msgstr "Este archivo ya no está disponible."
+
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "No se pudo guardar la nota: {error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "File saved"
+msgstr "Archivo guardado"
 
 #: apps/carver-gtk/src/mvu/update.rs
 msgid "There is no text on the clipboard."
@@ -311,7 +319,7 @@ msgstr "Quitar campo"
 msgid "Remove {noun}"
 msgstr "Quitar {noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Save"
 msgstr "Guardar"
@@ -1292,6 +1300,10 @@ msgid "Preview file"
 msgstr "Previsualizar archivo"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
+msgid "Save a copy"
+msgstr "Guardar una copia"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Unavailable"
 msgstr "No disponible"
 
@@ -1433,6 +1445,10 @@ msgstr "Vista previa"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Print…"
 msgstr "Imprimir…"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save file"
+msgstr "Guardar archivo"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show rendered preview"

@@ -300,6 +300,7 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::FocusEditor { .. }
             | Effect::FocusDocumentTarget { .. }
             | Effect::ShowMediaPreview { .. }
+            | Effect::ShowMediaDownloadDialog { .. }
             | Effect::CopyEditorDocument { .. }
             | Effect::ShowEditorExportDialog { .. }
             | Effect::ShowDocumentProperties { .. }
@@ -330,6 +331,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 path,
                 label,
             } => self.prepare_media_preview(session, note_id, path, label),
+            Effect::WriteMediaDownload {
+                session,
+                note_id,
+                path,
+                target_uri,
+            } => self.write_media_download(session, note_id, path, target_uri),
             Effect::PersistConfig { config } => self.persist_config(&config),
             Effect::EnsureDefaultCategory => self.ensure_default_category(),
             Effect::CreateNote {

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 14:24+0200\n"
+"POT-Creation-Date: 2026-09-30 16:11+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -84,9 +84,17 @@ msgstr ""
 msgid "Notes"
 msgstr ""
 
+#: apps/carver-gtk/src/mvu/runtime/media_preview.rs
+msgid "This file is no longer available."
+msgstr ""
+
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not save note: {error}"
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "File saved"
 msgstr ""
 
 #: apps/carver-gtk/src/mvu/update.rs
@@ -325,7 +333,7 @@ msgstr ""
 msgid "Remove {noun}"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Save"
 msgstr ""
@@ -1311,6 +1319,10 @@ msgid "Preview file"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
+msgid "Save a copy"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Unavailable"
 msgstr ""
 
@@ -1451,6 +1463,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Print…"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save file"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/mod.rs

@@ -81,6 +81,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     document_sidebar::webkit_views_should_paint_the_document_background()?;
     document_sidebar::source_editor_should_start_on_the_dark_scheme_when_dark()?;
     document_sidebar::media_sidebar_should_show_file_details_in_an_isolated_editor()?;
+    document_sidebar::media_download_should_save_a_managed_attachment_copy()?;
     properties::document_properties_button_should_follow_mode_and_setting()?;
     properties::default_properties_should_always_show_without_removal()?;
     properties::list_default_should_render_a_dropdown_when_single()?;

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 11:05+0200\n"
+"POT-Creation-Date: 2026-09-30 16:11+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -71,10 +71,18 @@ msgstr "分类"
 msgid "Notes"
 msgstr "笔记"
 
+#: apps/carver-gtk/src/mvu/runtime/media_preview.rs
+msgid "This file is no longer available."
+msgstr "此文件已不再可用。"
+
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not save note: {error}"
 msgstr "无法保存笔记：{error}"
+
+#: apps/carver-gtk/src/mvu/update.rs
+msgid "File saved"
+msgstr "文件已保存"
 
 #: apps/carver-gtk/src/mvu/update.rs
 msgid "There is no text on the clipboard."
@@ -310,7 +318,7 @@ msgstr "移除字段"
 msgid "Remove {noun}"
 msgstr "移除{noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Save"
 msgstr "保存"
@@ -1285,6 +1293,10 @@ msgid "Preview file"
 msgstr "预览文件"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
+msgid "Save a copy"
+msgstr "保存副本"
+
+#: apps/carver-gtk/src/ui/editor/document_sidebar/media.rs
 msgid "Unavailable"
 msgstr "不可用"
 
@@ -1425,6 +1437,10 @@ msgstr "预览"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Print…"
 msgstr "打印…"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save file"
+msgstr "保存文件"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Show rendered preview"
