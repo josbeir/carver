@@ -811,6 +811,113 @@ pub(super) fn date_time_default_should_edit_the_picker() -> TestResult {
     Ok(())
 }
 
+/// Confirming an unset, newly added date-time picker with Done saves the time it displayed.
+///
+/// A newly added date-time property has no value, so the picker shows the current date and time.
+/// Pressing Done must persist that shown value instead of treating the field as blank, and the
+/// shown time must be the current system time rather than midnight.
+pub(super) fn ad_hoc_date_time_picker_should_save_the_shown_now() -> TestResult {
+    let fixture = super::document_sidebar::fixture()?;
+    let category = fixture.client.create_category("Properties")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: "Body\n".to_owned(),
+    }));
+    let dialog = open_properties_dialog(&fixture)?;
+    let root = dialog.upcast_ref();
+
+    // Add a custom property, name it, and make it a date-time field.
+    widget_as::<adw::ButtonRow>(root, "document-properties-add")
+        .ok_or("add property")?
+        .emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| widget_as::<adw::EntryRow>(
+        root,
+        "document-property-key-1"
+    )
+    .is_some()));
+    widget_as::<adw::EntryRow>(root, "document-property-key-1")
+        .ok_or("key")?
+        .set_text("at");
+    widget_as::<adw::ComboRow>(root, "document-property-kind-1")
+        .ok_or("kind")?
+        .set_selected(6);
+    assert!(run_main_context_until(|| widget_as::<gtk::MenuButton>(
+        root,
+        "document-property-value-1-picker"
+    )
+    .is_some()));
+
+    // The fresh picker defaults to the current date and time.
+    let now = glib::DateTime::now_local()?;
+    let picker = widget_as::<gtk::MenuButton>(root, "document-property-value-1-picker")
+        .ok_or("date-time picker")?;
+    picker.popup();
+    assert!(run_main_context_until(|| widget_as::<gtk::Calendar>(
+        root,
+        "document-property-value-1-calendar"
+    )
+    .is_some()));
+    let hour = widget_as::<gtk::Label>(root, "document-property-value-1-hour-label")
+        .ok_or("hour label")?
+        .text()
+        .to_string();
+    let minute = widget_as::<gtk::Label>(root, "document-property-value-1-minute-label")
+        .ok_or("minute label")?
+        .text()
+        .to_string();
+    let shown_minutes = hour
+        .parse::<i32>()
+        .ok()
+        .map(|value| value * 60)
+        .zip(minute.parse::<i32>().ok());
+    let shown_minutes = shown_minutes.map(|(hours, minutes)| hours + minutes);
+    let shown_minutes = shown_minutes.ok_or("numeric time labels")?;
+    let now_minutes = now.hour() * 60 + now.minute();
+    let drift = (shown_minutes - now_minutes).rem_euclid(24 * 60);
+    assert!(
+        drift <= 1 || drift >= 24 * 60 - 1,
+        "the picker should show the current time, not midnight: {hour}:{minute} vs {}:{}",
+        now.hour(),
+        now.minute()
+    );
+
+    // Pressing Done confirms the shown value even though nothing was moved; the row subtitle
+    // updates only once the popover's close handler has written the value back into the picker.
+    widget_as::<gtk::Button>(root, "document-property-value-1-done")
+        .ok_or("done")?
+        .emit_clicked();
+    let row =
+        widget_as::<adw::ExpanderRow>(root, "document-property-row-1").ok_or("date-time row")?;
+    assert!(
+        run_main_context_until(|| row.subtitle() != "Not set"),
+        "closing the picker should reflect the shown value"
+    );
+
+    widget_as::<gtk::Button>(root, "document-properties-save")
+        .ok_or("save")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+
+    let source = editor_source(&fixture);
+    let expected_date = format!(
+        "{:04}-{:02}-{:02}",
+        now.year(),
+        now.month(),
+        now.day_of_month()
+    );
+    assert!(
+        source.contains(&format!("at: {expected_date}T{hour}:{minute}:")),
+        "Done should save the displayed date-time: {source}"
+    );
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn typed_defaults_should_save_edited_values() -> TestResult {
     let fixture = super::document_sidebar::fixture()?;
     enable_defaults(
