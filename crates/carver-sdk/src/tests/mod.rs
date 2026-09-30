@@ -248,3 +248,32 @@ fn deferred_background_work_should_stay_bounded() {
         (job.run)(&());
     }
 }
+
+#[test]
+fn template_requests_should_propagate_backend_failures() -> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let id = TemplateId::new();
+    let category = CategoryId::new();
+    assert_backend_error(&block_on(client.templates_async()));
+    assert_backend_error(&block_on(client.template_async(id)));
+    assert_backend_error(&block_on(
+        client.create_template_async("Meeting".into(), "# Agenda".into()),
+    ));
+    assert_backend_error(&block_on(client.save_template_async(
+        id,
+        Revision(1),
+        "Meeting".into(),
+        "# Agenda".into(),
+    )));
+    assert_backend_error(&block_on(client.delete_template_async(id, Revision(1))));
+    assert_backend_error(&block_on(
+        client.set_category_template_async(category, Some(id)),
+    ));
+    assert_backend_error(&block_on(client.update_category_with_template_async(
+        category,
+        "Meetings".into(),
+        CategoryAppearance::default(),
+        Some(id),
+    )));
+    Ok(())
+}

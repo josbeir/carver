@@ -124,6 +124,7 @@ fn migrations() -> Migrations<'static> {
         M::up_with_hook(NOTE_LINKS_SCHEMA, migrate_note_links),
         M::up_with_hook("", migrate_frontmatter_revision),
         M::up_with_hook("", migrate_note_search_category),
+        M::up_with_hook(TEMPLATES_SCHEMA, migrate_category_template_column),
     ])
 }
 
@@ -330,5 +331,38 @@ fn migrate_note_favorite_columns(transaction: &Transaction<'_>) -> rusqlite_migr
     transaction.execute_batch(
         "CREATE INDEX IF NOT EXISTS notes_favorite_order_idx ON notes(is_favorite, favorited_at DESC);",
     )?;
+    Ok(())
+}
+
+const TEMPLATES_SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS templates (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL CHECK(length(trim(name)) > 0),
+    source TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS templates_insert_revision AFTER INSERT ON templates BEGIN
+    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+END;
+CREATE TRIGGER IF NOT EXISTS templates_update_revision AFTER UPDATE ON templates BEGIN
+    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+END;
+CREATE TRIGGER IF NOT EXISTS templates_delete_revision AFTER DELETE ON templates BEGIN
+    UPDATE library_metadata SET change_revision = change_revision + 1 WHERE singleton = 1;
+END;
+";
+
+fn migrate_category_template_column(
+    transaction: &Transaction<'_>,
+) -> rusqlite_migration::HookResult {
+    let mut statement = transaction.prepare("PRAGMA table_info(categories)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !columns.iter().any(|column| column == "default_template_id") {
+        transaction.execute_batch("ALTER TABLE categories ADD COLUMN default_template_id TEXT REFERENCES templates(id) ON DELETE SET NULL;")?;
+    }
     Ok(())
 }

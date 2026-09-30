@@ -85,7 +85,7 @@ fn set_document_properties_should_replace_entries_and_persist() {
 }
 
 #[test]
-fn create_note_should_seed_enabled_default_properties() {
+fn create_blank_note_should_seed_enabled_default_properties() {
     let mut config = Config::default();
     config.document_properties.enabled = true;
     config.document_properties.entries = vec![text_property("author", "Jane")];
@@ -94,7 +94,10 @@ fn create_note_should_seed_enabled_default_properties() {
     let category_id = CategoryId::new();
     model.selected_category = Some(category_id);
 
-    let effects = update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote));
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote),
+    );
 
     assert!(!expected.is_empty());
     assert_eq!(
@@ -107,12 +110,15 @@ fn create_note_should_seed_enabled_default_properties() {
 }
 
 #[test]
-fn create_note_should_not_seed_disabled_default_properties() {
+fn create_blank_note_should_not_seed_disabled_default_properties() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
     model.selected_category = Some(category_id);
 
-    let effects = update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote));
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote),
+    );
 
     assert_eq!(
         effects,

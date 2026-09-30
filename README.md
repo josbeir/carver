@@ -29,7 +29,8 @@ idea, it keeps your notes and images on your own computer. Built with Rust and L
 - **Write your way.** Switch between rich text, Carve source, and preview. Add images,
   attachments, checklists, and tables; use a split view or clear the distractions to focus.
 - **Keep things together.** Organize notes into categories, search your library, and recover
-  deleted notes from Trash. Adjust the tools and panels to suit your writing.
+  deleted notes from Trash. Reuse note templates, or choose a default template for each
+  category. Adjust the tools and panels to suit your writing.
 - **Give notes structure.** Store text, numbers, booleans, and lists in frontmatter.
   Build saved views called **Bases** with configurable columns, filters, and sort rules,
   and edit property values directly in the table.

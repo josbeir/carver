@@ -16,6 +16,89 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Load templates for a captured dialog purpose.
+    LoadTemplates {
+        /// Identity guarding asynchronous completions.
+        request_id: super::RequestId,
+        /// Captured dialog destination and purpose.
+        purpose: super::TemplatePurpose,
+    },
+    /// Present a manager, picker, or category form.
+    ShowTemplates {
+        /// Current reusable template snapshot.
+        templates: Vec<carver_sdk::NoteTemplate>,
+        /// Captured dialog destination and purpose.
+        purpose: super::TemplatePurpose,
+    },
+    /// Present a source-only draft editor.
+    ShowTemplateEditor {
+        /// Source editor presentation settings.
+        preferences: super::SourceEditorPreferences,
+        /// Identity guarding asynchronous completions.
+        request_id: super::RequestId,
+        /// Original template and revision, or a new draft.
+        original: Option<carver_sdk::NoteTemplate>,
+        /// User-entered template or category name.
+        name: String,
+        /// Canonical Carve source.
+        source: String,
+    },
+    /// Finish a draft save, displaying a validation error or closing on success.
+    FinishTemplateEdit {
+        /// Identity guarding asynchronous completions.
+        request_id: super::RequestId,
+        /// Validation or persistence failure, absent on success.
+        error: Option<super::UiError>,
+    },
+    /// Load note source to save as a template.
+    LoadTemplateNote {
+        /// Identity guarding asynchronous completions.
+        request_id: super::RequestId,
+        /// Note supplying the initial source.
+        note_id: carver_sdk::NoteId,
+    },
+    /// Save a revision-checked template draft.
+    SaveTemplate {
+        /// Identity guarding asynchronous completions.
+        request_id: super::RequestId,
+        /// Original template and revision, or a new draft.
+        original: Option<carver_sdk::NoteTemplate>,
+        /// User-entered template or category name.
+        name: String,
+        /// Canonical Carve source.
+        source: String,
+    },
+    /// Delete a confirmed template.
+    DeleteTemplate {
+        /// Template identity.
+        id: carver_sdk::TemplateId,
+        /// Expected persisted revision.
+        revision: carver_sdk::Revision,
+    },
+    /// Create a note using a category's persisted template choice.
+    CreateCategoryNote {
+        /// Captured destination category.
+        category_id: carver_sdk::CategoryId,
+    },
+    /// Create a note from an explicitly chosen template.
+    CreateTemplateNote {
+        /// Captured destination category.
+        category_id: carver_sdk::CategoryId,
+        /// Selected template identity.
+        template_id: carver_sdk::TemplateId,
+    },
+    /// Save category metadata and its template selection.
+    SaveTemplateCategory {
+        /// Captured destination category.
+        category_id: carver_sdk::CategoryId,
+        /// User-entered template or category name.
+        name: String,
+        /// Selected category appearance.
+        appearance: carver_sdk::CategoryAppearance,
+        /// Selected template identity.
+        template_id: Option<carver_sdk::TemplateId>,
+    },
+
     /// Prepare an unfiltered snapshot for a configuration dialog.
     PrepareBaseConfiguration {
         /// Request identity used to reject stale completions.

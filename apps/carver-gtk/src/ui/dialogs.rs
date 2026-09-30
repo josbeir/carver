@@ -313,6 +313,31 @@ fn install_note_actions(
     });
     window.add_action(&new_note);
 
+    for (name, message) in [
+        (
+            "templates",
+            AppMsg::Templates(crate::mvu::TemplatesMsg::Manage),
+        ),
+        (
+            "new-from-template",
+            AppMsg::Templates(crate::mvu::TemplatesMsg::Pick),
+        ),
+        (
+            "new-blank-note",
+            AppMsg::Navigation(NavigationMsg::CreateBlankNote),
+        ),
+        (
+            "save-as-template",
+            AppMsg::Templates(crate::mvu::TemplatesMsg::FromEditor),
+        ),
+    ] {
+        let action = gtk::gio::SimpleAction::new(name, None);
+        let dispatcher = dispatcher.clone();
+        action.connect_activate(move |_, _| {
+            let _ = dispatcher.dispatch(message.clone());
+        });
+        window.add_action(&action);
+    }
     let import_note = gtk::gio::SimpleAction::new("import-note", None);
     let dispatcher_for_import = dispatcher.clone();
     let runtime_for_import = runtime.clone();
@@ -1539,6 +1564,7 @@ pub(crate) fn category_form(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn show_category_dialog(
     parent: Option<&gtk::Window>,
     title: &str,
@@ -2013,4 +2039,71 @@ pub(crate) fn category_trash_dialog(
         }
     });
     dialog
+}
+
+/// Edits category metadata with a native default-template selector.
+pub(crate) fn show_category_template_dialog(
+    parent: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    category: &carver_sdk::Category,
+    templates: &[carver_sdk::NoteTemplate],
+) {
+    let CategoryForm {
+        content,
+        entry,
+        icon,
+        color,
+    } = category_form(&category.name, category.appearance);
+    let group = adw::PreferencesGroup::new();
+    let mut names = vec![pgettext("template choice", "None")];
+    names.extend(templates.iter().map(|t| t.name.clone()));
+    let list = gtk::StringList::new(&names.iter().map(String::as_str).collect::<Vec<_>>());
+    let selector = adw::ComboRow::builder()
+        .title(gettext("Default template"))
+        .subtitle(gettext("Used when creating a new note here."))
+        .model(&list)
+        .build();
+    selector.set_use_markup(false);
+    selector.set_widget_name("category-default-template");
+    let selected = templates
+        .iter()
+        .position(|t| Some(t.id) == category.default_template_id)
+        .and_then(|i| u32::try_from(i + 1).ok())
+        .unwrap_or(0);
+    selector.set_selected(selected);
+    group.add(&selector);
+    content.append(&group);
+    let dialog = adw::AlertDialog::builder()
+        .heading(gettext("Edit Category"))
+        .extra_child(&content)
+        .default_response("save")
+        .close_response("cancel")
+        .build();
+    dialog.add_responses(&[("cancel", &gettext("Cancel")), ("save", &gettext("Save"))]);
+    let weak = dialog.downgrade();
+    entry.connect_changed(move |entry| {
+        if let Some(dialog) = weak.upgrade() {
+            dialog.set_response_enabled("save", !entry.text().trim().is_empty());
+        }
+    });
+    let templates = templates.to_vec();
+    let category = category.clone();
+    let dispatcher = dispatcher.clone();
+    dialog.connect_response(Some("save"), move |_, _| {
+        let template_id = usize::try_from(selector.selected())
+            .ok()
+            .and_then(|i| i.checked_sub(1))
+            .and_then(|i| templates.get(i))
+            .map(|t| t.id);
+        let _ = dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::SaveCategory {
+            category: category.clone(),
+            name: entry.text().trim().to_owned(),
+            appearance: CategoryAppearance {
+                icon: icon.get(),
+                color: color.get(),
+            },
+            template_id,
+        }));
+    });
+    dialog.present(Some(parent));
 }

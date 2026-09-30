@@ -18,6 +18,10 @@ pub mod paste;
 pub mod properties;
 pub mod rendering;
 pub mod source_analysis;
+pub mod templates;
+pub use templates::{
+    NoteTemplate, TemplateError, TemplateId, merge_template_source, validate_template_source,
+};
 
 pub use bases::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
@@ -302,6 +306,9 @@ impl CategoryColor {
 /// A logical container for notes.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Category {
+    /// Template used for ordinary note creation in this category.
+    #[serde(default)]
+    pub default_template_id: Option<TemplateId>,
     /// Stable identity.
     pub id: CategoryId,
     /// User-visible category name.

@@ -4,6 +4,7 @@
 
 mod base_query;
 mod migrations;
+mod templates;
 
 use std::{
     cell::RefCell,
@@ -19,9 +20,10 @@ use std::time::Duration;
 use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, BaseView,
     Category, CategoryAppearance, CategoryColor, CategoryIcon, CategoryId, CategorySummary, Note,
-    NoteId, NoteLinks, NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit,
-    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, derive_content,
-    extract_note_link_targets, fold_base_text, project_frontmatter, property_descriptors,
+    NoteId, NoteLinks, NoteSummary, NoteTemplate, PropertyDescriptor, PropertyPath, Revision,
+    SearchHit, TemplateId, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    TrashedNoteSummary, derive_content, extract_note_link_targets, fold_base_text,
+    project_frontmatter, property_descriptors,
 };
 use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value as SqlValue};
@@ -68,6 +70,15 @@ pub enum StorageError {
     /// A category name was empty after trimming whitespace.
     #[error("category name cannot be empty")]
     InvalidCategoryName,
+    /// A template name was empty.
+    #[error("template name cannot be empty")]
+    InvalidTemplateName,
+    /// Template validation failed.
+    #[error(transparent)]
+    InvalidTemplate(#[from] carver_domain::TemplateError),
+    /// A template was missing or changed by another session.
+    #[error("template is unavailable or was changed by another session")]
+    TemplateConflict,
     /// An asset extension was not part of the supported image format allowlist.
     #[error("unsupported asset extension: {0}")]
     UnsupportedAssetExtension(String),
@@ -664,6 +675,7 @@ impl SqliteLibrary {
     ) -> Result<Category, StorageError> {
         let name = category_name(name)?;
         let category = Category {
+            default_template_id: None,
             id: CategoryId::new(),
             name: name.to_owned(),
             appearance,
@@ -695,7 +707,7 @@ impl SqliteLibrary {
     /// Returns an error when categories cannot be read or stored values are corrupt.
     pub fn list_categories(&self) -> Result<Vec<Category>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
+            "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at, default_template_id
              FROM categories WHERE trashed_at IS NULL ORDER BY position, name COLLATE NOCASE",
         )?;
         statement
@@ -711,7 +723,7 @@ impl SqliteLibrary {
     /// Returns an error when category summaries cannot be read or stored values are corrupt.
     pub fn list_category_summaries(&self) -> Result<Vec<CategorySummary>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at,
+            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at, c.default_template_id,
                     COUNT(n.id)
              FROM categories c
              LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
@@ -802,7 +814,7 @@ impl SqliteLibrary {
         transaction.commit()?;
         self.connection
             .query_row(
-                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
+                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at, default_template_id
                  FROM categories WHERE id = ?1",
                 [category_id.to_string()],
                 category_from_row,
@@ -853,7 +865,7 @@ impl SqliteLibrary {
         transaction.commit()?;
         self.connection
             .query_row(
-                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
+                "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at, default_template_id
                  FROM categories WHERE id = ?1",
                 [category_id.to_string()],
                 category_from_row,
@@ -1275,7 +1287,7 @@ impl SqliteLibrary {
     /// Returns an error when the trash cannot be read or stored values are corrupt.
     pub fn trash_contents(&self) -> Result<TrashContents, StorageError> {
         let mut categories = self.connection.prepare(
-            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at,
+            "SELECT c.id, c.name, c.icon, c.color, c.position, c.created_at, c.updated_at, c.trashed_at, c.default_template_id,
                     COUNT(n.id)
              FROM categories c
              LEFT JOIN notes n ON n.category_id = c.id AND n.trashed_at IS NULL
@@ -1512,6 +1524,53 @@ fn managed_asset_filename(relative_path: &str) -> Option<&str> {
 }
 
 impl LibraryBackend for SqliteLibrary {
+    fn update_category_with_template(
+        &self,
+        id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+        template: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<(), StorageError> {
+        self.update_template_category(id, name, appearance, template, now)
+    }
+
+    fn templates(&self) -> Result<Vec<NoteTemplate>, StorageError> {
+        self.list_templates()
+    }
+    fn template(&self, id: TemplateId) -> Result<Option<NoteTemplate>, StorageError> {
+        self.get_template(id)
+    }
+    fn create_template(
+        &self,
+        name: &str,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<NoteTemplate, StorageError> {
+        self.insert_template(name, source, now)
+    }
+    fn save_template(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+        name: &str,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<NoteTemplate, StorageError> {
+        self.update_template(id, revision, name, source, now)
+    }
+    fn delete_template(&self, id: TemplateId, revision: Revision) -> Result<(), StorageError> {
+        self.remove_template(id, revision)
+    }
+    fn set_category_template(
+        &self,
+        id: CategoryId,
+        template: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<(), StorageError> {
+        self.assign_category_template(id, template, now)
+    }
+
     type Error = StorageError;
 
     fn change_revision(&self) -> Result<LibraryRevision, Self::Error> {
@@ -1789,6 +1848,14 @@ impl LibraryBackend for SqliteLibrary {
 
 fn category_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Category> {
     Ok(Category {
+        default_template_id: row
+            .get::<_, Option<String>>(8)?
+            .map(|raw| {
+                Uuid::parse_str(&raw)
+                    .map(TemplateId::from_uuid)
+                    .map_err(|error| to_sql_error(StorageError::Corrupt(error.to_string())))
+            })
+            .transpose()?,
         id: category_id(&row.get::<_, String>(0)?).map_err(to_sql_error)?,
         name: row.get(1)?,
         appearance: CategoryAppearance {
@@ -1807,7 +1874,7 @@ fn category_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Category> {
 }
 
 fn category_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CategorySummary> {
-    let note_count: i64 = row.get(8)?;
+    let note_count: i64 = row.get(9)?;
     let note_count = usize::try_from(note_count).map_err(|_| {
         to_sql_error(StorageError::Corrupt(
             "note count does not fit usize".to_owned(),
@@ -1919,7 +1986,7 @@ fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
 fn trashed_category_summary_from_row(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<TrashedCategorySummary> {
-    let recoverable_note_count: i64 = row.get(8)?;
+    let recoverable_note_count: i64 = row.get(9)?;
     let recoverable_note_count = usize::try_from(recoverable_note_count).map_err(|_| {
         to_sql_error(StorageError::Corrupt(
             "recoverable note count does not fit usize".to_owned(),

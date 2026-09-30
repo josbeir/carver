@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 16:11+0200\n"
+"POT-Creation-Date: 2026-09-30 19:02+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -74,6 +74,44 @@ msgstr "Notes"
 #: apps/carver-gtk/src/mvu/runtime/media_preview.rs
 msgid "This file is no longer available."
 msgstr "Ce fichier n'est plus disponible."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+#, rust-format
+msgid "Could not complete the template action: {error}"
+msgstr "Impossible de terminer l’action sur le modèle : {error}"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The category is no longer available."
+msgstr "La catégorie n’est plus disponible."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The note is no longer available."
+msgstr "La note n’est plus disponible."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template is no longer available."
+msgstr "Le modèle n’est plus disponible."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template properties could not be merged."
+msgstr "Impossible de fusionner les propriétés du modèle."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Enter a template name."
+msgstr "Saisissez un nom de modèle."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Property {key} does not match its configured type."
+msgstr "La propriété {key} ne correspond pas à son type configuré."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Templates cannot contain managed images or attachments."
+msgstr "Les modèles ne peuvent pas contenir d’images ou de pièces jointes gérées."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "The template frontmatter is invalid or contains duplicate properties."
+msgstr "Les métadonnées du modèle sont invalides ou contiennent des propriétés en double."
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -204,8 +242,8 @@ msgstr "Parcourez les notes sous forme de cartes en lecture seule."
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
-#: apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -319,8 +357,10 @@ msgstr "Supprimer le champ"
 msgid "Remove {noun}"
 msgstr "Supprimer {noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Save"
 msgstr "Enregistrer"
 
@@ -499,7 +539,7 @@ msgstr "Créez une note pour commencer."
 msgid "Earlier This Year"
 msgstr "Plus tôt cette année"
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Edit Category"
 msgstr "Modifier la catégorie"
 
@@ -537,6 +577,10 @@ msgid "Move…"
 msgstr "Déplacer…"
 
 #: apps/carver-gtk/src/ui/browser.rs
+msgid "New Blank Note"
+msgstr "Nouvelle note vierge"
+
+#: apps/carver-gtk/src/ui/browser.rs
 msgid "New Note"
 msgstr "Nouvelle note"
 
@@ -547,6 +591,10 @@ msgstr "Nouveau depuis le presse-papiers"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "Nouveau depuis le presse-papiers en Markdown"
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New from Template…"
+msgstr "Créer à partir d’un modèle…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -567,6 +615,10 @@ msgstr "Actions sur la note"
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Remove from Favorites"
 msgstr "Retirer des favoris"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save as Template…"
+msgstr "Enregistrer comme modèle…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search notes"
@@ -794,6 +846,10 @@ msgid "Default properties"
 msgstr "Propriétés par défaut"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Default template"
+msgstr "Modèle par défaut"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Detailed"
 msgstr "Détaillé"
 
@@ -996,6 +1052,11 @@ msgstr "Aucune catégorie trouvée"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No setup instruction is available."
 msgstr "Aucune instruction de configuration n'est disponible."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "template choice"
+msgid "None"
+msgstr "Aucun"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgctxt "shortcut section"
@@ -1207,6 +1268,10 @@ msgstr "Utiliser la police monospace du système"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Use the system document font, comfortable width, and default line spacing."
 msgstr "Utiliser la police de document du système, une largeur confortable et l'interligne par défaut."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Used when creating a new note here."
+msgstr "Utilisé pour créer une nouvelle note ici."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "VS Code Copilot"
@@ -1750,10 +1815,90 @@ msgstr "Paramètres"
 msgid "Show Categories"
 msgstr "Afficher les catégories"
 
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Templates…"
+msgstr "Modèles…"
+
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "Corbeille"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Carve source"
+msgstr "Source Carve"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Categories using this template will return to blank notes. Existing notes will not change."
+msgstr "Les catégories utilisant ce modèle créeront à nouveau des notes vierges. Les notes existantes ne changeront pas."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Create a template to reuse its properties and content in new notes."
+msgstr "Créez un modèle pour réutiliser ses propriétés et son contenu dans de nouvelles notes."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete"
+msgstr "Supprimer"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete Template?"
+msgstr "Supprimer le modèle ?"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard"
+msgstr "Abandonner"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard Template Changes?"
+msgstr "Abandonner les modifications du modèle ?"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Duplicate"
+msgstr "Dupliquer"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Edit Template"
+msgstr "Modifier le modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Manage Templates…"
+msgstr "Gérer les modèles…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New Template"
+msgstr "Nouveau modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New from Template"
+msgstr "Créer à partir d’un modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "No Templates"
+msgstr "Aucun modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Search templates…"
+msgstr "Rechercher des modèles…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template actions"
+msgstr "Actions du modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template name"
+msgstr "Nom du modèle"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template properties override matching defaults. Other enabled default properties are added when creating a note."
+msgstr "Les propriétés du modèle remplacent les valeurs par défaut correspondantes. Les autres propriétés par défaut activées sont ajoutées à la création d’une note."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates"
+msgstr "Modèles"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Your unsaved template changes will be lost."
+msgstr "Les modifications non enregistrées du modèle seront perdues."
 
 #: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
@@ -1804,6 +1949,10 @@ msgstr "Impossible de charger le contenu"
 #, rust-format
 msgid "Could not open the note editor: {error}"
 msgstr "Impossible d’ouvrir l’éditeur de note : {error}"
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Could not open the template editor."
+msgstr "Impossible d’ouvrir l’éditeur de modèle."
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"

@@ -21,6 +21,7 @@ mod rich_mode;
 mod screenshots;
 mod shell;
 mod source_mode;
+mod templates;
 mod trash;
 mod window;
 
@@ -196,5 +197,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     note_flow::activating_a_background_tab_should_render_its_preview(&fixture)?;
     // No-op unless CARVER_SCREENSHOT_DIR is set; keeps one GTK entry point.
     screenshots::capture_docs_screenshots()?;
+    templates::templates_should_manage_validate_duplicate_and_delete()?;
+    templates::category_template_should_seed_notes_and_allow_blank_override()?;
+    templates::template_editor_should_confirm_discard()?;
+    templates::saving_as_template_should_copy_unsaved_editor_source()?;
     Ok(())
 }

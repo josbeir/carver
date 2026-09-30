@@ -47,6 +47,8 @@ impl EditorExportFormat {
 /// A UI event or asynchronous completion accepted by the reducer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AppMsg {
+    /// Reusable template intent or completion.
+    Templates(super::TemplatesMsg),
     /// Navigation intent.
     Navigation(NavigationMsg),
     /// Browser intent.
@@ -203,6 +205,8 @@ pub enum NavigationMsg {
     ExportNote(NoteId),
     /// Create a note in the selected category, or the first active category.
     CreateNote,
+    /// Create without the category template.
+    CreateBlankNote,
     /// Import one source document into the selected category, or the first active category.
     ImportNote {
         /// Format selected from the imported file's extension.

@@ -54,6 +54,8 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
     assert_eq!(
         note_actions,
         [
+            "win.new-from-template",
+            "win.new-blank-note",
             "win.import-note",
             "win.new-note-from-clipboard",
             "win.new-note-from-markdown-clipboard"
@@ -243,18 +245,7 @@ pub(super) fn note_cards_should_group_and_favorite(
             .is_some(),
         "note actions should use the standard model-driven popover menu"
     );
-    let model = note_menu.menu_model().ok_or("note menu model")?;
-    assert_eq!(
-        menu_labels(&model),
-        ["Mark as Favorite", "Move…", "Export note…", "Move to Trash"].map(str::to_string),
-        "note actions should group favorite, move, and export above a trash section"
-    );
-    assert!(
-        model
-            .item_link(3, gtk::gio::MENU_LINK_SECTION)
-            .is_some_and(|section| section.n_items() == 1),
-        "the destructive action should sit in its own menu section"
-    );
+    assert_note_menu_actions(&note_menu)?;
     assert!(
         note_menu
             .activate_action("note.favorite", None::<&glib::Variant>)
@@ -691,5 +682,28 @@ pub(super) fn browser_search_should_show_and_clear_empty_state(
         )
         .into());
     }
+    Ok(())
+}
+
+fn assert_note_menu_actions(note_menu: &gtk::MenuButton) -> TestResult {
+    let model = note_menu.menu_model().ok_or("note menu model")?;
+    assert_eq!(
+        menu_labels(&model),
+        [
+            "Mark as Favorite",
+            "Move…",
+            "Export note…",
+            "Save as Template…",
+            "Move to Trash"
+        ]
+        .map(str::to_string),
+        "note actions should group favorite, move, and export above a trash section"
+    );
+    assert!(
+        model
+            .item_link(4, gtk::gio::MENU_LINK_SECTION)
+            .is_some_and(|section| section.n_items() == 1),
+        "the destructive action should sit in its own menu section"
+    );
     Ok(())
 }

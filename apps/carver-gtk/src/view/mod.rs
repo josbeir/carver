@@ -489,6 +489,8 @@ fn find_toolbar_view(widget: &gtk::Widget) -> Option<adw::ToolbarView> {
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
+    template_list: RefCell<Option<adw::Dialog>>,
+    template_editor: RefCell<Option<crate::ui::templates::EditorHandle>>,
     route_stack: gtk::Stack,
     browser_list: Option<gtk::ListView>,
     browser_feed_store: Option<gtk::gio::ListStore>,
@@ -538,6 +540,8 @@ impl ViewRefs {
         trash_status: adw::StatusPage,
     ) -> Self {
         Self {
+            template_list: RefCell::new(None),
+            template_editor: RefCell::new(None),
             route_stack,
             browser_list: None,
             browser_feed_store: None,
@@ -930,6 +934,83 @@ impl ViewRefs {
     ///
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
+    pub(crate) fn run_template_effect(&self, effect: Effect) {
+        let Some(dispatcher) = &self.dispatcher else {
+            return;
+        };
+        let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() else {
+            return;
+        };
+        match effect {
+            Effect::ShowTemplates { templates, purpose } => {
+                let previous = self.template_list.borrow_mut().take();
+                if let Some(dialog) = previous
+                    && dialog.is_mapped()
+                {
+                    dialog.close();
+                }
+                if let crate::mvu::TemplatePurpose::Category(category) = purpose {
+                    crate::ui::dialogs::show_category_template_dialog(
+                        &parent, dispatcher, &category, &templates,
+                    );
+                } else {
+                    let dialog =
+                        crate::ui::templates::show_list(&parent, dispatcher, &templates, &purpose);
+                    self.template_list.replace(Some(dialog));
+                }
+            }
+            Effect::ShowTemplateEditor {
+                preferences,
+                request_id,
+                original,
+                name,
+                source,
+            } => {
+                let Some(syntax) = &self.source_syntax_dir else {
+                    return;
+                };
+                match crate::ui::templates::show_editor(
+                    &parent,
+                    dispatcher,
+                    crate::ui::templates::EditorDraft {
+                        id: request_id,
+                        original,
+                        name: &name,
+                        source: &source,
+                    },
+                    syntax,
+                    &preferences,
+                ) {
+                    Ok(handle) => {
+                        self.template_editor.replace(Some(handle));
+                    }
+                    Err(_) => {
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::OpenFailed {
+                                request_id,
+                                error: crate::mvu::UiError::new(gettext(
+                                    "Could not open the template editor.",
+                                )),
+                            },
+                        ));
+                    }
+                }
+            }
+            Effect::FinishTemplateEdit { request_id, error } => {
+                let handle = self.template_editor.borrow_mut().take();
+                if let Some(handle) = handle {
+                    if handle.id == request_id {
+                        handle.finish(error.as_ref());
+                    }
+                    if error.is_some() {
+                        self.template_editor.replace(Some(handle));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     // CONTEXT: Native dialog effects stay in one visible dispatch table so GTK callbacks never
     // bypass the MVU runtime or apply work to a stale dialog session.
     #[expect(

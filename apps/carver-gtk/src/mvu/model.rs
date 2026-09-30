@@ -847,6 +847,10 @@ impl DocumentSidebarVisibility {
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
+    /// Current template list load identity.
+    pub template_request: Option<RequestId>,
+    /// Current template editing lifetime.
+    pub template_editor: Option<RequestId>,
     /// Full persisted configuration used to create atomic save snapshots.
     pub config: Config,
     /// Current high-level surface.
@@ -925,6 +929,8 @@ impl AppModel {
     #[must_use]
     pub fn new(config: &Config) -> Self {
         Self {
+            template_request: None,
+            template_editor: None,
             config: config.clone(),
             route: Route::Browser,
             editor_return_route: Route::Browser,

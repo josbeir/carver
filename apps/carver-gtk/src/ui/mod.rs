@@ -10,6 +10,7 @@ pub(crate) mod intent;
 pub(crate) mod property;
 pub(crate) mod search;
 pub(crate) mod sidebar;
+pub(crate) mod templates;
 pub(crate) mod trash;
 
 #[cfg(test)]

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 16:11+0200\n"
+"POT-Creation-Date: 2026-09-30 19:03+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -86,6 +86,44 @@ msgstr ""
 
 #: apps/carver-gtk/src/mvu/runtime/media_preview.rs
 msgid "This file is no longer available."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+#, rust-format
+msgid "Could not complete the template action: {error}"
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The category is no longer available."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The note is no longer available."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template is no longer available."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template properties could not be merged."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Enter a template name."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Property {key} does not match its configured type."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Templates cannot contain managed images or attachments."
+msgstr ""
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "The template frontmatter is invalid or contains duplicate properties."
 msgstr ""
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
@@ -217,8 +255,8 @@ msgstr ""
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
-#: apps/carver-gtk/src/view/mod.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr ""
 
@@ -333,8 +371,10 @@ msgstr ""
 msgid "Remove {noun}"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Save"
 msgstr ""
 
@@ -514,7 +554,7 @@ msgstr ""
 msgid "Earlier This Year"
 msgstr ""
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Edit Category"
 msgstr ""
 
@@ -552,6 +592,10 @@ msgid "Move…"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs
+msgid "New Blank Note"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/browser.rs
 msgid "New Note"
 msgstr ""
 
@@ -561,6 +605,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/browser.rs
+msgid "New from Template…"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
@@ -581,6 +629,10 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Remove from Favorites"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save as Template…"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
@@ -809,6 +861,10 @@ msgid "Default properties"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Default template"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Detailed"
 msgstr ""
 
@@ -1010,6 +1066,11 @@ msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No setup instruction is available."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "template choice"
+msgid "None"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -1226,6 +1287,10 @@ msgstr ""
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid ""
 "Use the system document font, comfortable width, and default line spacing."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Used when creating a new note here."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/dialogs.rs
@@ -1770,9 +1835,93 @@ msgstr ""
 msgid "Show Categories"
 msgstr ""
 
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Templates…"
+msgstr ""
+
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Carve source"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid ""
+"Categories using this template will return to blank notes. Existing notes "
+"will not change."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Create a template to reuse its properties and content in new notes."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete Template?"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard Template Changes?"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Duplicate"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Edit Template"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Manage Templates…"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New Template"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New from Template"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "No Templates"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Search templates…"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template actions"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template name"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid ""
+"Template properties override matching defaults. Other enabled default "
+"properties are added when creating a note."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Your unsaved template changes will be lost."
 msgstr ""
 
 #: apps/carver-gtk/src/ui/trash.rs
@@ -1827,6 +1976,10 @@ msgstr ""
 #: apps/carver-gtk/src/view/mod.rs
 #, rust-format
 msgid "Could not open the note editor: {error}"
+msgstr ""
+
+#: apps/carver-gtk/src/view/mod.rs
+msgid "Could not open the template editor."
 msgstr ""
 
 #: apps/carver-gtk/src/view/mod.rs

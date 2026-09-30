@@ -90,6 +90,7 @@ fn note_category_color_should_use_the_category_appearance() {
     };
     let sidebar = LoadState::Ready(vec![CategorySummary {
         category: Category {
+            default_template_id: None,
             id: category_id,
             name: String::from("Ideas"),
             appearance: CategoryAppearance {

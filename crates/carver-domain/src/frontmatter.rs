@@ -996,3 +996,25 @@ fn escape_double_quoted(text: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// Adds missing fields while preserving all bytes following the frontmatter fence.
+///
+/// # Errors
+/// Returns an error if the selected format cannot serialize the merged fields.
+pub(crate) fn add_template_fields(
+    source: &str,
+    document: &FrontmatterDocument,
+) -> Result<String, FrontmatterError> {
+    let rendered = replace_frontmatter(source, Some(document))?;
+    if let Some(original) = scan_frontmatter(source)
+        && let Some(replacement) = scan_frontmatter(&rendered)
+    {
+        return Ok(format!(
+            "{}{}",
+            &rendered[..replacement.block_end],
+            &source[original.block_end..]
+        ));
+    }
+    let block = render_frontmatter_document(document)?;
+    Ok(format!("{block}\n\n{source}"))
+}

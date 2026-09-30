@@ -11,8 +11,8 @@ pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, BaseView, Category, CategoryAppearance, CategoryColor,
     CategoryIcon, CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
-    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary,
-    PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit,
+    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary, NoteTemplate,
+    PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit, TemplateId,
     TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
@@ -145,6 +145,103 @@ impl<B: LibraryBackend> LibraryClient<B> {
         Ok(Self { requests: sender })
     }
 
+    /// Updates category metadata and template assignment atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn update_category_with_template_async(
+        &self,
+        id: CategoryId,
+        name: String,
+        appearance: CategoryAppearance,
+        template: Option<TemplateId>,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| {
+            b.update_category_with_template(
+                id,
+                &name,
+                appearance,
+                template,
+                OffsetDateTime::now_utc(),
+            )
+        })
+        .await
+    }
+    /// Lists templates without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn templates_async(&self) -> Result<Vec<NoteTemplate>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::templates).await
+    }
+    /// Reads a template without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn template_async(
+        &self,
+        id: TemplateId,
+    ) -> Result<Option<NoteTemplate>, LibraryError<B::Error>> {
+        self.request(move |b| b.template(id)).await
+    }
+    /// Creates a validated template without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn create_template_async(
+        &self,
+        name: String,
+        source: String,
+    ) -> Result<NoteTemplate, LibraryError<B::Error>> {
+        self.request(move |b| b.create_template(&name, &source, OffsetDateTime::now_utc()))
+            .await
+    }
+    /// Saves a template with optimistic concurrency.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn save_template_async(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+        name: String,
+        source: String,
+    ) -> Result<NoteTemplate, LibraryError<B::Error>> {
+        self.request(move |b| {
+            b.save_template(id, revision, &name, &source, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+    /// Deletes a template and clears its category assignments.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn delete_template_async(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| b.delete_template(id, revision)).await
+    }
+    /// Sets or clears a category's default template.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn set_category_template_async(
+        &self,
+        id: CategoryId,
+        template: Option<TemplateId>,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| b.set_category_template(id, template, OffsetDateTime::now_utc()))
+            .await
+    }
     /// Reads the current semantic library revision without blocking the caller.
     ///
     /// Frontends use this after a local change wake-up to decide whether their immutable read

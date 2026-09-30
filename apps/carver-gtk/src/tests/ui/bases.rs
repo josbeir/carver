@@ -852,6 +852,7 @@ pub(super) fn base_list_should_rebind_when_category_colors_change() -> TestResul
     // The categories arrive after the rows, so the realized card must rebind to pick up the color.
     let summary = carver_sdk::CategorySummary {
         category: carver_sdk::Category {
+            default_template_id: None,
             id: category_id,
             name: "Notes".to_owned(),
             appearance: carver_sdk::CategoryAppearance {

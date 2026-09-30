@@ -28,6 +28,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
 )]
 fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let mut effects = match message {
+        AppMsg::Templates(message) => super::templates::update(model, message),
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
         }
@@ -46,7 +47,14 @@ fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 create_note_tab(model, note_id, current_tab_origin(model), false, true)
             }
         }
-        AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
+        AppMsg::Navigation(NavigationMsg::CreateNote) => {
+            if let Some(category_id) = model.active_category_id() {
+                vec![Effect::CreateCategoryNote { category_id }]
+            } else {
+                Vec::new()
+            }
+        }
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
             import_note_effect(model, format, source)
         }
@@ -4033,7 +4041,7 @@ fn update_editor_refresh(
     }]
 }
 
-fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
     let request_id = model.next_request_id();
     model
         .sidebar
@@ -4244,7 +4252,7 @@ fn update_base_cell_edited(
     effects
 }
 
-fn reload_browser(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn reload_browser(model: &mut AppModel) -> Option<Effect> {
     let request_id = model.next_request_id();
     let started = model.browser.notes.begin_reload(request_id);
     if started {
