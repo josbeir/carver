@@ -814,6 +814,22 @@ mod tests {
     }
 
     #[test]
+    fn editor_stylesheet_should_keep_document_elements_matching_the_preview() {
+        // CarveKit's editor.css would otherwise give the editable projection
+        // fixed-layout tables, accent-coloured links, and grid task items that
+        // Carve's preview HTML (document.css) does not, so Edit and Preview
+        // would diverge. The bundled stylesheet re-asserts document.css's
+        // values over the imported chrome.
+        assert!(EDITOR_STYLESHEET.contains(".ProseMirror table{table-layout:auto"));
+        assert!(
+            EDITOR_STYLESHEET.contains(
+                ".ProseMirror a,.ProseMirror a:visited,.ProseMirror a:hover{color:inherit"
+            )
+        );
+        assert!(EDITOR_STYLESHEET.contains(".ProseMirror tr:nth-child(2n) td{background:revert"));
+    }
+
+    #[test]
     fn document_appearance_should_transfer_font_spacing_and_measure_to_webkit() {
         let appearance = document_appearance(&DocumentPreferences {
             font: Some("Cantarell Bold Italic 14".to_owned()),
