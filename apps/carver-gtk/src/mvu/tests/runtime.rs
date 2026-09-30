@@ -141,6 +141,8 @@ fn browser_view_refs(
                 favorites: Vec::new(),
             },
         )),
+        hero: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        load_more_available: std::rc::Rc::new(std::cell::Cell::new(false)),
         pages,
         search_bar: gtk::SearchBar::new(),
         search_entry: gtk::SearchEntry::new(),

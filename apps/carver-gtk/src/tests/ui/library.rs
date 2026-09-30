@@ -329,6 +329,51 @@ pub(super) fn category_selection_should_show_empty_state(
     Ok(())
 }
 
+/// The browser's library hero must stay fixed above the feed like the Base list.
+pub(super) fn browser_hero_should_stay_fixed_above_the_feed(fixture: &WindowFixture) -> TestResult {
+    let root = fixture.root()?;
+    let sidebar = fixture.sidebar()?;
+    assert!(sidebar_select(&sidebar, "all-notes-count"));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::Label>(&root, "browser-hero-title")
+            .is_some_and(|title| title.text() == "All notes")
+    }));
+    let list_page = widget_as::<gtk::Box>(&root, "browser-list-page").ok_or("browser list page")?;
+    let hero_clamp =
+        widget_as::<adw::Clamp>(&root, "browser-hero-clamp").ok_or("browser hero clamp")?;
+    let hero = widget_as::<gtk::Box>(&root, "browser-category-hero").ok_or("browser hero")?;
+    let scroll = widget_as::<gtk::ScrolledWindow>(&root, "browser-content-scroll")
+        .ok_or("browser content scroll")?;
+    assert!(
+        hero_clamp
+            .parent()
+            .is_some_and(|parent| parent == list_page),
+        "the hero clamp should be a sibling of the feed scroller"
+    );
+    assert!(
+        scroll.parent().is_some_and(|parent| parent == list_page),
+        "the feed scroller should share a parent with the hero"
+    );
+    assert!(
+        hero.parent().is_some_and(|parent| parent == hero_clamp),
+        "the hero should live inside its own clamp, outside the feed"
+    );
+    assert!(
+        hero.ancestor(gtk::ScrolledWindow::static_type()).is_none(),
+        "a hero inside a scroller would scroll away with the feed"
+    );
+    // Scrolling the feed to the end must leave the fixed hero in place.
+    let adjustment = scroll.vadjustment();
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    let _ = run_main_context_until_for(Duration::from_millis(50), || false);
+    assert!(hero.is_visible());
+    assert!(
+        hero.ancestor(gtk::ScrolledWindow::static_type()).is_none(),
+        "the hero must remain outside the feed after scrolling"
+    );
+    Ok(())
+}
+
 /// Verifies the accent- and category-colored hero tiles keep a light glyph.
 pub(super) fn category_hero_icon_should_use_a_light_glyph(fixture: &WindowFixture) -> TestResult {
     // The headless compositor may default to a dark scheme; force light mode so

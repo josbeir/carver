@@ -1,6 +1,6 @@
 //! Recent-note browser and responsive content composition.
 
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{borrow::Cow, cell::Cell, cell::RefCell, rc::Rc};
 
 use carver_config::Config;
 use carver_sdk::{Category, CategoryColor, CategorySummary, NoteSummary};
@@ -77,7 +77,6 @@ pub(crate) struct BrowserFeedContext {
 
 #[derive(Clone)]
 pub(crate) enum BrowserFeedItem {
-    Hero,
     FavoritesHeading,
     Favorite(NoteSummary),
     SearchEmpty,
@@ -92,7 +91,11 @@ pub(crate) struct BrowserViewRefs {
     pub(crate) list: gtk::ListView,
     pub(crate) feed_store: gtk::gio::ListStore,
     pub(crate) feed_context: Rc<RefCell<BrowserFeedContext>>,
+    pub(crate) hero: gtk::Box,
     pub(crate) pages: gtk::Stack,
+    /// Whether the feed still has another page to load, so the scroll handler
+    /// can skip dispatching once everything is on screen.
+    pub(crate) load_more_available: Rc<Cell<bool>>,
     pub(crate) search_bar: gtk::SearchBar,
     pub(crate) search_entry: gtk::SearchEntry,
     pub(crate) search_toggle: gtk::ToggleButton,
@@ -249,9 +252,26 @@ pub(crate) fn build_browser(
     scroll.set_widget_name("browser-content-scroll");
     scroll.set_vexpand(true);
     scroll.set_child(Some(&clamp));
+    // The hero sits outside the scroller so the active library header stays
+    // fixed above the feed, matching the Base list view.
+    let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    hero.set_widget_name("browser-category-hero");
+    hero.add_css_class("category-hero");
+    hero.set_margin_start(18);
+    hero.set_margin_end(18);
+    let hero_clamp = adw::Clamp::new();
+    hero_clamp.set_widget_name("browser-hero-clamp");
+    hero_clamp.set_maximum_size(720);
+    hero_clamp.set_tightening_threshold(520);
+    hero_clamp.set_child(Some(&hero));
+    let list_page = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    list_page.set_widget_name("browser-list-page");
+    list_page.set_vexpand(true);
+    list_page.append(&hero_clamp);
+    list_page.append(&scroll);
     let pages = gtk::Stack::new();
     pages.set_widget_name("browser-content-pages");
-    pages.add_named(&scroll, Some("contents"));
+    pages.add_named(&list_page, Some("contents"));
     let status = adw::StatusPage::builder()
         .title(gettext("No notes yet"))
         .description(gettext("Create a note to get started."))
@@ -307,7 +327,9 @@ pub(crate) fn build_browser(
         list,
         feed_store,
         feed_context,
+        hero,
         pages,
+        load_more_available: Rc::new(Cell::new(false)),
         search_bar: search.bar,
         search_entry: search.entry,
         search_toggle: search.toggle,
@@ -322,10 +344,16 @@ pub(crate) fn build_browser(
 
 fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRefs) {
     let dispatcher_for_scroll = dispatcher.clone();
+    let available = Rc::clone(&references.load_more_available);
     let Some(adjustment) = references.list.vadjustment() else {
         return;
     };
     adjustment.connect_value_changed(move |adjustment| {
+        // Dispatching clones and re-renders the whole model, so only ask for
+        // more while the feed actually has another page.
+        if !available.get() {
+            return;
+        }
         let remaining = adjustment.upper() - adjustment.page_size() - adjustment.value();
         if remaining <= adjustment.page_size() * 2.0 {
             let _ = dispatcher_for_scroll.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
@@ -348,10 +376,8 @@ fn browser_menu_button() -> gtk::MenuButton {
 
 fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    card.set_widget_name("browser-category-empty-card");
     card.add_css_class("card");
     card.add_css_class("category-empty-card");
-    card.set_visible(false);
     let title = gtk::Label::new(Some(&gettext("No notes in this category")));
     title.set_xalign(0.0);
     title.add_css_class("category-empty-card-title");
@@ -359,7 +385,6 @@ fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
     description.set_xalign(0.0);
     description.add_css_class("dim-label");
     let new_note = gtk::Button::with_label(&gettext("New Note"));
-    new_note.set_widget_name("browser-category-empty-new-note-button");
     new_note.add_css_class("suggested-action");
     new_note.set_halign(gtk::Align::Start);
     card.append(&title);
@@ -370,7 +395,6 @@ fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
 
 fn build_search_empty_card() -> gtk::Box {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    card.set_widget_name("browser-search-empty-card");
     card.add_css_class("card");
     card.add_css_class("search-empty-card");
     let title = gtk::Label::new(Some(&gettext("No matching notes")));
@@ -417,14 +441,37 @@ fn connect_browser_actions(
     connect_new_note_action(dispatcher, &references.empty_new_note_button);
 }
 
-/// Builds one reusable browser row container with modifier-aware note activation.
-fn setup_browser_row(dispatcher: &AppDispatcher, item: &gtk::ListItem) {
+/// Builds one reusable browser row with modifier-aware note activation.
+///
+/// The row shell and one page per feed-item kind are created once per physical
+/// row; [`bind_browser_row`] only updates the visible page. Scrolling therefore
+/// never rebuilds a card or its overflow menu.
+fn setup_browser_row(
+    dispatcher: &AppDispatcher,
+    context: &Rc<RefCell<BrowserFeedContext>>,
+    item: &gtk::ListItem,
+) {
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    item.set_child(Some(&container));
+    let stack = gtk::Stack::new();
+    stack.set_transition_type(gtk::StackTransitionType::None);
+    stack.set_hhomogeneous(false);
+    stack.set_vhomogeneous(false);
+    stack.set_interpolate_size(false);
+    stack.set_hexpand(true);
+    stack.add_named(&date_heading_page(), Some("heading"));
+    stack.add_named(&favorites_heading(), Some("favorites-heading"));
+    stack.add_named(&note_card_page(item, dispatcher, context), Some("card"));
+    stack.add_named(&build_search_empty_card(), Some("search-empty"));
+    let (category_empty, category_empty_button) = build_category_empty_card();
+    connect_new_note_action(dispatcher, &category_empty_button);
+    stack.add_named(&category_empty, Some("category-empty"));
+    stack.add_named(&load_more_button(dispatcher), Some("load-more"));
+    container.append(&stack);
     let weak_item = item.downgrade();
     crate::ui::intent::connect_modified_note_open_with(&container, dispatcher, move || {
         feed_item_note_id(&weak_item)
     });
+    item.set_child(Some(&container));
 }
 
 /// Resolves the note bound to a recycled browser row.
@@ -444,14 +491,14 @@ fn browser_feed_factory(
     let factory = gtk::SignalListItemFactory::new();
     factory.connect_setup({
         let dispatcher = dispatcher.clone();
+        let context = Rc::clone(&context);
         move |_, item| {
             let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
                 return;
             };
-            setup_browser_row(&dispatcher, item);
+            setup_browser_row(&dispatcher, &context, item);
         }
     });
-    let dispatcher = dispatcher.clone();
     factory.connect_bind(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -459,110 +506,181 @@ fn browser_feed_factory(
         let Some(container) = item.child().and_downcast::<gtk::Box>() else {
             return;
         };
-        bind_browser_row(&container, item, &context, &dispatcher);
+        bind_browser_row(&container, item, &context);
     });
     factory
 }
 
-/// Resets a recycled row and fills it for the bound feed item.
+/// Updates a recycled row for the bound feed item without rebuilding it.
 fn bind_browser_row(
     container: &gtk::Box,
     item: &gtk::ListItem,
     context: &Rc<RefCell<BrowserFeedContext>>,
-    dispatcher: &AppDispatcher,
 ) {
-    reset_note_card_surface(container);
+    let Some(stack) = container.first_child().and_downcast::<gtk::Stack>() else {
+        return;
+    };
     let Some(object) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
         return;
     };
-    let feed_item = object.borrow::<BrowserFeedItem>().clone();
+    let feed_item = object.borrow::<BrowserFeedItem>();
+    let target = match &*feed_item {
+        BrowserFeedItem::FavoritesHeading => "favorites-heading",
+        BrowserFeedItem::Favorite(_) | BrowserFeedItem::Note(_) => "card",
+        BrowserFeedItem::SearchEmpty => "search-empty",
+        BrowserFeedItem::CategoryEmpty => "category-empty",
+        BrowserFeedItem::Heading(_) => "heading",
+        BrowserFeedItem::LoadMore { .. } => "load-more",
+    };
+    // Only touch the previously shown page when the row is recycled to a new
+    // kind; a same-kind rebind keeps the page and its names in place.
+    let previous = stack.visible_child_name();
+    let switching = previous.as_deref() != Some(target);
+    container.set_widget_name("");
+    if switching
+        && let Some(previous) = previous
+        && let Some(page) = stack.child_by_name(&previous)
+    {
+        blank_names(&page);
+    }
+    container.set_css_classes(&[]);
     container.set_margin_start(18);
     container.set_margin_end(18);
-    match feed_item {
-        BrowserFeedItem::Hero => {
-            container.set_margin_top(18);
-            container.set_margin_bottom(2);
-            let hero = gtk::Box::new(gtk::Orientation::Vertical, 0);
-            hero.set_widget_name("browser-category-hero");
-            hero.add_css_class("category-hero");
-            render_category_hero(
-                &hero,
-                &context.borrow().sidebar,
-                context.borrow().selected_category,
-                Some(dispatcher),
-            );
-            container.append(&hero);
-        }
+    container.set_margin_top(0);
+    container.set_margin_bottom(0);
+    match &*feed_item {
         BrowserFeedItem::FavoritesHeading => {
             container.set_margin_top(12);
             container.set_margin_bottom(2);
-            container.append(&favorites_heading());
+            if let Some(page) = stack.child_by_name("favorites-heading") {
+                page.set_widget_name("favorites-section");
+                if let Some(icon) = find_descendant::<gtk::Image>(&page) {
+                    icon.set_widget_name("favorites-heading-icon");
+                }
+            }
         }
         BrowserFeedItem::Favorite(note) => {
-            let context = context.borrow().clone();
-            container.set_widget_name(&format!("favorite-note:{}", note.id));
-            container.set_css_classes(&["card", "activatable", "note-card"]);
-            container.set_margin_top(6);
-            container.set_margin_bottom(6);
-            populate_note_card(container, &note, &context, Some(dispatcher));
+            bind_browser_card(container, &stack, note, true, &context.borrow());
         }
         BrowserFeedItem::SearchEmpty => {
             container.set_margin_top(12);
-            container.append(&build_search_empty_card());
+            if let Some(page) = stack.child_by_name("search-empty") {
+                page.set_widget_name("browser-search-empty-card");
+            }
         }
         BrowserFeedItem::CategoryEmpty => {
             container.set_margin_top(12);
-            let (card, new_note) = build_category_empty_card();
-            card.set_visible(true);
-            connect_new_note_action(dispatcher, &new_note);
-            container.append(&card);
+            if let Some(page) = stack.child_by_name("category-empty") {
+                page.set_widget_name("browser-category-empty-card");
+                if let Some(button) = find_descendant::<gtk::Button>(&page) {
+                    button.set_widget_name("browser-category-empty-new-note-button");
+                }
+            }
         }
-        BrowserFeedItem::Heading(group) => container.append(&date_group_heading(group)),
+        BrowserFeedItem::Heading(group) => {
+            if let Some(page) = stack.child_by_name("heading")
+                && let Some(label) = find_label_with_class(&page, "date-heading-label")
+            {
+                label.set_text(&group.label());
+                label.set_widget_name(&format!("note-group:{}", group.identifier()));
+            }
+        }
         BrowserFeedItem::Note(note) => {
-            let context = context.borrow().clone();
-            container.set_widget_name(&format!("note:{}", note.id));
-            container.set_css_classes(&["card", "activatable", "note-card"]);
-            // All feed entries share the same horizontal reading measure.
-            container.set_margin_top(6);
-            container.set_margin_bottom(6);
-            populate_note_card(container, &note, &context, Some(dispatcher));
+            bind_browser_card(container, &stack, note, false, &context.borrow());
         }
         BrowserFeedItem::LoadMore { label, sensitive } => {
             container.set_margin_top(8);
             container.set_margin_bottom(18);
-            let button = gtk::Button::with_label(&label);
-            button.set_widget_name("browser-load-more");
-            button.add_css_class("flat");
-            button.set_halign(gtk::Align::Center);
-            button.set_sensitive(sensitive);
-            let dispatcher = dispatcher.clone();
-            button.connect_clicked(move |_| {
-                let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
-            });
-            container.append(&button);
+            if let Some(button) = stack
+                .child_by_name("load-more")
+                .and_downcast::<gtk::Button>()
+            {
+                button.set_widget_name("browser-load-more");
+                button.set_label(label);
+                button.set_sensitive(*sensitive);
+            }
         }
     }
+    if switching {
+        stack.set_visible_child_name(target);
+    }
+}
+
+/// Clears widget names in a recycled row page so hidden rows cannot be matched.
+fn blank_names(root: &gtk::Widget) {
+    root.set_widget_name("");
+    let mut child = root.first_child();
+    while let Some(current) = child {
+        blank_names(&current);
+        child = current.next_sibling();
+    }
+}
+
+/// Finds the first descendant label carrying `class`.
+fn find_label_with_class(root: &gtk::Widget, class: &str) -> Option<gtk::Label> {
+    if let Some(label) = root.downcast_ref::<gtk::Label>()
+        && label.has_css_class(class)
+    {
+        return Some(label.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_label_with_class(&current, class) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
+}
+
+/// Finds the first descendant box carrying `class`.
+fn find_box_with_class(root: &gtk::Widget, class: &str) -> Option<gtk::Box> {
+    if let Some(box_) = root.downcast_ref::<gtk::Box>()
+        && box_.has_css_class(class)
+    {
+        return Some(box_.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_box_with_class(&current, class) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
+}
+
+/// Finds the first descendant widget of type `T`.
+fn find_descendant<T: IsA<gtk::Widget> + Clone>(root: &gtk::Widget) -> Option<T> {
+    if let Some(widget) = root.downcast_ref::<T>() {
+        return Some(widget.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(current) = child {
+        if let Some(found) = find_descendant::<T>(&current) {
+            return Some(found);
+        }
+        child = current.next_sibling();
+    }
+    None
 }
 
 fn favorites_heading() -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     content.set_halign(gtk::Align::Start);
-    content.set_widget_name("favorites-section");
     let label = gtk::Label::new(Some(&gettext("Favorites")));
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
     content.append(&label);
     let icon = gtk::Image::from_icon_name("starred-symbolic");
-    icon.set_widget_name("favorites-heading-icon");
     icon.set_pixel_size(14);
     icon.set_valign(gtk::Align::Center);
     content.append(&icon);
     content.upcast()
 }
 
-fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {
-    let label = gtk::Label::new(Some(&group.label()));
-    label.set_widget_name(&format!("note-group:{}", group.identifier()));
+fn date_heading_page() -> gtk::Box {
+    let label = gtk::Label::new(None);
     label.set_xalign(0.0);
     label.add_css_class("date-heading-label");
     let heading = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -570,38 +688,213 @@ fn date_group_heading(group: NoteDateGroup) -> gtk::Widget {
     heading.set_margin_top(22);
     heading.set_margin_bottom(6);
     heading.append(&label);
-    heading.upcast()
+    heading
 }
 
-fn populate_note_card(
-    card: &gtk::Box,
+/// Builds the persistent note-card page shared by note and favorite rows.
+fn note_card_page(
+    item: &gtk::ListItem,
+    dispatcher: &AppDispatcher,
+    context: &Rc<RefCell<BrowserFeedContext>>,
+) -> gtk::Box {
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let body = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    body.set_margin_start(12);
+    body.set_margin_end(8);
+    body.set_margin_top(10);
+    body.set_margin_bottom(10);
+    body.append(&note_card_details_skeleton());
+    body.append(&note_menu_button(item, dispatcher, context));
+    page.append(&body);
+    page
+}
+
+/// Projects one note into the persistent card page and its overflow menu.
+fn bind_browser_card(
+    container: &gtk::Box,
+    stack: &gtk::Stack,
     note: &NoteSummary,
-    feed_context: &BrowserFeedContext,
-    dispatcher: Option<&AppDispatcher>,
+    favorite: bool,
+    context: &BrowserFeedContext,
 ) {
-    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    content.set_margin_start(12);
-    content.set_margin_end(8);
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
-    let category_color = feed_context
-        .show_category
-        .then(|| note_category_color(note, &feed_context.sidebar))
-        .flatten();
-    content.append(&note_card_details(&NoteCardData {
-        note_id: note.id,
-        title: &note.title,
-        excerpt: &note.excerpt,
-        category_name: &note.category_name,
-        category_color,
-        updated_at: note.updated_at,
-        show_category: feed_context.show_category,
-        name_prefix: "note",
-    }));
-    if let (LoadState::Ready(categories), Some(dispatcher)) = (&feed_context.sidebar, dispatcher) {
-        content.append(&note_actions(note, categories, dispatcher));
+    let prefix = if favorite { "favorite-note" } else { "note" };
+    container.set_widget_name(&format!("{prefix}:{}", note.id));
+    container.set_css_classes(&["card", "activatable", "note-card"]);
+    container.set_margin_top(6);
+    container.set_margin_bottom(6);
+    let Some(page) = stack.child_by_name("card").and_downcast::<gtk::Box>() else {
+        return;
+    };
+    if let Some(details) = find_box_with_class(page.upcast_ref(), "note-card-details") {
+        bind_note_card_details(
+            &details,
+            &NoteCardData {
+                note_id: note.id,
+                title: &note.title,
+                excerpt: &note.excerpt,
+                category_name: &note.category_name,
+                category_color: note_category_color(note, &context.sidebar),
+                updated_at: note.updated_at,
+                show_category: context.show_category,
+                name_prefix: "note",
+            },
+        );
     }
-    card.append(&content);
+    let actions_visible = matches!(context.sidebar, LoadState::Ready(_));
+    if let Some(menu) = find_descendant::<gtk::MenuButton>(page.upcast_ref()) {
+        menu.set_visible(actions_visible);
+        menu.set_widget_name(&format!("note-menu:{}", note.id));
+        // Rebuilding the model repopulates the popover, so only swap it when the
+        // favorite state (and therefore the label) actually changed.
+        if actions_visible {
+            let desired = if note.is_favorite {
+                gettext("Remove from Favorites")
+            } else {
+                gettext("Mark as Favorite")
+            };
+            if menu_favorite_label(&menu).as_deref() != Some(desired.as_str()) {
+                menu.set_menu_model(Some(&note_menu_model(note.is_favorite)));
+            }
+        }
+    }
+}
+
+/// Returns the favorite entry label currently shown by a note menu.
+fn menu_favorite_label(menu: &gtk::MenuButton) -> Option<String> {
+    menu.menu_model()
+        .and_then(|model| model.item_attribute_value(0, "label", None))
+        .map(|value| value.str().unwrap_or_default().to_string())
+}
+
+/// Builds the persistent per-row overflow menu.
+///
+/// The actions are created once and resolve the currently bound note from the
+/// list item when they fire, so rebinding a recycled row never rebuilds them.
+fn note_menu_button(
+    item: &gtk::ListItem,
+    dispatcher: &AppDispatcher,
+    context: &Rc<RefCell<BrowserFeedContext>>,
+) -> gtk::MenuButton {
+    let menu = gtk::MenuButton::new();
+    menu.set_icon_name("view-more-symbolic");
+    menu.set_tooltip_text(Some(&gettext("Note actions")));
+    menu.add_css_class("flat");
+
+    let actions = gtk::gio::SimpleActionGroup::new();
+
+    let favorite = gtk::gio::SimpleAction::new("favorite", None);
+    let weak_item = item.downgrade();
+    let dispatcher_for_favorite = dispatcher.clone();
+    favorite.connect_activate(move |_, _| {
+        let Some(note) = activate_bound_note(&weak_item) else {
+            return;
+        };
+        let _ = dispatcher_for_favorite.dispatch(AppMsg::Action(ActionMsg::SetNoteFavorite {
+            note_id: note.id,
+            revision: note.revision,
+            is_favorite: !note.is_favorite,
+        }));
+    });
+    actions.add_action(&favorite);
+
+    // A `SimpleAction` activation carries no widget, so resolve the dialog's
+    // transient parent from the button. The button is held weakly to avoid a
+    // button -> action group -> action -> closure reference cycle.
+    let move_action = gtk::gio::SimpleAction::new("move", None);
+    let weak_menu = menu.downgrade();
+    let weak_item = item.downgrade();
+    let dispatcher_for_move = dispatcher.clone();
+    let context_for_move = Rc::clone(context);
+    move_action.connect_activate(move |_, _| {
+        let Some(note) = activate_bound_note(&weak_item) else {
+            return;
+        };
+        let Some(parent) = weak_menu
+            .upgrade()
+            .and_then(|button| button.root())
+            .and_downcast::<gtk::Window>()
+        else {
+            return;
+        };
+        let categories = match &context_for_move.borrow().sidebar {
+            LoadState::Ready(categories) => categories.clone(),
+            _ => Vec::new(),
+        };
+        show_move_note_dialog(
+            Some(&parent),
+            &dispatcher_for_move,
+            note.id,
+            note.category_id,
+            &note.title,
+            &categories,
+        );
+    });
+    actions.add_action(&move_action);
+
+    let export = gtk::gio::SimpleAction::new("export", None);
+    let weak_item = item.downgrade();
+    let dispatcher_for_export = dispatcher.clone();
+    export.connect_activate(move |_, _| {
+        let Some(note) = activate_bound_note(&weak_item) else {
+            return;
+        };
+        let _ =
+            dispatcher_for_export.dispatch(AppMsg::Navigation(NavigationMsg::ExportNote(note.id)));
+    });
+    actions.add_action(&export);
+
+    let trash = gtk::gio::SimpleAction::new("trash", None);
+    let weak_item = item.downgrade();
+    let dispatcher_for_trash = dispatcher.clone();
+    trash.connect_activate(move |_, _| {
+        let Some(note) = activate_bound_note(&weak_item) else {
+            return;
+        };
+        let _ = dispatcher_for_trash.dispatch(AppMsg::Action(ActionMsg::TrashNote(note.id)));
+    });
+    actions.add_action(&trash);
+
+    menu.insert_action_group("note", Some(&actions));
+    menu
+}
+
+/// Builds a note overflow menu model for the given favorite state.
+fn note_menu_model(is_favorite: bool) -> gtk::gio::Menu {
+    let model = gtk::gio::Menu::new();
+    let favorite_label = if is_favorite {
+        gettext("Remove from Favorites")
+    } else {
+        gettext("Mark as Favorite")
+    };
+    model.append(Some(&favorite_label), Some("note.favorite"));
+    model.append(Some(&gettext("Move…")), Some("note.move"));
+    model.append(Some(&gettext("Export note…")), Some("note.export"));
+    let danger = gtk::gio::Menu::new();
+    danger.append(Some(&gettext("Move to Trash")), Some("note.trash"));
+    model.append_section(None, &danger);
+    model
+}
+
+/// Resolves the note bound to a row when one of its actions fires.
+fn activate_bound_note(item: &glib::WeakRef<gtk::ListItem>) -> Option<NoteSummary> {
+    let item = item.upgrade()?;
+    let object = item.item().and_downcast::<glib::BoxedAnyObject>()?;
+    match &*object.borrow::<BrowserFeedItem>() {
+        BrowserFeedItem::Note(note) | BrowserFeedItem::Favorite(note) => Some(note.clone()),
+        _ => None,
+    }
+}
+
+/// Builds the persistent footer button that pages in more notes.
+fn load_more_button(dispatcher: &AppDispatcher) -> gtk::Button {
+    let button = gtk::Button::new();
+    button.add_css_class("flat");
+    button.set_halign(gtk::Align::Center);
+    let dispatcher = dispatcher.clone();
+    button.connect_clicked(move |_| {
+        let _ = dispatcher.dispatch(AppMsg::Browser(BrowserMsg::LoadMore));
+    });
+    button
 }
 
 pub(crate) fn note_category_color(
@@ -621,104 +914,6 @@ pub(crate) fn note_category_color(
                 .color
                 .resolved_for(note.category_id)
         })
-}
-
-/// Builds a note row's overflow menu from a `Gio::Menu` model.
-///
-/// A model-driven `GtkPopoverMenu` gets the standard libadwaita menu
-/// presentation—left-aligned `modelbutton` rows, section separators, keyboard
-/// navigation, and menu accessibility roles—that a box of flat buttons lacks.
-fn note_actions(
-    note: &NoteSummary,
-    categories: &[CategorySummary],
-    dispatcher: &AppDispatcher,
-) -> gtk::MenuButton {
-    let menu = gtk::MenuButton::new();
-    menu.set_widget_name(&format!("note-menu:{}", note.id));
-    menu.set_icon_name("view-more-symbolic");
-    menu.set_tooltip_text(Some(&gettext("Note actions")));
-    menu.add_css_class("flat");
-
-    // Each row owns its actions so the menu targets this note, mirroring the
-    // context-scoped groups registered by the Base card actions.
-    let actions = gtk::gio::SimpleActionGroup::new();
-
-    let favorite = gtk::gio::SimpleAction::new("favorite", None);
-    let dispatcher_for_favorite = dispatcher.clone();
-    let note_id = note.id;
-    let revision = note.revision;
-    let is_favorite = note.is_favorite;
-    favorite.connect_activate(move |_, _| {
-        let _ = dispatcher_for_favorite.dispatch(AppMsg::Action(ActionMsg::SetNoteFavorite {
-            note_id,
-            revision,
-            is_favorite: !is_favorite,
-        }));
-    });
-    actions.add_action(&favorite);
-
-    // A `SimpleAction` activation carries no widget, so resolve the dialog's
-    // transient parent from the button. The button is held weakly to avoid a
-    // button -> action group -> action -> closure reference cycle.
-    let move_action = gtk::gio::SimpleAction::new("move", None);
-    let weak_menu = menu.downgrade();
-    let dispatcher_for_move = dispatcher.clone();
-    let note_id = note.id;
-    let source_category_id = note.category_id;
-    let note_title = note.title.clone();
-    let categories = categories.to_vec();
-    move_action.connect_activate(move |_, _| {
-        let Some(parent) = weak_menu
-            .upgrade()
-            .and_then(|button| button.root())
-            .and_downcast::<gtk::Window>()
-        else {
-            return;
-        };
-        show_move_note_dialog(
-            Some(&parent),
-            &dispatcher_for_move,
-            note_id,
-            source_category_id,
-            &note_title,
-            &categories,
-        );
-    });
-    actions.add_action(&move_action);
-
-    let export = gtk::gio::SimpleAction::new("export", None);
-    let dispatcher_for_export = dispatcher.clone();
-    let note_id = note.id;
-    export.connect_activate(move |_, _| {
-        let _ =
-            dispatcher_for_export.dispatch(AppMsg::Navigation(NavigationMsg::ExportNote(note_id)));
-    });
-    actions.add_action(&export);
-
-    let trash = gtk::gio::SimpleAction::new("trash", None);
-    let dispatcher_for_trash = dispatcher.clone();
-    let note_id = note.id;
-    trash.connect_activate(move |_, _| {
-        let _ = dispatcher_for_trash.dispatch(AppMsg::Action(ActionMsg::TrashNote(note_id)));
-    });
-    actions.add_action(&trash);
-
-    menu.insert_action_group("note", Some(&actions));
-
-    let model = gtk::gio::Menu::new();
-    let favorite_label = if note.is_favorite {
-        gettext("Remove from Favorites")
-    } else {
-        gettext("Mark as Favorite")
-    };
-    model.append(Some(&favorite_label), Some("note.favorite"));
-    model.append(Some(&gettext("Move…")), Some("note.move"));
-    model.append(Some(&gettext("Export note…")), Some("note.export"));
-    let danger = gtk::gio::Menu::new();
-    danger.append(Some(&gettext("Move to Trash")), Some("note.trash"));
-    model.append_section(None, &danger);
-    menu.set_menu_model(Some(&model));
-    menu
 }
 
 fn connect_new_note_action(dispatcher: &AppDispatcher, button: &gtk::Button) {
@@ -944,45 +1139,40 @@ pub(crate) fn reset_note_card_surface(container: &gtk::Box) {
 
 /// Builds the shared title/excerpt/metadata body for a note card.
 pub(crate) fn note_card_details(data: &NoteCardData<'_>) -> gtk::Box {
+    let details = note_card_details_skeleton();
+    bind_note_card_details(&details, data);
+    details
+}
+
+/// Builds an empty note-card body whose labels [`bind_note_card_details`] fills.
+pub(crate) fn note_card_details_skeleton() -> gtk::Box {
     let details = gtk::Box::new(gtk::Orientation::Vertical, 4);
     details.set_hexpand(true);
-    let title = gtk::Label::new(Some(data.title));
-    title.set_widget_name(&format!("{}-title:{}", data.name_prefix, data.note_id));
+    details.add_css_class("note-card-details");
+    let title = gtk::Label::new(None);
     title.set_xalign(0.0);
     title.add_css_class("note-card-title");
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
     title.set_single_line_mode(true);
     details.append(&title);
-    let excerpt_text = compact_note_excerpt(data.title, data.excerpt);
-    if !excerpt_text.is_empty() {
-        let excerpt = gtk::Label::new(Some(&excerpt_text));
-        excerpt.set_widget_name(&format!("{}-excerpt:{}", data.name_prefix, data.note_id));
-        excerpt.set_xalign(0.0);
-        excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        excerpt.set_single_line_mode(true);
-        excerpt.add_css_class("note-card-excerpt");
-        details.append(&excerpt);
-    }
+    let excerpt = gtk::Label::new(None);
+    excerpt.set_xalign(0.0);
+    excerpt.add_css_class("note-card-excerpt");
+    excerpt.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    excerpt.set_single_line_mode(true);
+    excerpt.set_visible(false);
+    details.append(&excerpt);
     let metadata = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     metadata.set_margin_top(8);
     metadata.add_css_class("note-card-metadata");
-    if data.show_category {
-        let category = gtk::Label::new(Some(data.category_name));
-        category.set_widget_name(&format!("{}-category:{}", data.name_prefix, data.note_id));
-        category.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        category.set_single_line_mode(true);
-        category.set_max_width_chars(18);
-        category.add_css_class("note-category-pill");
-        if let Some(color) = data.category_color {
-            category.add_css_class(category_color_css_class(color));
-        }
-        metadata.append(&category);
-    }
-    let updated = gtk::Label::new(Some(&tr_fmt!(
-        gettext("Updated {time}"),
-        time = relative_update_time(data.updated_at, OffsetDateTime::now_utc())
-    )));
-    updated.set_widget_name(&format!("{}-updated:{}", data.name_prefix, data.note_id));
+    let category = gtk::Label::new(None);
+    category.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    category.set_single_line_mode(true);
+    category.set_max_width_chars(18);
+    category.add_css_class("note-category-pill");
+    category.set_visible(false);
+    metadata.append(&category);
+    let updated = gtk::Label::new(None);
     updated.add_css_class("note-card-updated");
     updated.set_xalign(0.0);
     updated.set_ellipsize(gtk::pango::EllipsizeMode::End);
@@ -991,6 +1181,50 @@ pub(crate) fn note_card_details(data: &NoteCardData<'_>) -> gtk::Box {
     metadata.append(&updated);
     details.append(&metadata);
     details
+}
+
+/// Projects one note into an existing note-card body.
+pub(crate) fn bind_note_card_details(details: &gtk::Box, data: &NoteCardData<'_>) {
+    if let Some(title) = find_label_with_class(details.upcast_ref(), "note-card-title") {
+        title.set_text(data.title);
+        title.set_widget_name(&format!("{}-title:{}", data.name_prefix, data.note_id));
+    }
+    if let Some(excerpt) = find_label_with_class(details.upcast_ref(), "note-card-excerpt") {
+        let excerpt_text = compact_note_excerpt(data.title, data.excerpt);
+        if excerpt_text.is_empty() {
+            excerpt.set_text("");
+            excerpt.set_visible(false);
+            excerpt.set_widget_name("");
+        } else {
+            excerpt.set_text(&excerpt_text);
+            excerpt.set_visible(true);
+            excerpt.set_widget_name(&format!("{}-excerpt:{}", data.name_prefix, data.note_id));
+        }
+    }
+    if let Some(category) = find_label_with_class(details.upcast_ref(), "note-category-pill") {
+        if data.show_category {
+            category.set_visible(true);
+            category.set_text(data.category_name);
+            category.set_widget_name(&format!("{}-category:{}", data.name_prefix, data.note_id));
+            let color_class = data.category_color.map(category_color_css_class);
+            let mut classes = vec!["note-category-pill"];
+            if let Some(color_class) = color_class {
+                classes.push(color_class);
+            }
+            category.set_css_classes(&classes);
+        } else {
+            category.set_visible(false);
+            category.set_widget_name("");
+            category.set_css_classes(&["note-category-pill"]);
+        }
+    }
+    if let Some(updated) = find_label_with_class(details.upcast_ref(), "note-card-updated") {
+        updated.set_text(&tr_fmt!(
+            gettext("Updated {time}"),
+            time = relative_update_time(data.updated_at, OffsetDateTime::now_utc())
+        ));
+        updated.set_widget_name(&format!("{}-updated:{}", data.name_prefix, data.note_id));
+    }
 }
 
 pub(crate) fn local_day(timestamp: OffsetDateTime) -> time::Date {

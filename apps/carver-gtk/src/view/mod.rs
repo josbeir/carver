@@ -306,6 +306,7 @@ impl BrowserProjectionSnapshot {
 struct BrowserContentRefs<'a> {
     list: &'a gtk::ListView,
     feed_store: &'a gtk::gio::ListStore,
+    hero: &'a gtk::Box,
     pages: &'a gtk::Stack,
     empty_new_note: &'a gtk::Button,
 }
@@ -492,6 +493,8 @@ pub struct ViewRefs {
     browser_list: Option<gtk::ListView>,
     browser_feed_store: Option<gtk::gio::ListStore>,
     browser_feed_context: Option<Rc<RefCell<BrowserFeedContext>>>,
+    browser_hero: Option<gtk::Box>,
+    browser_load_more_available: Option<Rc<Cell<bool>>>,
     browser_rendered_rows: RefCell<Vec<(carver_sdk::NoteId, carver_sdk::Revision)>>,
     browser_rendered_context: RefCell<Option<BrowserFeedContext>>,
     browser_pages: Option<gtk::Stack>,
@@ -539,6 +542,8 @@ impl ViewRefs {
             browser_list: None,
             browser_feed_store: None,
             browser_feed_context: None,
+            browser_hero: None,
+            browser_load_more_available: None,
             browser_rendered_rows: RefCell::new(Vec::new()),
             browser_rendered_context: RefCell::new(None),
             browser_pages: None,
@@ -608,6 +613,8 @@ impl ViewRefs {
         self.browser_list = Some(browser.list);
         self.browser_feed_store = Some(browser.feed_store);
         self.browser_feed_context = Some(browser.feed_context);
+        self.browser_hero = Some(browser.hero);
+        self.browser_load_more_available = Some(browser.load_more_available);
         self.browser_pages = Some(browser.pages);
         self.browser_search_bar = Some(browser.search_bar);
         self.browser_search_entry = Some(browser.search_entry);
@@ -1265,6 +1272,10 @@ impl ViewRefs {
     }
 
     fn render_browser(&self, model: &AppModel) {
+        if let Some(available) = &self.browser_load_more_available {
+            let needs_page = model.browser.has_more || model.browser.append_error.is_some();
+            available.set(needs_page && model.browser.append_request.is_none());
+        }
         self.render_browser_search(model);
         // Keep the complete previous browser visible until both lists are ready.
         if matches!(model.browser.notes.state, LoadState::Loading(_))
@@ -1279,12 +1290,19 @@ impl ViewRefs {
         let Some(BrowserContentRefs {
             list,
             feed_store,
+            hero,
             pages,
             empty_new_note,
         }) = self.browser_content_refs()
         else {
             return;
         };
+        crate::ui::browser::render_category_hero(
+            hero,
+            &model.sidebar.state,
+            model.selected_category,
+            self.dispatcher.as_ref(),
+        );
         match &model.browser.notes.state {
             LoadState::Ready(notes)
                 if notes.is_empty() && !model.browser.search_query.trim().is_empty() =>
@@ -1345,6 +1363,7 @@ impl ViewRefs {
         Some(BrowserContentRefs {
             list: self.browser_list.as_ref()?,
             feed_store: self.browser_feed_store.as_ref()?,
+            hero: self.browser_hero.as_ref()?,
             pages: self.browser_pages.as_ref()?,
             empty_new_note: self.browser_empty_new_note_button.as_ref()?,
         })
@@ -1535,7 +1554,6 @@ impl ViewRefs {
             feed_context.replace(context.clone());
         }
         feed_store.remove_all();
-        feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Hero));
         feed_store.append(&glib::BoxedAnyObject::new(item));
         self.browser_rendered_rows.borrow_mut().clear();
         // The special card replaces the note rows, so no rendered row prefix
@@ -1616,7 +1634,6 @@ fn browser_feed_context(model: &AppModel) -> BrowserFeedContext {
 }
 
 fn append_browser_prelude(feed_store: &gtk::gio::ListStore, model: &AppModel) {
-    feed_store.append(&glib::BoxedAnyObject::new(BrowserFeedItem::Hero));
     if model.browser.search_query.trim().is_empty()
         && let LoadState::Ready(notes) = &model.browser.favorites.state
         && !notes.is_empty()
