@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 10:58+0200\n"
+"POT-Creation-Date: 2026-09-30 11:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -533,12 +533,12 @@ msgid "New Note"
 msgstr "Neue Notiz"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard"
-msgstr "Neue Notiz aus der Zwischenablage"
+msgid "New from Clipboard"
+msgstr "Neu aus der Zwischenablage"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard as Markdown"
-msgstr "Neue Notiz aus der Zwischenablage als Markdown"
+msgid "New from Clipboard as Markdown"
+msgstr "Neu aus der Zwischenablage als Markdown"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -962,8 +962,8 @@ msgid "New Category…"
 msgstr "Neue Kategorie…"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note from clipboard"
-msgstr "Neue Notiz aus der Zwischenablage"
+msgid "New from clipboard"
+msgstr "Neu aus der Zwischenablage"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 10:58+0200\n"
+"POT-Creation-Date: 2026-09-30 11:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -533,12 +533,12 @@ msgid "New Note"
 msgstr "Nieuwe notitie"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard"
-msgstr "Nieuwe notitie van klembord"
+msgid "New from Clipboard"
+msgstr "Nieuw van klembord"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard as Markdown"
-msgstr "Nieuwe notitie van klembord als Markdown"
+msgid "New from Clipboard as Markdown"
+msgstr "Nieuw van klembord als Markdown"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -962,8 +962,8 @@ msgid "New Category…"
 msgstr "Nieuwe categorie…"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note from clipboard"
-msgstr "Nieuwe notitie van klembord"
+msgid "New from clipboard"
+msgstr "Nieuw van klembord"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"

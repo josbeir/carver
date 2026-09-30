@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 10:58+0200\n"
+"POT-Creation-Date: 2026-09-30 11:05+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -531,12 +531,12 @@ msgid "New Note"
 msgstr "新建笔记"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard"
-msgstr "从剪贴板新建笔记"
+msgid "New from Clipboard"
+msgstr "从剪贴板新建"
 
 #: apps/carver-gtk/src/ui/browser.rs
-msgid "New Note from Clipboard as Markdown"
-msgstr "从剪贴板新建 Markdown 笔记"
+msgid "New from Clipboard as Markdown"
+msgstr "从剪贴板新建 Markdown"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -956,8 +956,8 @@ msgid "New Category…"
 msgstr "新建分类…"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note from clipboard"
-msgstr "从剪贴板新建笔记"
+msgid "New from clipboard"
+msgstr "从剪贴板新建"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note properties"

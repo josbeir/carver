@@ -340,11 +340,11 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
     let menu = gtk::gio::Menu::new();
     menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
     menu.append(
-        Some(&gettext("New Note from Clipboard")),
+        Some(&gettext("New from Clipboard")),
         Some(NEW_NOTE_FROM_CLIPBOARD_ACTION),
     );
     menu.append(
-        Some(&gettext("New Note from Clipboard as Markdown")),
+        Some(&gettext("New from Clipboard as Markdown")),
         Some(NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION),
     );
 
