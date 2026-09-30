@@ -73,6 +73,9 @@ infrastructure or GTK.
   Do not add `AppState`, direct refresh paths, storage fallbacks, or business state to a view.
 - Keep blocking SQLite work behind the SDK's async boundary. Do not perform storage work
   directly from a GTK signal handler or capture GTK objects in a background task.
+- When working from a git worktree, build with that worktree's own target directory. Never set
+  `CARGO_TARGET_DIR` to another checkout's `target/`: sharing it invalidates the other checkout's
+  incremental cache and forces it to rebuild.
 
 ## Editor protocol generation
 
