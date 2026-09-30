@@ -92,7 +92,7 @@ pub enum Effect {
         request_id: RequestId,
         /// Saved view to query.
         base_id: BaseId,
-        /// Optional full-text search input for the Base's title and body.
+        /// Optional full-text search input for the Base's title, body, and category name.
         query: String,
     },
     /// Load one additional page for a visible Base.
@@ -101,7 +101,7 @@ pub enum Effect {
         request_id: RequestId,
         /// Saved view to query.
         base_id: BaseId,
-        /// Full-text search input for the Base's title and body.
+        /// Full-text search input for the Base's title, body, and category name.
         query: String,
         /// Starting position of the requested page.
         offset: usize,

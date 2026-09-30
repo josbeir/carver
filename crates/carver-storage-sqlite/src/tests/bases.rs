@@ -102,6 +102,17 @@ fn base_search_should_intersect_full_text_with_saved_json1_filters() {
 }
 
 #[test]
+fn base_search_should_match_category_names() {
+    let (_directory, library, base) = query_fixture();
+
+    let results = library
+        .search_base_rows(base.id, "Projects", all_page())
+        .unwrap_or_else(|error| panic!("Base search failed: {error}"));
+
+    assert_eq!(results.items.len(), 3);
+}
+
+#[test]
 fn base_search_should_page_in_the_saved_base_sort_order() {
     let (_directory, library) = library();
     let category = library

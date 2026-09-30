@@ -664,6 +664,12 @@ pub(super) fn browser_search_should_show_and_clear_empty_state(
         find_widget(&root, &format!("note:{}", note.id)).is_some()
             && find_widget(&root, "browser-search-empty-card").is_none()
     }));
+    // A category-name query matches notes whose body does not contain the term.
+    search.set_text(&note.category_name);
+    assert!(run_main_context_until(|| {
+        find_widget(&root, &format!("note:{}", note.id)).is_some()
+            && find_widget(&root, "browser-search-empty-card").is_none()
+    }));
     search.emit_stop_search();
     assert!(run_main_context_until(|| {
         !search_bar.is_search_mode() && !search_toggle.is_active() && search.text().is_empty()
