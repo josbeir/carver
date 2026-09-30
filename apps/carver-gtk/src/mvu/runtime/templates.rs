@@ -51,12 +51,13 @@ impl<B: LibraryBackend> AppRuntime<B> {
                     .map_err(template_error);
                     TemplatesMsg::Saved { request_id, result }
                 }
-                Effect::DeleteTemplate { id, revision } => TemplatesMsg::Changed(
-                    client
+                Effect::DeleteTemplate { id, revision } => TemplatesMsg::Changed {
+                    id,
+                    result: client
                         .delete_template_async(id, revision)
                         .await
                         .map_err(template_error),
-                ),
+                },
                 Effect::SaveTemplateCategory {
                     category_id,
                     name,

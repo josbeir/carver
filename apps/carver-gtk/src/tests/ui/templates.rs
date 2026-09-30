@@ -44,7 +44,14 @@ fn save_draft(dialog: &adw::Dialog) -> TestResult {
 }
 
 pub(super) fn templates_should_manage_validate_duplicate_and_delete() -> TestResult {
-    let fixture = window_fixture_for("io.github.josbeir.Carver.TemplateManagerTests")?;
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.TemplateManagerTests",
+        |client, category| {
+            client.create_note_with_source(category, "# Existing note")?;
+            Ok(())
+        },
+        |_| {},
+    )?;
     dismiss_initial_dialogs(&fixture.window);
     fixture.window.present();
     let draft = new_draft(&fixture)?;
@@ -98,9 +105,24 @@ pub(super) fn templates_should_manage_validate_duplicate_and_delete() -> TestRes
     let list = glib::MainContext::default().block_on(fixture.client.templates_async())?;
     assert_eq!(list.len(), 2);
     let copy = list.iter().find(|t| t.id != updated.id).ok_or("copy")?;
+    delete_template_and_preserve_browser(&fixture, &manager, copy.id)?;
+    fixture.window.close();
+    Ok(())
+}
+
+fn delete_template_and_preserve_browser(
+    fixture: &WindowFixture,
+    manager: &adw::Dialog,
+    template_id: carver_sdk::TemplateId,
+) -> TestResult {
     let row =
-        widget_as::<adw::ActionRow>(manager.upcast_ref(), &format!("template-row-{}", copy.id))
+        widget_as::<adw::ActionRow>(manager.upcast_ref(), &format!("template-row-{template_id}"))
             .ok_or("copy row")?;
+    let browser_model = fixture.note_list()?.model().ok_or("note feed model")?;
+    assert!(run_main_context_until(|| browser_model.n_items() > 0));
+    let browser_items: Vec<_> = (0..browser_model.n_items())
+        .filter_map(|index| browser_model.item(index))
+        .collect();
     find_widget(row.upcast_ref(), "template-actions")
         .ok_or("actions")?
         .activate_action("template.delete", None)?;
@@ -124,7 +146,17 @@ pub(super) fn templates_should_manage_validate_duplicate_and_delete() -> TestRes
     assert!(run_main_context_until(|| glib::MainContext::default()
         .block_on(fixture.client.templates_async())
         .is_ok_and(|t| t.len() == 1)));
-    fixture.window.close();
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::LibraryChangedExternally);
+    let _ = run_main_context_until_for(std::time::Duration::from_millis(350), || false);
+    let remaining_items: Vec<_> = (0..browser_model.n_items())
+        .filter_map(|index| browser_model.item(index))
+        .collect();
+    assert_eq!(
+        remaining_items, browser_items,
+        "deleting a template must preserve the note feed"
+    );
     Ok(())
 }
 

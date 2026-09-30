@@ -297,7 +297,7 @@ impl BrowserProjectionSnapshot {
     fn matches(&self, model: &AppModel, today: Date) -> bool {
         self.browser == model.browser
             && self.selected_category == model.selected_category
-            && self.sidebar == model.sidebar.state
+            && browser_sidebar_matches(&self.sidebar, &model.sidebar.state)
             && self.route == model.route
             && self.today == today
     }
@@ -1629,11 +1629,47 @@ impl ViewRefs {
     }
 }
 
+// Template assignments affect future note creation, never the existing note feed.
+fn browser_sidebar_snapshot(
+    state: &LoadState<Vec<carver_sdk::CategorySummary>>,
+) -> LoadState<Vec<carver_sdk::CategorySummary>> {
+    let mut snapshot = state.clone();
+    if let LoadState::Ready(categories) = &mut snapshot {
+        for summary in categories {
+            summary.category.default_template_id = None;
+        }
+    }
+    snapshot
+}
+
+fn browser_sidebar_matches(
+    snapshot: &LoadState<Vec<carver_sdk::CategorySummary>>,
+    current: &LoadState<Vec<carver_sdk::CategorySummary>>,
+) -> bool {
+    match (snapshot, current) {
+        (LoadState::Ready(left), LoadState::Ready(right)) => {
+            left.len() == right.len()
+                && left.iter().zip(right).all(|(left, right)| {
+                    let (a, b) = (&left.category, &right.category);
+                    left.note_count == right.note_count
+                        && a.id == b.id
+                        && a.name == b.name
+                        && a.appearance == b.appearance
+                        && a.position == b.position
+                        && a.created_at == b.created_at
+                        && a.updated_at == b.updated_at
+                        && a.trashed_at == b.trashed_at
+                })
+        }
+        _ => snapshot == current,
+    }
+}
+
 fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjectionSnapshot {
     BrowserProjectionSnapshot {
         browser: model.browser.clone(),
         selected_category: model.selected_category,
-        sidebar: model.sidebar.state.clone(),
+        sidebar: browser_sidebar_snapshot(&model.sidebar.state),
         route: model.route,
         today,
     }
@@ -1724,7 +1760,7 @@ fn browser_feed_context(model: &AppModel) -> BrowserFeedContext {
     };
     BrowserFeedContext {
         show_category: model.selected_category.is_none(),
-        sidebar: model.sidebar.state.clone(),
+        sidebar: browser_sidebar_snapshot(&model.sidebar.state),
         selected_category: model.selected_category,
         favorites,
     }

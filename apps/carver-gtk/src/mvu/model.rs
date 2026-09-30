@@ -1161,6 +1161,7 @@ pub(crate) struct LibraryRevisionRequest {
 pub(crate) enum LibraryRevisionCheckReason {
     InitialLoad,
     LocalMutation,
+    LocalTemplateMutation,
     ExternalWakeup,
 }
 

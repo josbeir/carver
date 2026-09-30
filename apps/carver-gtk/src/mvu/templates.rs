@@ -87,7 +87,12 @@ pub enum TemplatesMsg {
     /// Category update completed.
     CategorySaved(Result<(), UiError>),
     /// A delete completed.
-    Changed(Result<(), UiError>),
+    Changed {
+        /// Deleted template identity for clearing category assignments in the snapshot.
+        id: TemplateId,
+        /// Completed persistence result.
+        result: Result<(), UiError>,
+    },
     /// Create an independent note from a chosen template.
     Create {
         /// Captured destination category.
@@ -238,6 +243,7 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                         error: None,
                     }];
                     effects.extend(load(model, TemplatePurpose::Manage));
+                    effects.extend(acknowledge_mutation(model));
                     effects
                 }
                 Err(error) => vec![Effect::FinishTemplateEdit {
@@ -247,13 +253,23 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
             }
         }
         TemplatesMsg::Delete { id, revision } => vec![Effect::DeleteTemplate { id, revision }],
-        TemplatesMsg::Changed(result) => {
+        TemplatesMsg::Changed { id, result } => {
             if let Err(error) = result {
                 model.set_notice(error);
                 return Vec::new();
             }
             let mut effects = load(model, TemplatePurpose::Manage);
-            effects.extend(super::update::reload_sidebar(model));
+            if let super::LoadState::Ready(categories) = &mut model.sidebar.state {
+                for summary in categories {
+                    if summary.category.default_template_id == Some(id) {
+                        summary.category.default_template_id = None;
+                    }
+                }
+            } else {
+                // Coalesce a follow-up if an earlier category read was already in flight.
+                effects.extend(super::update::reload_sidebar(model));
+            }
+            effects.extend(acknowledge_mutation(model));
             effects
         }
         TemplatesMsg::CategorySaved(result) => {
@@ -263,6 +279,7 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
             }
             let mut effects: Vec<_> = super::update::reload_sidebar(model).into_iter().collect();
             effects.extend(super::update::reload_browser(model));
+            effects.extend(acknowledge_mutation(model));
             effects
         }
         TemplatesMsg::Create {
@@ -350,4 +367,13 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+// Templates do not modify existing notes. Record our own write before the next focus wakeup
+// checks the shared library, without refreshing note content or browser pages.
+fn acknowledge_mutation(model: &mut AppModel) -> Option<Effect> {
+    super::update::request_library_revision(
+        model,
+        super::model::LibraryRevisionCheckReason::LocalTemplateMutation,
+    )
 }

@@ -3873,7 +3873,7 @@ fn reload_after_local_mutation(model: &mut AppModel) -> Vec<Effect> {
     effects
 }
 
-fn request_library_revision(
+pub(super) fn request_library_revision(
     model: &mut AppModel,
     reason: LibraryRevisionCheckReason,
 ) -> Option<Effect> {
@@ -3910,7 +3910,9 @@ fn update_library_revision(
                     .as_ref()
                     .is_some_and(|document| document.session == session)
             });
-            if changed || retry {
+            if (changed && request.reason != LibraryRevisionCheckReason::LocalTemplateMutation)
+                || retry
+            {
                 let mut effects =
                     if changed && request.reason == LibraryRevisionCheckReason::ExternalWakeup {
                         reload_all_resources(model)
