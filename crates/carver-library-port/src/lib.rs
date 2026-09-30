@@ -186,7 +186,8 @@ pub trait LibraryBackend: Send + 'static {
     fn delete_base(&self, base_id: BaseId) -> Result<(), Self::Error>;
     /// Returns one ordered page of rows for a saved base.
     fn base_rows(&self, base_id: BaseId, page: PageRequest) -> Result<Page<BaseRow>, Self::Error>;
-    /// Searches one saved Base's active rows by note title and body, preserving its query and sort.
+    /// Searches one saved Base's active rows by note title, body, and category name, preserving
+    /// its query and sort.
     fn search_base_rows(
         &self,
         base_id: BaseId,
@@ -227,7 +228,7 @@ pub trait LibraryBackend: Send + 'static {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<NoteSummary>, Self::Error>;
-    /// Searches active notes by title and body.
+    /// Searches active notes by title, body, and category name.
     fn search(
         &self,
         query: &str,

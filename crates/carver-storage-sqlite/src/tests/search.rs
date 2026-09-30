@@ -109,3 +109,166 @@ fn recent_note_summaries_include_their_category_name() {
         .items;
     assert_eq!(summaries[0].category_name, "Personal");
 }
+
+#[test]
+fn fts_search_should_match_category_names() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    let results = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("search failed: {error}"))
+        .items;
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].note.id, note.id);
+}
+
+#[test]
+fn renaming_a_category_should_reindex_its_notes_for_search() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let _note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .rename_category(category.id, "Geology", now)
+        .unwrap_or_else(|error| panic!("rename failed: {error}"));
+
+    let stale = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("stale search failed: {error}"))
+        .items;
+    let renamed = library
+        .search_notes("Geology", None, page(20))
+        .unwrap_or_else(|error| panic!("renamed search failed: {error}"))
+        .items;
+
+    assert!(stale.is_empty());
+    assert_eq!(renamed.len(), 1);
+}
+
+#[test]
+fn updating_a_category_name_should_reindex_its_notes_for_search() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let _note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .update_category(category.id, "Geology", CategoryAppearance::default(), now)
+        .unwrap_or_else(|error| panic!("update failed: {error}"));
+
+    let stale = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("stale search failed: {error}"))
+        .items;
+    let renamed = library
+        .search_notes("Geology", None, page(20))
+        .unwrap_or_else(|error| panic!("renamed search failed: {error}"))
+        .items;
+
+    assert!(stale.is_empty());
+    assert_eq!(renamed.len(), 1);
+}
+
+#[test]
+fn updating_category_appearance_should_keep_its_notes_searchable() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let note = library
+        .create_note_with_source(category.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .update_category(
+            category.id,
+            "Astronomy",
+            CategoryAppearance {
+                icon: CategoryIcon::Star,
+                color: CategoryColor::Blue,
+            },
+            now,
+        )
+        .unwrap_or_else(|error| panic!("update failed: {error}"));
+
+    let results = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("search failed: {error}"))
+        .items;
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].note.id, note.id);
+}
+
+#[test]
+fn moving_a_note_should_reindex_its_category_for_search() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let source = library
+        .create_category("Astronomy", now)
+        .unwrap_or_else(|error| panic!("source category failed: {error}"));
+    let destination = library
+        .create_category("Geology", now)
+        .unwrap_or_else(|error| panic!("destination category failed: {error}"));
+    let note = library
+        .create_note_with_source(source.id, "# Field notes\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    library
+        .move_note(note.id, destination.id, now)
+        .unwrap_or_else(|error| panic!("move failed: {error}"));
+
+    let stale = library
+        .search_notes("Astronomy", None, page(20))
+        .unwrap_or_else(|error| panic!("stale search failed: {error}"))
+        .items;
+    let moved = library
+        .search_notes("Geology", None, page(20))
+        .unwrap_or_else(|error| panic!("moved search failed: {error}"))
+        .items;
+
+    assert!(stale.is_empty());
+    assert_eq!(moved.len(), 1);
+    assert_eq!(moved[0].note.id, note.id);
+}
+
+#[test]
+fn fts_search_should_rank_content_matches_above_category_matches() {
+    let (_directory, library) = library();
+    let now = OffsetDateTime::UNIX_EPOCH;
+    let category = library
+        .create_category("Roadmap", now)
+        .unwrap_or_else(|error| panic!("category failed: {error}"));
+    let content_match = library
+        .create_note_with_source(category.id, "# Alpha\n\nThe roadmap in detail", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+    library
+        .create_note_with_source(category.id, "# Beta\n\nUnrelated body", now)
+        .unwrap_or_else(|error| panic!("note failed: {error}"));
+
+    let results = library
+        .search_notes("roadmap", None, page(20))
+        .unwrap_or_else(|error| panic!("search failed: {error}"))
+        .items;
+
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].note.id, content_match.id);
+}

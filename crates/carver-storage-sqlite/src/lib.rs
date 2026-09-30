@@ -477,7 +477,8 @@ impl SqliteLibrary {
         )
     }
 
-    /// Searches one saved Base by title and body while retaining its JSON1 query and ordering.
+    /// Searches one saved Base by title, body, and category name while retaining its JSON1 query
+    /// and ordering.
     ///
     /// # Errors
     ///
@@ -789,13 +790,16 @@ impl SqliteLibrary {
         now: OffsetDateTime,
     ) -> Result<Category, StorageError> {
         let name = category_name(name)?;
-        let affected = self.connection.execute(
+        let transaction = self.connection.unchecked_transaction()?;
+        let affected = transaction.execute(
             "UPDATE categories SET name = ?2, updated_at = ?3 WHERE id = ?1 AND trashed_at IS NULL",
             params![category_id.to_string(), name, timestamp(now)],
         )?;
         if affected != 1 {
             return Err(StorageError::Corrupt("category was not found".to_owned()));
         }
+        rebuild_category_fts(&transaction, category_id)?;
+        transaction.commit()?;
         self.connection
             .query_row(
                 "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
@@ -820,7 +824,15 @@ impl SqliteLibrary {
         now: OffsetDateTime,
     ) -> Result<Category, StorageError> {
         let name = category_name(name)?;
-        let affected = self.connection.execute(
+        let transaction = self.connection.unchecked_transaction()?;
+        let previous_name = transaction
+            .query_row(
+                "SELECT name FROM categories WHERE id = ?1 AND trashed_at IS NULL",
+                [category_id.to_string()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let affected = transaction.execute(
             "UPDATE categories SET name = ?2, icon = ?3, color = ?4, updated_at = ?5
              WHERE id = ?1 AND trashed_at IS NULL",
             params![
@@ -834,6 +846,11 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::Corrupt("category was not found".to_owned()));
         }
+        // Appearance-only edits cannot change the indexed name, so skip the expensive rebuild.
+        if previous_name.as_deref() != Some(name) {
+            rebuild_category_fts(&transaction, category_id)?;
+        }
+        transaction.commit()?;
         self.connection
             .query_row(
                 "SELECT id, name, icon, color, position, created_at, updated_at, trashed_at
@@ -868,7 +885,7 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::CategoryUnavailable);
         }
-        self.replace_fts(id, &derived)?;
+        rebuild_note_fts(&self.connection, id)?;
         self.note(id)?
             .ok_or_else(|| StorageError::Corrupt("new note was not persisted".to_owned()))
     }
@@ -900,11 +917,7 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::CategoryUnavailable);
         }
-        transaction.execute("DELETE FROM note_fts WHERE note_id = ?1", [id.to_string()])?;
-        transaction.execute(
-            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
-            params![id.to_string(), &derived.title, &derived.plain_text],
-        )?;
+        rebuild_note_fts(&transaction, id)?;
         replace_note_links(&transaction, id, source)?;
         transaction.commit()?;
         self.note(id)?
@@ -957,14 +970,7 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::Conflict);
         }
-        transaction.execute(
-            "DELETE FROM note_fts WHERE note_id = ?1",
-            [note_id.to_string()],
-        )?;
-        transaction.execute(
-            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
-            params![note_id.to_string(), &derived.title, &derived.plain_text],
-        )?;
+        rebuild_note_fts(&transaction, note_id)?;
         replace_note_links(&transaction, note_id, source)?;
         transaction.commit()?;
         self.note(note_id)?
@@ -1023,7 +1029,8 @@ impl SqliteLibrary {
         category_id: CategoryId,
         _now: OffsetDateTime,
     ) -> Result<Note, StorageError> {
-        let affected = self.connection.execute(
+        let transaction = self.connection.unchecked_transaction()?;
+        let affected = transaction.execute(
             "UPDATE notes SET category_id = ?2, revision = revision + 1
              WHERE id = ?1 AND trashed_at IS NULL
                AND EXISTS (
@@ -1034,6 +1041,8 @@ impl SqliteLibrary {
         if affected != 1 {
             return Err(StorageError::MoveUnavailable);
         }
+        rebuild_note_fts(&transaction, note_id)?;
+        transaction.commit()?;
         self.note(note_id)?
             .ok_or_else(|| StorageError::Corrupt("moved note was not found".to_owned()))
     }
@@ -1134,7 +1143,7 @@ impl SqliteLibrary {
             .map_err(Into::into)
     }
 
-    /// Runs a full-text search over active notes.
+    /// Runs a full-text search over active notes by title, body, and category name.
     ///
     /// # Errors
     ///
@@ -1160,7 +1169,7 @@ impl SqliteLibrary {
              JOIN categories c ON c.id = n.category_id
              WHERE note_fts MATCH ?1 AND n.trashed_at IS NULL AND c.trashed_at IS NULL
                AND (?2 IS NULL OR n.category_id = ?2)
-             ORDER BY bm25(note_fts), n.updated_at DESC, n.id ASC LIMIT ?3 OFFSET ?4",
+             ORDER BY bm25(note_fts, 0.0, 10.0, 1.0, 0.5), n.updated_at DESC, n.id ASC LIMIT ?3 OFFSET ?4",
         )?;
         let rows = statement
             .query_map(
@@ -1463,22 +1472,6 @@ impl SqliteLibrary {
         Ok(Some(fs::read(
             self.managed_asset_path(&format!("{note}/{filename}"))?,
         )?))
-    }
-
-    fn replace_fts(
-        &self,
-        note_id: NoteId,
-        derived: &carver_domain::DerivedContent,
-    ) -> Result<(), StorageError> {
-        self.connection.execute(
-            "DELETE FROM note_fts WHERE note_id = ?1",
-            [note_id.to_string()],
-        )?;
-        self.connection.execute(
-            "INSERT INTO note_fts (note_id, title, plain_text) VALUES (?1, ?2, ?3)",
-            params![note_id.to_string(), derived.title, derived.plain_text],
-        )?;
-        Ok(())
     }
 
     fn next_category_position(&self) -> Result<i64, StorageError> {
@@ -1870,6 +1863,41 @@ fn replace_note_links(
             params![note_id.to_string(), target.to_string()],
         )?;
     }
+    Ok(())
+}
+
+/// Rebuilds one note's full-text index row, including its owning category's name.
+fn rebuild_note_fts(connection: &rusqlite::Connection, note_id: NoteId) -> rusqlite::Result<()> {
+    connection.execute(
+        "DELETE FROM note_fts WHERE note_id = ?1",
+        [note_id.to_string()],
+    )?;
+    connection.execute(
+        "INSERT INTO note_fts (note_id, title, plain_text, category)
+         SELECT n.id, n.title, n.plain_text, c.name
+         FROM notes n JOIN categories c ON c.id = n.category_id
+         WHERE n.id = ?1",
+        [note_id.to_string()],
+    )?;
+    Ok(())
+}
+
+/// Rebuilds every note's full-text index row for one category, refreshing its stored name.
+fn rebuild_category_fts(
+    connection: &rusqlite::Connection,
+    category_id: CategoryId,
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "DELETE FROM note_fts WHERE note_id IN (SELECT id FROM notes WHERE category_id = ?1)",
+        [category_id.to_string()],
+    )?;
+    connection.execute(
+        "INSERT INTO note_fts (note_id, title, plain_text, category)
+         SELECT n.id, n.title, n.plain_text, c.name
+         FROM notes n JOIN categories c ON c.id = n.category_id
+         WHERE n.category_id = ?1",
+        [category_id.to_string()],
+    )?;
     Ok(())
 }
 

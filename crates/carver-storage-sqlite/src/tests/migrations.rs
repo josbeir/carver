@@ -15,7 +15,7 @@ fn reopening_a_versioned_library_should_not_have_pending_migrations() {
         .unwrap_or_else(|error| panic!("initial revision failed: {error}"));
     drop(library);
 
-    assert_eq!(schema_version(&database_path), 7);
+    assert_eq!(schema_version(&database_path), 8);
     let connection = rusqlite::Connection::open(&database_path)
         .unwrap_or_else(|error| panic!("database open failed: {error}"));
     assert_eq!(
@@ -62,7 +62,7 @@ fn opening_an_unversioned_current_library_should_adopt_the_schema() {
         LibraryRevision(0)
     );
     drop(adopted);
-    assert_eq!(schema_version(&database_path), 7);
+    assert_eq!(schema_version(&database_path), 8);
 }
 
 #[test]
@@ -140,6 +140,22 @@ fn derived_title_migration_should_reindex_existing_frontmatter_titles() {
             .map(|hit| hit.note.id),
         Some(note.id)
     );
+    assert_eq!(
+        migrated
+            .search_notes(
+                "Projects",
+                None,
+                PageRequest {
+                    limit: 1,
+                    offset: 0,
+                },
+            )
+            .unwrap_or_else(|error| panic!("category search failed: {error}"))
+            .items
+            .first()
+            .map(|hit| hit.note.id),
+        Some(note.id)
+    );
 }
 
 #[test]
@@ -197,7 +213,7 @@ fn asset_ownership_migration_should_reshape_legacy_asset_tables() {
     let migrated = SqliteLibrary::open(&database_path, &assets_dir)
         .unwrap_or_else(|error| panic!("library migration failed: {error}"));
 
-    assert_eq!(schema_version(&database_path), 7);
+    assert_eq!(schema_version(&database_path), 8);
     assert_eq!(
         migrated
             .note_asset_bytes(note.id, "assets/legacy.png")

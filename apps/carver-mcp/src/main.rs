@@ -222,7 +222,7 @@ impl CarverServer {
             .and_then(json)
     }
 
-    /// Searches active notes by title and body.
+    /// Searches active notes by title, body, and category name.
     #[tool(annotations(title = "Search notes", read_only_hint = true))]
     async fn search_notes(
         &self,

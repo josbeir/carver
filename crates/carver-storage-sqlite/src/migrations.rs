@@ -123,7 +123,26 @@ fn migrations() -> Migrations<'static> {
         M::up(ASSET_OWNERSHIP_SCHEMA),
         M::up_with_hook(NOTE_LINKS_SCHEMA, migrate_note_links),
         M::up_with_hook("", migrate_frontmatter_revision),
+        M::up_with_hook("", migrate_note_search_category),
     ])
+}
+
+/// Adds the note's category name to the full-text search index.
+///
+/// The virtual table cannot be altered in place, so it is dropped and rebuilt from the stored
+/// `title`/`plain_text` columns and the owning category's name. The `category` column is appended
+/// last so the existing snippet column index (body plaintext at index two) stays valid. Trashed
+/// notes keep their rows, matching the pre-migration behavior where the search query excludes
+/// trashed notes and categories.
+fn migrate_note_search_category(transaction: &Transaction<'_>) -> rusqlite_migration::HookResult {
+    transaction.execute_batch(
+        "DROP TABLE IF EXISTS note_fts;
+        CREATE VIRTUAL TABLE note_fts USING fts5(note_id UNINDEXED, title, plain_text, category);
+        INSERT INTO note_fts (note_id, title, plain_text, category)
+            SELECT n.id, n.title, n.plain_text, c.name
+            FROM notes n JOIN categories c ON c.id = n.category_id;",
+    )?;
+    Ok(())
 }
 
 /// Adds the frontmatter-affecting revision used to cache descriptor discovery.
