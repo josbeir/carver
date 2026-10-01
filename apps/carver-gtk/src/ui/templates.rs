@@ -99,7 +99,11 @@ pub(crate) fn show_list(
     initial_preview: Option<&Result<TemplatePreview, UiError>>,
     selected: Option<carver_sdk::TemplateId>,
 ) -> ListHandle {
-    if matches!(purpose, TemplatePurpose::Pick(_)) && !templates.is_empty() {
+    if matches!(
+        purpose,
+        TemplatePurpose::Pick(_) | TemplatePurpose::Insert(_)
+    ) && !templates.is_empty()
+    {
         return picker::show(
             parent,
             dispatcher,
@@ -107,10 +111,13 @@ pub(crate) fn show_list(
             templates,
             initial_preview,
             selected,
+            matches!(purpose, TemplatePurpose::Insert(_)),
         );
     }
     let dialog = adw::Dialog::builder()
-        .title(if matches!(purpose, TemplatePurpose::Pick(_)) {
+        .title(if matches!(purpose, TemplatePurpose::Insert(_)) {
+            gettext("Insert Template")
+        } else if matches!(purpose, TemplatePurpose::Pick(_)) {
             gettext("Choose Template")
         } else {
             gettext("Templates")
@@ -141,7 +148,10 @@ pub(crate) fn show_list(
         toolbar.set_content(Some(&manager_list(parent, &dialog, dispatcher, templates)));
     }
     dialog.set_child(Some(&toolbar));
-    if matches!(purpose, TemplatePurpose::Pick(_)) {
+    if matches!(
+        purpose,
+        TemplatePurpose::Pick(_) | TemplatePurpose::Insert(_)
+    ) {
         let d = dispatcher.clone();
         dialog.connect_closed(move |_| {
             let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PickerClosed(request_id)));

@@ -300,24 +300,12 @@ pub(crate) fn install_window_actions(
     install_mvu_actions(window, dispatcher, runtime);
 }
 
-fn install_note_actions(
-    window: &adw::ApplicationWindow,
-    dispatcher: &AppDispatcher,
-    runtime: &AppRuntime<SqliteLibrary>,
-) {
-    let new_note = gtk::gio::SimpleAction::new("new-note", None);
-    let dispatcher_for_new_note = dispatcher.clone();
-    let runtime_for_new_note = runtime.clone();
-    new_note.connect_activate(move |_, _| {
-        // Match the tab bar's new-note affordance.
-        let allowed = runtime_for_new_note.model().can_create_note();
-        if allowed {
-            let _ = dispatcher_for_new_note.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
-        }
-    });
-    window.add_action(&new_note);
-
+fn install_template_actions(window: &adw::ApplicationWindow, dispatcher: &AppDispatcher) {
     for (name, message) in [
+        (
+            "insert-template",
+            AppMsg::Templates(crate::mvu::TemplatesMsg::Insert),
+        ),
         (
             "templates",
             AppMsg::Templates(crate::mvu::TemplatesMsg::Manage),
@@ -342,6 +330,26 @@ fn install_note_actions(
         });
         window.add_action(&action);
     }
+}
+
+fn install_note_actions(
+    window: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
+) {
+    let new_note = gtk::gio::SimpleAction::new("new-note", None);
+    let dispatcher_for_new_note = dispatcher.clone();
+    let runtime_for_new_note = runtime.clone();
+    new_note.connect_activate(move |_, _| {
+        // Match the tab bar's new-note affordance.
+        let allowed = runtime_for_new_note.model().can_create_note();
+        if allowed {
+            let _ = dispatcher_for_new_note.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
+        }
+    });
+    window.add_action(&new_note);
+
+    install_template_actions(window, dispatcher);
     let import_note = gtk::gio::SimpleAction::new("import-note", None);
     let dispatcher_for_import = dispatcher.clone();
     let runtime_for_import = runtime.clone();

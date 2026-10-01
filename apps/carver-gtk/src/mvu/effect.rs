@@ -16,6 +16,8 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Capture the source selection before opening the insertion picker.
+    CaptureTemplateInsert,
     /// Refresh the template names used by note-creation controls.
     LoadTemplateCatalog {
         /// Coalesced refresh identity.

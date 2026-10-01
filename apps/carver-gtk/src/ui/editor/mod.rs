@@ -337,6 +337,10 @@ impl EditorViewRefs {
         }
     }
 
+    pub(crate) fn source_selection(&self) -> std::ops::Range<usize> {
+        source_commands::selection_from_buffer(&self.source_buffer)
+    }
+
     /// Restores the selection calculated by a pure source edit after its snapshot renders.
     pub(crate) fn select_source_range(
         &self,
@@ -1469,6 +1473,10 @@ fn append_file_options(menu: &gtk::gio::Menu) {
     section.append(
         Some(&gettext("Save as Template…")),
         Some("win.save-as-template"),
+    );
+    section.append(
+        Some(&gettext("Insert Template…")),
+        Some("win.insert-template"),
     );
     section.append(Some(&gettext("Export note…")), Some(EXPORT_NOTE_ACTION));
     section.append(Some(&gettext("Print…")), Some(PRINT_NOTE_ACTION));

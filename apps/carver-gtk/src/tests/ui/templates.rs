@@ -435,14 +435,16 @@ pub(super) fn saving_as_template_should_copy_unsaved_editor_source() -> TestResu
         "# Unsaved draft\n\n## Agenda\n"
     );
     save_draft(&dialog)?;
-    let manager = visible_dialog(&fixture.window, "templates-dialog")?;
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
     let templates = glib::MainContext::default().block_on(fixture.client.templates_async())?;
     assert_eq!(templates[0].source, "# Unsaved draft\n\n## Agenda\n");
     assert_eq!(
         fixture.client.note(note.id)?.ok_or("original note")?.source,
         "# Original\n"
     );
-    manager.close();
     fixture.window.close();
     Ok(())
 }
@@ -711,6 +713,149 @@ pub(super) fn control_click_should_choose_template_without_creating_a_note() -> 
             }
         )
         .is_ok_and(|page| page.items.len() == before + 1)));
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn inserting_template_should_preserve_properties_and_undo_in_source() -> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.InsertTemplateSourceTests",
+        |_, _| Ok(()),
+        |config| {
+            config.editor.last_mode = carver_config::EditorMode::Source;
+            config.editor.autosave_delay_ms = 60_000;
+            config.document_properties.enabled = true;
+            config.document_properties.entries = vec![carver_config::DocumentProperty {
+                key: "global_only".into(),
+                field_type: carver_config::DocumentPropertyType::Text,
+                multiple: false,
+                value: serde_json::json!("default"),
+            }];
+        },
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let original = "---\nstatus: done\n---\n\n# Existing\n";
+    let note = fixture.client.create_note(fixture.category.id)?;
+    let note = fixture.client.save_note(note.id, note.revision, original)?;
+    glib::MainContext::default().block_on(fixture.client.create_template_async(
+        "Meeting".into(),
+        "---\nstatus: draft\nkind: meeting\n---\n\n# Agenda\n".into(),
+    ))?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::NewTab,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok_and(
+        |view| view
+            .buffer()
+            .text(&view.buffer().start_iter(), &view.buffer().end_iter(), true)
+            == original
+    )));
+    let buffer = fixture.source()?.buffer();
+    buffer.place_cursor(&buffer.end_iter());
+    fixture
+        .window
+        .lookup_action("insert-template")
+        .ok_or("insert action")?
+        .activate(None);
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    assert_eq!(picker.title(), "Insert Template");
+    assert!(widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:kind").is_some());
+    assert!(widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:status").is_none());
+    widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("insert confirmation")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), true)
+        .contains("# Agenda")));
+    let inserted = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true);
+    assert!(has_text_property(&inserted, "status", "done"), "{inserted}");
+    assert!(
+        has_text_property(&inserted, "kind", "meeting"),
+        "{inserted}"
+    );
+    assert!(!inserted.contains("global_only"));
+    assert!(inserted.find("# Existing") < inserted.find("# Agenda"));
+    buffer.undo();
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        true
+    ) == original));
+    assert_eq!(
+        fixture.client.note(note.id)?.ok_or("original note")?.source,
+        original
+    );
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.InsertTemplateRichTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let note = fixture.client.create_note(fixture.category.id)?;
+    let note = fixture.client.save_note(
+        note.id,
+        note.revision,
+        "---\nstatus: done\n---\n\n# Existing\n",
+    )?;
+    glib::MainContext::default().block_on(fixture.client.create_template_async(
+        "Properties".into(),
+        "---\nkind: meeting\nstatus: draft\n---\n".into(),
+    ))?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::NewTab,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok_and(
+        |view| view
+            .buffer()
+            .text(&view.buffer().start_iter(), &view.buffer().end_iter(), true)
+            .contains("Existing")
+    )));
+    let web =
+        widget_as::<webkit6::WebView>(&fixture.root()?, "rich-editor").ok_or("rich editor")?;
+    super::window::assert_web_script_should_be_true(
+        &web,
+        "Boolean(window.carverEditor?.editor?.state?.doc?.textContent?.includes('Existing'))",
+    );
+    fixture
+        .window
+        .lookup_action("insert-template")
+        .ok_or("insert action")?
+        .activate(None);
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("insert confirmation")?
+        .emit_clicked();
+    let buffer = fixture.source()?.buffer();
+    assert!(run_main_context_until(|| has_text_property(
+        &buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
+        "kind",
+        "meeting"
+    )));
+    assert!(has_text_property(
+        &buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
+        "status",
+        "done"
+    ));
+    super::window::assert_web_script_should_be_true(&web, "window.carverEditor.command('undo')");
+    assert!(run_main_context_until(|| !has_text_property(
+        &buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
+        "kind",
+        "meeting"
+    )));
+    assert!(
+        buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), true)
+            .contains("Existing")
+    );
     fixture.window.close();
     Ok(())
 }

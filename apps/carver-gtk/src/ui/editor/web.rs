@@ -190,6 +190,10 @@ impl RichEditor {
     /// Sends a native formatting action to the focused editor selection.
     pub(crate) fn command(&self, command: &EditorCommand) {
         let (name, argument) = match command {
+            EditorCommand::InsertSource { source, prefix } => (
+                "insert-source",
+                serde_json::json!({"source": source, "prefix": prefix}).to_string(),
+            ),
             EditorCommand::Named(name) => (name.as_str(), String::from("null")),
             EditorCommand::Heading(level) => ("heading", level.to_string()),
             EditorCommand::InsertTable(table) => (

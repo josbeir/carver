@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 07:55+0200\n"
+"POT-Creation-Date: 2026-10-01 08:03+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -113,6 +113,10 @@ msgstr "模板不能包含托管图片或附件。"
 #: apps/carver-gtk/src/mvu/templates.rs
 msgid "The template frontmatter is invalid or contains duplicate properties."
 msgstr "模板的前置元数据无效或包含重复属性。"
+
+#: apps/carver-gtk/src/mvu/templates/insertion.rs
+msgid "The template could not be inserted. Check the note’s properties."
+msgstr "无法插入模板。请检查笔记的属性。"
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -1403,6 +1407,7 @@ msgstr "地址"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "插入"
 
@@ -1479,6 +1484,10 @@ msgstr "HTML 文档"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Include managed files"
 msgstr "包含托管文件"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Insert Template…"
+msgstr "插入模板…"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Markdown documents"
@@ -1864,6 +1873,11 @@ msgid "Edit Template"
 msgstr "编辑模板"
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Insert Template"
+msgstr "插入模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "New Template"
 msgstr "新建模板"
 
@@ -1916,8 +1930,16 @@ msgid "Create Note"
 msgstr "创建笔记"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Inserts at the cursor and adds missing properties. Existing property values stay unchanged."
+msgstr "在光标位置插入并添加缺失的属性。现有属性值保持不变。"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "New notes get their own copy. Editing a template won’t change existing notes."
 msgstr "新笔记都有自己的副本。编辑模板不会更改现有笔记。"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Properties to add"
+msgstr "要添加的属性"
 
 #: apps/carver-gtk/src/ui/templates/properties.rs
 msgid "From template"

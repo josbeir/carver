@@ -691,6 +691,20 @@ impl ViewRefs {
         {
             crate::ui::dialogs::render_document_property_count(root.upcast_ref(), count);
         }
+        if let Some(window) = self
+            .route_stack
+            .root()
+            .and_downcast::<adw::ApplicationWindow>()
+            && let Some(action) = window
+                .lookup_action("insert-template")
+                .and_downcast::<gtk::gio::SimpleAction>()
+        {
+            action.set_enabled(model.editor.as_ref().is_some_and(|document| {
+                model.route == Route::Editor
+                    && document.mode != carver_config::EditorMode::Rendered
+                    && document.external_change.is_none()
+            }));
+        }
         if let Some(child) = match model.route {
             Route::Browser => Some("browser"),
             Route::Base => Some("base"),
@@ -959,6 +973,15 @@ impl ViewRefs {
             return;
         };
         match effect {
+            Effect::CaptureTemplateInsert => {
+                let editor = self.editor.borrow().clone();
+                if let Some(editor) = editor {
+                    let selection = editor.source_selection();
+                    let _ = dispatcher.dispatch(AppMsg::Templates(
+                        crate::mvu::TemplatesMsg::InsertCaptured(selection),
+                    ));
+                }
+            }
             Effect::ShowTemplates {
                 templates,
                 purpose,

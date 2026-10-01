@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 07:55+0200\n"
+"POT-Creation-Date: 2026-10-01 08:03+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -113,6 +113,10 @@ msgstr "Las plantillas no pueden contener imágenes ni archivos adjuntos gestion
 #: apps/carver-gtk/src/mvu/templates.rs
 msgid "The template frontmatter is invalid or contains duplicate properties."
 msgstr "Los metadatos de la plantilla no son válidos o contienen propiedades duplicadas."
+
+#: apps/carver-gtk/src/mvu/templates/insertion.rs
+msgid "The template could not be inserted. Check the note’s properties."
+msgstr "No se pudo insertar la plantilla. Comprueba las propiedades de la nota."
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -1411,6 +1415,7 @@ msgstr "Dirección"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "Insertar"
 
@@ -1487,6 +1492,10 @@ msgstr "Documentos HTML"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Include managed files"
 msgstr "Incluir archivos gestionados"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Insert Template…"
+msgstr "Insertar plantilla…"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Markdown documents"
@@ -1872,6 +1881,11 @@ msgid "Edit Template"
 msgstr "Editar plantilla"
 
 #: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Insert Template"
+msgstr "Insertar plantilla"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "New Template"
 msgstr "Nueva plantilla"
 
@@ -1924,8 +1938,16 @@ msgid "Create Note"
 msgstr "Crear nota"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Inserts at the cursor and adds missing properties. Existing property values stay unchanged."
+msgstr "Inserta en el cursor y añade las propiedades que faltan. Los valores existentes no cambian."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "New notes get their own copy. Editing a template won’t change existing notes."
 msgstr "Las notas nuevas reciben su propia copia. Editar una plantilla no cambia las notas existentes."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Properties to add"
+msgstr "Propiedades que se añadirán"
 
 #: apps/carver-gtk/src/ui/templates/properties.rs
 msgid "From template"

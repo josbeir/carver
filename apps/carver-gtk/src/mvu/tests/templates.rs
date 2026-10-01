@@ -317,3 +317,88 @@ fn draft_preview_should_ignore_a_closed_editor() {
         .is_empty()
     );
 }
+
+#[test]
+fn saving_template_from_note_should_finish_without_opening_manager() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Edit(None)));
+    model.template_editor_from_note = true;
+    let request_id = model.template_editor.unwrap_or(RequestId(0));
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::Saved {
+            request_id,
+            result: Ok(()),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, Effect::FinishTemplateEdit { error: None, .. }))
+    );
+    assert!(!effects.iter().any(|e| matches!(
+        e,
+        Effect::LoadTemplates {
+            purpose: TemplatePurpose::Manage,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn template_insertion_should_ignore_confirmation_after_the_note_changes() -> Result<(), String> {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(1),
+            source: "Original".into(),
+        }),
+    );
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::InsertCaptured(0..0)),
+    );
+    let Some(Effect::LoadTemplates {
+        request_id,
+        purpose,
+    }) = effects.first()
+    else {
+        return Err("template load".into());
+    };
+    let request_id = *request_id;
+    let purpose = purpose.clone();
+    let template = carver_sdk::NoteTemplate {
+        id: carver_sdk::TemplateId::new(),
+        name: "Snippet".into(),
+        source: "Inserted".into(),
+        revision: Revision(1),
+        created_at: OffsetDateTime::UNIX_EPOCH,
+        updated_at: OffsetDateTime::UNIX_EPOCH,
+    };
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::Loaded {
+            request_id,
+            purpose,
+            result: Ok(vec![template]),
+        }),
+    );
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Changed".into())),
+    );
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::CreateSelected(request_id))
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model.editor.as_ref().map(|d| d.source.as_str()),
+        Some("Changed")
+    );
+    Ok(())
+}

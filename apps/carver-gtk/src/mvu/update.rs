@@ -1966,7 +1966,7 @@ fn discard_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> V
     Vec::new()
 }
 
-fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
     let session = model.editor.as_ref()?.session;
     let timer_id = model.next_preview_timer_id();
     model.preview_timer = Some((session, timer_id));
@@ -3662,7 +3662,7 @@ fn character_byte_offset(source: &str, offset: usize) -> usize {
         .map_or(source.len(), |(index, _)| index)
 }
 
-fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
     let session = model.editor.as_ref()?.session;
     schedule_editor_save_for(model, session)
 }

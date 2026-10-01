@@ -197,6 +197,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     note_flow::activating_a_background_tab_should_render_its_preview(&fixture)?;
     // No-op unless CARVER_SCREENSHOT_DIR is set; keeps one GTK entry point.
     screenshots::capture_docs_screenshots()?;
+    templates::inserting_template_should_preserve_properties_and_undo_in_source()?;
+    templates::inserting_property_only_template_should_undo_in_rich_mode()?;
     templates::control_click_should_choose_template_without_creating_a_note()?;
     templates::template_properties_should_scroll_inside_a_bounded_panel_when_many()?;
     templates::template_property_values_should_stay_on_one_line_at_all_dialog_widths()?;

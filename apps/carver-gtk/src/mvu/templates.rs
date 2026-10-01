@@ -3,6 +3,7 @@ use super::{AppModel, Effect, RequestId, UiError};
 use carver_sdk::{Category, CategoryId, NoteId, NoteTemplate, Revision, TemplateId};
 use gettextrs::gettext;
 
+mod insertion;
 mod preview;
 
 /// Origin of an effective property for a new note.
@@ -39,6 +40,20 @@ pub(crate) struct PickerState {
     pub(crate) category_id: CategoryId,
     pub(crate) templates: Vec<NoteTemplate>,
     pub(crate) selected: Option<TemplateId>,
+    pub(crate) insertion: Option<InsertTarget>,
+}
+
+/// Editor snapshot captured before opening the insertion picker.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InsertTarget {
+    /// Editor lifetime receiving the insert.
+    pub session: super::EditorSessionId,
+    /// Canonical source used to reject stale confirmations.
+    pub source: String,
+    /// Projection that owned the captured insertion point.
+    pub mode: carver_config::EditorMode,
+    /// Source-mode character selection; rich mode retains its projection selection.
+    pub selection: std::ops::Range<usize>,
 }
 
 /// Purpose of loading the current template list.
@@ -50,6 +65,8 @@ pub enum TemplatePurpose {
     NewCategory,
     /// Choose a template for a captured destination.
     Pick(CategoryId),
+    /// Insert into the captured editor rather than creating a note.
+    Insert(InsertTarget),
     /// Edit a category and its template assignment.
     Category(Category),
 }
@@ -89,6 +106,10 @@ pub enum TemplatesMsg {
     NewCategory,
     /// Open a picker in the current category.
     Pick,
+    /// Capture the current insertion point at the GTK boundary.
+    Insert,
+    /// Source selection captured before the template picker opens.
+    InsertCaptured(std::ops::Range<usize>),
     /// Open a category's editing dialog.
     EditCategory(Category),
     /// Templates loaded for a dialog.
@@ -195,6 +216,13 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
         }
         TemplatesMsg::SelectPreview { request_id, id } => select_preview(model, request_id, id),
         TemplatesMsg::CreateSelected(request_id) => {
+            if model
+                .template_picker
+                .as_ref()
+                .is_some_and(|p| p.request_id == request_id && p.insertion.is_some())
+            {
+                return insertion::confirm(model);
+            }
             let Some(picker) = &model.template_picker else {
                 return Vec::new();
             };
@@ -232,6 +260,31 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
         TemplatesMsg::Pick => model
             .active_category_id()
             .map_or_else(Vec::new, |id| load(model, TemplatePurpose::Pick(id))),
+        TemplatesMsg::Insert => {
+            if model.editor.as_ref().is_some_and(|d| {
+                d.mode != carver_config::EditorMode::Rendered && d.external_change.is_none()
+            }) {
+                vec![Effect::CaptureTemplateInsert]
+            } else {
+                Vec::new()
+            }
+        }
+        TemplatesMsg::InsertCaptured(selection) => {
+            let Some(document) = model
+                .editor
+                .as_ref()
+                .filter(|d| d.mode != carver_config::EditorMode::Rendered)
+            else {
+                return Vec::new();
+            };
+            let target = InsertTarget {
+                session: document.session,
+                source: document.source.clone(),
+                mode: document.mode,
+                selection,
+            };
+            load(model, TemplatePurpose::Insert(target))
+        }
         TemplatesMsg::EditCategory(category) => load(model, TemplatePurpose::Category(category)),
         TemplatesMsg::Loaded {
             request_id,
@@ -246,11 +299,11 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                     model.template_catalog.state = super::LoadState::Ready(templates.clone());
                     let mut initial_preview = None;
                     let mut selected_id = None;
-                    if let TemplatePurpose::Pick(category_id) = purpose {
+                    if let TemplatePurpose::Pick(category_id) = &purpose {
                         let default_id = match &model.sidebar.state {
                             super::LoadState::Ready(categories) => categories
                                 .iter()
-                                .find(|c| c.category.id == category_id)
+                                .find(|c| c.category.id == *category_id)
                                 .and_then(|c| c.category.default_template_id),
                             _ => None,
                         };
@@ -262,7 +315,8 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                         selected_id = selected;
                         model.template_picker = Some(PickerState {
                             request_id,
-                            category_id,
+                            category_id: *category_id,
+                            insertion: None,
                             templates: templates.clone(),
                             selected,
                         });
@@ -274,6 +328,27 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                                     &model.config.document_properties,
                                 )
                             });
+                    }
+                    if let TemplatePurpose::Insert(target) = &purpose {
+                        let selected = templates.first().map(|t| t.id);
+                        selected_id = selected;
+                        initial_preview = templates.first().map(|t| {
+                            insertion::preview(&t.source, target, &model.config.document_properties)
+                        });
+                        let Some(document) = model.editor.as_ref().filter(|d| {
+                            d.session == target.session
+                                && d.source == target.source
+                                && d.mode == target.mode
+                        }) else {
+                            return Vec::new();
+                        };
+                        model.template_picker = Some(PickerState {
+                            request_id,
+                            category_id: document.category_id,
+                            templates: templates.clone(),
+                            selected,
+                            insertion: Some(target.clone()),
+                        });
                     }
                     vec![Effect::ShowTemplates {
                         selected: selected_id,
@@ -290,6 +365,7 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
             }
         }
         TemplatesMsg::Edit(original) => {
+            model.template_editor_from_note = false;
             let name = original
                 .as_ref()
                 .map_or_else(String::new, |t| t.name.clone());
@@ -298,8 +374,12 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                 .map_or_else(String::new, |t| t.source.clone());
             edit(model, original, name, source)
         }
-        TemplatesMsg::Duplicate(template) => edit(model, None, template.name, template.source),
+        TemplatesMsg::Duplicate(template) => {
+            model.template_editor_from_note = false;
+            edit(model, None, template.name, template.source)
+        }
         TemplatesMsg::FromEditor => {
+            model.template_editor_from_note = true;
             let Some(note) = &model.editor else {
                 return Vec::new();
             };
@@ -308,6 +388,7 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
             edit(model, None, name, source)
         }
         TemplatesMsg::FromNote(id) => {
+            model.template_editor_from_note = true;
             if let Some(note) = model
                 .editor
                 .as_ref()
@@ -342,7 +423,11 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                 return Vec::new();
             }
             model.template_editor = None;
-            load(model, TemplatePurpose::Manage)
+            if model.template_editor_from_note {
+                Vec::new()
+            } else {
+                load(model, TemplatePurpose::Manage)
+            }
         }
         TemplatesMsg::Save {
             request_id,
@@ -389,7 +474,10 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                         request_id,
                         error: None,
                     }];
-                    effects.extend(load(model, TemplatePurpose::Manage));
+                    if !model.template_editor_from_note {
+                        effects.extend(load(model, TemplatePurpose::Manage));
+                    }
+                    effects.extend(refresh_catalog(model));
                     effects.extend(acknowledge_mutation(model));
                     effects
                 }
@@ -494,7 +582,7 @@ pub(super) fn validate(
     })
 }
 
-// Templates do not modify existing notes. Record our own write before the next focus wakeup
+// Catalog mutations do not modify notes. Record our own write before the next focus wakeup
 // checks the shared library, without refreshing note content or browser pages.
 fn acknowledge_mutation(model: &mut AppModel) -> Option<Effect> {
     super::update::request_library_revision(
@@ -526,7 +614,12 @@ fn select_preview(
     picker.selected = template.map(|t| t.id);
     vec![Effect::ShowTemplatePreview {
         request_id,
-        preview: template
-            .map(|t| preview::source_preview(&t.source, &model.config.document_properties)),
+        preview: template.map(|t| {
+            if let Some(target) = &picker.insertion {
+                insertion::preview(&t.source, target, &model.config.document_properties)
+            } else {
+                preview::source_preview(&t.source, &model.config.document_properties)
+            }
+        }),
     }]
 }

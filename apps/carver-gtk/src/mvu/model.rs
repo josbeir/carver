@@ -854,6 +854,8 @@ pub struct AppModel {
     pub template_request: Option<RequestId>,
     /// Current template editing lifetime.
     pub template_editor: Option<RequestId>,
+    /// Whether the draft originated from a note rather than template management.
+    pub template_editor_from_note: bool,
     /// Full persisted configuration used to create atomic save snapshots.
     pub config: Config,
     /// Current high-level surface.
@@ -936,6 +938,7 @@ impl AppModel {
             template_picker: None,
             template_request: None,
             template_editor: None,
+            template_editor_from_note: false,
             config: config.clone(),
             route: Route::Browser,
             editor_return_route: Route::Browser,

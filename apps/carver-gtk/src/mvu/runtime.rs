@@ -220,7 +220,8 @@ impl<B: LibraryBackend> AppRuntime<B> {
             | Effect::CreateCategoryNote { .. }
             | Effect::CreateTemplateNote { .. }
             | Effect::SaveTemplateCategory { .. }) => self.run_template_effect(effect),
-            effect @ (Effect::ShowTemplatePreview { .. }
+            effect @ (Effect::CaptureTemplateInsert
+            | Effect::ShowTemplatePreview { .. }
             | Effect::ShowDraftProperties { .. }
             | Effect::ShowTemplates { .. }
             | Effect::ShowTemplateEditor { .. }

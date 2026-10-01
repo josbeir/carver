@@ -12,7 +12,8 @@ mod source_edit;
 mod templates;
 mod update;
 pub use templates::{
-    TemplatePreview, TemplateProperty, TemplatePropertyOrigin, TemplatePurpose, TemplatesMsg,
+    InsertTarget, TemplatePreview, TemplateProperty, TemplatePropertyOrigin, TemplatePurpose,
+    TemplatesMsg,
 };
 
 pub use effect::Effect;
