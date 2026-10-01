@@ -262,6 +262,7 @@ pub(crate) fn show_editor(
     header.set_show_start_title_buttons(false);
     header.set_show_end_title_buttons(false);
     let cancel = gtk::Button::with_label(&gettext("Cancel"));
+    cancel.set_widget_name("template-cancel");
     let save = gtk::Button::with_label(&gettext("Save"));
     save.set_widget_name("template-save-button");
     save.add_css_class("suggested-action");

@@ -154,7 +154,9 @@ pub fn merge_template_source(
     if document.fields.len() == initial {
         return Ok(source.to_owned());
     }
-    Ok(crate::frontmatter::add_template_fields(source, &document)?)
+    Ok(crate::frontmatter::replace_frontmatter_preserving_body(
+        source, &document,
+    )?)
 }
 
 #[cfg(test)]

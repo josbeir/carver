@@ -34,7 +34,7 @@ pub use frontmatter::{
     FrontmatterDocument, FrontmatterError, FrontmatterField, FrontmatterFormat, FrontmatterValue,
     frontmatter_raw, frontmatter_source, frontmatter_source_with_format, is_reserved_key,
     parse_frontmatter_document, render_frontmatter_document, replace_frontmatter,
-    replace_frontmatter_raw, set_property, set_title,
+    replace_frontmatter_preserving_body, replace_frontmatter_raw, set_property, set_title,
 };
 pub use note_links::{
     NOTE_LINK_SCHEME, NoteLinkRef, NoteLinks, extract_note_link_targets, extract_note_links,

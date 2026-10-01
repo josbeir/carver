@@ -32,13 +32,16 @@ pub fn expand_template_source(
             expand_value(&mut field.value, context)?;
         }
     }
-    let body = replace_frontmatter(source, None)?;
-    let expanded = expand_text(&body, context)?;
-    // Preserve static sources byte-for-byte, including frontmatter formatting.
-    if !source.contains("{{") {
-        return Ok(source.to_owned());
-    }
-    let result = replace_frontmatter(&expanded, document.as_ref())?;
+    // Work on the original header so comments and the exact body separator survive.
+    let boundary = crate::frontmatter::template_body_start(source);
+    let expanded = expand_text(&source[boundary..], context)?;
+    let rewritten = if document.as_ref().is_some_and(|d| !d.fields.is_empty()) {
+        replace_frontmatter(source, document.as_ref())?
+    } else {
+        source.to_owned()
+    };
+    let header_end = crate::frontmatter::template_body_start(&rewritten);
+    let result = format!("{}{}", &rewritten[..header_end], expanded);
     super::validate_template_structure(&result)?;
     Ok(result)
 }

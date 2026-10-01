@@ -20,7 +20,8 @@ impl PreviewHandle {
         self.properties.group.set_visible(
             preview.is_some()
                 && (!self.inserting
-                    || preview.is_some_and(|p| p.as_ref().is_ok_and(|p| !p.properties.is_empty()))),
+                    || preview
+                        .is_some_and(|p| p.as_ref().map_or(true, |p| !p.properties.is_empty()))),
         );
     }
 }

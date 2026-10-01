@@ -997,14 +997,17 @@ fn escape_double_quoted(text: &str) -> String {
 #[cfg(test)]
 mod tests;
 
-/// Adds missing fields while preserving all bytes following the frontmatter fence.
+/// Replaces properties while preserving all bytes following the frontmatter fence.
 ///
 /// # Errors
 /// Returns an error if the selected format cannot serialize the merged fields.
-pub(crate) fn add_template_fields(
+pub fn replace_frontmatter_preserving_body(
     source: &str,
     document: &FrontmatterDocument,
 ) -> Result<String, FrontmatterError> {
+    if document.fields.is_empty() {
+        return Ok(source[template_body_start(source)..].to_owned());
+    }
     let rendered = replace_frontmatter(source, Some(document))?;
     if let Some(original) = scan_frontmatter(source)
         && let Some(replacement) = scan_frontmatter(&rendered)
@@ -1017,4 +1020,9 @@ pub(crate) fn add_template_fields(
     }
     let block = render_frontmatter_document(document)?;
     Ok(format!("{block}\n\n{source}"))
+}
+
+/// The exact byte boundary between a template header and its untouched trailing source.
+pub(crate) fn template_body_start(source: &str) -> usize {
+    scan_frontmatter(source).map_or(0, |block| block.block_end)
 }

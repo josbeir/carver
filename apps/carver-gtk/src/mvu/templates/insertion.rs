@@ -138,25 +138,27 @@ pub(super) fn confirm(model: &mut AppModel) -> Vec<Effect> {
         .saturating_sub(note_body.chars().count());
     let start = target.selection.start.max(prefix_len);
     let end = target.selection.end.max(start);
-    let edit = super::super::SourceEdit::apply(
-        target.source,
-        start..end,
-        super::super::SourceCommand::InsertText(body),
-    );
+    let (inserted, selection) = if body.is_empty() {
+        (target.source, target.selection)
+    } else {
+        let edit = super::super::SourceEdit::apply(
+            target.source,
+            start..end,
+            super::super::SourceCommand::InsertText(body),
+        );
+        (edit.source().to_owned(), edit.selection())
+    };
     let updated = match properties.as_ref() {
-        Some(properties) => replace_frontmatter(edit.source(), Some(properties)),
-        None => Ok(edit.source().to_owned()),
+        Some(properties) => {
+            carver_domain::replace_frontmatter_preserving_body(&inserted, properties)
+        }
+        None => Ok(inserted.clone()),
     };
     let Ok(updated) = updated else {
         return Vec::new();
     };
-    let selection = edit.selection();
-    let remaining_start = edit
-        .source()
-        .chars()
-        .count()
-        .saturating_sub(selection.start);
-    let remaining_end = edit.source().chars().count().saturating_sub(selection.end);
+    let remaining_start = inserted.chars().count().saturating_sub(selection.start);
+    let remaining_end = inserted.chars().count().saturating_sub(selection.end);
     let updated_len = updated.chars().count();
     let selection =
         updated_len.saturating_sub(remaining_start)..updated_len.saturating_sub(remaining_end);

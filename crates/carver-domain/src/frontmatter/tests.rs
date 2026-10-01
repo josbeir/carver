@@ -780,3 +780,19 @@ fn a_new_title_should_lead_the_block() {
         "---\ntitle: \"Meeting\"\nauthor: Jane\n---\n\nBody"
     );
 }
+
+#[test]
+fn removing_properties_should_preserve_all_trailing_body_bytes() -> Result<(), FrontmatterError> {
+    let source = "---\nkind: meeting\n---\n\n\nBody\n";
+    let mut document = yaml_document(source);
+    document.fields.clear();
+    assert_eq!(
+        replace_frontmatter_preserving_body(source, &document)?,
+        "\n\n\nBody\n"
+    );
+    assert_eq!(
+        replace_frontmatter_preserving_body("Body\n", &document)?,
+        "Body\n"
+    );
+    Ok(())
+}

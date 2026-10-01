@@ -832,6 +832,10 @@ pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> Tes
         &web,
         "Boolean(window.carverEditor?.editor?.state?.doc?.textContent?.includes('Existing'))",
     );
+    super::window::assert_web_script_should_be_true(
+        &web,
+        "(() => { let at = 0; window.carverEditor.editor.state.doc.descendants((node, pos) => { if (node.type.name === 'paragraph' && node.textContent === 'Existing') at = pos + 1; }); return window.carverEditor.editor.commands.setTextSelection({from: at, to: at + 8}); })()",
+    );
     fixture
         .window
         .lookup_action("insert-template")
@@ -862,6 +866,13 @@ pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> Tes
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .contains("created:")
     );
+    assert!(run_main_context_until(|| fixture
+        .client
+        .note(note.id)
+        .is_ok_and(|saved| saved.is_some_and(|saved| saved
+            .source
+            .contains("Existing")
+            && has_text_property(&saved.source, "kind", "meeting")))));
     super::window::assert_web_script_should_be_true(&web, "window.carverEditor.command('undo')");
     assert!(run_main_context_until(|| !has_text_property(
         &buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
@@ -1035,6 +1046,281 @@ pub(super) fn category_templates_should_expand_patterns_at_note_creation() -> Te
     let source = fixture.client.note(created.id)?.ok_or("note")?.source;
     assert!(!source.contains("{{"));
     assert!(carver_domain::parse_frontmatter_document(&source).is_some());
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn property_only_source_insertion_should_preserve_selection_persist_and_undo()
+-> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.PropertyOnlySourceRegression",
+        |_, _| Ok(()),
+        |config| config.editor.last_mode = carver_config::EditorMode::Source,
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let original = "Before café 🦀 SELECT After\n";
+    let note = fixture
+        .client
+        .create_note_with_source(fixture.category.id, original)?;
+    glib::MainContext::default().block_on(
+        fixture
+            .client
+            .create_template_async("Properties".into(), "---\nkind: meeting\n---\n".into()),
+    )?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::NewTab,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok_and(|v| v
+        .buffer()
+        .text(&v.buffer().start_iter(), &v.buffer().end_iter(), true)
+        == original)));
+    let buffer = fixture.source()?.buffer();
+    let start = i32::try_from("Before café 🦀 ".chars().count())?;
+    buffer.select_range(
+        &buffer.iter_at_offset(start),
+        &buffer.iter_at_offset(start + 6),
+    );
+    fixture
+        .window
+        .lookup_action("insert-template")
+        .ok_or("insert")?
+        .activate(None);
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("confirmation")?
+        .emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .client
+        .note(note.id)
+        .is_ok_and(|n| n.is_some_and(|n| n.source.ends_with(original)
+            && has_text_property(&n.source, "kind", "meeting")
+            && n.revision.0 == note.revision.0 + 1))));
+    buffer.undo();
+    assert!(run_main_context_until(|| fixture
+        .client
+        .note(note.id)
+        .is_ok_and(|n| n.is_some_and(
+            |n| n.source == original && n.revision.0 == note.revision.0 + 2
+        ))));
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn invalid_insertion_template_should_show_error_and_allow_another_choice() -> TestResult
+{
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.InvalidInsertionRegression",
+        |client, _| {
+            glib::MainContext::default().block_on(
+                client.create_template_async("A Invalid".into(), "---\ncount: text\n---\n".into()),
+            )?;
+            glib::MainContext::default().block_on(
+                client.create_template_async("B Valid".into(), "---\ncount: 3\n---\n".into()),
+            )?;
+            Ok(())
+        },
+        |config| {
+            config.document_properties.entries = vec![carver_config::DocumentProperty {
+                key: "count".into(),
+                field_type: carver_config::DocumentPropertyType::Number,
+                multiple: false,
+                value: serde_json::json!(1),
+            }];
+        },
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let note = fixture
+        .client
+        .create_note_with_source(fixture.category.id, "Existing")?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::NewTab,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok()));
+    fixture
+        .window
+        .lookup_action("insert-template")
+        .ok_or("insert")?
+        .activate(None);
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    let status = widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-properties-status")
+        .ok_or("visible error")?;
+    widget_as::<adw::ComboRow>(picker.upcast_ref(), "template-picker-choice")
+        .ok_or("choice")?
+        .set_selected(0);
+    assert!(run_main_context_until(
+        || status.is_mapped() && status.title().contains("count")
+    ));
+    let confirm = widget_as::<gtk::Button>(picker.upcast_ref(), "template-create-note")
+        .ok_or("confirmation")?;
+    assert!(!confirm.is_sensitive());
+    widget_as::<adw::ComboRow>(picker.upcast_ref(), "template-picker-choice")
+        .ok_or("choice")?
+        .set_selected(1);
+    assert!(run_main_context_until(|| confirm.is_sensitive()));
+    assert!(widget_as::<adw::ActionRow>(picker.upcast_ref(), "template-property:count").is_some());
+    picker.close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_save_conflict_should_preserve_draft_and_restore_controls() -> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.TemplateConflictRegression",
+        |client, _| {
+            glib::MainContext::default().block_on(
+                client.create_template_async("Original".into(), "Original source".into()),
+            )?;
+            Ok(())
+        },
+        |_| {},
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let template = glib::MainContext::default()
+        .block_on(fixture.client.templates_async())?
+        .into_iter()
+        .next()
+        .ok_or("template")?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Templates(TemplatesMsg::Edit(Some(
+            template.clone(),
+        ))));
+    let dialog = visible_dialog(&fixture.window, "template-editor-dialog")?;
+    glib::MainContext::default().block_on(fixture.client.save_template_async(
+        template.id,
+        template.revision,
+        "External".into(),
+        "External source".into(),
+    ))?;
+    write_draft(&dialog, "Local", "Local unsaved source")?;
+    save_draft(&dialog)?;
+    let error = widget_as::<gtk::Label>(dialog.upcast_ref(), "template-error").ok_or("error")?;
+    assert!(run_main_context_until(|| error.is_visible()));
+    let name =
+        widget_as::<adw::EntryRow>(dialog.upcast_ref(), "template-name-entry").ok_or("name")?;
+    let source = widget_as::<sourceview5::View>(dialog.upcast_ref(), "template-source-view")
+        .ok_or("source")?;
+    assert!(name.is_sensitive() && source.is_editable());
+    assert_eq!(name.text(), "Local");
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            true
+        ),
+        "Local unsaved source"
+    );
+    assert!(
+        widget_as::<gtk::Button>(dialog.upcast_ref(), "template-cancel")
+            .is_some_and(|b| b.is_sensitive())
+    );
+    assert_eq!(
+        glib::MainContext::default()
+            .block_on(fixture.client.template_async(template.id))?
+            .ok_or("persisted template")?
+            .source,
+        "External source"
+    );
+    dialog.force_close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn saving_an_unopened_note_as_template_should_return_to_the_browser() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.NoteTemplateOriginRegression")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let note = fixture
+        .client
+        .create_note_with_source(fixture.category.id, "# Browser note\n\nBody\n")?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Templates(TemplatesMsg::FromNote(note.id)));
+    let dialog = visible_dialog(&fixture.window, "template-editor-dialog")?;
+    let source = widget_as::<sourceview5::View>(dialog.upcast_ref(), "template-source-view")
+        .ok_or("source")?;
+    assert_eq!(
+        source.buffer().text(
+            &source.buffer().start_iter(),
+            &source.buffer().end_iter(),
+            true
+        ),
+        note.source
+    );
+    widget_as::<adw::EntryRow>(dialog.upcast_ref(), "template-name-entry")
+        .ok_or("name")?
+        .set_text("From browser");
+    save_draft(&dialog)?;
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    let templates = glib::MainContext::default().block_on(fixture.client.templates_async())?;
+    assert_eq!(templates.len(), 1);
+    assert_eq!(templates[0].source, note.source);
+    let unchanged = fixture.client.note(note.id)?.ok_or("note")?;
+    assert_eq!(unchanged.revision, note.revision);
+    assert_eq!(unchanged.updated_at, note.updated_at);
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_creation_should_report_missing_targets_without_creating_notes() -> TestResult
+{
+    let fixture = window_fixture_for("io.github.josbeir.Carver.MissingTemplateTargetRegression")?;
+    dismiss_initial_dialogs(&fixture.window);
+    let template = glib::MainContext::default().block_on(
+        fixture
+            .client
+            .create_template_async("Deleted".into(), "Body".into()),
+    )?;
+    glib::MainContext::default().block_on(
+        fixture
+            .client
+            .delete_template_async(template.id, template.revision),
+    )?;
+    let before = fixture.client.note_count(fixture.category.id)?;
+    fixture
+        .preferences_runtime
+        .dispatch(AppMsg::Templates(TemplatesMsg::Create {
+            category_id: fixture.category.id,
+            template_id: template.id,
+        }));
+    assert!(run_main_context_until(|| fixture
+        .preferences_runtime
+        .model()
+        .notice
+        .is_some_and(|notice| notice
+            .message
+            .contains("template is no longer available"))));
+    let template = glib::MainContext::default().block_on(
+        fixture
+            .client
+            .create_template_async("Available".into(), "Body".into()),
+    )?;
+    fixture
+        .preferences_runtime
+        .dispatch(AppMsg::Templates(TemplatesMsg::Create {
+            category_id: carver_sdk::CategoryId::new(),
+            template_id: template.id,
+        }));
+    assert!(run_main_context_until(|| fixture
+        .preferences_runtime
+        .model()
+        .notice
+        .is_some_and(|notice| notice
+            .message
+            .contains("category is no longer available"))));
+    assert_eq!(fixture.client.note_count(fixture.category.id)?, before);
     fixture.window.close();
     Ok(())
 }

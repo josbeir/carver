@@ -402,3 +402,138 @@ fn template_insertion_should_ignore_confirmation_after_the_note_changes() -> Res
     );
     Ok(())
 }
+
+#[test]
+fn saving_as_template_from_a_background_note_should_copy_unsaved_source() -> Result<(), String> {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id,
+            revision: Revision(1),
+            source: "# Unsaved background".into(),
+        }),
+    );
+    let document = model.editor.take().ok_or("editor")?;
+    model
+        .tabs
+        .background
+        .insert(crate::mvu::model::TabId(42), document);
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::FromNote(note_id)),
+    );
+    assert!(
+        matches!(&effects[..], [Effect::ShowTemplateEditor { source, .. }] if source == "# Unsaved background")
+    );
+    assert!(model.template_editor_from_note);
+    Ok(())
+}
+
+#[test]
+fn saving_as_template_from_an_unopened_note_should_load_its_source() -> Result<(), String> {
+    let mut model = AppModel::new(&Config::default());
+    let note_id = NoteId::new();
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::FromNote(note_id)),
+    );
+    let Some(Effect::LoadTemplateNote {
+        request_id,
+        note_id: requested,
+    }) = effects.first()
+    else {
+        return Err("load note".into());
+    };
+    assert_eq!(*requested, note_id);
+    let request_id = *request_id;
+    let note = Note {
+        id: note_id,
+        category_id: CategoryId::new(),
+        title: "Stored note".into(),
+        source: "# Stored note".into(),
+        plain_text: "Stored note".into(),
+        is_favorite: false,
+        revision: Revision(2),
+        created_at: OffsetDateTime::UNIX_EPOCH,
+        updated_at: OffsetDateTime::UNIX_EPOCH,
+        trashed_at: None,
+    };
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::NoteLoaded {
+            request_id,
+            result: Ok(note),
+        }),
+    );
+    assert!(
+        matches!(&effects[..], [Effect::ShowTemplateEditor { source, .. }] if source == "# Stored note")
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_note_loading_should_show_an_error_without_opening_an_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::FromNote(NoteId::new())),
+    );
+    let request_id = model.template_request.unwrap_or(RequestId(0));
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::NoteLoaded {
+                request_id,
+                result: Err(UiError::new("missing note"))
+            })
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        model.notice.as_ref().map(|n| n.message.as_str()),
+        Some("missing note")
+    );
+    assert!(model.template_editor.is_none());
+}
+
+#[test]
+fn stale_note_loading_should_not_open_an_editor() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::FromNote(NoteId::new())),
+    );
+    let request_id = model.template_request.unwrap_or(RequestId(0));
+    let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Manage));
+    assert!(
+        update(
+            &mut model,
+            AppMsg::Templates(TemplatesMsg::NoteLoaded {
+                request_id,
+                result: Err(UiError::new("stale"))
+            })
+        )
+        .is_empty()
+    );
+    assert!(model.notice.is_none());
+}
+
+#[test]
+fn failed_template_save_should_keep_the_editor_and_restore_its_controls() {
+    let mut model = AppModel::new(&Config::default());
+    let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Edit(None)));
+    let request_id = model.template_editor.unwrap_or(RequestId(0));
+    let effects = update(
+        &mut model,
+        AppMsg::Templates(TemplatesMsg::Saved {
+            request_id,
+            result: Err(UiError::new("revision conflict")),
+        }),
+    );
+    assert_eq!(model.template_editor, Some(request_id));
+    assert!(
+        matches!(&effects[..], [Effect::FinishTemplateEdit { error: Some(error), .. }] if error.message == "revision conflict")
+    );
+}

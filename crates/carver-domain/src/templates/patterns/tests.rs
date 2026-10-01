@@ -93,3 +93,34 @@ fn dynamic_media_paths_should_not_allow_managed_assets() {
         Err(TemplateError::ManagedAssets)
     ));
 }
+
+#[test]
+fn dynamic_templates_should_preserve_body_spacing_in_all_frontmatter_formats()
+-> Result<(), TemplateError> {
+    for header in [
+        "---\nwhen: '{{date}}'\n---",
+        "---json\n{\"when\":\"{{date}}\"}\n---",
+        "---toml\nwhen = '{{date}}'\n---",
+    ] {
+        let source = format!("{header}\n\n\n\n# {{{{time}}}}\n\n\nTrailing\n");
+        let expanded = expand_template_source(&source, &context())?;
+        assert!(
+            expanded.ends_with("\n\n\n\n# 14:30\n\n\nTrailing\n"),
+            "{expanded:?}"
+        );
+    }
+    Ok(())
+}
+#[test]
+fn category_pattern_should_preserve_body_that_looks_like_frontmatter() -> Result<(), TemplateError>
+{
+    let sample = TemplateContext {
+        category: "---\nlabel: text\n---\nBody".into(),
+        ..context()
+    };
+    assert_eq!(
+        expand_template_source("{{category}}", &sample)?,
+        sample.category
+    );
+    Ok(())
+}
