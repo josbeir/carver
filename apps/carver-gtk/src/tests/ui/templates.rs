@@ -580,6 +580,8 @@ pub(super) fn template_property_values_should_stay_on_one_line_at_all_dialog_wid
     ));
     assert_eq!(short.layout().line_count(), 1);
     assert!(!short.layout().is_ellipsized());
+    assert!(!short.is_selectable());
+    assert!(!timestamp.is_selectable());
     assert_eq!(timestamp.layout().line_count(), 1);
     assert!(
         !timestamp.layout().is_ellipsized(),

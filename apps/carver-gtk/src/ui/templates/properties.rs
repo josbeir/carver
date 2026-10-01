@@ -64,7 +64,6 @@ impl PropertiesHandle {
                         .hexpand(true)
                         .xalign(1.0)
                         .max_width_chars(40)
-                        .selectable(true)
                         .build();
                     value.set_widget_name(&format!("template-property-value:{}", property.key));
                     value.set_tooltip_text(Some(&property.value));
