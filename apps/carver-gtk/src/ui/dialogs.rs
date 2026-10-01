@@ -63,7 +63,7 @@ static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
             accelerator: "<Control>n",
         },
         Shortcut {
-            title: gettext("Choose Template…"),
+            title: gettext("New from Template…"),
             accelerator: "<Control><Shift>n",
         },
         Shortcut {

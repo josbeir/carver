@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 07:40+0200\n"
+"POT-Creation-Date: 2026-10-01 07:55+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -533,10 +533,6 @@ msgstr "{label} · {value}"
 msgid "All notes"
 msgstr "Toutes les notes"
 
-#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
-msgid "Choose Template…"
-msgstr "Choisir un modèle…"
-
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "Create a note to get started."
 msgstr "Créez une note pour commencer."
@@ -597,6 +593,10 @@ msgstr "Nouveau depuis le presse-papiers"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "Nouveau depuis le presse-papiers en Markdown"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New from Template…"
+msgstr "Nouvelle note à partir d’un modèle…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"

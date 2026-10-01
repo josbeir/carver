@@ -371,7 +371,7 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
     let creation = gtk::gio::Menu::new();
     let import = gtk::gio::Menu::new();
     creation.append(
-        Some(&gettext("Choose Template…")),
+        Some(&gettext("New from Template…")),
         Some("win.new-from-template"),
     );
     creation.append(Some(&gettext("New Blank Note")), Some("win.new-blank-note"));

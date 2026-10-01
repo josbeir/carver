@@ -61,6 +61,7 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         .item_link(1, gtk::gio::MENU_LINK_SECTION)
         .ok_or("import section")?;
     assert_eq!(creation.n_items(), 2);
+    assert_eq!(menu_labels(&creation)[0], "New from Template…");
     assert_eq!(import.n_items(), 3);
     let note_actions: Vec<String> = [&creation, &import]
         .into_iter()
