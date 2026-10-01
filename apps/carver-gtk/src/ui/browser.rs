@@ -396,28 +396,48 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
     button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);
     button.set_menu_model(Some(&menu));
 
-    // Capture only the primary segment so Ctrl+click does not intercept the dropdown.
+    let template_click = Rc::new(Cell::new(false));
+    // Observe modifiers without claiming the sequence: the primary button emits one activation.
     if let Some(primary) = find_descendant::<gtk::Button>(button.upcast_ref()) {
-        let gesture = gtk::GestureClick::new();
-        gesture.set_name(Some("new-note-template-click"));
-        gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
-        gesture.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let template_dispatcher = dispatcher.clone();
-        gesture.connect_pressed(move |gesture, _, _, _| {
-            if new_note_press_opens_template(gesture.current_event_state()) {
-                gesture.set_state(gtk::EventSequenceState::Claimed);
-                let _ =
-                    template_dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::Pick));
+        let controller = gtk::EventControllerLegacy::new();
+        controller.set_name(Some("new-note-template-click"));
+        controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let click_state = template_click.clone();
+        controller.connect_event(move |_, event| {
+            match event.event_type() {
+                gtk::gdk::EventType::ButtonPress => {
+                    click_state.set(new_note_press_opens_template(event.modifier_state()));
+                }
+                gtk::gdk::EventType::ButtonRelease => {
+                    // Clear cancelled/dragged-out clicks after the button's synchronous activation.
+                    let click_state = click_state.clone();
+                    glib::idle_add_local_once(move || click_state.set(false));
+                }
+                _ => {}
             }
+            glib::Propagation::Proceed
         });
-        primary.add_controller(gesture);
+        primary.add_controller(controller);
     }
-
-    let dispatcher = dispatcher.clone();
-    button.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
-    });
+    connect_new_note_activation(&button, dispatcher, &template_click);
     button
+}
+
+pub(crate) fn connect_new_note_activation(
+    button: &adw::SplitButton,
+    dispatcher: &AppDispatcher,
+    template_click: &Rc<Cell<bool>>,
+) {
+    let dispatcher = dispatcher.clone();
+    let template_click = template_click.clone();
+    button.connect_clicked(move |_| {
+        let message = if template_click.replace(false) {
+            AppMsg::Templates(crate::mvu::TemplatesMsg::Pick)
+        } else {
+            AppMsg::Navigation(NavigationMsg::CreateNote)
+        };
+        let _ = dispatcher.dispatch(message);
+    });
 }
 
 pub(crate) fn new_note_press_opens_template(modifiers: gtk::gdk::ModifierType) -> bool {

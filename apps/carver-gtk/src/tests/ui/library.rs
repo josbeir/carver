@@ -107,11 +107,10 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
     assert!(
         (0..controllers.n_items())
             .filter_map(|i| controllers.item(i))
-            .filter_map(|c| c.downcast::<gtk::GestureClick>().ok())
+            .filter_map(|c| c.downcast::<gtk::EventControllerLegacy>().ok())
             .any(
                 |gesture| gesture.name().as_deref() == Some("new-note-template-click")
                     && gesture.propagation_phase() == gtk::PropagationPhase::Capture
-                    && gesture.button() == gtk::gdk::BUTTON_PRIMARY
             )
     );
     assert!(window.lookup_action("new-note-from-clipboard").is_some());

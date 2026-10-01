@@ -643,3 +643,74 @@ pub(super) fn template_properties_should_scroll_inside_a_bounded_panel_when_many
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn control_click_should_choose_template_without_creating_a_note() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.ControlTemplateClickTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let before = fixture
+        .client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 100,
+                offset: 0,
+            },
+        )?
+        .items
+        .len();
+    let button = adw::SplitButton::new();
+    let template_click = std::rc::Rc::new(std::cell::Cell::new(true));
+    crate::ui::browser::connect_new_note_activation(&button, &fixture.dispatcher, &template_click);
+    // Exercise the actual clicked signal with the Ctrl state recorded by the capture controller.
+    button.emit_clicked();
+    let picker = visible_dialog(&fixture.window, "templates-dialog")?;
+    assert!(!template_click.get());
+    assert_eq!(
+        fixture
+            .client
+            .recent_notes(
+                None,
+                carver_sdk::PageRequest {
+                    limit: 100,
+                    offset: 0
+                }
+            )?
+            .items
+            .len(),
+        before
+    );
+    picker.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    assert_eq!(
+        fixture
+            .client
+            .recent_notes(
+                None,
+                carver_sdk::PageRequest {
+                    limit: 100,
+                    offset: 0
+                }
+            )?
+            .items
+            .len(),
+        before
+    );
+    // Consuming the modifier state leaves the following ordinary click unchanged.
+    button.emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .client
+        .recent_notes(
+            None,
+            carver_sdk::PageRequest {
+                limit: 100,
+                offset: 0
+            }
+        )
+        .is_ok_and(|page| page.items.len() == before + 1)));
+    fixture.window.close();
+    Ok(())
+}
