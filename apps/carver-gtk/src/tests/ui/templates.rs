@@ -68,7 +68,11 @@ pub(super) fn templates_should_manage_validate_duplicate_and_delete() -> TestRes
     )
     .is_some()));
     write_draft(&draft, "Meeting", "![Photo](assets/photo.png)")?;
-    save_draft(&draft)?;
+    assert!(
+        !widget_as::<gtk::Button>(draft.upcast_ref(), "template-save-button")
+            .ok_or("save")?
+            .is_sensitive()
+    );
     let error =
         widget_as::<gtk::Label>(draft.upcast_ref(), "template-error").ok_or("template error")?;
     assert!(run_main_context_until(|| error.is_visible()));
@@ -742,7 +746,7 @@ pub(super) fn inserting_template_should_preserve_properties_and_undo_in_source()
     let note = fixture.client.save_note(note.id, note.revision, original)?;
     glib::MainContext::default().block_on(fixture.client.create_template_async(
         "Meeting".into(),
-        "---\nstatus: draft\nkind: meeting\n---\n\n# Agenda\n".into(),
+        "---\nstatus: draft\nkind: meeting\nwhen: '{{date}}'\n---\n\n# Agenda {{time}}\n".into(),
     ))?;
     let _ = fixture
         .dispatcher
@@ -780,6 +784,7 @@ pub(super) fn inserting_template_should_preserve_properties_and_undo_in_source()
         "{inserted}"
     );
     assert!(!inserted.contains("global_only"));
+    assert!(!inserted.contains("{{"));
     assert!(inserted.find("# Existing") < inserted.find("# Agenda"));
     buffer.undo();
     assert!(run_main_context_until(|| buffer.text(
@@ -807,7 +812,7 @@ pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> Tes
     )?;
     glib::MainContext::default().block_on(fixture.client.create_template_async(
         "Properties".into(),
-        "---\nkind: meeting\nstatus: draft\n---\n".into(),
+        "---\nkind: meeting\nstatus: draft\ncreated: '{{datetime}}'\n---\n".into(),
     ))?;
     let _ = fixture
         .dispatcher
@@ -847,6 +852,16 @@ pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> Tes
         "status",
         "done"
     ));
+    assert!(
+        !buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), true)
+            .contains("{{")
+    );
+    assert!(
+        buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), true)
+            .contains("created:")
+    );
     super::window::assert_web_script_should_be_true(&web, "window.carverEditor.command('undo')");
     assert!(run_main_context_until(|| !has_text_property(
         &buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
@@ -858,6 +873,168 @@ pub(super) fn inserting_property_only_template_should_undo_in_rich_mode() -> Tes
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .contains("Existing")
     );
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_pattern_menu_should_insert_at_the_cursor_and_show_reference() -> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.PatternMenuTests",
+        |_, _| Ok(()),
+        |_| {},
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let dialog = new_draft(&fixture)?;
+    let help =
+        widget_as::<gtk::Label>(dialog.upcast_ref(), "template-help").ok_or("combined help")?;
+    assert!(help.text().contains("Patterns are filled in when used."));
+    assert!(help.text().contains("default properties"));
+    write_draft(&dialog, "Dynamic", "# Meeting — ")?;
+    let view = widget_as::<sourceview5::View>(dialog.upcast_ref(), "template-source-view")
+        .ok_or("source")?;
+    let buffer = view.buffer();
+    buffer.place_cursor(&buffer.end_iter());
+    let menu = widget_as::<gtk::MenuButton>(dialog.upcast_ref(), "template-insert-pattern")
+        .ok_or("pattern menu")?;
+    assert!(menu.popover().is_some_and(|p| p.is::<gtk::PopoverMenu>()));
+    menu.activate_action("pattern.date", None)?;
+    assert_eq!(menu.menu_model().ok_or("menu model")?.n_items(), 3);
+    assert_eq!(
+        buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
+        "# Meeting — {{date}}"
+    );
+    for (action, token) in [
+        ("pattern.time", "{{time}}"),
+        ("pattern.datetime", "{{datetime}}"),
+        ("pattern.category", "{{category}}"),
+    ] {
+        menu.activate_action(action, None)?;
+        assert!(
+            buffer
+                .text(&buffer.start_iter(), &buffer.end_iter(), true)
+                .ends_with(token)
+        );
+    }
+    menu.activate_action("pattern.reference", None)?;
+    let reference = visible_dialog(&fixture.window, "template-pattern-reference-dialog")?;
+    reference.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(|d| d == dialog)));
+    buffer.set_text("{{unknown}}");
+    let error = widget_as::<gtk::Label>(dialog.upcast_ref(), "template-error").ok_or("error")?;
+    let save =
+        widget_as::<gtk::Button>(dialog.upcast_ref(), "template-save-button").ok_or("save")?;
+    assert!(run_main_context_until(
+        || error.is_visible() && !save.is_sensitive()
+    ));
+    assert!(error.text().contains("unknown"));
+    buffer.set_text("---\nwhen: '{{date}}'\n---\n# {{category}}");
+    assert!(run_main_context_until(
+        || !error.is_visible() && save.is_sensitive()
+    ));
+    let value = widget_as::<gtk::Label>(dialog.upcast_ref(), "template-property-value:when")
+        .ok_or("resolved value")?;
+    assert!(!value.text().contains("{{"));
+    save_draft(&dialog)?;
+    let _ = visible_dialog(&fixture.window, "templates-dialog")?;
+    let template = glib::MainContext::default()
+        .block_on(fixture.client.templates_async())?
+        .into_iter()
+        .next()
+        .ok_or("saved template")?;
+    assert!(template.source.contains("{{date}}"));
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn custom_template_format_should_preview_and_reject_invalid_formats() -> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.PatternFormatTests",
+        |_, _| Ok(()),
+        |_| {},
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let dialog = new_draft(&fixture)?;
+    let menu = widget_as::<gtk::MenuButton>(dialog.upcast_ref(), "template-insert-pattern")
+        .ok_or("pattern menu")?;
+    menu.activate_action("pattern.custom", None)?;
+    let formatting = visible_dialog(&fixture.window, "template-pattern-format-dialog")?;
+    let entry =
+        widget_as::<adw::EntryRow>(formatting.upcast_ref(), "template-pattern-format-entry")
+            .ok_or("format")?;
+    let insert =
+        widget_as::<gtk::Button>(formatting.upcast_ref(), "template-pattern-format-insert")
+            .ok_or("insert")?;
+    entry.set_text("%Q");
+    assert!(!insert.is_sensitive());
+    entry.set_text("%H:%M:%S");
+    assert!(insert.is_sensitive());
+    let example =
+        widget_as::<gtk::Label>(formatting.upcast_ref(), "template-pattern-format-example")
+            .ok_or("example")?;
+    assert_eq!(example.text().len(), 8);
+    insert.emit_clicked();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(|d| d == dialog)));
+    let buffer = widget_as::<sourceview5::View>(dialog.upcast_ref(), "template-source-view")
+        .ok_or("source")?
+        .buffer();
+    assert_eq!(
+        buffer.text(&buffer.start_iter(), &buffer.end_iter(), true),
+        "{{datetime:%H:%M:%S}}"
+    );
+    dialog.force_close();
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn category_templates_should_expand_patterns_at_note_creation() -> TestResult {
+    let fixture = window_fixture_seeded(
+        "io.github.josbeir.Carver.DynamicCategoryTests",
+        |client, category| {
+            let template = glib::MainContext::default().block_on(client.create_template_async(
+                "Dynamic".into(),
+                "---\nwhen: '{{date}}'\n---\n# {{category}} — {{time}}".into(),
+            ))?;
+            let category = client
+                .categories()?
+                .into_iter()
+                .find(|entry| entry.id == category)
+                .ok_or("category")?;
+            glib::MainContext::default().block_on(client.update_category_with_template_async(
+                category.id,
+                category.name,
+                category.appearance,
+                Some(template.id),
+            ))?;
+            Ok(())
+        },
+        |_| {},
+    )?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let before = category_notes(&fixture)?.len();
+    fixture
+        .window
+        .lookup_action("new-note")
+        .ok_or("new note")?
+        .activate(None);
+    assert!(run_main_context_until(
+        || category_notes(&fixture).is_ok_and(|notes| notes.len() == before + 1)
+    ));
+    let created = category_notes(&fixture)?
+        .into_iter()
+        .find(|note| note.title.starts_with(&fixture.category.name))
+        .ok_or("created note")?;
+    let source = fixture.client.note(created.id)?.ok_or("note")?.source;
+    assert!(!source.contains("{{"));
+    assert!(carver_domain::parse_frontmatter_document(&source).is_some());
     fixture.window.close();
     Ok(())
 }

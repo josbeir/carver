@@ -309,3 +309,42 @@ fn category_form_should_propagate_creation_failure_through_the_async_facade()
     assert!(block_on(client.categories_async())?.is_empty());
     Ok(())
 }
+
+#[test]
+fn template_patterns_should_share_the_timestamp_with_default_properties()
+-> Result<(), ConfiguredTemplateError> {
+    let context = carver_domain::TemplateContext {
+        now: time::macros::datetime!(2026-10-01 23:59:58 +02:00),
+        category: "Meetings".into(),
+    };
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        entries: vec![DocumentProperty {
+            key: "created".into(),
+            field_type: carver_config::DocumentPropertyType::DateTime,
+            multiple: false,
+            value: carver_domain::FrontmatterValue::Null.to_json(),
+        }],
+        ..DocumentPropertiesConfig::default()
+    };
+    let source = "---\nwhen: '{{datetime}}'\n---\n# {{category}} — {{date}}";
+    let expanded = instantiate_configured_template_at(source, &config, &context)?;
+    let fields =
+        carver_domain::parse_frontmatter_document(&expanded).map_or_else(Vec::new, |d| d.fields);
+    assert_eq!(fields[0].value, fields[1].value);
+    assert!(expanded.ends_with("# Meetings — 2026-10-01"));
+    assert!(source.contains("{{datetime}}"));
+    Ok(())
+}
+
+#[test]
+fn date_patterns_should_validate_against_configured_date_types() {
+    let definitions = vec![DocumentProperty {
+        key: "when".into(),
+        field_type: DocumentPropertyType::Date,
+        multiple: false,
+        value: carver_domain::FrontmatterValue::Null.to_json(),
+    }];
+    assert!(validate_configured_template("---\nwhen: '{{date}}'\n---", &definitions).is_ok());
+    assert!(validate_configured_template("---\nwhen: '{{time}}'\n---", &definitions).is_err());
+}

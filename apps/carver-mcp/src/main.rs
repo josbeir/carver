@@ -499,9 +499,10 @@ impl CarverServer {
                     .ok_or_else(|| {
                         ErrorData::invalid_params("category template was not found", None)
                     })?;
-                carver_sdk::instantiate_configured_template(
+                carver_sdk::instantiate_configured_template_at(
                     &template.source,
                     &self.property_definitions,
+                    &carver_sdk::template_context(&category.category.name),
                 )
                 .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?
             } else {

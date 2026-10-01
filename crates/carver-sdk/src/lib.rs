@@ -12,8 +12,9 @@ pub use carver_domain::{
     BaseSort, BaseSortDirection, BaseView, Category, CategoryAppearance, CategoryColor,
     CategoryIcon, CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
     DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary, NoteTemplate,
-    PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit, TemplateId,
-    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, assess_import,
+    PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit,
+    TemplateContext, TemplateId, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -1110,6 +1111,19 @@ pub fn validate_configured_template(
     definitions: &[DocumentProperty],
 ) -> Result<(), ConfiguredTemplateError> {
     carver_domain::validate_template_source(source)?;
+    let expanded = carver_domain::expand_template_source(
+        source,
+        &carver_domain::TemplateContext {
+            now: time::OffsetDateTime::UNIX_EPOCH,
+            category: "Category".to_owned(),
+        },
+    )?;
+    validate_template_properties(&expanded, definitions)
+}
+fn validate_template_properties(
+    source: &str,
+    definitions: &[DocumentProperty],
+) -> Result<(), ConfiguredTemplateError> {
     if let Some(document) = carver_domain::parse_frontmatter_document(source) {
         for field in document.fields {
             if let Some(definition) = definitions.iter().find(|d| d.key == field.key) {
@@ -1138,7 +1152,8 @@ pub fn validate_configured_template(
     Ok(())
 }
 
-/// Resolves a template copy with enabled default properties using the configured frontmatter format.
+/// Resolves a template copy with enabled defaults and no category name.
+/// Use [`instantiate_configured_template_at`] when a destination category is available.
 ///
 /// # Errors
 /// Returns an error if source or configured property types are invalid.
@@ -1146,18 +1161,35 @@ pub fn instantiate_configured_template(
     source: &str,
     config: &DocumentPropertiesConfig,
 ) -> Result<String, ConfiguredTemplateError> {
+    instantiate_configured_template_at(source, config, &template_context(""))
+}
+
+/// Captures the current local time, falling back to UTC when the system offset is unavailable.
+#[must_use]
+pub fn template_context(category: &str) -> carver_domain::TemplateContext {
+    carver_domain::TemplateContext {
+        now: time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc()),
+        category: category.to_owned(),
+    }
+}
+
+/// Expands a template and seeds defaults from the same captured timestamp.
+///
+/// # Errors
+/// Returns invalid pattern, source, or configured-property errors.
+pub fn instantiate_configured_template_at(
+    source: &str,
+    config: &DocumentPropertiesConfig,
+    context: &carver_domain::TemplateContext,
+) -> Result<String, ConfiguredTemplateError> {
     validate_configured_template(source, &config.entries)?;
-    let defaults = if config.enabled {
-        config
-            .entries
-            .iter()
-            .filter_map(DocumentProperty::default_field)
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let expanded = carver_domain::expand_template_source(source, context)?;
+    validate_template_properties(&expanded, &config.entries)?;
+    let defaults =
+        carver_domain::parse_frontmatter_document(&config.default_source_at(context.now))
+            .map_or_else(Vec::new, |document| document.fields);
     Ok(carver_domain::merge_template_source(
-        source,
+        &expanded,
         &defaults,
         config.format,
     )?)

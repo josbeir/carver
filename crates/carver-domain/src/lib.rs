@@ -20,7 +20,8 @@ pub mod rendering;
 pub mod source_analysis;
 pub mod templates;
 pub use templates::{
-    NoteTemplate, TemplateError, TemplateId, merge_template_source, validate_template_source,
+    NoteTemplate, TemplateContext, TemplateError, TemplateId, expand_template_source,
+    merge_template_source, validate_template_source,
 };
 
 pub use bases::{

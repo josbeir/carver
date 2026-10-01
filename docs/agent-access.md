@@ -54,3 +54,8 @@ carver-mcp configure generic
 ```
 
 [Back to Carver](../README.md)
+
+## Dynamic templates
+
+Template sources can contain date, time, and category patterns. See the
+[template pattern reference](templates.md) for syntax, escaping, and MCP behavior.

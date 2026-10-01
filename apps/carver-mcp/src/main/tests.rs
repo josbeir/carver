@@ -941,3 +941,44 @@ async fn omitted_note_source_should_copy_category_template_and_merge_defaults() 
     assert_eq!(note["source"], "");
     Ok(())
 }
+
+#[tokio::test]
+async fn category_template_patterns_should_expand_without_changing_the_template() -> TestResult {
+    let (_directory, server) = server(true)?;
+    let original = "---\nwhen: '{{date}}'\n---\n# {{category}} at {{time}}";
+    let template = server
+        .client
+        .create_template_async("Dynamic".into(), original.into())
+        .await
+        .map_err(|e| e.to_string())?;
+    let category = server
+        .client
+        .create_category_with_template_async(
+            "Meetings".into(),
+            CategoryAppearance::default(),
+            Some(template.id),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    let created = server
+        .create_note(Parameters(CreateNoteRequest {
+            category_id: category.id,
+            source: None,
+            markdown: None,
+        }))
+        .await
+        .map_err(|e| e.to_string())?;
+    let note: serde_json::Value = serde_json::from_str(&created).map_err(|e| e.to_string())?;
+    let source = note["source"].as_str().ok_or("missing source")?;
+    assert!(source.contains("# Meetings at "));
+    assert!(!source.contains("{{"));
+    assert_eq!(
+        server
+            .client
+            .template_async(template.id)
+            .await
+            .map_err(|e| e.to_string())?,
+        Some(template)
+    );
+    Ok(())
+}

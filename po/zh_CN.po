@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:03+0200\n"
+"POT-Creation-Date: 2026-10-01 08:35+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -92,14 +92,14 @@ msgstr "该笔记已不可用。"
 msgid "The template is no longer available."
 msgstr "该模板已不可用。"
 
-#: apps/carver-gtk/src/mvu/runtime/templates.rs
-#: apps/carver-gtk/src/mvu/templates/preview.rs
-msgid "The template properties could not be merged."
-msgstr "无法合并模板属性。"
-
 #: apps/carver-gtk/src/mvu/templates.rs
 msgid "Enter a template name."
 msgstr "请输入模板名称。"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Invalid template pattern: {pattern}"
+msgstr "无效的模板模式：{pattern}"
 
 #: apps/carver-gtk/src/mvu/templates.rs
 #, rust-format
@@ -117,6 +117,10 @@ msgstr "模板的前置元数据无效或包含重复属性。"
 #: apps/carver-gtk/src/mvu/templates/insertion.rs
 msgid "The template could not be inserted. Check the note’s properties."
 msgstr "无法插入模板。请检查笔记的属性。"
+
+#: apps/carver-gtk/src/mvu/templates/preview.rs
+msgid "The template properties could not be merged."
+msgstr "无法合并模板属性。"
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -903,6 +907,7 @@ msgid "Follow the desktop setting ({system_font})."
 msgstr "跟随桌面设置（{system_font}）。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 msgid "Format"
 msgstr "格式"
 
@@ -1407,6 +1412,7 @@ msgstr "地址"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "插入"
@@ -1886,6 +1892,10 @@ msgid "No matching templates"
 msgstr "没有匹配的模板"
 
 #: apps/carver-gtk/src/ui/templates.rs
+msgid "Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence."
+msgstr "使用时会填入模式值。新笔记包含已启用的默认属性，模板值优先。"
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Search templates…"
 msgstr "搜索模板…"
 
@@ -1900,10 +1910,6 @@ msgstr "模板操作"
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Template name"
 msgstr "模板名称"
-
-#: apps/carver-gtk/src/ui/templates.rs
-msgid "Template properties override matching defaults. Other enabled default properties are added when creating a note."
-msgstr "模板属性会覆盖匹配的默认值。创建笔记时会添加其他已启用的默认属性。"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Templates"
@@ -1924,6 +1930,82 @@ msgstr "也可在笔记菜单中使用“另存为模板…”。每个新笔记
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Your unsaved template changes will be lost."
 msgstr "未保存的模板更改将丢失。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "%Y: year · %m: month · %d: day · %H: hour · %M: minute · %S: second"
+msgstr "%Y：年 · %m：月 · %d：日 · %H：时 · %M：分 · %S：秒"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Category Name"
+msgstr "分类名称"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date"
+msgstr "当前日期"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date and Time"
+msgstr "当前日期和时间"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Time"
+msgstr "当前时间"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date and time, including the UTC offset"
+msgstr "当前本地日期和时间，包含 UTC 偏移量"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date: YYYY-MM-DD"
+msgstr "当前本地日期：YYYY-MM-DD"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local time: HH:MM"
+msgstr "当前本地时间：HH:MM"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format"
+msgstr "自定义日期/时间格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format…"
+msgstr "自定义日期/时间格式…"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom date format: day/month/year"
+msgstr "自定义日期格式：日/月/年"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom format"
+msgstr "自定义格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom time format including seconds"
+msgstr "包含秒的自定义时间格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Formats use %Y (year), %m (month), %d (day), %H (hour), %M (minute), and %S (second). Use a backslash before {{ to keep a pattern literal; in YAML or JSON double-quoted values, escape the backslash too."
+msgstr "格式使用 %Y（年）、%m（月）、%d（日）、%H（时）、%M（分）和 %S（秒）。在 {{ 前加反斜杠可保留模式原文；在 YAML 或 JSON 的双引号值中，还需转义反斜杠。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Insert Pattern"
+msgstr "插入模式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Invalid date/time format."
+msgstr "无效的日期/时间格式。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Pattern Reference"
+msgstr "模式参考"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "The destination category’s name"
+msgstr "目标分类的名称"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Use patterns in note content or quoted property values. All patterns use one timestamp. The saved template stays unchanged."
+msgstr "在笔记内容或带引号的属性值中使用模式。所有模式使用同一时间戳。已保存的模板保持不变。"
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"

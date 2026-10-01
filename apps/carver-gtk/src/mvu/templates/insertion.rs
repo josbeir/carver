@@ -15,27 +15,50 @@ fn missing_fields(template: &str, source: &str) -> Vec<FrontmatterField> {
         .collect()
 }
 
-pub(super) fn preview(
+pub(super) fn preview_at(
     template: &str,
     target: &InsertTarget,
     config: &DocumentPropertiesConfig,
+    context: &carver_domain::TemplateContext,
 ) -> Result<TemplatePreview, UiError> {
     let mut config = config.clone();
     config.enabled = false;
-    let mut preview = super::preview::source_preview(template, &config)?;
-    let missing = missing_fields(template, &target.source);
+    let mut preview = super::preview::source_preview_at(template, &config, context)?;
+    let expanded = carver_domain::expand_template_source(template, context)
+        .map_err(|error| UiError::new(error.to_string()))?;
+    let missing = missing_fields(&expanded, &target.source);
     preview
         .properties
         .retain(|p| missing.iter().any(|field| field.key == p.key));
     Ok(preview)
 }
 
+#[cfg(test)]
 fn prepare(
     template: &str,
     source: &str,
     config: &DocumentPropertiesConfig,
 ) -> Result<(String, Option<FrontmatterDocument>), UiError> {
+    prepare_at(
+        template,
+        source,
+        config,
+        &carver_domain::TemplateContext {
+            now: time::OffsetDateTime::UNIX_EPOCH,
+            category: String::new(),
+        },
+    )
+}
+fn prepare_at(
+    template: &str,
+    source: &str,
+    config: &DocumentPropertiesConfig,
+    context: &carver_domain::TemplateContext,
+) -> Result<(String, Option<FrontmatterDocument>), UiError> {
     super::validate(template, &config.entries)?;
+    let expanded = carver_domain::expand_template_source(template, context)
+        .map_err(|error| UiError::new(error.to_string()))?;
+    let template = expanded.as_str();
     let error = || {
         UiError::new(gettext(
             "The template could not be inserted. Check the note’s properties.",
@@ -82,10 +105,12 @@ pub(super) fn confirm(model: &mut AppModel) -> Vec<Effect> {
         return Vec::new();
     };
     let mode = document.mode;
-    let (body, properties) = match prepare(
+    let context = super::pattern_context(model, Some(picker.category_id));
+    let (body, properties) = match prepare_at(
         &template.source,
         &target.source,
         &model.config.document_properties,
+        &context,
     ) {
         Ok(prepared) => prepared,
         Err(error) => {

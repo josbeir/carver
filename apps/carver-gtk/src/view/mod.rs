@@ -1050,6 +1050,14 @@ impl ViewRefs {
                 ) {
                     Ok(handle) => {
                         self.template_editor.replace(Some(Rc::new(handle)));
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::PatternClock(
+                                carver_sdk::template_context("").now,
+                            ),
+                        ));
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::PreviewDraft { request_id, source },
+                        ));
                     }
                     Err(_) => {
                         let _ = dispatcher.dispatch(AppMsg::Templates(

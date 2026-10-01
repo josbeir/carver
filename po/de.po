@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:03+0200\n"
+"POT-Creation-Date: 2026-10-01 08:35+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: German\n"
@@ -92,14 +92,14 @@ msgstr "Die Notiz ist nicht mehr verfügbar."
 msgid "The template is no longer available."
 msgstr "Die Vorlage ist nicht mehr verfügbar."
 
-#: apps/carver-gtk/src/mvu/runtime/templates.rs
-#: apps/carver-gtk/src/mvu/templates/preview.rs
-msgid "The template properties could not be merged."
-msgstr "Die Vorlageneigenschaften konnten nicht zusammengeführt werden."
-
 #: apps/carver-gtk/src/mvu/templates.rs
 msgid "Enter a template name."
 msgstr "Geben Sie einen Vorlagennamen ein."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Invalid template pattern: {pattern}"
+msgstr "Ungültiger Vorlagenplatzhalter: {pattern}"
 
 #: apps/carver-gtk/src/mvu/templates.rs
 #, rust-format
@@ -117,6 +117,10 @@ msgstr "Die Frontmatter der Vorlage ist ungültig oder enthält doppelte Eigensc
 #: apps/carver-gtk/src/mvu/templates/insertion.rs
 msgid "The template could not be inserted. Check the note’s properties."
 msgstr "Die Vorlage konnte nicht eingefügt werden. Prüfen Sie die Eigenschaften der Notiz."
+
+#: apps/carver-gtk/src/mvu/templates/preview.rs
+msgid "The template properties could not be merged."
+msgstr "Die Vorlageneigenschaften konnten nicht zusammengeführt werden."
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -909,6 +913,7 @@ msgid "Follow the desktop setting ({system_font})."
 msgstr "Folgt der Desktop-Einstellung ({system_font})."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 msgid "Format"
 msgstr "Format"
 
@@ -1415,6 +1420,7 @@ msgstr "Adresse"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "Einfügen"
@@ -1894,6 +1900,10 @@ msgid "No matching templates"
 msgstr "Keine passenden Vorlagen"
 
 #: apps/carver-gtk/src/ui/templates.rs
+msgid "Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence."
+msgstr "Platzhalter werden bei der Verwendung ausgefüllt. Neue Notizen enthalten aktivierte Standardeigenschaften, wobei Vorlagenwerte Vorrang haben."
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Search templates…"
 msgstr "Vorlagen suchen…"
 
@@ -1908,10 +1918,6 @@ msgstr "Vorlagenaktionen"
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Template name"
 msgstr "Vorlagenname"
-
-#: apps/carver-gtk/src/ui/templates.rs
-msgid "Template properties override matching defaults. Other enabled default properties are added when creating a note."
-msgstr "Vorlageneigenschaften überschreiben entsprechende Standardwerte. Andere aktivierte Standardeigenschaften werden beim Erstellen einer Notiz hinzugefügt."
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Templates"
@@ -1932,6 +1938,82 @@ msgstr "Sie können auch Als Vorlage speichern… im Notizmenü verwenden. Jede 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Your unsaved template changes will be lost."
 msgstr "Ihre ungespeicherten Vorlagenänderungen gehen verloren."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "%Y: year · %m: month · %d: day · %H: hour · %M: minute · %S: second"
+msgstr "%Y: Jahr · %m: Monat · %d: Tag · %H: Stunde · %M: Minute · %S: Sekunde"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Category Name"
+msgstr "Kategoriename"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date"
+msgstr "Aktuelles Datum"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date and Time"
+msgstr "Aktuelles Datum und Uhrzeit"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Time"
+msgstr "Aktuelle Uhrzeit"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date and time, including the UTC offset"
+msgstr "Aktuelles lokales Datum und Uhrzeit einschließlich UTC-Abweichung"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date: YYYY-MM-DD"
+msgstr "Aktuelles lokales Datum: JJJJ-MM-TT"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local time: HH:MM"
+msgstr "Aktuelle lokale Uhrzeit: HH:MM"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format"
+msgstr "Benutzerdefiniertes Datums-/Zeitformat"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format…"
+msgstr "Benutzerdefiniertes Datums-/Zeitformat…"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom date format: day/month/year"
+msgstr "Benutzerdefiniertes Datumsformat: Tag/Monat/Jahr"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom format"
+msgstr "Benutzerdefiniertes Format"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom time format including seconds"
+msgstr "Benutzerdefiniertes Zeitformat mit Sekunden"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Formats use %Y (year), %m (month), %d (day), %H (hour), %M (minute), and %S (second). Use a backslash before {{ to keep a pattern literal; in YAML or JSON double-quoted values, escape the backslash too."
+msgstr "Formate verwenden %Y (Jahr), %m (Monat), %d (Tag), %H (Stunde), %M (Minute) und %S (Sekunde). Setze einen Rückstrich vor {{, um einen Platzhalter wörtlich zu erhalten; maskiere in YAML- oder JSON-Werten in doppelten Anführungszeichen auch den Rückstrich."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Insert Pattern"
+msgstr "Platzhalter einfügen"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Invalid date/time format."
+msgstr "Ungültiges Datums-/Zeitformat."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Pattern Reference"
+msgstr "Platzhalterübersicht"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "The destination category’s name"
+msgstr "Der Name der Zielkategorie"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Use patterns in note content or quoted property values. All patterns use one timestamp. The saved template stays unchanged."
+msgstr "Verwende Platzhalter im Notizinhalt oder in Eigenschaftswerten in Anführungszeichen. Alle Platzhalter verwenden denselben Zeitpunkt. Die gespeicherte Vorlage bleibt unverändert."
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"

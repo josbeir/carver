@@ -1,4 +1,5 @@
 //! Native template dialogs. Callbacks translate input into MVU messages.
+mod patterns;
 mod picker;
 mod properties;
 
@@ -75,6 +76,11 @@ pub(crate) struct EditorHandle {
 impl EditorHandle {
     pub(crate) fn render_properties(&self, preview: &Result<TemplatePreview, UiError>) {
         self.properties.render(preview.as_ref());
+        self.error.set_visible(preview.is_err());
+        if let Err(error) = preview {
+            self.error.set_text(&error.message);
+            self.save.set_sensitive(false);
+        }
     }
     pub(crate) fn finish(&self, error: Option<&UiError>) {
         if let Some(error) = error {
@@ -281,7 +287,11 @@ pub(crate) fn show_editor(
         .xalign(0.0)
         .build();
     label.add_css_class("heading");
-    content.append(&label);
+    let source_header = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    label.set_hexpand(true);
+    source_header.append(&label);
+    source_header.append(&patterns::menu(&dialog, editor.buffer()));
+    content.append(&source_header);
     editor.view().set_widget_name("template-source-view");
     let scroll = gtk::ScrolledWindow::builder()
         .child(editor.view())
@@ -302,7 +312,8 @@ pub(crate) fn show_editor(
     error.set_widget_name("template-error");
     error.add_css_class("error");
     content.append(&error);
-    let help = gtk::Label::builder().label(gettext("Template properties override matching defaults. Other enabled default properties are added when creating a note.")).wrap(true).xalign(0.0).build();
+    let help = gtk::Label::builder().label(gettext("Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence.")).wrap(true).xalign(0.0).build();
+    help.set_widget_name("template-help");
     help.add_css_class("dim-label");
     content.append(&help);
     let body = gtk::ScrolledWindow::builder()
@@ -344,6 +355,9 @@ pub(crate) fn show_editor(
         let source = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .to_string();
+        let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PatternClock(
+            carver_sdk::template_context("").now,
+        )));
         let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PreviewDraft {
             request_id: id,
             source,

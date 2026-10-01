@@ -1,4 +1,7 @@
-//! Static, self-contained note templates and property merging.
+//! Self-contained note templates and property merging.
+
+pub mod patterns;
+pub use patterns::{TemplateContext, expand_template_source};
 
 use crate::{
     FrontmatterDocument, FrontmatterField, FrontmatterFormat, FrontmatterValue, Revision,
@@ -59,6 +62,9 @@ pub struct NoteTemplate {
 /// A template cannot be safely instantiated.
 #[derive(Debug, Error)]
 pub enum TemplateError {
+    /// Unknown pattern, unclosed delimiter, or unsupported date/time format.
+    #[error("invalid template pattern: {{{{{0}}}}}")]
+    Pattern(String),
     /// Invalid frontmatter or repeated property keys.
     #[error("invalid template frontmatter: {0}")]
     Frontmatter(String),
@@ -75,6 +81,16 @@ pub enum TemplateError {
 /// # Errors
 /// Returns an error for invalid frontmatter, duplicate keys, or managed assets.
 pub fn validate_template_source(source: &str) -> Result<(), TemplateError> {
+    expand_template_source(
+        source,
+        &TemplateContext {
+            now: OffsetDateTime::UNIX_EPOCH,
+            category: String::new(),
+        },
+    )?;
+    validate_template_structure(source)
+}
+fn validate_template_structure(source: &str) -> Result<(), TemplateError> {
     if !SourceAnalysis::parse(source).media().is_empty() {
         return Err(TemplateError::ManagedAssets);
     }
@@ -119,7 +135,7 @@ pub fn merge_template_source(
     defaults: &[FrontmatterField],
     format: FrontmatterFormat,
 ) -> Result<String, TemplateError> {
-    validate_template_source(source)?;
+    validate_template_structure(source)?;
     let mut document = parse_frontmatter_document(source).unwrap_or(FrontmatterDocument {
         format,
         fields: Vec::new(),

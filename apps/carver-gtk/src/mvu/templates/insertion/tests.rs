@@ -45,3 +45,29 @@ fn insertion_should_reject_invalid_existing_metadata_before_adding_properties() 
         .is_err()
     );
 }
+
+#[test]
+fn insertion_patterns_should_resolve_without_overwriting_existing_properties() -> Result<(), UiError>
+{
+    let sample = carver_domain::TemplateContext {
+        now: time::macros::datetime!(2026-10-01 14:30 +02:00),
+        category: "Meetings".into(),
+    };
+    let (body, properties) = prepare_at(
+        "---\nexisting: '{{date}}'\nadded: '{{datetime}}'\n---\n# {{category}}",
+        "---\nexisting: original\n---\n",
+        &DocumentPropertiesConfig::default(),
+        &sample,
+    )?;
+    assert_eq!(body, "# Meetings");
+    let properties = properties.ok_or_else(|| UiError::new("missing properties"))?;
+    assert_eq!(
+        properties.fields[0].value,
+        carver_domain::FrontmatterValue::Text("original".into())
+    );
+    assert_eq!(
+        properties.fields[1].value,
+        carver_domain::FrontmatterValue::Text("2026-10-01T14:30:00+02:00".into())
+    );
+    Ok(())
+}

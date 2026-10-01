@@ -61,6 +61,9 @@ pub(super) fn show(
     let weak = dialog.downgrade();
     create.connect_clicked(move |button| {
         button.set_sensitive(false);
+        let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::PatternClock(
+            carver_sdk::template_context("").now,
+        )));
         let _ = d.dispatch(AppMsg::Templates(TemplatesMsg::CreateSelected(request_id)));
         if let Some(dialog) = weak.upgrade() {
             dialog.close();

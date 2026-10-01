@@ -73,6 +73,8 @@ pub enum TemplatePurpose {
 /// Template operations submitted by GTK or the SDK runtime.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplatesMsg {
+    /// Refresh the timestamp at the host boundary, keeping the reducer deterministic.
+    PatternClock(time::OffsetDateTime),
     /// Refresh default-template names independently of dialog requests.
     RefreshCatalog,
     /// A default-template name refresh completed.
@@ -206,6 +208,10 @@ pub enum TemplatesMsg {
 )]
 pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect> {
     match message {
+        TemplatesMsg::PatternClock(now) => {
+            model.template_pattern_time = now;
+            Vec::new()
+        }
         TemplatesMsg::RefreshCatalog => refresh_catalog(model).into_iter().collect(),
         TemplatesMsg::CatalogLoaded { request_id, result } => {
             if model.template_catalog.finish(request_id, result) {
@@ -242,7 +248,11 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
             }
             vec![Effect::ShowDraftProperties {
                 request_id,
-                preview: preview::source_preview(&source, &model.config.document_properties),
+                preview: preview::source_preview_at(
+                    &source,
+                    &model.config.document_properties,
+                    &pattern_context(model, model.active_category_id()),
+                ),
             }]
         }
         TemplatesMsg::PickerClosed(request_id) => {
@@ -323,9 +333,10 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                         initial_preview = selected
                             .and_then(|id| templates.iter().find(|t| t.id == id))
                             .map(|t| {
-                                preview::source_preview(
+                                preview::source_preview_at(
                                     &t.source,
                                     &model.config.document_properties,
+                                    &pattern_context(model, Some(*category_id)),
                                 )
                             });
                     }
@@ -333,7 +344,15 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
                         let selected = templates.first().map(|t| t.id);
                         selected_id = selected;
                         initial_preview = templates.first().map(|t| {
-                            insertion::preview(&t.source, target, &model.config.document_properties)
+                            insertion::preview_at(
+                                &t.source,
+                                target,
+                                &model.config.document_properties,
+                                &pattern_context(
+                                    model,
+                                    model.editor.as_ref().map(|d| d.category_id),
+                                ),
+                            )
                         });
                         let Some(document) = model.editor.as_ref().filter(|d| {
                             d.session == target.session
@@ -554,7 +573,11 @@ fn edit(
     let request_id = model.next_request_id();
     model.template_editor = Some(request_id);
     vec![Effect::ShowTemplateEditor {
-        properties: preview::source_preview(&source, &model.config.document_properties),
+        properties: preview::source_preview_at(
+            &source,
+            &model.config.document_properties,
+            &pattern_context(model, model.active_category_id()),
+        ),
         preferences: model.preferences.source_editor.clone(),
         request_id,
         original,
@@ -568,6 +591,12 @@ pub(super) fn validate(
 ) -> Result<(), UiError> {
     carver_sdk::validate_configured_template(source, defaults).map_err(|error| {
         UiError::new(match error {
+            carver_sdk::ConfiguredTemplateError::Source(carver_domain::TemplateError::Pattern(
+                pattern,
+            )) => tr_fmt!(
+                gettext("Invalid template pattern: {pattern}"),
+                pattern = pattern
+            ),
             carver_sdk::ConfiguredTemplateError::Source(
                 carver_domain::TemplateError::ManagedAssets,
             ) => gettext("Templates cannot contain managed images or attachments."),
@@ -604,6 +633,7 @@ fn select_preview(
     request_id: RequestId,
     id: Option<TemplateId>,
 ) -> Vec<Effect> {
+    let context = pattern_context(model, model.template_picker.as_ref().map(|p| p.category_id));
     let Some(picker) = &mut model.template_picker else {
         return Vec::new();
     };
@@ -616,10 +646,33 @@ fn select_preview(
         request_id,
         preview: template.map(|t| {
             if let Some(target) = &picker.insertion {
-                insertion::preview(&t.source, target, &model.config.document_properties)
+                insertion::preview_at(
+                    &t.source,
+                    target,
+                    &model.config.document_properties,
+                    &context,
+                )
             } else {
-                preview::source_preview(&t.source, &model.config.document_properties)
+                preview::source_preview_at(&t.source, &model.config.document_properties, &context)
             }
         }),
     }]
+}
+
+fn pattern_context(
+    model: &AppModel,
+    category_id: Option<CategoryId>,
+) -> carver_domain::TemplateContext {
+    let category = match &model.sidebar.state {
+        super::LoadState::Ready(categories) => categories
+            .iter()
+            .find(|c| Some(c.category.id) == category_id)
+            .map(|c| c.category.name.clone())
+            .unwrap_or_default(),
+        _ => String::new(),
+    };
+    carver_domain::TemplateContext {
+        now: model.template_pattern_time,
+        category,
+    }
 }

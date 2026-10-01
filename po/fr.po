@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:03+0200\n"
+"POT-Creation-Date: 2026-10-01 08:35+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: French\n"
@@ -92,14 +92,14 @@ msgstr "La note n’est plus disponible."
 msgid "The template is no longer available."
 msgstr "Le modèle n’est plus disponible."
 
-#: apps/carver-gtk/src/mvu/runtime/templates.rs
-#: apps/carver-gtk/src/mvu/templates/preview.rs
-msgid "The template properties could not be merged."
-msgstr "Les propriétés du modèle n’ont pas pu être fusionnées."
-
 #: apps/carver-gtk/src/mvu/templates.rs
 msgid "Enter a template name."
 msgstr "Saisissez un nom de modèle."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Invalid template pattern: {pattern}"
+msgstr "Motif de modèle invalide : {pattern}"
 
 #: apps/carver-gtk/src/mvu/templates.rs
 #, rust-format
@@ -117,6 +117,10 @@ msgstr "Les métadonnées du modèle sont invalides ou contiennent des propriét
 #: apps/carver-gtk/src/mvu/templates/insertion.rs
 msgid "The template could not be inserted. Check the note’s properties."
 msgstr "Impossible d’insérer le modèle. Vérifiez les propriétés de la note."
+
+#: apps/carver-gtk/src/mvu/templates/preview.rs
+msgid "The template properties could not be merged."
+msgstr "Les propriétés du modèle n’ont pas pu être fusionnées."
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -909,6 +913,7 @@ msgid "Follow the desktop setting ({system_font})."
 msgstr "Suivre le réglage du bureau ({system_font})."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 msgid "Format"
 msgstr "Format"
 
@@ -1415,6 +1420,7 @@ msgstr "Adresse"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "Insérer"
@@ -1894,6 +1900,10 @@ msgid "No matching templates"
 msgstr "Aucun modèle correspondant"
 
 #: apps/carver-gtk/src/ui/templates.rs
+msgid "Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence."
+msgstr "Les motifs sont remplacés lors de l’utilisation. Les nouvelles notes incluent les propriétés par défaut activées, avec priorité aux valeurs du modèle."
+
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Search templates…"
 msgstr "Rechercher des modèles…"
 
@@ -1908,10 +1918,6 @@ msgstr "Actions du modèle"
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Template name"
 msgstr "Nom du modèle"
-
-#: apps/carver-gtk/src/ui/templates.rs
-msgid "Template properties override matching defaults. Other enabled default properties are added when creating a note."
-msgstr "Les propriétés du modèle remplacent les valeurs par défaut correspondantes. Les autres propriétés par défaut activées sont ajoutées à la création d’une note."
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Templates"
@@ -1932,6 +1938,82 @@ msgstr "Vous pouvez aussi utiliser Enregistrer comme modèle… dans le menu d�
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Your unsaved template changes will be lost."
 msgstr "Les modifications non enregistrées du modèle seront perdues."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "%Y: year · %m: month · %d: day · %H: hour · %M: minute · %S: second"
+msgstr "%Y : année · %m : mois · %d : jour · %H : heure · %M : minute · %S : seconde"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Category Name"
+msgstr "Nom de la catégorie"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date"
+msgstr "Date actuelle"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date and Time"
+msgstr "Date et heure actuelles"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Time"
+msgstr "Heure actuelle"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date and time, including the UTC offset"
+msgstr "Date et heure locales actuelles, avec le décalage UTC"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date: YYYY-MM-DD"
+msgstr "Date locale actuelle : AAAA-MM-JJ"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local time: HH:MM"
+msgstr "Heure locale actuelle : HH:MM"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format"
+msgstr "Format de date et d’heure personnalisé"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format…"
+msgstr "Format de date et d’heure personnalisé…"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom date format: day/month/year"
+msgstr "Format de date personnalisé : jour/mois/année"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom format"
+msgstr "Format personnalisé"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom time format including seconds"
+msgstr "Format d’heure personnalisé avec les secondes"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Formats use %Y (year), %m (month), %d (day), %H (hour), %M (minute), and %S (second). Use a backslash before {{ to keep a pattern literal; in YAML or JSON double-quoted values, escape the backslash too."
+msgstr "Les formats utilisent %Y (année), %m (mois), %d (jour), %H (heure), %M (minute) et %S (seconde). Ajoutez une barre oblique inverse avant {{ pour conserver un motif littéral ; dans les valeurs YAML ou JSON entre guillemets doubles, échappez aussi cette barre."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Insert Pattern"
+msgstr "Insérer un motif"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Invalid date/time format."
+msgstr "Format de date et d’heure invalide."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Pattern Reference"
+msgstr "Référence des motifs"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "The destination category’s name"
+msgstr "Le nom de la catégorie de destination"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Use patterns in note content or quoted property values. All patterns use one timestamp. The saved template stays unchanged."
+msgstr "Utilisez les motifs dans le contenu des notes ou les valeurs de propriétés entre guillemets. Tous les motifs utilisent le même horodatage. Le modèle enregistré reste inchangé."
 
 #: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Create Note"

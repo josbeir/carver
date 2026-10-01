@@ -106,6 +106,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 }
                 _ => return,
             };
+            runtime.dispatch(AppMsg::Templates(TemplatesMsg::PatternClock(
+                carver_sdk::template_context("").now,
+            )));
             runtime.dispatch(AppMsg::Templates(message));
         });
     }
@@ -122,12 +125,19 @@ async fn create<B: LibraryBackend>(
             .await
             .map_err(template_error)?
             .ok_or_else(|| UiError::new(gettext("The template is no longer available.")))?;
-        crate::mvu::templates::validate(&template.source, &config.entries)?;
-        // Resolve values and empty-field filtering exactly as ordinary blank-note creation does.
-        let defaults = carver_domain::parse_frontmatter_document(&config.default_source())
-            .map_or_else(Vec::new, |document| document.fields);
-        carver_domain::merge_template_source(&template.source, &defaults, config.format)
-            .map_err(|_| UiError::new(gettext("The template properties could not be merged.")))?
+        let category = client
+            .categories_async()
+            .await
+            .map_err(template_error)?
+            .into_iter()
+            .find(|category| category.id == category_id)
+            .ok_or_else(|| UiError::new(gettext("The category is no longer available.")))?;
+        carver_sdk::instantiate_configured_template_at(
+            &template.source,
+            config,
+            &carver_sdk::template_context(&category.name),
+        )
+        .map_err(template_error)?
     } else {
         config.default_source()
     };
