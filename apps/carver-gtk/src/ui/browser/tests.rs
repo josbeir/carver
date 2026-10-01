@@ -174,3 +174,19 @@ fn relative_update_time_should_include_the_year_for_older_notes() {
         "Jan 2, 2025"
     );
 }
+
+#[test]
+fn control_press_should_open_template_picker() {
+    assert!(super::new_note_press_opens_template(
+        gtk::gdk::ModifierType::CONTROL_MASK
+    ));
+    assert!(super::new_note_press_opens_template(
+        gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK
+    ));
+    assert!(!super::new_note_press_opens_template(
+        gtk::gdk::ModifierType::empty()
+    ));
+    assert!(!super::new_note_press_opens_template(
+        gtk::gdk::ModifierType::SHIFT_MASK
+    ));
+}

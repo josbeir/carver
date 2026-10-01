@@ -396,11 +396,32 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
     button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);
     button.set_menu_model(Some(&menu));
 
+    // Capture only the primary segment so Ctrl+click does not intercept the dropdown.
+    if let Some(primary) = find_descendant::<gtk::Button>(button.upcast_ref()) {
+        let gesture = gtk::GestureClick::new();
+        gesture.set_name(Some("new-note-template-click"));
+        gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
+        gesture.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let template_dispatcher = dispatcher.clone();
+        gesture.connect_pressed(move |gesture, _, _, _| {
+            if new_note_press_opens_template(gesture.current_event_state()) {
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+                let _ =
+                    template_dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::Pick));
+            }
+        });
+        primary.add_controller(gesture);
+    }
+
     let dispatcher = dispatcher.clone();
     button.connect_clicked(move |_| {
         let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
     });
     button
+}
+
+pub(crate) fn new_note_press_opens_template(modifiers: gtk::gdk::ModifierType) -> bool {
+    modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
 }
 
 fn build_category_empty_card() -> (gtk::Box, gtk::Button) {

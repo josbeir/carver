@@ -63,12 +63,16 @@ static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
             accelerator: "<Control>n",
         },
         Shortcut {
+            title: gettext("Choose Template…"),
+            accelerator: "<Control><Shift>n",
+        },
+        Shortcut {
             title: gettext("Import note"),
             accelerator: "<Control>o",
         },
         Shortcut {
             title: gettext("New from clipboard"),
-            accelerator: "<Control><Shift>n",
+            accelerator: "<Control><Alt>n",
         },
     ]
 });
@@ -472,7 +476,8 @@ fn install_application_accelerators(window: &adw::ApplicationWindow) {
     for (action, accelerator) in [
         (NEW_NOTE_ACTION, "<Control>n"),
         (IMPORT_NOTE_ACTION, "<Control>o"),
-        (NEW_NOTE_FROM_CLIPBOARD_ACTION, "<Control><Shift>n"),
+        (NEW_NOTE_FROM_CLIPBOARD_ACTION, "<Control><Alt>n"),
+        ("win.new-from-template", "<Control><Shift>n"),
         (EXPORT_NOTE_ACTION, "<Control>e"),
         (PRINT_NOTE_ACTION, "<Control>p"),
         (TRASH_NOTE_ACTION, "<Control>d"),

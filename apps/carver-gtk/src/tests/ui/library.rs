@@ -86,6 +86,34 @@ pub(super) fn browser_actions_should_import_and_create_a_note(
         "the New Note dropdown should group import and clipboard actions"
     );
     assert!(window.lookup_action("import-note").is_some());
+    let application = window.application().ok_or("application")?;
+    assert_eq!(
+        application
+            .accels_for_action("win.new-from-template")
+            .as_slice(),
+        ["<Shift><Control>n"]
+    );
+    assert_eq!(
+        application
+            .accels_for_action("win.new-note-from-clipboard")
+            .as_slice(),
+        ["<Control><Alt>n"]
+    );
+    let primary = new_note
+        .first_child()
+        .and_downcast::<gtk::Button>()
+        .ok_or("primary button")?;
+    let controllers = primary.observe_controllers();
+    assert!(
+        (0..controllers.n_items())
+            .filter_map(|i| controllers.item(i))
+            .filter_map(|c| c.downcast::<gtk::GestureClick>().ok())
+            .any(
+                |gesture| gesture.name().as_deref() == Some("new-note-template-click")
+                    && gesture.propagation_phase() == gtk::PropagationPhase::Capture
+                    && gesture.button() == gtk::gdk::BUTTON_PRIMARY
+            )
+    );
     assert!(window.lookup_action("new-note-from-clipboard").is_some());
     assert!(
         window
