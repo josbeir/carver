@@ -59,7 +59,7 @@ fn insertion_patterns_should_resolve_without_overwriting_existing_properties() -
         &DocumentPropertiesConfig::default(),
         &sample,
     )?;
-    assert_eq!(body, "# Meetings");
+    assert_eq!(body, "\n# Meetings");
     let properties = properties.ok_or_else(|| UiError::new("missing properties"))?;
     assert_eq!(
         properties.fields[0].value,
@@ -69,5 +69,19 @@ fn insertion_patterns_should_resolve_without_overwriting_existing_properties() -
         properties.fields[1].value,
         carver_domain::FrontmatterValue::Text("2026-10-01T14:30:00+02:00".into())
     );
+    Ok(())
+}
+
+#[test]
+fn insertion_should_preserve_body_separators_in_all_frontmatter_formats() -> Result<(), UiError> {
+    for header in [
+        "---\nkind: meeting\n---",
+        "---toml\nkind = 'meeting'\n---",
+        "---json\n{\"kind\": \"meeting\"}\n---",
+    ] {
+        let template = format!("{header}\n\n\n# Agenda\n");
+        let (body, _) = prepare(&template, "Existing", &DocumentPropertiesConfig::default())?;
+        assert_eq!(body, "\n\n\n# Agenda\n");
+    }
     Ok(())
 }

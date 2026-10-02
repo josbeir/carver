@@ -741,7 +741,7 @@ pub(super) fn inserting_template_should_preserve_properties_and_undo_in_source()
     )?;
     dismiss_initial_dialogs(&fixture.window);
     fixture.window.present();
-    let original = "---\nstatus: done\n---\n\n# Existing\n";
+    let original = "---\nstatus: done\n---\n\n# Existing";
     let note = fixture.client.create_note(fixture.category.id)?;
     let note = fixture.client.save_note(note.id, note.revision, original)?;
     glib::MainContext::default().block_on(fixture.client.create_template_async(
@@ -785,7 +785,7 @@ pub(super) fn inserting_template_should_preserve_properties_and_undo_in_source()
     );
     assert!(!inserted.contains("global_only"));
     assert!(!inserted.contains("{{"));
-    assert!(inserted.find("# Existing") < inserted.find("# Agenda"));
+    assert!(inserted.contains("# Existing\n\n# Agenda"), "{inserted}");
     buffer.undo();
     assert!(run_main_context_until(|| buffer.text(
         &buffer.start_iter(),
@@ -1321,6 +1321,45 @@ pub(super) fn template_creation_should_report_missing_targets_without_creating_n
             .message
             .contains("category is no longer available"))));
     assert_eq!(fixture.client.note_count(fixture.category.id)?, before);
+    fixture.window.close();
+    Ok(())
+}
+
+pub(super) fn template_shortcut_should_ignore_trash_and_base_contexts() -> TestResult {
+    let fixture = window_fixture_for("io.github.josbeir.Carver.TemplateContextTests")?;
+    dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let action = fixture
+        .window
+        .lookup_action("new-from-template")
+        .ok_or("template action")?;
+    for message in [
+        AppMsg::Navigation(NavigationMsg::ShowTrash),
+        AppMsg::Bases(crate::mvu::BasesMsg::Open(fixture.base.id)),
+    ] {
+        let _ = fixture.dispatcher.dispatch(message);
+        action.activate(None);
+        assert!(fixture.window.visible_dialog().is_none());
+    }
+    let note = fixture.client.create_note(fixture.category.id)?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::NewTab,
+        }));
+    assert!(run_main_context_until(|| note_tab_is_active(
+        fixture.window.upcast_ref()
+    ) && !note_tab_is_loading(
+        fixture.window.upcast_ref()
+    )));
+    action.activate(None);
+    assert!(fixture.window.visible_dialog().is_none());
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::ShowBrowser));
+    action.activate(None);
+    visible_dialog(&fixture.window, "templates-dialog")?.close();
     fixture.window.close();
     Ok(())
 }

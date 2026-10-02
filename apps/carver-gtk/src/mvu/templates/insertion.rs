@@ -64,7 +64,19 @@ fn prepare_at(
             "The template could not be inserted. Check the note’s properties.",
         ))
     };
-    let body = replace_frontmatter(template, None).map_err(|_| error())?;
+    let mut body = carver_domain::replace_frontmatter_preserving_body(
+        template,
+        &FrontmatterDocument {
+            format: config.format,
+            fields: Vec::new(),
+            error: None,
+        },
+    )
+    .map_err(|_| error())?;
+    // A fence's terminating newline alone does not make a property-only template a body.
+    if body == "\n" && parse_frontmatter_document(template).is_some() {
+        body.clear();
+    }
     let missing = missing_fields(template, source);
     if missing.is_empty() {
         return Ok((body, None));

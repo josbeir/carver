@@ -300,7 +300,11 @@ pub(crate) fn install_window_actions(
     install_mvu_actions(window, dispatcher, runtime);
 }
 
-fn install_template_actions(window: &adw::ApplicationWindow, dispatcher: &AppDispatcher) {
+fn install_template_actions(
+    window: &adw::ApplicationWindow,
+    dispatcher: &AppDispatcher,
+    runtime: &AppRuntime<SqliteLibrary>,
+) {
     for (name, message) in [
         (
             "insert-template",
@@ -325,7 +329,11 @@ fn install_template_actions(window: &adw::ApplicationWindow, dispatcher: &AppDis
     ] {
         let action = gtk::gio::SimpleAction::new(name, None);
         let dispatcher = dispatcher.clone();
+        let runtime = runtime.clone();
         action.connect_activate(move |_, _| {
+            if name == "new-from-template" && !runtime.model().can_create_note() {
+                return;
+            }
             let _ = dispatcher.dispatch(message.clone());
         });
         window.add_action(&action);
@@ -349,7 +357,7 @@ fn install_note_actions(
     });
     window.add_action(&new_note);
 
-    install_template_actions(window, dispatcher);
+    install_template_actions(window, dispatcher, runtime);
     let import_note = gtk::gio::SimpleAction::new("import-note", None);
     let dispatcher_for_import = dispatcher.clone();
     let runtime_for_import = runtime.clone();

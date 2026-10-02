@@ -267,6 +267,7 @@ pub(super) fn update(model: &mut AppModel, message: TemplatesMsg) -> Vec<Effect>
         }
         TemplatesMsg::Manage => load(model, TemplatePurpose::Manage),
         TemplatesMsg::NewCategory => load(model, TemplatePurpose::NewCategory),
+        TemplatesMsg::Pick if !model.can_create_note() => Vec::new(),
         TemplatesMsg::Pick => model
             .active_category_id()
             .map_or_else(Vec::new, |id| load(model, TemplatePurpose::Pick(id))),

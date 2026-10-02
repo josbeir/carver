@@ -537,3 +537,19 @@ fn failed_template_save_should_keep_the_editor_and_restore_its_controls() {
         matches!(&effects[..], [Effect::FinishTemplateEdit { error: Some(error), .. }] if error.message == "revision conflict")
     );
 }
+
+#[test]
+fn template_picker_should_ignore_contexts_without_note_creation() {
+    for (route, return_route) in [
+        (Route::Trash, Route::Browser),
+        (Route::Base, Route::Browser),
+        (Route::Editor, Route::Base),
+    ] {
+        let mut model = AppModel::new(&Config::default());
+        model.selected_category = Some(CategoryId::new());
+        model.route = route;
+        model.editor_return_route = return_route;
+        assert!(update(&mut model, AppMsg::Templates(TemplatesMsg::Pick)).is_empty());
+        assert!(model.template_request.is_none());
+    }
+}
