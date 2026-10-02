@@ -248,3 +248,106 @@ fn deferred_background_work_should_stay_bounded() {
         (job.run)(&());
     }
 }
+
+#[test]
+fn template_requests_should_propagate_backend_failures() -> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let id = TemplateId::new();
+    let category = CategoryId::new();
+    assert_backend_error(&block_on(client.templates_async()));
+    assert_backend_error(&block_on(client.template_async(id)));
+    assert_backend_error(&block_on(
+        client.create_template_async("Meeting".into(), "# Agenda".into()),
+    ));
+    assert_backend_error(&block_on(client.save_template_async(
+        id,
+        Revision(1),
+        "Meeting".into(),
+        "# Agenda".into(),
+    )));
+    assert_backend_error(&block_on(client.delete_template_async(id, Revision(1))));
+    assert_backend_error(&block_on(
+        client.set_category_template_async(category, Some(id)),
+    ));
+    assert_backend_error(&block_on(client.update_category_with_template_async(
+        category,
+        "Meetings".into(),
+        CategoryAppearance::default(),
+        Some(id),
+    )));
+    Ok(())
+}
+
+#[test]
+fn category_form_should_create_without_a_template_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    let appearance = CategoryAppearance {
+        icon: CategoryIcon::Book,
+        color: CategoryColor::Teal,
+    };
+    let created =
+        block_on(client.create_category_with_template_async("Work".into(), appearance, None))?;
+    assert_eq!(created.appearance, appearance);
+    assert_eq!(created.default_template_id, None);
+    assert_eq!(block_on(client.categories_async())?, vec![created]);
+    Ok(())
+}
+
+#[test]
+fn category_form_should_propagate_creation_failure_through_the_async_facade()
+-> Result<(), LibraryError<TestError>> {
+    let client = LibraryClient::spawn(TestBackend::new())?;
+    assert!(matches!(
+        block_on(client.create_category_with_template_async(
+            "Work".into(),
+            CategoryAppearance::default(),
+            Some(TemplateId::new())
+        )),
+        Err(LibraryError::Backend(TestError))
+    ));
+    assert_eq!(
+        block_on(client.categories_async())?,
+        [] as [carver_domain::Category; 0]
+    );
+    Ok(())
+}
+
+#[test]
+fn template_patterns_should_share_the_timestamp_with_default_properties()
+-> Result<(), ConfiguredTemplateError> {
+    let context = carver_domain::TemplateContext {
+        now: time::macros::datetime!(2026-10-01 23:59:58 +02:00),
+        category: "Meetings".into(),
+    };
+    let config = DocumentPropertiesConfig {
+        enabled: true,
+        entries: vec![DocumentProperty {
+            key: "created".into(),
+            field_type: carver_config::DocumentPropertyType::DateTime,
+            multiple: false,
+            value: carver_domain::FrontmatterValue::Null.to_json(),
+        }],
+        ..DocumentPropertiesConfig::default()
+    };
+    let source = "---\nwhen: '{{datetime}}'\n---\n# {{category}} — {{date}}";
+    let expanded = instantiate_configured_template_at(source, &config, &context)?;
+    let fields =
+        carver_domain::parse_frontmatter_document(&expanded).map_or_else(Vec::new, |d| d.fields);
+    assert_eq!(fields[0].value, fields[1].value);
+    assert!(expanded.ends_with("# Meetings — 2026-10-01"));
+    assert!(source.contains("{{datetime}}"));
+    Ok(())
+}
+
+#[test]
+fn date_patterns_should_validate_against_configured_date_types() {
+    let definitions = vec![DocumentProperty {
+        key: "when".into(),
+        field_type: DocumentPropertyType::Date,
+        multiple: false,
+        value: carver_domain::FrontmatterValue::Null.to_json(),
+    }];
+    assert!(validate_configured_template("---\nwhen: '{{date}}'\n---", &definitions).is_ok());
+    assert!(validate_configured_template("---\nwhen: '{{time}}'\n---", &definitions).is_err());
+}

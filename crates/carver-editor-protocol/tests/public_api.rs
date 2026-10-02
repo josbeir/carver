@@ -1,6 +1,9 @@
 //! External-consumer contract tests for `carver-editor-protocol`.
 
-use carver_editor_protocol::{EditorCommand, EditorEvent, LinkCommand, TableCommand};
+#[cfg(feature = "json-schema")]
+use carver_editor_protocol::TableCommand;
+
+use carver_editor_protocol::{EditorCommand, EditorEvent, LinkCommand};
 
 #[test]
 fn protocol_types_should_round_trip_through_the_public_json_contract()

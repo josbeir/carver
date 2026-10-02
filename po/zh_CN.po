@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 16:11+0200\n"
+"POT-Creation-Date: 2026-10-01 08:35+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -74,6 +74,53 @@ msgstr "笔记"
 #: apps/carver-gtk/src/mvu/runtime/media_preview.rs
 msgid "This file is no longer available."
 msgstr "此文件已不再可用。"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+#, rust-format
+msgid "Could not complete the template action: {error}"
+msgstr "无法完成模板操作：{error}"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The category is no longer available."
+msgstr "该分类已不可用。"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The note is no longer available."
+msgstr "该笔记已不可用。"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template is no longer available."
+msgstr "该模板已不可用。"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Enter a template name."
+msgstr "请输入模板名称。"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Invalid template pattern: {pattern}"
+msgstr "无效的模板模式：{pattern}"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Property {key} does not match its configured type."
+msgstr "属性 {key} 与其配置的类型不匹配。"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Templates cannot contain managed images or attachments."
+msgstr "模板不能包含托管图片或附件。"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "The template frontmatter is invalid or contains duplicate properties."
+msgstr "模板的前置元数据无效或包含重复属性。"
+
+#: apps/carver-gtk/src/mvu/templates/insertion.rs
+msgid "The template could not be inserted. Check the note’s properties."
+msgstr "无法插入模板。请检查笔记的属性。"
+
+#: apps/carver-gtk/src/mvu/templates/preview.rs
+msgid "The template properties could not be merged."
+msgstr "无法合并模板属性。"
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -204,7 +251,8 @@ msgstr "以只读卡片形式浏览笔记。"
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "取消"
@@ -318,8 +366,10 @@ msgstr "移除字段"
 msgid "Remove {noun}"
 msgstr "移除{noun}"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Save"
 msgstr "保存"
 
@@ -497,7 +547,7 @@ msgstr "创建一篇笔记即可开始。"
 msgid "Earlier This Year"
 msgstr "今年早些时候"
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Edit Category"
 msgstr "编辑分类"
 
@@ -535,6 +585,10 @@ msgid "Move…"
 msgstr "移动…"
 
 #: apps/carver-gtk/src/ui/browser.rs
+msgid "New Blank Note"
+msgstr "新建空白笔记"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "New Note"
 msgstr "新建笔记"
 
@@ -545,6 +599,10 @@ msgstr "从剪贴板新建"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "从剪贴板新建 Markdown"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New from Template…"
+msgstr "从模板新建…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -565,6 +623,10 @@ msgstr "笔记操作"
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Remove from Favorites"
 msgstr "从收藏中移除"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save as Template…"
+msgstr "另存为模板…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search notes"
@@ -630,6 +692,10 @@ msgstr "用于 Carve 标记的原生 GNOME 笔记本。"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Add default properties to new notes"
 msgstr "为新笔记添加默认属性"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Added to every new note. Templates can provide their own values."
+msgstr "添加到每条新笔记中。模板可以提供自己的值。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Adjust the space between lines in Edit and Preview."
@@ -788,6 +854,10 @@ msgid "Default properties"
 msgstr "默认属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Default template"
+msgstr "默认模板"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Detailed"
 msgstr "详细"
 
@@ -837,6 +907,7 @@ msgid "Follow the desktop setting ({system_font})."
 msgstr "跟随桌面设置（{system_font}）。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 msgid "Format"
 msgstr "格式"
 
@@ -929,6 +1000,10 @@ msgstr "自动加载远程图片"
 msgid "MCP setup"
 msgstr "MCP 设置"
 
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Manage Templates…"
+msgstr "管理模板…"
+
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Move note to Trash"
 msgstr "将笔记移到回收站"
@@ -968,8 +1043,8 @@ msgid "New from clipboard"
 msgstr "从剪贴板新建"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note properties"
-msgstr "新笔记属性"
+msgid "New notes start with a copy of this template. Existing notes stay unchanged."
+msgstr "新笔记以此模板的副本开始。现有笔记保持不变。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New tab"
@@ -990,6 +1065,11 @@ msgstr "未找到分类"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No setup instruction is available."
 msgstr "没有可用的设置说明。"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "template choice"
+msgid "None"
+msgstr "无"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgctxt "shortcut section"
@@ -1053,6 +1133,10 @@ msgid "Properties"
 msgstr "属性"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties for all new notes"
+msgstr "所有新笔记的属性"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Purple"
 msgstr "紫色"
 
@@ -1080,10 +1164,6 @@ msgstr "搜索视图库行"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search categories"
 msgstr "搜索分类"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Seed each new note with the default properties below."
-msgstr "用以下默认属性填充每个新笔记。"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Select a Carve (.crv) or Markdown (.md) file."
@@ -1332,6 +1412,8 @@ msgstr "地址"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "插入"
 
@@ -1408,6 +1490,10 @@ msgstr "HTML 文档"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Include managed files"
 msgstr "包含托管文件"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Insert Template…"
+msgstr "插入模板…"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Markdown documents"
@@ -1742,10 +1828,221 @@ msgstr "设置"
 msgid "Show Categories"
 msgstr "显示分类"
 
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Templates…"
+msgstr "模板…"
+
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "回收站"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Carve source"
+msgstr "Carve 源码"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Categories using this template will return to blank notes. Existing notes will not change."
+msgstr "使用此模板的分类将恢复创建空白笔记。现有笔记不会改变。"
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "选择模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Create Template"
+msgstr "创建模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete"
+msgstr "删除"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete Template?"
+msgstr "删除模板？"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard"
+msgstr "放弃"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard Template Changes?"
+msgstr "放弃模板更改？"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Duplicate"
+msgstr "复制"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Edit Template"
+msgstr "编辑模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Insert Template"
+msgstr "插入模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New Template"
+msgstr "新建模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "No matching templates"
+msgstr "没有匹配的模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence."
+msgstr "使用时会填入模式值。新笔记包含已启用的默认属性，模板值优先。"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Search templates…"
+msgstr "搜索模板…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Start with a template"
+msgstr "从模板开始"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template actions"
+msgstr "模板操作"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template name"
+msgstr "模板名称"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates"
+msgstr "模板"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates are reusable starting points for new notes. Save a note as a template, or create one here."
+msgstr "模板是新笔记可重复使用的起点。将笔记保存为模板，或在此创建模板。"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Try a different search."
+msgstr "请尝试其他搜索条件。"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "You can also use Save as Template… from a note’s menu. Each new note gets its own copy."
+msgstr "也可在笔记菜单中使用“另存为模板…”。每个新笔记都有自己的副本。"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Your unsaved template changes will be lost."
+msgstr "未保存的模板更改将丢失。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "%Y: year · %m: month · %d: day · %H: hour · %M: minute · %S: second"
+msgstr "%Y：年 · %m：月 · %d：日 · %H：时 · %M：分 · %S：秒"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Category Name"
+msgstr "分类名称"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date"
+msgstr "当前日期"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date and Time"
+msgstr "当前日期和时间"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Time"
+msgstr "当前时间"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date and time, including the UTC offset"
+msgstr "当前本地日期和时间，包含 UTC 偏移量"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date: YYYY-MM-DD"
+msgstr "当前本地日期：YYYY-MM-DD"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local time: HH:MM"
+msgstr "当前本地时间：HH:MM"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format"
+msgstr "自定义日期/时间格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format…"
+msgstr "自定义日期/时间格式…"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom date format: day/month/year"
+msgstr "自定义日期格式：日/月/年"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom format"
+msgstr "自定义格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom time format including seconds"
+msgstr "包含秒的自定义时间格式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Formats use %Y (year), %m (month), %d (day), %H (hour), %M (minute), and %S (second). Use a backslash before {{ to keep a pattern literal; in YAML or JSON double-quoted values, escape the backslash too."
+msgstr "格式使用 %Y（年）、%m（月）、%d（日）、%H（时）、%M（分）和 %S（秒）。在 {{ 前加反斜杠可保留模式原文；在 YAML 或 JSON 的双引号值中，还需转义反斜杠。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Insert Pattern"
+msgstr "插入模式"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Invalid date/time format."
+msgstr "无效的日期/时间格式。"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Pattern Reference"
+msgstr "模式参考"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "The destination category’s name"
+msgstr "目标分类的名称"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Use patterns in note content or quoted property values. All patterns use one timestamp. The saved template stays unchanged."
+msgstr "在笔记内容或带引号的属性值中使用模式。所有模式使用同一时间戳。已保存的模板保持不变。"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Create Note"
+msgstr "创建笔记"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Inserts at the cursor and adds missing properties. Existing property values stay unchanged."
+msgstr "在光标位置插入并添加缺失的属性。现有属性值保持不变。"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "New notes get their own copy. Editing a template won’t change existing notes."
+msgstr "新笔记都有自己的副本。编辑模板不会更改现有笔记。"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Properties to add"
+msgstr "要添加的属性"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From template"
+msgstr "来自模板"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+#, rust-format
+msgid "From template · replaces default: {value}"
+msgstr "来自模板 · 替换默认值：{value}"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From your default properties"
+msgstr "来自默认属性"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "No properties yet. Add default properties in Preferences."
+msgstr "尚无属性。请在偏好设置中添加默认属性。"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "Properties for new notes"
+msgstr "新笔记的属性"
 
 #: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
@@ -1798,6 +2095,10 @@ msgid "Could not open the note editor: {error}"
 msgstr "无法打开笔记编辑器：{error}"
 
 #: apps/carver-gtk/src/view/mod.rs
+msgid "Could not open the template editor."
+msgstr "无法打开模板编辑器。"
+
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"
 msgstr "无法加载视图库"
 
@@ -1848,6 +2149,11 @@ msgstr "已移动笔记"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "已将笔记移到回收站"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "New Note · {template}"
+msgstr "新建笔记 · {template}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Note"

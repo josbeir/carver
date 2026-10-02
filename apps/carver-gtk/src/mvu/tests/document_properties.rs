@@ -85,7 +85,7 @@ fn set_document_properties_should_replace_entries_and_persist() {
 }
 
 #[test]
-fn create_note_should_seed_enabled_default_properties() {
+fn create_blank_note_should_seed_enabled_default_properties() {
     let mut config = Config::default();
     config.document_properties.enabled = true;
     config.document_properties.entries = vec![text_property("author", "Jane")];
@@ -94,9 +94,12 @@ fn create_note_should_seed_enabled_default_properties() {
     let category_id = CategoryId::new();
     model.selected_category = Some(category_id);
 
-    let effects = update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote));
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote),
+    );
 
-    assert!(!expected.is_empty());
+    assert_ne!(expected, "");
     assert_eq!(
         effects,
         vec![Effect::CreateNote {
@@ -107,12 +110,15 @@ fn create_note_should_seed_enabled_default_properties() {
 }
 
 #[test]
-fn create_note_should_not_seed_disabled_default_properties() {
+fn create_blank_note_should_not_seed_disabled_default_properties() {
     let mut model = AppModel::new(&Config::default());
     let category_id = CategoryId::new();
     model.selected_category = Some(category_id);
 
-    let effects = update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote));
+    let effects = update(
+        &mut model,
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote),
+    );
 
     assert_eq!(
         effects,
@@ -176,7 +182,7 @@ fn apply_frontmatter_should_be_a_noop_for_unchanged_source() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model
             .editor
@@ -218,7 +224,7 @@ fn apply_frontmatter_should_accept_a_local_autosave() {
             .is_some_and(|document| document.source.contains("author: Jane")),
         "a local autosave must not discard the dialog save"
     );
-    assert!(!effects.is_empty());
+    assert_ne!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -238,7 +244,7 @@ fn apply_frontmatter_should_ignore_an_external_change() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model
             .editor
@@ -262,7 +268,7 @@ fn apply_frontmatter_should_ignore_a_stale_session() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model
             .editor
@@ -279,7 +285,7 @@ fn properties_dialog_request_without_an_editor_should_do_nothing() {
         &mut model,
         AppMsg::Editor(EditorMsg::PropertiesDialogRequested),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -293,7 +299,7 @@ fn apply_frontmatter_without_an_editor_should_do_nothing() {
             category: None,
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -317,7 +323,7 @@ fn apply_raw_frontmatter_should_replace_the_block() {
             .as_ref()
             .is_some_and(|document| document.source.contains("a: b"))
     );
-    assert!(!effects.is_empty());
+    assert_ne!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]

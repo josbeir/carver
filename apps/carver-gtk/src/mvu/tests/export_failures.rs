@@ -67,7 +67,7 @@ fn stale_export_dialog_response_should_preserve_the_newer_snapshot() {
             target_uri: "file:///unused.crv".into(),
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.editor_export_dialog_request, Some(current));
 }
 
@@ -92,14 +92,14 @@ fn confirmed_warning_should_write_only_the_matching_export() {
             result: Ok(vec!["Omission".into()]),
         }),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::ExportConfirmed {
                 request_id: dialog.request_id + 1
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(model.editor_export_warning_request.is_some());
     assert_eq!(

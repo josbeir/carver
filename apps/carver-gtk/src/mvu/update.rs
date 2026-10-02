@@ -28,6 +28,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
 )]
 fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let mut effects = match message {
+        AppMsg::Templates(message) => super::templates::update(model, message),
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
         }
@@ -46,7 +47,14 @@ fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
                 create_note_tab(model, note_id, current_tab_origin(model), false, true)
             }
         }
-        AppMsg::Navigation(NavigationMsg::CreateNote) => create_note_effect(model),
+        AppMsg::Navigation(NavigationMsg::CreateNote) => {
+            if let Some(category_id) = model.active_category_id() {
+                vec![Effect::CreateCategoryNote { category_id }]
+            } else {
+                Vec::new()
+            }
+        }
+        AppMsg::Navigation(NavigationMsg::CreateBlankNote) => create_note_effect(model),
         AppMsg::Navigation(NavigationMsg::ImportNote { format, source }) => {
             import_note_effect(model, format, source)
         }
@@ -1958,7 +1966,7 @@ fn discard_editor(model: &mut AppModel, session_id: super::EditorSessionId) -> V
     Vec::new()
 }
 
-fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn schedule_preview(model: &mut AppModel) -> Option<Effect> {
     let session = model.editor.as_ref()?.session;
     let timer_id = model.next_preview_timer_id();
     model.preview_timer = Some((session, timer_id));
@@ -2488,12 +2496,15 @@ fn update_action(model: &mut AppModel, action: ActionMsg) -> Vec<Effect> {
         ActionMsg::CreateCategory(name) => {
             category_name_effect(&name, |name| Effect::CreateCategory { name })
         }
-        ActionMsg::CreateCategoryWithAppearance { name, appearance } => {
-            category_name_effect(&name, |name| Effect::CreateCategoryWithAppearance {
-                name,
-                appearance,
-            })
-        }
+        ActionMsg::CreateCategoryWithAppearance {
+            name,
+            appearance,
+            template_id,
+        } => category_name_effect(&name, |name| Effect::CreateCategoryWithAppearance {
+            name,
+            appearance,
+            template_id,
+        }),
         ActionMsg::CreateCategoryAndMoveNote { name, note_id, .. } => {
             category_name_effect(&name, |name| Effect::CreateCategoryAndMoveNote {
                 action: key,
@@ -2727,7 +2738,12 @@ fn update_library(model: &mut AppModel, reply: LibraryReply) -> Vec<Effect> {
         }
         LibraryReply::NoteMoved { action, result } => update_note_moved(model, action, result),
         LibraryReply::SidebarLoaded { request_id, result } => {
-            reload_sidebar_after(model.sidebar.finish(request_id, result), model)
+            let mut effects = reload_sidebar_after(model.sidebar.finish(request_id, result), model);
+            if matches!(&model.sidebar.state, super::LoadState::Ready(categories) if categories.iter().any(|c| c.category.default_template_id.is_some()))
+            {
+                effects.extend(super::templates::refresh_catalog(model));
+            }
+            effects
         }
         LibraryReply::BrowserLoaded {
             request_id,
@@ -3646,7 +3662,7 @@ fn character_byte_offset(source: &str, offset: usize) -> usize {
         .map_or(source.len(), |(index, _)| index)
 }
 
-fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn schedule_editor_save(model: &mut AppModel) -> Option<Effect> {
     let session = model.editor.as_ref()?.session;
     schedule_editor_save_for(model, session)
 }
@@ -3862,7 +3878,7 @@ fn reload_after_local_mutation(model: &mut AppModel) -> Vec<Effect> {
     effects
 }
 
-fn request_library_revision(
+pub(super) fn request_library_revision(
     model: &mut AppModel,
     reason: LibraryRevisionCheckReason,
 ) -> Option<Effect> {
@@ -3899,7 +3915,9 @@ fn update_library_revision(
                     .as_ref()
                     .is_some_and(|document| document.session == session)
             });
-            if changed || retry {
+            if (changed && request.reason != LibraryRevisionCheckReason::LocalTemplateMutation)
+                || retry
+            {
                 let mut effects =
                     if changed && request.reason == LibraryRevisionCheckReason::ExternalWakeup {
                         reload_all_resources(model)
@@ -4033,7 +4051,7 @@ fn update_editor_refresh(
     }]
 }
 
-fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn reload_sidebar(model: &mut AppModel) -> Option<Effect> {
     let request_id = model.next_request_id();
     model
         .sidebar
@@ -4244,7 +4262,7 @@ fn update_base_cell_edited(
     effects
 }
 
-fn reload_browser(model: &mut AppModel) -> Option<Effect> {
+pub(super) fn reload_browser(model: &mut AppModel) -> Option<Effect> {
     let request_id = model.next_request_id();
     let started = model.browser.notes.begin_reload(request_id);
     if started {

@@ -45,6 +45,60 @@ impl TestBackend {
 }
 
 impl LibraryBackend for TestBackend {
+    fn update_category_with_template(
+        &self,
+        _: CategoryId,
+        _: &str,
+        _: CategoryAppearance,
+        _: Option<TemplateId>,
+        _: OffsetDateTime,
+    ) -> Result<(), Self::Error> {
+        Err(TestError)
+    }
+
+    fn templates(&self) -> Result<Vec<carver_domain::NoteTemplate>, Self::Error> {
+        Err(TestError)
+    }
+    fn template(
+        &self,
+        _: carver_domain::TemplateId,
+    ) -> Result<Option<carver_domain::NoteTemplate>, Self::Error> {
+        Err(TestError)
+    }
+    fn create_template(
+        &self,
+        _: &str,
+        _: &str,
+        _: OffsetDateTime,
+    ) -> Result<carver_domain::NoteTemplate, Self::Error> {
+        Err(TestError)
+    }
+    fn save_template(
+        &self,
+        _: carver_domain::TemplateId,
+        _: Revision,
+        _: &str,
+        _: &str,
+        _: OffsetDateTime,
+    ) -> Result<carver_domain::NoteTemplate, Self::Error> {
+        Err(TestError)
+    }
+    fn delete_template(
+        &self,
+        _: carver_domain::TemplateId,
+        _: Revision,
+    ) -> Result<(), Self::Error> {
+        Err(TestError)
+    }
+    fn set_category_template(
+        &self,
+        _: CategoryId,
+        _: Option<carver_domain::TemplateId>,
+        _: OffsetDateTime,
+    ) -> Result<(), Self::Error> {
+        Err(TestError)
+    }
+
     type Error = TestError;
 
     fn change_revision(&self) -> Result<LibraryRevision, Self::Error> {
@@ -65,6 +119,7 @@ impl LibraryBackend for TestBackend {
         }
         let mut categories = self.categories.lock().map_err(|_| TestError)?;
         let category = Category {
+            default_template_id: None,
             id: CategoryId::new(),
             name: name.to_owned(),
             appearance: CategoryAppearance::default(),
@@ -85,6 +140,19 @@ impl LibraryBackend for TestBackend {
     ) -> Result<Category, Self::Error> {
         let category = self.create_category(name, now)?;
         self.update_category(category.id, name, appearance, now)
+    }
+
+    fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error> {
+        if template_id.is_some() {
+            return Err(TestError);
+        }
+        self.create_category_with_appearance(name, appearance, now)
     }
 
     fn categories(&self) -> Result<Vec<Category>, Self::Error> {

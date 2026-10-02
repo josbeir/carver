@@ -95,7 +95,7 @@ fn unchanged_external_library_wakeup_should_not_reload_resources() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -106,10 +106,7 @@ fn new_note_should_create_in_the_selected_category() {
 
     assert_eq!(
         update(&mut model, AppMsg::Navigation(NavigationMsg::CreateNote)),
-        vec![Effect::CreateNote {
-            category_id,
-            source: String::new(),
-        }]
+        vec![Effect::CreateCategoryNote { category_id }]
     );
 }
 
@@ -227,6 +224,7 @@ fn import_should_use_the_first_category_when_all_notes_is_selected() {
     let category_id = CategoryId::new();
     model.sidebar.state = LoadState::Ready(vec![carver_sdk::CategorySummary {
         category: carver_sdk::Category {
+            default_template_id: None,
             id: category_id,
             name: String::from("Notes"),
             appearance: carver_sdk::CategoryAppearance::default(),
@@ -265,7 +263,7 @@ fn import_failure_should_not_change_the_active_route() {
         AppMsg::Navigation(NavigationMsg::ImportFailed(String::from("Invalid UTF-8"))),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.notice, Some(UiError::new("Invalid UTF-8")));
 }

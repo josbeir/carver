@@ -9,7 +9,12 @@ mod model;
 mod msg;
 mod runtime;
 mod source_edit;
+mod templates;
 mod update;
+pub use templates::{
+    InsertTarget, TemplatePreview, TemplateProperty, TemplatePropertyOrigin, TemplatePurpose,
+    TemplatesMsg,
+};
 
 pub use effect::Effect;
 pub use model::{

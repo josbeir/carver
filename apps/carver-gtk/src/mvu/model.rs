@@ -847,6 +847,17 @@ impl DocumentSidebarVisibility {
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
+    /// Cached reusable templates for creation labels.
+    pub template_catalog: Resource<Vec<carver_sdk::NoteTemplate>>,
+    pub(crate) template_picker: Option<super::templates::PickerState>,
+    /// Current template list load identity.
+    pub template_request: Option<RequestId>,
+    /// Current template editing lifetime.
+    pub template_editor: Option<RequestId>,
+    /// Whether the draft originated from a note rather than template management.
+    pub template_editor_from_note: bool,
+    /// Timestamp supplied by template effects for deterministic pattern previews.
+    pub template_pattern_time: time::OffsetDateTime,
     /// Full persisted configuration used to create atomic save snapshots.
     pub config: Config,
     /// Current high-level surface.
@@ -925,6 +936,12 @@ impl AppModel {
     #[must_use]
     pub fn new(config: &Config) -> Self {
         Self {
+            template_catalog: Resource::default(),
+            template_picker: None,
+            template_request: None,
+            template_editor: None,
+            template_editor_from_note: false,
+            template_pattern_time: time::OffsetDateTime::UNIX_EPOCH,
             config: config.clone(),
             route: Route::Browser,
             editor_return_route: Route::Browser,
@@ -1155,6 +1172,7 @@ pub(crate) struct LibraryRevisionRequest {
 pub(crate) enum LibraryRevisionCheckReason {
     InitialLoad,
     LocalMutation,
+    LocalTemplateMutation,
     ExternalWakeup,
 }
 

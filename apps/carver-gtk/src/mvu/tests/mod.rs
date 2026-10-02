@@ -41,3 +41,5 @@ pub(crate) use runtime::{
     runtime_should_refresh_visible_resources_after_a_separate_client_mutates_the_library,
     runtime_should_render_and_complete_each_initial_resource,
 };
+
+mod templates;

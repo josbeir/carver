@@ -111,7 +111,7 @@ fn an_empty_link_dialog_query_should_not_search() {
         &mut model,
         AppMsg::Editor(EditorMsg::LinkDialogSearchElapsed { timer_id }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -188,6 +188,6 @@ fn dismissing_the_link_dialog_should_clear_it() {
         &mut model,
         AppMsg::Editor(EditorMsg::LinkDialogDismissed(dialog_id)),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(model.editor_link_dialog.is_none());
 }

@@ -154,7 +154,7 @@ fn renaming_a_category_should_reindex_its_notes_for_search() {
         .unwrap_or_else(|error| panic!("renamed search failed: {error}"))
         .items;
 
-    assert!(stale.is_empty());
+    assert_eq!(stale, [] as [carver_domain::SearchHit; 0]);
     assert_eq!(renamed.len(), 1);
 }
 
@@ -182,7 +182,7 @@ fn updating_a_category_name_should_reindex_its_notes_for_search() {
         .unwrap_or_else(|error| panic!("renamed search failed: {error}"))
         .items;
 
-    assert!(stale.is_empty());
+    assert_eq!(stale, [] as [carver_domain::SearchHit; 0]);
     assert_eq!(renamed.len(), 1);
 }
 
@@ -245,7 +245,7 @@ fn moving_a_note_should_reindex_its_category_for_search() {
         .unwrap_or_else(|error| panic!("moved search failed: {error}"))
         .items;
 
-    assert!(stale.is_empty());
+    assert_eq!(stale, [] as [carver_domain::SearchHit; 0]);
     assert_eq!(moved.len(), 1);
     assert_eq!(moved[0].note.id, note.id);
 }

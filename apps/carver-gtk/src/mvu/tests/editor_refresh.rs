@@ -184,7 +184,10 @@ fn stale_refresh_should_not_replace_another_editor_session() {
             source: "Other note".into(),
         }),
     );
-    assert!(complete(&mut model, effect, Revision(2)).is_empty());
+    assert_eq!(
+        complete(&mut model, effect, Revision(2)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert_eq!(
         model
             .editor
@@ -199,7 +202,10 @@ fn stale_refresh_should_not_replace_another_editor_session() {
 fn unchanged_note_revision_should_preserve_editor_projection() {
     let mut model = open_note();
     let effect = refresh(&mut model);
-    assert!(complete(&mut model, effect, Revision(1)).is_empty());
+    assert_eq!(
+        complete(&mut model, effect, Revision(1)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert_eq!(
         model
             .editor
@@ -217,7 +223,10 @@ fn wakeup_during_revision_read_should_schedule_a_follow_up_check() {
     let Effect::LoadLibraryRevision { request_id } = effects[0] else {
         panic!("revision")
     };
-    assert!(update(&mut model, AppMsg::LibraryChangedExternally).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::LibraryChangedExternally),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
@@ -243,7 +252,10 @@ fn refresh_completing_during_save_should_wait_for_save_completion() {
     let request = document
         .begin_save()
         .unwrap_or_else(|| panic!("missing fixture value"));
-    assert!(complete(&mut model, effect, Revision(2)).is_empty());
+    assert_eq!(
+        complete(&mut model, effect, Revision(2)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert!(
         model
             .editor
@@ -439,12 +451,12 @@ fn deletion_confirmation_should_not_close_a_new_editor_session() {
             source: "New note".into(),
         }),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::CloseDeleted { session })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model
@@ -503,7 +515,10 @@ fn startup_revision_should_refresh_when_external_wakeup_arrives_during_initial_r
         request_id: RequestId(100),
         reason: LibraryRevisionCheckReason::InitialLoad,
     });
-    assert!(update(&mut model, AppMsg::LibraryChangedExternally).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::LibraryChangedExternally),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     let effects = update(
         &mut model,
         AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
@@ -560,13 +575,13 @@ fn trash_requested_should_preserve_a_draft_when_note_was_deleted_externally() {
 fn failed_refresh_should_retry_on_next_wakeup_with_unchanged_library_revision() {
     let mut model = open_note();
     let effect = refresh(&mut model);
-    assert!(
+    assert_eq!(
         complete_result(
             &mut model,
             effect,
             Err(UiError::new("Temporary read failure"))
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     let effects = update(&mut model, AppMsg::LibraryChangedExternally);
     let Effect::LoadLibraryRevision { request_id } = effects[0] else {

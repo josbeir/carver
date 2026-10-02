@@ -134,6 +134,7 @@ fn settings_menu_button() -> gtk::MenuButton {
         Some(&gettext("Connect an agent")),
         Some("win.connect-agent"),
     );
+    menu.append(Some(&gettext("Templates…")), Some("win.templates"));
     let settings_section = gtk::gio::Menu::new();
     settings_section.append(Some(&gettext("Preferences")), Some("win.preferences"));
     settings_section.append(

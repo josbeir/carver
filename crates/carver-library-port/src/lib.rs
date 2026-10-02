@@ -10,8 +10,8 @@ use std::error::Error;
 use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseId, BaseRow, BaseSort, BaseView,
     Category, CategoryAppearance, CategoryId, CategorySummary, Note, NoteId, NoteLinks,
-    NoteSummary, PropertyDescriptor, PropertyPath, Revision, SearchHit, TrashContents,
-    TrashPurgeResult,
+    NoteSummary, NoteTemplate, PropertyDescriptor, PropertyPath, Revision, SearchHit, TemplateId,
+    TrashContents, TrashPurgeResult,
 };
 use time::OffsetDateTime;
 
@@ -52,6 +52,72 @@ pub trait LibraryBackend: Send + 'static {
     /// Backend-specific error returned by an operation.
     type Error: Error + Send + Sync + 'static;
 
+    /// Updates category metadata and its default template atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn update_category_with_template(
+        &self,
+        id: CategoryId,
+        name: &str,
+        appearance: CategoryAppearance,
+        template: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<(), Self::Error>;
+    /// Lists reusable templates in name order.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn templates(&self) -> Result<Vec<NoteTemplate>, Self::Error>;
+    /// Reads one reusable template.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn template(&self, id: TemplateId) -> Result<Option<NoteTemplate>, Self::Error>;
+    /// Creates a validated reusable template.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn create_template(
+        &self,
+        name: &str,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<NoteTemplate, Self::Error>;
+    /// Saves a template guarded by its revision; unchanged saves are no-ops.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn save_template(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+        name: &str,
+        source: &str,
+        now: OffsetDateTime,
+    ) -> Result<NoteTemplate, Self::Error>;
+    /// Deletes a template guarded by its revision and clears category assignments.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn delete_template(&self, id: TemplateId, revision: Revision) -> Result<(), Self::Error>;
+    /// Sets or clears an active category's default template.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    fn set_category_template(
+        &self,
+        category_id: CategoryId,
+        template_id: Option<TemplateId>,
+        now: OffsetDateTime,
+    ) -> Result<(), Self::Error>;
     /// Reads the current semantic library revision.
     fn change_revision(&self) -> Result<LibraryRevision, Self::Error>;
     /// Creates a category at the supplied time.
@@ -61,6 +127,17 @@ pub trait LibraryBackend: Send + 'static {
         &self,
         name: &str,
         appearance: CategoryAppearance,
+        now: OffsetDateTime,
+    ) -> Result<Category, Self::Error>;
+    /// Creates a category and assigns its default template atomically.
+    ///
+    /// # Errors
+    /// Returns validation, unavailable-template, or backend errors without creating a category.
+    fn create_category_with_template(
+        &self,
+        name: &str,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
         now: OffsetDateTime,
     ) -> Result<Category, Self::Error>;
     /// Lists active categories in their display order.

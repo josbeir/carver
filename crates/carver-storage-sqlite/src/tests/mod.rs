@@ -30,3 +30,5 @@ mod notes;
 mod search;
 mod trash;
 mod validation;
+
+mod templates;

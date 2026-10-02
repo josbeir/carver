@@ -33,12 +33,15 @@ fn creating_notes_should_index_links_in_both_directions() {
             .collect::<Vec<_>>(),
         vec![target.id]
     );
-    assert!(source_links.backlinks.is_empty());
+    assert_eq!(
+        source_links.backlinks,
+        [] as [carver_domain::NoteSummary; 0]
+    );
 
     let target_links = library
         .note_links(target.id)
         .unwrap_or_else(|error| panic!("target links failed: {error}"));
-    assert!(target_links.outgoing.is_empty());
+    assert_eq!(target_links.outgoing, [] as [carver_domain::NoteSummary; 0]);
     assert_eq!(
         target_links
             .backlinks
@@ -84,7 +87,7 @@ fn saving_a_note_should_replace_its_indexed_links() {
     let first_links = library
         .note_links(first.id)
         .unwrap_or_else(|error| panic!("first links failed: {error}"));
-    assert!(first_links.backlinks.is_empty());
+    assert_eq!(first_links.backlinks, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]
@@ -107,7 +110,7 @@ fn removing_all_links_on_save_should_clear_the_index() {
     let links = library
         .note_links(saved.id)
         .unwrap_or_else(|error| panic!("links failed: {error}"));
-    assert!(links.outgoing.is_empty());
+    assert_eq!(links.outgoing, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]
@@ -130,7 +133,7 @@ fn trashing_a_target_should_hide_it_until_restored() {
     let links = library
         .note_links(source.id)
         .unwrap_or_else(|error| panic!("links failed: {error}"));
-    assert!(links.outgoing.is_empty());
+    assert_eq!(links.outgoing, [] as [carver_domain::NoteSummary; 0]);
 
     library
         .restore_note(target.id)
@@ -172,7 +175,7 @@ fn hard_deleting_a_note_should_cascade_its_links() {
     let links = library
         .note_links(target.id)
         .unwrap_or_else(|error| panic!("links failed: {error}"));
-    assert!(links.backlinks.is_empty());
+    assert_eq!(links.backlinks, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]
@@ -190,7 +193,7 @@ fn creating_a_note_with_a_dangling_link_should_succeed_and_omit_it() {
     let links = library
         .note_links(source.id)
         .unwrap_or_else(|error| panic!("links failed: {error}"));
-    assert!(links.outgoing.is_empty());
+    assert_eq!(links.outgoing, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]
@@ -226,7 +229,7 @@ fn saving_a_note_whose_link_was_hard_deleted_should_succeed() {
     let links = library
         .note_links(saved.id)
         .unwrap_or_else(|error| panic!("links failed: {error}"));
-    assert!(links.outgoing.is_empty());
+    assert_eq!(links.outgoing, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]

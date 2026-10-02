@@ -78,7 +78,7 @@ fn navigation_should_reject_rows_from_an_older_source_or_session() {
         (before.session, 0),
         (EditorSessionId(before.session.0 + 1), 1),
     ] {
-        assert!(
+        assert_eq!(
             update(
                 &mut model,
                 AppMsg::Editor(EditorMsg::FocusDocumentTarget {
@@ -86,8 +86,8 @@ fn navigation_should_reject_rows_from_an_older_source_or_session() {
                     generation,
                     target: DocumentTarget::Heading { occurrence: 0 }
                 })
-            )
-            .is_empty()
+            ),
+            [] as [crate::mvu::effect::Effect; 0]
         );
     }
     assert_eq!(document(&model).selected_heading, None);

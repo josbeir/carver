@@ -6,14 +6,15 @@ use std::{collections::VecDeque, error::Error, path::Path, thread};
 
 use async_channel::{Receiver, Sender, TryRecvError};
 use carver_config::{AppPaths, ConfigError};
-pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty};
+pub use carver_config::{Config, DocumentPropertiesConfig, DocumentProperty, DocumentPropertyType};
 pub use carver_domain::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
     BaseSort, BaseSortDirection, BaseView, Category, CategoryAppearance, CategoryColor,
     CategoryIcon, CategoryId, CategorySummary, DocumentImportDiagnostic, DocumentImportFormat,
-    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary,
+    DocumentImportReport, DocumentImportResult, Note, NoteId, NoteLinks, NoteSummary, NoteTemplate,
     PropertyDescriptor, PropertyKind, PropertyPath, PropertyType, Revision, SearchHit,
-    TrashContents, TrashPurgeResult, TrashedCategorySummary, TrashedNoteSummary, assess_import,
+    TemplateContext, TemplateId, TrashContents, TrashPurgeResult, TrashedCategorySummary,
+    TrashedNoteSummary, assess_import,
 };
 pub use carver_library_port::{LibraryBackend, LibraryRevision, Page, PageRequest};
 use carver_storage_sqlite::{SqliteLibrary, StorageError};
@@ -145,6 +146,103 @@ impl<B: LibraryBackend> LibraryClient<B> {
         Ok(Self { requests: sender })
     }
 
+    /// Updates category metadata and template assignment atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn update_category_with_template_async(
+        &self,
+        id: CategoryId,
+        name: String,
+        appearance: CategoryAppearance,
+        template: Option<TemplateId>,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| {
+            b.update_category_with_template(
+                id,
+                &name,
+                appearance,
+                template,
+                OffsetDateTime::now_utc(),
+            )
+        })
+        .await
+    }
+    /// Lists templates without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn templates_async(&self) -> Result<Vec<NoteTemplate>, LibraryError<B::Error>> {
+        self.request(LibraryBackend::templates).await
+    }
+    /// Reads a template without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn template_async(
+        &self,
+        id: TemplateId,
+    ) -> Result<Option<NoteTemplate>, LibraryError<B::Error>> {
+        self.request(move |b| b.template(id)).await
+    }
+    /// Creates a validated template without blocking the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn create_template_async(
+        &self,
+        name: String,
+        source: String,
+    ) -> Result<NoteTemplate, LibraryError<B::Error>> {
+        self.request(move |b| b.create_template(&name, &source, OffsetDateTime::now_utc()))
+            .await
+    }
+    /// Saves a template with optimistic concurrency.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn save_template_async(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+        name: String,
+        source: String,
+    ) -> Result<NoteTemplate, LibraryError<B::Error>> {
+        self.request(move |b| {
+            b.save_template(id, revision, &name, &source, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+    /// Deletes a template and clears its category assignments.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn delete_template_async(
+        &self,
+        id: TemplateId,
+        revision: Revision,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| b.delete_template(id, revision)).await
+    }
+    /// Sets or clears a category's default template.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation, unavailable-target, concurrency, or backend errors.
+    pub async fn set_category_template_async(
+        &self,
+        id: CategoryId,
+        template: Option<TemplateId>,
+    ) -> Result<(), LibraryError<B::Error>> {
+        self.request(move |b| b.set_category_template(id, template, OffsetDateTime::now_utc()))
+            .await
+    }
     /// Reads the current semantic library revision without blocking the caller.
     ///
     /// Frontends use this after a local change wake-up to decide whether their immutable read
@@ -174,6 +272,27 @@ impl<B: LibraryBackend> LibraryClient<B> {
     ) -> Result<Category, LibraryError<B::Error>> {
         self.request(move |backend| {
             backend.create_category_with_appearance(&name, appearance, OffsetDateTime::now_utc())
+        })
+        .await
+    }
+
+    /// Creates a category with its appearance and default template atomically.
+    ///
+    /// # Errors
+    /// Returns validation, unavailable-template, or worker/backend errors.
+    pub async fn create_category_with_template_async(
+        &self,
+        name: String,
+        appearance: CategoryAppearance,
+        template_id: Option<TemplateId>,
+    ) -> Result<Category, LibraryError<B::Error>> {
+        self.request(move |backend| {
+            backend.create_category_with_template(
+                &name,
+                appearance,
+                template_id,
+                OffsetDateTime::now_utc(),
+            )
         })
         .await
     }
@@ -971,3 +1090,107 @@ fn next_job<B>(
 
 #[cfg(test)]
 mod tests;
+
+/// Template validation against the user's configured property definitions.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfiguredTemplateError {
+    /// Canonical template source is invalid.
+    #[error(transparent)]
+    Source(#[from] carver_domain::TemplateError),
+    /// An authored property conflicts with its configured type.
+    #[error("property {0} does not match its configured type")]
+    PropertyType(String),
+}
+
+/// Validates canonical template source and configured property types, even when defaults are disabled.
+///
+/// # Errors
+/// Returns an error for invalid source, managed assets, or incompatible property values.
+pub fn validate_configured_template(
+    source: &str,
+    definitions: &[DocumentProperty],
+) -> Result<(), ConfiguredTemplateError> {
+    carver_domain::validate_template_source(source)?;
+    let expanded = carver_domain::expand_template_source(
+        source,
+        &carver_domain::TemplateContext {
+            now: time::OffsetDateTime::UNIX_EPOCH,
+            category: "Category".to_owned(),
+        },
+    )?;
+    validate_template_properties(&expanded, definitions)
+}
+fn validate_template_properties(
+    source: &str,
+    definitions: &[DocumentProperty],
+) -> Result<(), ConfiguredTemplateError> {
+    if let Some(document) = carver_domain::parse_frontmatter_document(source) {
+        for field in document.fields {
+            if let Some(definition) = definitions.iter().find(|d| d.key == field.key) {
+                let shape = definition.resolved();
+                let valid = if shape.field_type == carver_domain::PropertyType::List {
+                    match &field.value {
+                        carver_domain::FrontmatterValue::Null => true,
+                        carver_domain::FrontmatterValue::Text(_) => !shape.multiple,
+                        carver_domain::FrontmatterValue::List(values) => {
+                            shape.multiple
+                                && values
+                                    .iter()
+                                    .all(|v| matches!(v, carver_domain::FrontmatterValue::Text(_)))
+                        }
+                        _ => false,
+                    }
+                } else {
+                    shape.field_type.accepts_value(&field.value)
+                };
+                if !valid {
+                    return Err(ConfiguredTemplateError::PropertyType(field.key));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Resolves a template copy with enabled defaults and no category name.
+/// Use [`instantiate_configured_template_at`] when a destination category is available.
+///
+/// # Errors
+/// Returns an error if source or configured property types are invalid.
+pub fn instantiate_configured_template(
+    source: &str,
+    config: &DocumentPropertiesConfig,
+) -> Result<String, ConfiguredTemplateError> {
+    instantiate_configured_template_at(source, config, &template_context(""))
+}
+
+/// Captures the current local time, falling back to UTC when the system offset is unavailable.
+#[must_use]
+pub fn template_context(category: &str) -> carver_domain::TemplateContext {
+    carver_domain::TemplateContext {
+        now: time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc()),
+        category: category.to_owned(),
+    }
+}
+
+/// Expands a template and seeds defaults from the same captured timestamp.
+///
+/// # Errors
+/// Returns invalid pattern, source, or configured-property errors.
+pub fn instantiate_configured_template_at(
+    source: &str,
+    config: &DocumentPropertiesConfig,
+    context: &carver_domain::TemplateContext,
+) -> Result<String, ConfiguredTemplateError> {
+    validate_configured_template(source, &config.entries)?;
+    let expanded = carver_domain::expand_template_source(source, context)?;
+    validate_template_properties(&expanded, &config.entries)?;
+    let defaults =
+        carver_domain::parse_frontmatter_document(&config.default_source_at(context.now))
+            .map_or_else(Vec::new, |document| document.fields);
+    Ok(carver_domain::merge_template_source(
+        &expanded,
+        &defaults,
+        config.format,
+    )?)
+}

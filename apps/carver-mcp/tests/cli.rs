@@ -20,7 +20,7 @@ fn invalid_options_should_fail_before_creating_a_library() -> TestResult {
     let (directory, mut command) = command()?;
     let output = command.arg("--allow-wirte").output()?;
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
+    assert_eq!(output.stdout, [] as [u8; 0]);
     assert!(String::from_utf8(output.stderr)?.contains("--allow-wirte"));
     assert_eq!(std::fs::read_dir(directory.path())?.count(), 0);
     Ok(())

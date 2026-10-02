@@ -48,7 +48,7 @@ pub(crate) use document_sidebar::render_link_group;
 mod preview;
 pub(crate) mod properties_dialog;
 mod render;
-mod source;
+pub(crate) mod source;
 pub(crate) mod source_commands;
 mod source_context;
 mod toolbar;
@@ -335,6 +335,10 @@ impl EditorViewRefs {
                 host_initiated,
             );
         }
+    }
+
+    pub(crate) fn source_selection(&self) -> std::ops::Range<usize> {
+        source_commands::selection_from_buffer(&self.source_buffer)
     }
 
     /// Restores the selection calculated by a pure source edit after its snapshot renders.
@@ -1465,6 +1469,14 @@ fn append_file_options(menu: &gtk::gio::Menu) {
     section.append(
         Some(&gettext("Document properties…")),
         Some("editor.document-properties"),
+    );
+    section.append(
+        Some(&gettext("Save as Template…")),
+        Some("win.save-as-template"),
+    );
+    section.append(
+        Some(&gettext("Insert Template…")),
+        Some("win.insert-template"),
     );
     section.append(Some(&gettext("Export note…")), Some(EXPORT_NOTE_ACTION));
     section.append(Some(&gettext("Print…")), Some(PRINT_NOTE_ACTION));

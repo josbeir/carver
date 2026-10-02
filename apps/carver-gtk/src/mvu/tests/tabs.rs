@@ -165,7 +165,7 @@ fn closing_the_last_tab_should_return_to_the_notes_list() {
 
     let effects = update(&mut model, AppMsg::Tabs(TabsMsg::Close(tab)));
 
-    assert!(model.tabs.open.is_empty());
+    assert_eq!(model.tabs.open, [] as [crate::mvu::model::NoteTab; 0]);
     assert_eq!(model.tabs.active, None);
     assert_eq!(model.route, Route::Browser);
     assert!(model.editor.is_none());
@@ -193,7 +193,7 @@ fn closing_a_dirty_tab_should_save_it_without_keeping_the_tab() {
         panic!("closing a dirty tab should start a save");
     };
     // The tab is gone immediately; the document keeps saving in the background.
-    assert!(model.tabs.open.is_empty());
+    assert_eq!(model.tabs.open, [] as [crate::mvu::model::NoteTab; 0]);
     assert!(model.tabs.active.is_none());
     assert_eq!(model.tabs.closing.len(), 1);
 
@@ -722,7 +722,7 @@ fn a_background_open_of_an_open_note_should_do_nothing() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.tabs.active, Some(tab));
 }
 

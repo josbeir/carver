@@ -18,6 +18,11 @@ pub mod paste;
 pub mod properties;
 pub mod rendering;
 pub mod source_analysis;
+pub mod templates;
+pub use templates::{
+    NoteTemplate, TemplateContext, TemplateError, TemplateId, expand_template_source,
+    merge_template_source, validate_template_source,
+};
 
 pub use bases::{
     BaseColumn, BaseDefinition, BaseFilter, BaseFilterMode, BaseFilterOperator, BaseId, BaseRow,
@@ -29,7 +34,7 @@ pub use frontmatter::{
     FrontmatterDocument, FrontmatterError, FrontmatterField, FrontmatterFormat, FrontmatterValue,
     frontmatter_raw, frontmatter_source, frontmatter_source_with_format, is_reserved_key,
     parse_frontmatter_document, render_frontmatter_document, replace_frontmatter,
-    replace_frontmatter_raw, set_property, set_title,
+    replace_frontmatter_preserving_body, replace_frontmatter_raw, set_property, set_title,
 };
 pub use note_links::{
     NOTE_LINK_SCHEME, NoteLinkRef, NoteLinks, extract_note_link_targets, extract_note_links,
@@ -302,6 +307,9 @@ impl CategoryColor {
 /// A logical container for notes.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Category {
+    /// Template used for ordinary note creation in this category.
+    #[serde(default)]
+    pub default_template_id: Option<TemplateId>,
     /// Stable identity.
     pub id: CategoryId,
     /// User-visible category name.

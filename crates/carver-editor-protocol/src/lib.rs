@@ -63,6 +63,13 @@ pub enum EditorCommand {
     InsertLink(LinkCommand),
     /// Set a selected image's responsive width percentage, or restore intrinsic width.
     ImageWidth(Option<u8>),
+    /// Insert canonical source and optionally replace document metadata in one undoable edit.
+    InsertSource {
+        /// Body source inserted at the selection.
+        source: String,
+        /// Canonical metadata prefix; omission preserves existing metadata.
+        prefix: Option<String>,
+    },
 }
 
 /// One media occurrence in an editor projection.

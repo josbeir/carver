@@ -496,10 +496,15 @@ impl DocumentPropertiesConfig {
     /// Returns canonical Carve source seeding a new note, or an empty string.
     #[must_use]
     pub fn default_source(&self) -> String {
+        self.default_source_at(now_local())
+    }
+
+    /// Seeds enabled defaults from a host-supplied timestamp.
+    #[must_use]
+    pub fn default_source_at(&self, now: time::OffsetDateTime) -> String {
         if !self.enabled {
             return String::new();
         }
-        let now = now_local();
         let fields: Vec<FrontmatterField> = self
             .entries
             .iter()

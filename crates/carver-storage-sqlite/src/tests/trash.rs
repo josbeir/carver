@@ -65,7 +65,7 @@ fn trashed_category_hides_its_notes() {
         )
         .unwrap_or_else(|error| panic!("list failed: {error}"))
         .items;
-    assert!(notes.is_empty());
+    assert_eq!(notes, [] as [carver_domain::NoteSummary; 0]);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn empty_trash_removes_search_entries_and_orphaned_assets() {
             .unwrap_or_else(|error| panic!("lookup failed: {error}"))
             .is_none()
     );
-    assert!(
+    assert_eq!(
         library
             .search_notes(
                 "Remove",
@@ -146,8 +146,8 @@ fn empty_trash_removes_search_entries_and_orphaned_assets() {
                 }
             )
             .unwrap_or_else(|error| panic!("search failed: {error}"))
-            .items
-            .is_empty()
+            .items,
+        [] as [carver_domain::SearchHit; 0]
     );
     assert!(
         !directory

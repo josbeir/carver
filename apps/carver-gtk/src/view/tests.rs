@@ -90,6 +90,7 @@ fn note_category_color_should_use_the_category_appearance() {
     };
     let sidebar = LoadState::Ready(vec![CategorySummary {
         category: Category {
+            default_template_id: None,
             id: category_id,
             name: String::from("Ideas"),
             appearance: CategoryAppearance {
@@ -136,4 +137,35 @@ fn browser_projection_snapshot_should_match_an_unchanged_model() {
     let snapshot = browser_projection_snapshot(&model, today);
 
     assert!(snapshot.matches(&model, today));
+}
+
+#[test]
+fn browser_projection_should_ignore_template_assignments_but_detect_category_renames() {
+    let mut model = crate::mvu::AppModel::new(&Config::default());
+    let today = OffsetDateTime::UNIX_EPOCH.date();
+    let category = Category {
+        id: CategoryId::new(),
+        name: "Work".into(),
+        appearance: CategoryAppearance::default(),
+        position: 0,
+        created_at: OffsetDateTime::UNIX_EPOCH,
+        updated_at: OffsetDateTime::UNIX_EPOCH,
+        trashed_at: None,
+        default_template_id: Some(carver_sdk::TemplateId::new()),
+    };
+    model.sidebar.state = LoadState::Ready(vec![CategorySummary {
+        category,
+        note_count: 2,
+    }]);
+    let snapshot = browser_projection_snapshot(&model, today);
+    let context = super::browser_feed_context(&model);
+    if let LoadState::Ready(categories) = &mut model.sidebar.state {
+        categories[0].category.default_template_id = None;
+    }
+    assert!(snapshot.matches(&model, today));
+    assert_eq!(super::browser_feed_context(&model), context);
+    if let LoadState::Ready(categories) = &mut model.sidebar.state {
+        categories[0].category.name = "Projects".into();
+    }
+    assert!(!snapshot.matches(&model, today));
 }

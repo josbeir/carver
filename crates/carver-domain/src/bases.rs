@@ -1251,7 +1251,7 @@ mod tests {
             }],
             &[],
         );
-        assert!(matched.is_empty());
+        assert_eq!(matched, [] as [crate::bases::BaseRow; 0]);
     }
 
     #[test]
@@ -1298,7 +1298,7 @@ mod tests {
             }],
             &[],
         );
-        assert!(by_date.is_empty());
+        assert_eq!(by_date, [] as [crate::bases::BaseRow; 0]);
 
         let mut number_row = date_row(0, "number", None);
         number_row.properties = serde_json::json!({"when": 5});
@@ -1312,6 +1312,6 @@ mod tests {
             }],
             &[],
         );
-        assert!(by_bool.is_empty());
+        assert_eq!(by_bool, [] as [crate::bases::BaseRow; 0]);
     }
 }

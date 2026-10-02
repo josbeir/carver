@@ -32,7 +32,10 @@ fn browser_load_more_should_coalesce_pending_requests() {
         first.as_slice(),
         [Effect::LoadMoreBrowser { offset: 0, .. }]
     ));
-    assert!(update(&mut model, AppMsg::Browser(BrowserMsg::LoadMore)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Browser(BrowserMsg::LoadMore)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 }
 
 #[test]
@@ -52,12 +55,12 @@ fn stale_browser_reply_should_not_replace_a_newer_request() {
         _ => panic!("search should schedule one timer"),
     };
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Browser(BrowserMsg::SearchTimerFired(timer_id)),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 
     let follow_up = update(
@@ -120,7 +123,7 @@ fn browser_loading_indicator_should_wait_for_its_delay_and_clear_after_loading()
         &mut model,
         AppMsg::Browser(BrowserMsg::LoadingIndicatorElapsed(request_id)),
     );
-    assert!(indicator_effects.is_empty());
+    assert_eq!(indicator_effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(model.browser.loading_indicator_visible);
 
     let _ = update(
@@ -141,7 +144,7 @@ fn opening_note_search_should_update_only_the_browser_snapshot() {
 
     let effects = update(&mut model, AppMsg::Browser(BrowserMsg::SearchOpened));
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(model.browser.search_open);
 }
 
@@ -154,7 +157,7 @@ fn browser_search_shortcut_should_open_search_from_the_browser_route() {
         AppMsg::Browser(BrowserMsg::SearchShortcutRequested),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(model.browser.search_open);
 }
 
@@ -167,7 +170,7 @@ fn browser_search_shortcut_should_not_change_the_editor_route() {
         AppMsg::Browser(BrowserMsg::SearchShortcutRequested),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(!model.browser.search_open);
 }
 
@@ -194,7 +197,7 @@ fn closing_note_search_should_clear_the_query_and_reload_the_browser() {
         }]
     );
     assert!(!model.browser.search_open);
-    assert!(model.browser.search_query.is_empty());
+    assert_eq!(model.browser.search_query, "");
     assert!(model.browser.search_timer.is_none());
 }
 
@@ -274,7 +277,7 @@ fn loaded_category_should_publish_notes_and_favorites_together() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model.browser.notes.state,
         LoadState::Ready(vec![favorite.clone()])
@@ -458,7 +461,7 @@ fn stale_browser_reply_should_not_replace_favorites() {
             favorites: Err(UiError::new("stale favorites")),
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.browser.favorites.state, LoadState::Ready(Vec::new()));
 }
 
@@ -586,7 +589,7 @@ fn clipboard_note_should_seed_default_properties_when_absent() {
         }),
     );
 
-    assert!(!defaults.is_empty());
+    assert_ne!(defaults, "");
     assert_eq!(
         effects,
         vec![Effect::CreateNote {
@@ -661,7 +664,7 @@ fn empty_clipboard_should_not_create_a_note() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model.notice.as_ref().map(|notice| notice.message.as_str()),
         Some("There is no text on the clipboard.")

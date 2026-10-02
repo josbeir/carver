@@ -21,6 +21,7 @@ mod rich_mode;
 mod screenshots;
 mod shell;
 mod source_mode;
+mod templates;
 mod trash;
 mod window;
 
@@ -196,5 +197,24 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     note_flow::activating_a_background_tab_should_render_its_preview(&fixture)?;
     // No-op unless CARVER_SCREENSHOT_DIR is set; keeps one GTK entry point.
     screenshots::capture_docs_screenshots()?;
+    templates::property_only_source_insertion_should_preserve_selection_persist_and_undo()?;
+    templates::invalid_insertion_template_should_show_error_and_allow_another_choice()?;
+    templates::template_save_conflict_should_preserve_draft_and_restore_controls()?;
+    templates::saving_an_unopened_note_as_template_should_return_to_the_browser()?;
+    templates::template_creation_should_report_missing_targets_without_creating_notes()?;
+    templates::template_pattern_menu_should_insert_at_the_cursor_and_show_reference()?;
+    templates::custom_template_format_should_preview_and_reject_invalid_formats()?;
+    templates::category_templates_should_expand_patterns_at_note_creation()?;
+    templates::inserting_template_should_preserve_properties_and_undo_in_source()?;
+    templates::inserting_property_only_template_should_undo_in_rich_mode()?;
+    templates::control_click_should_choose_template_without_creating_a_note()?;
+    templates::template_shortcut_should_ignore_trash_and_base_contexts()?;
+    templates::template_properties_should_scroll_inside_a_bounded_panel_when_many()?;
+    templates::template_property_values_should_stay_on_one_line_at_all_dialog_widths()?;
+    templates::template_empty_state_should_teach_and_open_a_first_draft()?;
+    templates::templates_should_manage_validate_duplicate_and_delete()?;
+    templates::category_template_should_seed_notes_and_allow_blank_override()?;
+    templates::template_editor_should_confirm_discard()?;
+    templates::saving_as_template_should_copy_unsaved_editor_source()?;
     Ok(())
 }

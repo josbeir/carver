@@ -1,6 +1,7 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { Slice } from '@tiptap/pm/model';
+import { closeHistory } from '@tiptap/pm/history';
 import { mediaOccurrences, selectedMedia } from './media-selection';
 import { headingOccurrences, selectedHeading } from './heading-selection';
 import {
@@ -241,6 +242,8 @@ export class EditorController implements RichEditorApi {
         return this.setImageWidth(argument);
       case 'insert-link':
         return this.insertLink(argument as LinkCommand | undefined);
+      case 'insert-source':
+        return this.insertSource(argument);
       case 'undo':
         return chain.undo().run();
       case 'redo':
@@ -327,6 +330,36 @@ export class EditorController implements RichEditorApi {
         { type: 'paragraph' },
       ])
       .run();
+  }
+
+  private insertSource(argument: unknown): boolean {
+    const editor = this.editor;
+    if (!editor || !argument || typeof argument !== 'object') return false;
+    const input = argument as { source?: unknown; prefix?: unknown };
+    if (typeof input.source !== 'string') return false;
+    const parsedBody = carveToProseMirrorWithReport(input.source, {
+      unsupported: 'preserve',
+    });
+    const body = editor.state.schema.nodeFromJSON(parsedBody.doc);
+    const slice = Slice.maxOpen(body.content, true);
+    const { from, to } = editor.state.selection;
+    const tr = editor.state.tr;
+    if (typeof input.prefix === 'string') {
+      const parsed = carveToProseMirrorWithReport(input.prefix, {
+        unsupported: 'preserve',
+      });
+      const prefix = editor.state.schema.nodeFromJSON(parsed.doc).firstChild;
+      if (prefix?.type.name !== 'carveFrontmatter') return false;
+      const previous = tr.doc.firstChild;
+      const end =
+        previous?.type.name === 'carveFrontmatter' ? previous.nodeSize : 0;
+      tr.replaceWith(0, end, prefix);
+    }
+    if (input.source.length)
+      tr.replaceRange(tr.mapping.map(from), tr.mapping.map(to), slice);
+    editor.view.dispatch(closeHistory(tr).scrollIntoView());
+    editor.commands.focus();
+    return true;
   }
 
   /** Inserts host-imported pasted text for the request that captured it. */

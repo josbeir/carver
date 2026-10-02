@@ -25,6 +25,7 @@ use super::{
 
 mod media_import;
 mod media_preview;
+mod templates;
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 type PreviewCopies = BTreeMap<(carver_sdk::NoteId, String), (tempfile::TempDir, PathBuf)>;
@@ -211,6 +212,20 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
+            effect @ (Effect::LoadTemplateCatalog { .. }
+            | Effect::LoadTemplates { .. }
+            | Effect::LoadTemplateNote { .. }
+            | Effect::SaveTemplate { .. }
+            | Effect::DeleteTemplate { .. }
+            | Effect::CreateCategoryNote { .. }
+            | Effect::CreateTemplateNote { .. }
+            | Effect::SaveTemplateCategory { .. }) => self.run_template_effect(effect),
+            effect @ (Effect::CaptureTemplateInsert
+            | Effect::ShowTemplatePreview { .. }
+            | Effect::ShowDraftProperties { .. }
+            | Effect::ShowTemplates { .. }
+            | Effect::ShowTemplateEditor { .. }
+            | Effect::FinishTemplateEdit { .. }) => self.inner.view.run_template_effect(effect),
             Effect::LoadBases { request_id } => self.load_bases(request_id),
             Effect::LoadPropertyDescriptors { request_id } => {
                 self.load_property_descriptors(request_id);
@@ -468,8 +483,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
             Effect::RestoreNote { note_id } => self.restore_note(note_id),
             Effect::EmptyTrash => self.empty_trash(),
             Effect::CreateCategory { name } => self.create_category(name),
-            Effect::CreateCategoryWithAppearance { name, appearance } => {
-                self.create_category_with_appearance(name, appearance);
+            Effect::CreateCategoryWithAppearance {
+                name,
+                appearance,
+                template_id,
+            } => {
+                self.create_category_with_appearance(name, appearance, template_id);
             }
             Effect::CreateCategoryAndMoveNote {
                 action,
@@ -1455,11 +1474,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
         &self,
         name: String,
         appearance: carver_sdk::CategoryAppearance,
+        template_id: Option<carver_sdk::TemplateId>,
     ) {
         let client = self.inner.client.clone();
         self.complete_action(ActionKey::CreateCategory, async move {
             client
-                .create_category_with_appearance_async(name, appearance)
+                .create_category_with_template_async(name, appearance, template_id)
                 .await
                 .map(|_| ())
         });

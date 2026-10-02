@@ -90,12 +90,12 @@ fn source_event_after_editor_close_should_be_ignored() {
     };
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::Close(session)));
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::SourceChanged("stale widget event".to_owned())),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.editor, None);
@@ -165,7 +165,7 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
         Some("Before\n![Pasted image](assets/pasted.png)\n")
     );
     let _ = update(&mut model, AppMsg::Editor(EditorMsg::Close(session)));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::EditorAssetStored {
@@ -175,8 +175,8 @@ fn pasted_image_should_store_an_asset_and_update_the_current_document() {
                 source_target: None,
                 result: Ok("assets/stale.png".to_owned()),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(model.editor, None);
 }
@@ -541,14 +541,14 @@ fn preview_should_request_only_an_authored_managed_attachment() {
         }]
     );
     assert_eq!(model.editor.as_ref(), Some(&before));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::PreviewMedia {
                 selection: 100..200
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -563,15 +563,15 @@ fn prepared_preview_should_be_ignored_after_switching_documents() {
             source: String::from("Another note"),
         }),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::MediaPreviewPrepared {
                 session: EditorSessionId(999),
                 result: Ok(std::path::PathBuf::from("/tmp/preview.pdf")),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -602,14 +602,14 @@ fn download_should_present_a_save_dialog_only_for_a_managed_attachment() {
             label: String::from("Brief"),
         }]
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::DownloadMedia {
                 selection: 100..200
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -645,7 +645,7 @@ fn media_download_requested_should_target_the_active_note_only() {
             target_uri: String::from("file:///tmp/brief.pdf"),
         }]
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::MediaDownloadRequested {
@@ -653,10 +653,10 @@ fn media_download_requested_should_target_the_active_note_only() {
                 path: String::from("assets/brief.pdf"),
                 target_uri: String::from("file:///tmp/brief.pdf"),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::MediaDownloadRequested {
@@ -664,8 +664,8 @@ fn media_download_requested_should_target_the_active_note_only() {
                 path: String::from("../secret"),
                 target_uri: String::from("file:///tmp/secret"),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -684,15 +684,15 @@ fn finished_media_download_should_report_a_notice_only_while_active() {
         .editor
         .as_ref()
         .map_or(EditorSessionId(0), |document| document.session);
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::MediaDownloadFinished {
                 session: EditorSessionId(999),
                 result: Ok(()),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(model.notice.is_none());
     let _ = update(
@@ -737,7 +737,10 @@ fn editor_media_selection_should_track_occurrences_without_editing_source() {
         path: "assets/a.png".into(),
         occurrence: 1,
     };
-    assert!(update(&mut model, message(session, mode, Some(media.clone()))).is_empty());
+    assert_eq!(
+        update(&mut model, message(session, mode, Some(media.clone()))),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert_eq!(
         open_media_document(&model).selected_media,
         Some(range.clone())
@@ -884,17 +887,17 @@ fn native_import_should_reject_a_different_document_and_preview_mode() {
         session: EditorSessionId(session.0 + 1),
         source: None,
     };
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::ImportFiles {
                 target: target.clone(),
                 files: Vec::new()
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::ImportFilesStored {
@@ -905,8 +908,8 @@ fn native_import_should_reject_a_different_document_and_preview_mode() {
                     image: true
                 }])
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     let _ = update(
         &mut model,
@@ -914,7 +917,7 @@ fn native_import_should_reject_a_different_document_and_preview_mode() {
             carver_config::EditorMode::Rendered,
         )),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::ImportFiles {
@@ -924,8 +927,8 @@ fn native_import_should_reject_a_different_document_and_preview_mode() {
                 },
                 files: Vec::new()
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(open_media_document(&model).source, "Untouched");
     assert_eq!(open_media_document(&model).revision, Revision(1));

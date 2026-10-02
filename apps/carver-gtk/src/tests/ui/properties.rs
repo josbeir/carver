@@ -1037,38 +1037,67 @@ pub(super) fn malformed_frontmatter_should_fall_back_to_raw_source() -> TestResu
 }
 
 pub(super) fn defaults_dialog_should_remove_a_property() -> TestResult {
-    let fixture = super::document_sidebar::fixture()?;
-    let entries = std::rc::Rc::new(std::cell::RefCell::new(vec![
+    let fixture = window_fixture_for("io.github.josbeir.Carver.DefaultPropertyCountTests")?;
+    super::templates::dismiss_initial_dialogs(&fixture.window);
+    fixture.window.present();
+    let entries = vec![
         carver_config::DocumentProperty {
-            key: "author".to_owned(),
+            key: "author".into(),
             field_type: carver_config::DocumentPropertyType::Text,
             multiple: false,
             value: serde_json::json!("Jane"),
         },
         carver_config::DocumentProperty {
-            key: "count".to_owned(),
+            key: "count".into(),
             field_type: carver_config::DocumentPropertyType::Number,
             multiple: false,
             value: serde_json::json!(2),
         },
-    ]));
-    let dialog = crate::ui::editor::properties_dialog::show_defaults(
-        Some(fixture.window.upcast_ref::<gtk::Window>()),
-        &fixture.dispatcher,
-        &entries,
-    );
-    assert!(run_main_context_until(|| widget_as::<gtk::Button>(
-        dialog.upcast_ref(),
-        "document-property-remove-0"
-    )
-    .is_some()));
-    let root = dialog.upcast_ref();
-    widget_as::<gtk::Button>(root, "document-property-remove-0")
-        .ok_or("remove")?
+    ];
+    let _ =
+        fixture
+            .dispatcher
+            .dispatch(AppMsg::Preferences(PreferencesMsg::SetDocumentProperties(
+                entries,
+            )));
+    fixture
+        .window
+        .lookup_action("preferences")
+        .ok_or("preferences action")?
+        .activate(None);
+    let preferences = fixture
+        .window
+        .visible_dialog()
+        .ok_or("preferences dialog")?;
+    let summary = widget_as::<adw::ActionRow>(preferences.upcast_ref(), "document-properties-row")
+        .ok_or("default property summary")?;
+    assert_eq!(summary.subtitle().as_deref(), Some("2 default properties"));
+    summary.emit_by_name::<()>("activated", &[]);
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "document-properties-defaults-dialog"
+        )));
+    let dialog = fixture.window.visible_dialog().ok_or("defaults dialog")?;
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-property-remove-0")
+        .ok_or("remove first")?
         .emit_clicked();
-    assert!(run_main_context_until(|| entries.borrow().len() == 1));
-    assert_eq!(entries.borrow()[0].key, "count");
+    assert!(run_main_context_until(
+        || summary.subtitle().as_deref() == Some("1 default property")
+    ));
+    widget_as::<gtk::Button>(dialog.upcast_ref(), "document-property-remove-0")
+        .ok_or("remove last")?
+        .emit_clicked();
+    assert!(run_main_context_until(
+        || summary.subtitle().as_deref() == Some("0 default properties")
+    ));
+    assert!(run_main_context_until(|| carver_config::load(
+        &fixture.config_path
+    )
+    .is_ok_and(|config| config.document_properties.entries.is_empty())));
     dialog.close();
+    preferences.close();
     fixture.window.close();
     Ok(())
 }

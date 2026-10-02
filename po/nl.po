@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-09-30 16:11+0200\n"
+"POT-Creation-Date: 2026-10-01 08:35+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Dutch\n"
@@ -74,6 +74,53 @@ msgstr "Notities"
 #: apps/carver-gtk/src/mvu/runtime/media_preview.rs
 msgid "This file is no longer available."
 msgstr "Dit bestand is niet meer beschikbaar."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+#, rust-format
+msgid "Could not complete the template action: {error}"
+msgstr "De sjabloonactie kon niet worden voltooid: {error}"
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The category is no longer available."
+msgstr "De categorie is niet meer beschikbaar."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The note is no longer available."
+msgstr "De notitie is niet meer beschikbaar."
+
+#: apps/carver-gtk/src/mvu/runtime/templates.rs
+msgid "The template is no longer available."
+msgstr "Het sjabloon is niet meer beschikbaar."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Enter a template name."
+msgstr "Voer een sjabloonnaam in."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Invalid template pattern: {pattern}"
+msgstr "Ongeldig sjabloonpatroon: {pattern}"
+
+#: apps/carver-gtk/src/mvu/templates.rs
+#, rust-format
+msgid "Property {key} does not match its configured type."
+msgstr "Eigenschap {key} komt niet overeen met het ingestelde type."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "Templates cannot contain managed images or attachments."
+msgstr "Sjablonen kunnen geen beheerde afbeeldingen of bijlagen bevatten."
+
+#: apps/carver-gtk/src/mvu/templates.rs
+msgid "The template frontmatter is invalid or contains duplicate properties."
+msgstr "De frontmatter van het sjabloon is ongeldig of bevat dubbele eigenschappen."
+
+#: apps/carver-gtk/src/mvu/templates/insertion.rs
+msgid "The template could not be inserted. Check the note’s properties."
+msgstr "Het sjabloon kon niet worden ingevoegd. Controleer de eigenschappen van de notitie."
+
+#: apps/carver-gtk/src/mvu/templates/preview.rs
+msgid "The template properties could not be merged."
+msgstr "De sjablooneigenschappen konden niet worden samengevoegd."
 
 #: apps/carver-gtk/src/mvu/update.rs apps/carver-gtk/src/view/mod.rs
 #, rust-format
@@ -204,7 +251,8 @@ msgstr "Blader door notities als alleen-lezen kaarten."
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
-#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/trash.rs
+#: apps/carver-gtk/src/ui/formatting.rs apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Cancel"
 msgstr "Annuleren"
@@ -319,8 +367,10 @@ msgstr "Veld verwijderen"
 msgid "Remove {noun}"
 msgstr "{noun} verwijderen"
 
-#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/bases/actions.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/editor/mod.rs
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
+#: apps/carver-gtk/src/ui/templates.rs
 msgid "Save"
 msgstr "Opslaan"
 
@@ -499,7 +549,7 @@ msgstr "Maak een notitie om te beginnen."
 msgid "Earlier This Year"
 msgstr "Eerder dit jaar"
 
-#: apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Edit Category"
 msgstr "Categorie bewerken"
 
@@ -537,6 +587,10 @@ msgid "Move…"
 msgstr "Verplaatsen…"
 
 #: apps/carver-gtk/src/ui/browser.rs
+msgid "New Blank Note"
+msgstr "Nieuwe lege notitie"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/view/mod.rs
 msgid "New Note"
 msgstr "Nieuwe notitie"
 
@@ -547,6 +601,10 @@ msgstr "Nieuw van klembord"
 #: apps/carver-gtk/src/ui/browser.rs
 msgid "New from Clipboard as Markdown"
 msgstr "Nieuw van klembord als Markdown"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+msgid "New from Template…"
+msgstr "Nieuw vanuit sjabloon…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "New note"
@@ -567,6 +625,10 @@ msgstr "Notitieacties"
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Remove from Favorites"
 msgstr "Uit favorieten verwijderen"
+
+#: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Save as Template…"
+msgstr "Opslaan als sjabloon…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search notes"
@@ -636,6 +698,10 @@ msgstr "Een native GNOME-notitieboek voor Carve-opmaak."
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Add default properties to new notes"
 msgstr "Standaardeigenschappen aan nieuwe notities toevoegen"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Added to every new note. Templates can provide their own values."
+msgstr "Toegevoegd aan elke nieuwe notitie. Sjablonen kunnen hun eigen waarden gebruiken."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Adjust the space between lines in Edit and Preview."
@@ -794,6 +860,10 @@ msgid "Default properties"
 msgstr "Standaardeigenschappen"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Default template"
+msgstr "Standaardsjabloon"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Detailed"
 msgstr "Gedetailleerd"
 
@@ -843,6 +913,7 @@ msgid "Follow the desktop setting ({system_font})."
 msgstr "Volg de bureaubladinstelling ({system_font})."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
 msgid "Format"
 msgstr "Indeling"
 
@@ -935,6 +1006,10 @@ msgstr "Externe afbeeldingen automatisch laden"
 msgid "MCP setup"
 msgstr "MCP-installatie"
 
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Manage Templates…"
+msgstr "Sjablonen beheren…"
+
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Move note to Trash"
 msgstr "Notitie naar prullenbak verplaatsen"
@@ -974,8 +1049,8 @@ msgid "New from clipboard"
 msgstr "Nieuw van klembord"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
-msgid "New note properties"
-msgstr "Eigenschappen van nieuwe notities"
+msgid "New notes start with a copy of this template. Existing notes stay unchanged."
+msgstr "Nieuwe notities beginnen met een kopie van dit sjabloon. Bestaande notities blijven ongewijzigd."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "New tab"
@@ -996,6 +1071,11 @@ msgstr "Geen categorieën gevonden"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "No setup instruction is available."
 msgstr "Er is geen installatie-instructie beschikbaar."
+
+#: apps/carver-gtk/src/ui/dialogs.rs
+msgctxt "template choice"
+msgid "None"
+msgstr "Geen"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgctxt "shortcut section"
@@ -1059,6 +1139,10 @@ msgid "Properties"
 msgstr "Eigenschappen"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
+msgid "Properties for all new notes"
+msgstr "Eigenschappen voor alle nieuwe notities"
+
+#: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Purple"
 msgstr "Paars"
 
@@ -1086,10 +1170,6 @@ msgstr "Basisrijen zoeken"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Search categories"
 msgstr "Categorieën zoeken"
-
-#: apps/carver-gtk/src/ui/dialogs.rs
-msgid "Seed each new note with the default properties below."
-msgstr "Vul elke nieuwe notitie met de onderstaande standaardeigenschappen."
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Select a Carve (.crv) or Markdown (.md) file."
@@ -1340,6 +1420,8 @@ msgstr "Adres"
 
 #: apps/carver-gtk/src/ui/editor/link_dialog.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
 msgid "Insert"
 msgstr "Invoegen"
 
@@ -1416,6 +1498,10 @@ msgstr "HTML-documenten"
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Include managed files"
 msgstr "Beheerde bestanden opnemen"
+
+#: apps/carver-gtk/src/ui/editor/mod.rs
+msgid "Insert Template…"
+msgstr "Sjabloon invoegen…"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
 msgid "Markdown documents"
@@ -1750,10 +1836,221 @@ msgstr "Instellingen"
 msgid "Show Categories"
 msgstr "Categorieën tonen"
 
+#: apps/carver-gtk/src/ui/sidebar.rs
+msgid "Templates…"
+msgstr "Sjablonen…"
+
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Trash"
 msgstr "Prullenbak"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Carve source"
+msgstr "Carve-bron"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Categories using this template will return to blank notes. Existing notes will not change."
+msgstr "Categorieën die dit sjabloon gebruiken, maken weer lege notities. Bestaande notities blijven ongewijzigd."
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Choose Template"
+msgstr "Sjabloon kiezen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Create Template"
+msgstr "Sjabloon maken"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Delete Template?"
+msgstr "Sjabloon verwijderen?"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard"
+msgstr "Verwerpen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Discard Template Changes?"
+msgstr "Sjabloonwijzigingen verwerpen?"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Duplicate"
+msgstr "Dupliceren"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Edit Template"
+msgstr "Sjabloon bewerken"
+
+#: apps/carver-gtk/src/ui/templates.rs
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Insert Template"
+msgstr "Sjabloon invoegen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "New Template"
+msgstr "Nieuw sjabloon"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "No matching templates"
+msgstr "Geen overeenkomende sjablonen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Patterns are filled in when used. New notes include enabled default properties, with template values taking precedence."
+msgstr "Patronen worden ingevuld bij gebruik. Nieuwe notities bevatten ingeschakelde standaardeigenschappen, waarbij sjabloonwaarden voorrang krijgen."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Search templates…"
+msgstr "Sjablonen zoeken…"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Start with a template"
+msgstr "Begin met een sjabloon"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template actions"
+msgstr "Sjabloonacties"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Template name"
+msgstr "Sjabloonnaam"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates"
+msgstr "Sjablonen"
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Templates are reusable starting points for new notes. Save a note as a template, or create one here."
+msgstr "Sjablonen zijn herbruikbare startpunten voor nieuwe notities. Sla een notitie op als sjabloon of maak er hier een."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Try a different search."
+msgstr "Probeer een andere zoekopdracht."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "You can also use Save as Template… from a note’s menu. Each new note gets its own copy."
+msgstr "Je kunt ook Opslaan als sjabloon… gebruiken in het notitiemenu. Elke nieuwe notitie krijgt een eigen kopie."
+
+#: apps/carver-gtk/src/ui/templates.rs
+msgid "Your unsaved template changes will be lost."
+msgstr "Je niet-opgeslagen sjabloonwijzigingen gaan verloren."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "%Y: year · %m: month · %d: day · %H: hour · %M: minute · %S: second"
+msgstr "%Y: jaar · %m: maand · %d: dag · %H: uur · %M: minuut · %S: seconde"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Category Name"
+msgstr "Categorienaam"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date"
+msgstr "Huidige datum"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Date and Time"
+msgstr "Huidige datum en tijd"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current Time"
+msgstr "Huidige tijd"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date and time, including the UTC offset"
+msgstr "Huidige lokale datum en tijd, inclusief de UTC-afwijking"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local date: YYYY-MM-DD"
+msgstr "Huidige lokale datum: JJJJ-MM-DD"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Current local time: HH:MM"
+msgstr "Huidige lokale tijd: UU:MM"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format"
+msgstr "Aangepaste datum-/tijdnotatie"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom Date/Time Format…"
+msgstr "Aangepaste datum-/tijdnotatie…"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom date format: day/month/year"
+msgstr "Aangepaste datumnotatie: dag/maand/jaar"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom format"
+msgstr "Aangepaste notatie"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Custom time format including seconds"
+msgstr "Aangepaste tijdnotatie met seconden"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Formats use %Y (year), %m (month), %d (day), %H (hour), %M (minute), and %S (second). Use a backslash before {{ to keep a pattern literal; in YAML or JSON double-quoted values, escape the backslash too."
+msgstr "Notaties gebruiken %Y (jaar), %m (maand), %d (dag), %H (uur), %M (minuut) en %S (seconde). Zet een backslash vóór {{ om een patroon letterlijk te behouden; escape in YAML- of JSON-waarden tussen dubbele aanhalingstekens ook de backslash."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Insert Pattern"
+msgstr "Patroon invoegen"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Invalid date/time format."
+msgstr "Ongeldige datum-/tijdnotatie."
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Pattern Reference"
+msgstr "Patroonoverzicht"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "The destination category’s name"
+msgstr "De naam van de doelcategorie"
+
+#: apps/carver-gtk/src/ui/templates/patterns.rs
+msgid "Use patterns in note content or quoted property values. All patterns use one timestamp. The saved template stays unchanged."
+msgstr "Gebruik patronen in de notitie-inhoud of in eigenschapswaarden tussen aanhalingstekens. Alle patronen gebruiken één tijdstip. Het opgeslagen sjabloon blijft ongewijzigd."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Create Note"
+msgstr "Notitie maken"
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Inserts at the cursor and adds missing properties. Existing property values stay unchanged."
+msgstr "Voegt in bij de cursor en voegt ontbrekende eigenschappen toe. Bestaande eigenschapswaarden blijven ongewijzigd."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "New notes get their own copy. Editing a template won’t change existing notes."
+msgstr "Nieuwe notities krijgen een eigen kopie. Een sjabloon bewerken verandert bestaande notities niet."
+
+#: apps/carver-gtk/src/ui/templates/picker.rs
+msgid "Properties to add"
+msgstr "Toe te voegen eigenschappen"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From template"
+msgstr "Uit sjabloon"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+#, rust-format
+msgid "From template · replaces default: {value}"
+msgstr "Uit sjabloon · vervangt standaardwaarde: {value}"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "From your default properties"
+msgstr "Uit je standaardeigenschappen"
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "No properties yet. Add default properties in Preferences."
+msgstr "Nog geen eigenschappen. Voeg standaardeigenschappen toe in Voorkeuren."
+
+#: apps/carver-gtk/src/ui/templates/properties.rs
+msgid "Properties for new notes"
+msgstr "Eigenschappen voor nieuwe notities"
 
 #: apps/carver-gtk/src/ui/trash.rs
 msgid "All trashed notes, categories, and unreferenced images will be permanently deleted."
@@ -1806,6 +2103,10 @@ msgid "Could not open the note editor: {error}"
 msgstr "Kon de notitie-editor niet openen: {error}"
 
 #: apps/carver-gtk/src/view/mod.rs
+msgid "Could not open the template editor."
+msgstr "De sjablooneditor kon niet worden geopend."
+
+#: apps/carver-gtk/src/view/mod.rs
 msgid "Couldn’t load base"
 msgstr "Kon basis niet laden"
 
@@ -1856,6 +2157,11 @@ msgstr "Notitie verplaatst"
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Moved note to Trash"
 msgstr "Notitie naar prullenbak verplaatst"
+
+#: apps/carver-gtk/src/view/mod.rs
+#, rust-format
+msgid "New Note · {template}"
+msgstr "Nieuwe notitie · {template}"
 
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Note"

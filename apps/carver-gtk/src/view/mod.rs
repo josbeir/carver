@@ -297,7 +297,7 @@ impl BrowserProjectionSnapshot {
     fn matches(&self, model: &AppModel, today: Date) -> bool {
         self.browser == model.browser
             && self.selected_category == model.selected_category
-            && self.sidebar == model.sidebar.state
+            && browser_sidebar_matches(&self.sidebar, &model.sidebar.state)
             && self.route == model.route
             && self.today == today
     }
@@ -489,6 +489,12 @@ fn find_toolbar_view(widget: &gtk::Widget) -> Option<adw::ToolbarView> {
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
+    rendered_default_property_count: Cell<Option<usize>>,
+    template_category_form: RefCell<Option<Rc<crate::ui::dialogs::CategoryForm>>>,
+    template_choices: RefCell<Option<Vec<carver_sdk::NoteTemplate>>>,
+    browser_new_note: Option<adw::SplitButton>,
+    template_list: RefCell<Option<Rc<crate::ui::templates::ListHandle>>>,
+    template_editor: RefCell<Option<Rc<crate::ui::templates::EditorHandle>>>,
     route_stack: gtk::Stack,
     browser_list: Option<gtk::ListView>,
     browser_feed_store: Option<gtk::gio::ListStore>,
@@ -538,6 +544,12 @@ impl ViewRefs {
         trash_status: adw::StatusPage,
     ) -> Self {
         Self {
+            template_category_form: RefCell::new(None),
+            template_choices: RefCell::new(None),
+            rendered_default_property_count: Cell::new(None),
+            browser_new_note: None,
+            template_list: RefCell::new(None),
+            template_editor: RefCell::new(None),
             route_stack,
             browser_list: None,
             browser_feed_store: None,
@@ -620,6 +632,7 @@ impl ViewRefs {
         self.browser_search_entry = Some(browser.search_entry);
         self.browser_search_toggle = Some(browser.search_toggle);
         self.browser_empty_new_note_button = Some(browser.empty_new_note_button);
+        self.browser_new_note = Some(browser.new_note);
         self
     }
 
@@ -672,6 +685,26 @@ impl ViewRefs {
     /// Renders one immutable model snapshot without invoking application actions.
     pub fn render(&self, model: &AppModel) {
         self.rendering.set(true);
+        let count = model.config.document_properties.entries.len();
+        if self.rendered_default_property_count.replace(Some(count)) != Some(count)
+            && let Some(root) = self.route_stack.root()
+        {
+            crate::ui::dialogs::render_document_property_count(root.upcast_ref(), count);
+        }
+        if let Some(window) = self
+            .route_stack
+            .root()
+            .and_downcast::<adw::ApplicationWindow>()
+            && let Some(action) = window
+                .lookup_action("insert-template")
+                .and_downcast::<gtk::gio::SimpleAction>()
+        {
+            action.set_enabled(model.editor.as_ref().is_some_and(|document| {
+                model.route == Route::Editor
+                    && document.mode != carver_config::EditorMode::Rendered
+                    && document.external_change.is_none()
+            }));
+        }
         if let Some(child) = match model.route {
             Route::Browser => Some("browser"),
             Route::Base => Some("base"),
@@ -930,6 +963,147 @@ impl ViewRefs {
     ///
     /// These effects deliberately live outside `render`: rendering remains a projection of the
     /// model and cannot repeat clipboard, dialog, or print work on a later redraw.
+    // CONTEXT: Native template effects share dialog lifetime guards at one UI boundary.
+    #[expect(clippy::too_many_lines, reason = "template dialog effect routing")]
+    pub(crate) fn run_template_effect(&self, effect: Effect) {
+        let Some(dispatcher) = &self.dispatcher else {
+            return;
+        };
+        let Some(parent) = self.route_stack.root().and_downcast::<gtk::Window>() else {
+            return;
+        };
+        match effect {
+            Effect::CaptureTemplateInsert => {
+                let editor = self.editor.borrow().clone();
+                if let Some(editor) = editor {
+                    let selection = editor.source_selection();
+                    let _ = dispatcher.dispatch(AppMsg::Templates(
+                        crate::mvu::TemplatesMsg::InsertCaptured(selection),
+                    ));
+                }
+            }
+            Effect::ShowTemplates {
+                templates,
+                purpose,
+                request_id,
+                initial_preview,
+                selected,
+            } => {
+                if purpose == crate::mvu::TemplatePurpose::NewCategory {
+                    let host = self
+                        .add_dialog
+                        .as_ref()
+                        .and_then(|slot| slot.borrow().clone());
+                    if let Some(host) = host {
+                        host.category.set_templates(&templates, None);
+                        host.sync_height();
+                    }
+                    return;
+                }
+                let previous = self.template_list.borrow_mut().take();
+                if let Some(handle) = previous
+                    && handle.dialog.is_mapped()
+                {
+                    handle.dialog.close();
+                }
+                if let crate::mvu::TemplatePurpose::Category(category) = purpose {
+                    let form = crate::ui::dialogs::show_category_template_dialog(
+                        &parent, dispatcher, &category, &templates,
+                    );
+                    self.template_category_form.replace(Some(form));
+                } else {
+                    let dialog = crate::ui::templates::show_list(
+                        &parent,
+                        dispatcher,
+                        &templates,
+                        &purpose,
+                        request_id,
+                        initial_preview.as_ref(),
+                        selected,
+                    );
+                    self.template_list.replace(Some(Rc::new(dialog)));
+                }
+            }
+            Effect::ShowTemplateEditor {
+                properties,
+                preferences,
+                request_id,
+                original,
+                name,
+                source,
+            } => {
+                let Some(syntax) = &self.source_syntax_dir else {
+                    return;
+                };
+                match crate::ui::templates::show_editor(
+                    &parent,
+                    dispatcher,
+                    crate::ui::templates::EditorDraft {
+                        id: request_id,
+                        original,
+                        name: &name,
+                        source: &source,
+                        properties: &properties,
+                    },
+                    syntax,
+                    &preferences,
+                ) {
+                    Ok(handle) => {
+                        self.template_editor.replace(Some(Rc::new(handle)));
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::PatternClock(
+                                carver_sdk::template_context("").now,
+                            ),
+                        ));
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::PreviewDraft { request_id, source },
+                        ));
+                    }
+                    Err(_) => {
+                        let _ = dispatcher.dispatch(AppMsg::Templates(
+                            crate::mvu::TemplatesMsg::OpenFailed {
+                                request_id,
+                                error: crate::mvu::UiError::new(gettext(
+                                    "Could not open the template editor.",
+                                )),
+                            },
+                        ));
+                    }
+                }
+            }
+            Effect::ShowTemplatePreview {
+                request_id,
+                preview,
+            } => {
+                let handle = self.template_list.borrow().clone();
+                if let Some(handle) = handle.filter(|h| h.id == request_id) {
+                    handle.render_preview(preview.as_ref());
+                }
+            }
+            Effect::ShowDraftProperties {
+                request_id,
+                preview,
+            } => {
+                let handle = self.template_editor.borrow().clone();
+                if let Some(handle) = handle.filter(|h| h.id == request_id) {
+                    handle.render_properties(&preview);
+                }
+            }
+            Effect::FinishTemplateEdit { request_id, error } => {
+                let handle = self.template_editor.borrow_mut().take();
+                if let Some(handle) = handle {
+                    if handle.id == request_id {
+                        handle.finish(error.as_ref());
+                    }
+                    if error.is_some() {
+                        self.template_editor.replace(Some(handle));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     // CONTEXT: Native dialog effects stay in one visible dispatch table so GTK callbacks never
     // bypass the MVU runtime or apply work to a stale dialog session.
     #[expect(
@@ -1276,7 +1450,51 @@ impl ViewRefs {
         }
     }
 
+    fn render_template_catalog(&self, model: &AppModel) {
+        if let Some(button) = &self.browser_new_note {
+            let template_id = match &model.sidebar.state {
+                LoadState::Ready(categories) => categories
+                    .iter()
+                    .find(|c| Some(c.category.id) == model.active_category_id())
+                    .and_then(|c| c.category.default_template_id),
+                _ => None,
+            };
+            let name = match &model.template_catalog.state {
+                LoadState::Ready(templates) => templates
+                    .iter()
+                    .find(|t| Some(t.id) == template_id)
+                    .map(|t| t.name.as_str()),
+                _ => None,
+            };
+            let label = name.map_or_else(
+                || gettext("New Note"),
+                |name| tr_fmt!(gettext("New Note · {template}"), template = name),
+            );
+            button.set_tooltip_text(Some(&label));
+            button.update_property(&[gtk::accessible::Property::Label(&label)]);
+        }
+        if let LoadState::Ready(templates) = &model.template_catalog.state {
+            if self.template_choices.borrow().as_ref() == Some(templates) {
+                return;
+            }
+            self.template_choices.replace(Some(templates.clone()));
+            let form = self.template_category_form.borrow().clone();
+            if let Some(form) = form {
+                form.set_templates(templates, form.selected_template());
+            }
+            if let Some(host) = self
+                .add_dialog
+                .as_ref()
+                .and_then(|slot| slot.borrow().clone())
+            {
+                host.category
+                    .set_templates(templates, host.category.selected_template());
+            }
+        }
+    }
+
     fn render_browser(&self, model: &AppModel) {
+        self.render_template_catalog(model);
         if let Some(available) = &self.browser_load_more_available {
             let needs_page = model.browser.has_more || model.browser.append_error.is_some();
             available.set(needs_page && model.browser.append_request.is_none());
@@ -1537,11 +1755,47 @@ impl ViewRefs {
     }
 }
 
+// Template assignments affect future note creation, never the existing note feed.
+fn browser_sidebar_snapshot(
+    state: &LoadState<Vec<carver_sdk::CategorySummary>>,
+) -> LoadState<Vec<carver_sdk::CategorySummary>> {
+    let mut snapshot = state.clone();
+    if let LoadState::Ready(categories) = &mut snapshot {
+        for summary in categories {
+            summary.category.default_template_id = None;
+        }
+    }
+    snapshot
+}
+
+fn browser_sidebar_matches(
+    snapshot: &LoadState<Vec<carver_sdk::CategorySummary>>,
+    current: &LoadState<Vec<carver_sdk::CategorySummary>>,
+) -> bool {
+    match (snapshot, current) {
+        (LoadState::Ready(left), LoadState::Ready(right)) => {
+            left.len() == right.len()
+                && left.iter().zip(right).all(|(left, right)| {
+                    let (a, b) = (&left.category, &right.category);
+                    left.note_count == right.note_count
+                        && a.id == b.id
+                        && a.name == b.name
+                        && a.appearance == b.appearance
+                        && a.position == b.position
+                        && a.created_at == b.created_at
+                        && a.updated_at == b.updated_at
+                        && a.trashed_at == b.trashed_at
+                })
+        }
+        _ => snapshot == current,
+    }
+}
+
 fn browser_projection_snapshot(model: &AppModel, today: Date) -> BrowserProjectionSnapshot {
     BrowserProjectionSnapshot {
         browser: model.browser.clone(),
         selected_category: model.selected_category,
-        sidebar: model.sidebar.state.clone(),
+        sidebar: browser_sidebar_snapshot(&model.sidebar.state),
         route: model.route,
         today,
     }
@@ -1632,7 +1886,7 @@ fn browser_feed_context(model: &AppModel) -> BrowserFeedContext {
     };
     BrowserFeedContext {
         show_category: model.selected_category.is_none(),
-        sidebar: model.sidebar.state.clone(),
+        sidebar: browser_sidebar_snapshot(&model.sidebar.state),
         selected_category: model.selected_category,
         favorites,
     }

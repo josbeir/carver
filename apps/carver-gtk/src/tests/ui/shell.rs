@@ -134,10 +134,10 @@ pub(super) fn window_shortcuts_should_open_dialogs(fixture: &WindowFixture) -> T
     let settings_model = settings_menu
         .menu_model()
         .ok_or("sidebar settings menu model")?;
-    assert_eq!(settings_model.n_items(), 2);
+    assert_eq!(settings_model.n_items(), 3);
     assert!(
         settings_model
-            .item_link(1, gtk::gio::MENU_LINK_SECTION)
+            .item_link(2, gtk::gio::MENU_LINK_SECTION)
             .is_some()
     );
     assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());
@@ -282,6 +282,7 @@ pub(super) fn sidebar_count_badge_should_cap_large_counts() -> TestResult {
     let mut model = crate::mvu::AppModel::new(&Config::default());
     model.sidebar.state = crate::mvu::LoadState::Ready(vec![carver_sdk::CategorySummary {
         category: carver_sdk::Category {
+            default_template_id: None,
             id: category_id,
             name: "Busy".to_owned(),
             appearance: carver_sdk::CategoryAppearance::default(),

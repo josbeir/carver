@@ -34,7 +34,7 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
     let [Effect::PrepareBaseConfiguration { request_id, .. }] = second.as_slice() else {
         panic!("prepare effect");
     };
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::BaseConfigurationLoaded {
@@ -42,8 +42,8 @@ fn configure_should_prepare_unfiltered_rows_and_ignore_stale_replies() {
                 definition: definition.clone(),
                 result: Ok(())
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(matches!(
         update(
@@ -67,7 +67,10 @@ fn base_search_should_debounce_and_reload_the_selected_base() {
     model.bases.selected = Some(base_id);
     model.bases.rows.state = LoadState::Ready(Vec::new());
 
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::SearchOpened)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::SearchOpened)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     let effects = update(
         &mut model,
         AppMsg::Bases(BasesMsg::SearchChanged("roadmap".to_owned())),
@@ -107,7 +110,7 @@ fn closing_base_search_should_clear_its_query_and_reload_all_rows() {
             if *loaded == base_id && query.is_empty()
     ));
     assert!(!model.bases.search_open);
-    assert!(model.bases.search_query.is_empty());
+    assert_eq!(model.bases.search_query, "");
 }
 
 #[test]
@@ -118,16 +121,19 @@ fn configuring_a_new_base_should_prepare_the_shared_dialog_and_reject_stale_rows
     let [Effect::PrepareNewBaseConfiguration { request_id }] = effects.as_slice() else {
         panic!("new Base configuration should prepare its rows");
     };
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
-    assert!(
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::NewBaseConfigurationLoaded {
                 request_id: RequestId(request_id.0 + 1),
                 result: Ok(()),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(matches!(
         update(
@@ -148,7 +154,10 @@ fn configuring_a_new_base_should_wait_for_property_descriptors() {
     let descriptor_request = RequestId(8);
     model.bases.property_descriptors.state = LoadState::Loading(descriptor_request);
 
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert!(matches!(
         model.bases.configuration_request,
         Some(RequestId(1))
@@ -180,10 +189,16 @@ fn cancelling_a_new_base_configuration_should_drop_its_pending_request() {
     let mut model = AppModel::new(&Config::default());
     let descriptor_request = RequestId(8);
     model.bases.property_descriptors.state = LoadState::Loading(descriptor_request);
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::ConfigureNew)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert!(model.bases.configuration_request.is_some());
     assert!(model.bases.pending_configuration.is_some());
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert!(model.bases.configuration_request.is_none());
     assert!(model.bases.pending_configuration.is_none());
     assert!(
@@ -205,7 +220,10 @@ fn cancelling_a_new_base_configuration_should_drop_its_pending_request() {
     let [Effect::PrepareNewBaseConfiguration { request_id }] = effects.as_slice() else {
         panic!("new Base configuration should prepare its rows");
     };
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::CancelNewConfiguration)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert!(model.bases.configuration_request.is_none());
     assert!(
         update(
@@ -267,12 +285,12 @@ fn base_preview_count_should_debounce_and_ignore_a_superseded_draft() {
     else {
         panic!("second preview should replace the debounce");
     };
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Bases(BasesMsg::PreviewCountTimerFired(*first_timer)),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(matches!(
         update(
@@ -314,7 +332,7 @@ fn base_preview_reply_should_not_update_a_new_configuration_dialog() {
     };
 
     model.bases.configuration_dialog = Some(second_dialog);
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::BasePreviewCount {
@@ -322,8 +340,8 @@ fn base_preview_reply_should_not_update_a_new_configuration_dialog() {
                 request_id: *request_id,
                 result: Ok(3),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -427,7 +445,10 @@ fn deleting_a_base_should_preserve_an_open_draft_and_redirect_its_return_route()
         update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).as_slice(),
         [Effect::DeleteBase { .. }]
     ));
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     let _ = update(
         &mut model,
         AppMsg::Library(LibraryReply::BaseDeleted {
@@ -459,7 +480,10 @@ fn failed_base_deletion_should_leave_the_selection_and_allow_retry() {
     assert_eq!(model.notice, Some(error));
     assert_eq!(model.bases.selected, Some(base));
     assert_eq!(model.route, Route::Base);
-    assert!(!update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))).is_empty());
+    assert_ne!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Delete(base))),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 }
 
 #[test]
@@ -514,15 +538,15 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
         property_type: carver_sdk::PropertyType::Text,
         example: Some("old".to_owned()),
     };
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
                 request_id: RequestId(7),
                 result: Ok(vec![stale]),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model.bases.property_descriptors.state,
@@ -535,15 +559,15 @@ fn stale_property_descriptor_reply_should_not_replace_a_newer_request() {
         property_type: carver_sdk::PropertyType::Text,
         example: Some("ready".to_owned()),
     };
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::PropertyDescriptorsLoaded {
                 request_id: current,
                 result: Ok(vec![descriptor.clone()]),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model.bases.property_descriptors.state,
@@ -741,7 +765,10 @@ fn rapidly_switching_bases_should_load_the_latest_selection_after_in_flight_rows
         [Effect::LoadBaseRows { request_id, .. }] => *request_id,
         _ => panic!("first base should start loading"),
     };
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Open(second))).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Open(second))),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 
     let effects = update(
         &mut model,
@@ -768,7 +795,10 @@ fn invalidating_base_definitions_in_flight_should_schedule_one_follow_up_load() 
         [Effect::LoadBases { request_id }] => *request_id,
         _ => panic!("definitions should start loading"),
     };
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Reload)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Reload)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 
     let effects = update(
         &mut model,
@@ -833,15 +863,15 @@ fn external_base_deletion_should_return_the_window_to_the_browser() {
         })
         .unwrap_or_else(|| panic!("external refresh should reload Bases"));
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::BasesLoaded {
                 request_id: definitions_request,
                 result: Ok(Vec::new()),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.bases.selected, None);
@@ -891,15 +921,15 @@ fn external_base_deletion_should_redirect_a_missing_pending_base_navigation() {
         })
         .unwrap_or_else(|| panic!("external refresh should reload Bases"));
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::BasesLoaded {
                 request_id: definitions_request,
                 result: Ok(vec![selected_base]),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(model.bases.selected, Some(selected_base_id));
     assert_eq!(
@@ -920,7 +950,10 @@ fn coalesced_base_reload_should_wait_for_the_latest_definitions_before_clearing_
         [Effect::LoadBases { request_id }] => *request_id,
         _ => panic!("initial Base reload should start"),
     };
-    assert!(update(&mut model, AppMsg::Bases(BasesMsg::Reload)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Bases(BasesMsg::Reload)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 
     let reload = update(
         &mut model,
@@ -1021,7 +1054,7 @@ fn stale_base_update_should_leave_a_notice_without_reloading() {
             result: Err(UiError::new("base changed")),
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("base changed")
@@ -1087,8 +1120,11 @@ fn committing_a_cell_edit_without_a_base_should_be_ignored() {
             value: Some(serde_json::json!("done")),
         }),
     );
-    assert!(effects.is_empty());
-    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
+    assert_eq!(
+        model.bases.cell_edits,
+        [] as [crate::mvu::model::BaseCellEdit; 0]
+    );
 }
 
 #[test]
@@ -1119,7 +1155,10 @@ fn a_saved_cell_edit_should_reload_the_visible_base() {
             move_error: None,
         }),
     );
-    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.bases.cell_edits,
+        [] as [crate::mvu::model::BaseCellEdit; 0]
+    );
     assert!(matches!(
         effects.as_slice(),
         [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
@@ -1299,7 +1338,10 @@ fn a_failed_cell_edit_should_reload_and_keep_a_notice() {
         effects.as_slice(),
         [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
     ));
-    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.bases.cell_edits,
+        [] as [crate::mvu::model::BaseCellEdit; 0]
+    );
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
         Some("conflict")
@@ -1330,7 +1372,7 @@ fn a_second_edit_for_the_same_note_should_wait_for_the_first() {
             value: Some(serde_json::json!(true)),
         }),
     );
-    assert!(second.is_empty());
+    assert_eq!(second, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.bases.cell_edits.len(), 1);
 }
 
@@ -1348,7 +1390,7 @@ fn a_stale_cell_edit_reply_should_be_ignored() {
             move_error: None,
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -1432,7 +1474,7 @@ fn a_stale_or_failed_base_properties_load_should_be_handled() {
             result: Err(UiError::new("stale")),
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.bases.base_properties_request, Some(request_id));
     assert_eq!(model.notice, None);
 
@@ -1444,7 +1486,7 @@ fn a_stale_or_failed_base_properties_load_should_be_handled() {
             result: Err(UiError::new("load failed")),
         }),
     );
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.bases.base_properties_request, None);
     assert_eq!(
         model.notice.as_ref().map(|error| error.message.as_str()),
@@ -1485,7 +1527,10 @@ fn applying_base_properties_should_save_and_reload_the_base() {
             move_error: None,
         }),
     );
-    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.bases.cell_edits,
+        [] as [crate::mvu::model::BaseCellEdit; 0]
+    );
     assert!(matches!(
         effects.as_slice(),
         [Effect::LoadBaseRows { base_id: loaded, .. }] if *loaded == base_id
@@ -1590,7 +1635,7 @@ fn a_second_cell_edit_on_the_same_note_should_queue_until_the_first_finishes() {
             value: Some(serde_json::json!("Ada")),
         }),
     );
-    assert!(second.is_empty());
+    assert_eq!(second, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.bases.pending_cell_edits.len(), 1);
 
     // Completing the first admits the queued edit against the revision the first save produced.
@@ -1610,7 +1655,10 @@ fn a_second_cell_edit_on_the_same_note_should_queue_until_the_first_finishes() {
         _ => None,
     });
     assert_eq!(queued_revision, Some(Revision(5)));
-    assert!(model.bases.pending_cell_edits.is_empty());
+    assert_eq!(
+        model.bases.pending_cell_edits,
+        [] as [crate::mvu::model::PendingBaseCellEdit; 0]
+    );
     assert!(
         effects
             .iter()
@@ -1650,7 +1698,10 @@ fn a_failed_base_move_should_reload_rows_and_report_a_notice() {
             result: Ok(Revision(3)),
         }),
     );
-    assert!(model.bases.cell_edits.is_empty());
+    assert_eq!(
+        model.bases.cell_edits,
+        [] as [crate::mvu::model::BaseCellEdit; 0]
+    );
     // The content was saved, so the grid reloads; the failed move is surfaced.
     assert!(effects.iter().any(
         |effect| matches!(effect, Effect::LoadBaseRows { base_id: loaded, .. } if *loaded == base_id)

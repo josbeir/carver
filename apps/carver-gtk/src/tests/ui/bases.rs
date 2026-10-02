@@ -466,7 +466,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .into_iter()
         .find(|base| base.id == base_id)
         .ok_or("saved base")?;
-    assert!(saved.filters.is_empty());
+    assert_eq!(saved.filters, [] as [carver_domain::BaseFilter; 0]);
     assert_eq!(saved.columns.len(), 5);
     assert_eq!(saved.view, carver_sdk::BaseView::List);
     assert_eq!(
@@ -852,6 +852,7 @@ pub(super) fn base_list_should_rebind_when_category_colors_change() -> TestResul
     // The categories arrive after the rows, so the realized card must rebind to pick up the color.
     let summary = carver_sdk::CategorySummary {
         category: carver_sdk::Category {
+            default_template_id: None,
             id: category_id,
             name: "Notes".to_owned(),
             appearance: carver_sdk::CategoryAppearance {

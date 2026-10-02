@@ -13,7 +13,7 @@ use super::{
     dialogs::{
         IMPORT_NOTE_ACTION, NEW_NOTE_ACTION, NEW_NOTE_FROM_CLIPBOARD_ACTION,
         NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION, category_color_css_class, category_icon_name,
-        show_category_dialog, show_category_trash_confirmation, show_move_note_dialog,
+        show_category_trash_confirmation, show_move_note_dialog,
     },
     editor::{EditorSurface, build_editor},
     search::{build_search_controls, connect_search_controls, install_search_shortcut},
@@ -102,6 +102,7 @@ pub(crate) struct BrowserViewRefs {
     pub(crate) search_toggle: gtk::ToggleButton,
     pub(crate) empty_new_note_button: gtk::Button,
     pub(crate) status: adw::StatusPage,
+    pub(crate) new_note: adw::SplitButton,
 }
 
 /// The complete content surface and the view references it creates.
@@ -332,6 +333,7 @@ pub(crate) fn build_browser(
         search_entry: search.entry,
         search_toggle: search.toggle,
         empty_new_note_button: empty_new_note,
+        new_note,
         status,
     };
     connect_browser_actions(dispatcher, &references);
@@ -366,15 +368,25 @@ fn connect_browser_paging(dispatcher: &AppDispatcher, references: &BrowserViewRe
 /// discoverable without a standalone overflow menu whose only entry it was.
 fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton {
     let menu = gtk::gio::Menu::new();
-    menu.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
-    menu.append(
+    let creation = gtk::gio::Menu::new();
+    let import = gtk::gio::Menu::new();
+    creation.append(
+        Some(&gettext("New from Template…")),
+        Some("win.new-from-template"),
+    );
+    creation.append(Some(&gettext("New Blank Note")), Some("win.new-blank-note"));
+    import.append(Some(&gettext("Import Note")), Some(IMPORT_NOTE_ACTION));
+    import.append(
         Some(&gettext("New from Clipboard")),
         Some(NEW_NOTE_FROM_CLIPBOARD_ACTION),
     );
-    menu.append(
+    import.append(
         Some(&gettext("New from Clipboard as Markdown")),
         Some(NEW_NOTE_FROM_MARKDOWN_CLIPBOARD_ACTION),
     );
+
+    menu.append_section(None, &creation);
+    menu.append_section(None, &import);
 
     let button = adw::SplitButton::new();
     button.set_widget_name("new-note-button");
@@ -384,11 +396,52 @@ fn browser_new_note_split_button(dispatcher: &AppDispatcher) -> adw::SplitButton
     button.update_property(&[gtk::accessible::Property::Label(&gettext("New Note"))]);
     button.set_menu_model(Some(&menu));
 
-    let dispatcher = dispatcher.clone();
-    button.connect_clicked(move |_| {
-        let _ = dispatcher.dispatch(AppMsg::Navigation(NavigationMsg::CreateNote));
-    });
+    let template_click = Rc::new(Cell::new(false));
+    // Observe modifiers without claiming the sequence: the primary button emits one activation.
+    if let Some(primary) = find_descendant::<gtk::Button>(button.upcast_ref()) {
+        let controller = gtk::EventControllerLegacy::new();
+        controller.set_name(Some("new-note-template-click"));
+        controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let click_state = template_click.clone();
+        controller.connect_event(move |_, event| {
+            match event.event_type() {
+                gtk::gdk::EventType::ButtonPress => {
+                    click_state.set(new_note_press_opens_template(event.modifier_state()));
+                }
+                gtk::gdk::EventType::ButtonRelease => {
+                    // Clear cancelled/dragged-out clicks after the button's synchronous activation.
+                    let click_state = click_state.clone();
+                    glib::idle_add_local_once(move || click_state.set(false));
+                }
+                _ => {}
+            }
+            glib::Propagation::Proceed
+        });
+        primary.add_controller(controller);
+    }
+    connect_new_note_activation(&button, dispatcher, &template_click);
     button
+}
+
+pub(crate) fn connect_new_note_activation(
+    button: &adw::SplitButton,
+    dispatcher: &AppDispatcher,
+    template_click: &Rc<Cell<bool>>,
+) {
+    let dispatcher = dispatcher.clone();
+    let template_click = template_click.clone();
+    button.connect_clicked(move |_| {
+        let message = if template_click.replace(false) {
+            AppMsg::Templates(crate::mvu::TemplatesMsg::Pick)
+        } else {
+            AppMsg::Navigation(NavigationMsg::CreateNote)
+        };
+        let _ = dispatcher.dispatch(message);
+    });
+}
+
+pub(crate) fn new_note_press_opens_template(modifiers: gtk::gdk::ModifierType) -> bool {
+    modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK)
 }
 
 fn build_category_empty_card() -> (gtk::Box, gtk::Button) {
@@ -843,6 +896,18 @@ fn note_menu_button(
     });
     actions.add_action(&move_action);
 
+    let template_action = gtk::gio::SimpleAction::new("template", None);
+    let weak_item = item.downgrade();
+    let d = dispatcher.clone();
+    template_action.connect_activate(move |_, _| {
+        if let Some(note) = activate_bound_note(&weak_item) {
+            let _ = d.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::FromNote(
+                note.id,
+            )));
+        }
+    });
+    actions.add_action(&template_action);
+
     let export = gtk::gio::SimpleAction::new("export", None);
     let weak_item = item.downgrade();
     let dispatcher_for_export = dispatcher.clone();
@@ -881,6 +946,7 @@ fn note_menu_model(is_favorite: bool) -> gtk::gio::Menu {
     model.append(Some(&favorite_label), Some("note.favorite"));
     model.append(Some(&gettext("Move…")), Some("note.move"));
     model.append(Some(&gettext("Export note…")), Some("note.export"));
+    model.append(Some(&gettext("Save as Template…")), Some("note.template"));
     let danger = gtk::gio::Menu::new();
     danger.append(Some(&gettext("Move to Trash")), Some("note.trash"));
     model.append_section(None, &danger);
@@ -1046,26 +1112,11 @@ fn category_hero_actions(category: &Category, dispatcher: &AppDispatcher) -> gtk
     edit.add_css_class("flat");
     let dispatcher_for_edit = dispatcher.clone();
     let category_id = category.id;
-    let category_name = category.name.clone();
-    let appearance = category.appearance;
-    edit.connect_clicked(move |button| {
-        let parent = button
-            .root()
-            .and_then(|root| root.downcast::<gtk::Window>().ok());
-        let dispatcher = dispatcher_for_edit.clone();
-        show_category_dialog(
-            parent.as_ref(),
-            &gettext("Edit Category"),
-            &category_name,
-            appearance,
-            move |name, appearance| {
-                let _ = dispatcher.dispatch(AppMsg::Action(ActionMsg::UpdateCategory {
-                    category_id,
-                    name,
-                    appearance,
-                }));
-            },
-        );
+    let category_for_edit = category.clone();
+    edit.connect_clicked(move |_| {
+        let _ = dispatcher_for_edit.dispatch(AppMsg::Templates(
+            crate::mvu::TemplatesMsg::EditCategory(category_for_edit.clone()),
+        ));
     });
     actions.append(&edit);
     let trash = gtk::Button::from_icon_name("user-trash-symbolic");

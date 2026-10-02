@@ -64,7 +64,10 @@ fn repeated_favorite_toggles_while_saving_should_restore_the_original_state() {
         _ => panic!("favorite changes should save dirty source first"),
     };
 
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
     assert_eq!(
         model
             .editor
@@ -118,7 +121,10 @@ fn repeated_favorite_toggles_while_clean_should_apply_the_latest_requested_state
             ..
         }] if *effect_note_id == note_id
     ));
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Editor(EditorMsg::ToggleFavorite)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 
     let effects = update(
         &mut model,
@@ -270,7 +276,7 @@ fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
     };
     assert_eq!(rebased_request.expected_revision, Revision(2));
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::EditorSaved {
@@ -278,8 +284,8 @@ fn favorite_completion_should_rebase_a_save_started_with_its_old_revision() {
                 result: Err(UiError::new("revision conflict")),
                 move_error: None,
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     let effects = update(
         &mut model,

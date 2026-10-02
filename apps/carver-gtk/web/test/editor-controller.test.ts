@@ -589,3 +589,37 @@ describe('smart paste', () => {
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('template source insertion', () => {
+  it('inserts body and metadata in one undoable transaction', async () => {
+    const { history, undo } = await import('@tiptap/pm/history');
+    const { carveToProseMirrorWithReport } = await import(
+      '@markup-carve/carve-grammars/tiptap'
+    );
+    const { controller, editor } = controllerFixture();
+    controller.initialize();
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON(
+      carveToProseMirrorWithReport('Existing').doc,
+    );
+    let state = EditorState.create({ doc, plugins: [history()] });
+    editor.state = state as unknown as typeof editor.state;
+    editor.view.dispatch = vi.fn((tr: Transaction) => {
+      state = state.apply(tr);
+      editor.state = state as unknown as typeof editor.state;
+    });
+    expect(
+      controller.command('insert-source', {
+        source: '# Agenda\n',
+        prefix: '---\nkind: meeting\n---\n',
+      }),
+    ).toBe(true);
+    expect(editor.view.dispatch).toHaveBeenCalledOnce();
+    expect(state.doc.textContent).toContain('Agenda');
+    expect(state.doc.firstChild?.type.name).toBe('carveFrontmatter');
+    undo(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(state.doc.eq(doc)).toBe(true);
+  });
+});

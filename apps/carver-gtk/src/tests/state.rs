@@ -23,7 +23,7 @@ fn library_fixture_should_rename_categories_and_restore_notes() -> TestResult {
     assert_eq!(renamed.name, "Work");
     let created = client.create_note(category.id)?;
     client.trash_note(created.id)?;
-    assert!(
+    assert_eq!(
         client
             .recent_notes(
                 None,
@@ -32,8 +32,8 @@ fn library_fixture_should_rename_categories_and_restore_notes() -> TestResult {
                     offset: 0
                 }
             )?
-            .items
-            .is_empty()
+            .items,
+        [] as [carver_domain::NoteSummary; 0]
     );
     client.restore_note(created.id)?;
     assert_eq!(

@@ -14,6 +14,8 @@ permissions:
 jobs:
   quality:
     name: Quality (stable)
+    env:
+      RUSTUP_TOOLCHAIN: stable
     # Cancel superseded runs for this branch. The coverage job is deliberately in its own group so
     # a later push cannot cancel the one coverage run a PR gets.
     concurrency:
@@ -76,6 +78,8 @@ jobs:
 
   coverage:
     name: Coverage
+    env:
+      RUSTUP_TOOLCHAIN: stable
     # One coverage run per PR: on open (or ready-for-review when opened as a draft) and on every
     # main push, but not on each synchronize push. The Codecov comment only needs one upload, and
     # Codecov statuses are informational (codecov.yml), so later commits without a fresh report
@@ -131,6 +135,8 @@ jobs:
 
   msrv:
     name: MSRV (Rust 1.98)
+    env:
+      RUSTUP_TOOLCHAIN: "1.98"
     concurrency:
       group: msrv-${{ github.ref }}
       cancel-in-progress: true
