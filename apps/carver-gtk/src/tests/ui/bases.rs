@@ -466,7 +466,7 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
         .into_iter()
         .find(|base| base.id == base_id)
         .ok_or("saved base")?;
-    assert!(saved.filters.is_empty());
+    assert_eq!(saved.filters, [] as [carver_domain::BaseFilter; 0]);
     assert_eq!(saved.columns.len(), 5);
     assert_eq!(saved.view, carver_sdk::BaseView::List);
     assert_eq!(

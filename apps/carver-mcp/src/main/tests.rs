@@ -853,13 +853,13 @@ async fn template_mutations_should_reject_incompatible_configured_properties() -
             .await
             .is_err()
     );
-    assert!(
+    assert_eq!(
         server
             .client
             .templates_async()
             .await
-            .map_err(|e| e.to_string())?
-            .is_empty()
+            .map_err(|e| e.to_string())?,
+        [] as [carver_sdk::NoteTemplate; 0]
     );
     let template = server
         .client

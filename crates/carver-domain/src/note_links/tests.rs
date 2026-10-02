@@ -52,20 +52,29 @@ fn reference_forms_should_resolve_to_the_same_target() {
 #[test]
 fn unresolved_reference_should_not_extract() {
     let source = "See [missing][absent] and [heading][].";
-    assert!(extract_note_links(source).is_empty());
+    assert_eq!(
+        extract_note_links(source),
+        [] as [crate::note_links::NoteLinkRef; 0]
+    );
 }
 
 #[test]
 fn heading_reference_should_not_extract() {
     let source = "## Section\n\nSee [Section][] for details.";
-    assert!(extract_note_links(source).is_empty());
+    assert_eq!(
+        extract_note_links(source),
+        [] as [crate::note_links::NoteLinkRef; 0]
+    );
 }
 
 #[test]
 fn external_and_asset_links_should_be_ignored() {
     let source =
         "A [site](https://example.com), an ![image](assets/pic.png), and a [file](assets/doc.pdf).";
-    assert!(extract_note_links(source).is_empty());
+    assert_eq!(
+        extract_note_links(source),
+        [] as [crate::note_links::NoteLinkRef; 0]
+    );
 }
 
 #[test]

@@ -135,7 +135,7 @@ fn build_document_should_skip_an_empty_title() {
 
     let document = build_document(FrontmatterFormat::Yaml, &drafts);
 
-    assert!(document.fields.is_empty());
+    assert_eq!(document.fields, [] as [carver_domain::FrontmatterField; 0]);
 }
 
 #[test]
@@ -455,10 +455,9 @@ fn initial_drafts_should_not_prefill_over_an_authored_title() {
 fn build_document_should_skip_a_derived_title_until_edited() {
     let mut title = PropertyDraft::title(FrontmatterValue::Text("Meeting".to_owned()));
     title.derived = true;
-    assert!(
-        build_document(FrontmatterFormat::Yaml, &[title.clone()])
-            .fields
-            .is_empty()
+    assert_eq!(
+        build_document(FrontmatterFormat::Yaml, &[title.clone()]).fields,
+        [] as [carver_domain::FrontmatterField; 0]
     );
 
     title.derived = false;

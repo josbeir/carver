@@ -297,7 +297,7 @@ fn media_analysis_should_reject_traversal_nested_and_absolute_paths() {
         "![Bad](assets/../private.png) [Deep](assets/a/b/c.png) \
          [Absolute](/tmp/private.pdf) ![Remote](https://example.test/image.png)",
     );
-    assert!(analysis.media().is_empty());
+    assert_eq!(analysis.media(), []);
 }
 
 #[test]

@@ -880,7 +880,7 @@ mod tests {
         // These read the process locale; the test asserts they resolve without panicking.
         let _ = uses_twelve_hour_clock();
         let (am, pm) = meridiem_labels();
-        assert!(!am.is_empty());
-        assert!(!pm.is_empty());
+        assert_ne!(am, "");
+        assert_ne!(pm, "");
     }
 }

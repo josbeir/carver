@@ -306,7 +306,10 @@ fn category_form_should_propagate_creation_failure_through_the_async_facade()
         )),
         Err(LibraryError::Backend(TestError))
     ));
-    assert!(block_on(client.categories_async())?.is_empty());
+    assert_eq!(
+        block_on(client.categories_async())?,
+        [] as [carver_domain::Category; 0]
+    );
     Ok(())
 }
 

@@ -347,10 +347,9 @@ pub(super) fn template_editor_should_confirm_discard() -> TestResult {
     );
     confirmation.close();
     let manager = visible_dialog(&fixture.window, "templates-dialog")?;
-    assert!(
-        glib::MainContext::default()
-            .block_on(fixture.client.templates_async())?
-            .is_empty()
+    assert_eq!(
+        glib::MainContext::default().block_on(fixture.client.templates_async())?,
+        [] as [carver_domain::NoteTemplate; 0]
     );
     manager.close();
     fixture.window.close();

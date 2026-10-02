@@ -417,7 +417,7 @@ mod tests {
 
         assert_eq!(artifact.extension, "md");
         assert!(String::from_utf8_lossy(&artifact.bytes).contains("# Draft"));
-        assert!(artifact.warnings.is_empty());
+        assert_eq!(artifact.warnings, [] as [ExportWarning; 0]);
         Ok(())
     }
 
@@ -456,7 +456,7 @@ mod tests {
         assert!(document.contains("<style>"));
         assert!(document.contains("<h1"));
         assert!(document.contains("src=\"assets/diagram.png\""));
-        assert!(artifact.warnings.is_empty());
+        assert_eq!(artifact.warnings, [] as [ExportWarning; 0]);
         Ok(())
     }
 
@@ -549,7 +549,7 @@ mod tests {
             .read_to_end(&mut image)?;
 
         assert_eq!(image, [1, 2, 3]);
-        assert!(warnings.is_empty());
+        assert_eq!(warnings, [] as [ExportWarning; 0]);
         Ok(())
     }
 

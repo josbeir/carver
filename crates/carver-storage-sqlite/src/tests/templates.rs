@@ -96,11 +96,11 @@ fn deleting_template_should_clear_category_assignment_without_affecting_notes() 
             .unwrap_or_else(|error| panic!("{error:?}")),
         Some(note)
     );
-    assert!(
+    assert_eq!(
         library
             .list_templates()
-            .unwrap_or_else(|error| panic!("{error:?}"))
-            .is_empty()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        [] as [carver_domain::NoteTemplate; 0]
     );
 }
 #[test]
@@ -114,7 +114,7 @@ fn templates_should_stay_outside_note_search_and_counts() {
     library
         .insert_template("UniqueTemplate", "# UniqueTemplate", now)
         .unwrap_or_else(|error| panic!("{error:?}"));
-    assert!(
+    assert_eq!(
         library
             .search(
                 "UniqueTemplate",
@@ -125,8 +125,8 @@ fn templates_should_stay_outside_note_search_and_counts() {
                 }
             )
             .unwrap_or_else(|error| panic!("{error:?}"))
-            .items
-            .is_empty()
+            .items,
+        [] as [carver_domain::SearchHit; 0]
     );
     assert_eq!(
         library
@@ -187,11 +187,11 @@ fn template_should_reject_invalid_content_and_blank_names() {
             .insert_template("Asset", "![Photo](assets/photo.png)", now)
             .is_err()
     );
-    assert!(
+    assert_eq!(
         library
             .list_templates()
-            .unwrap_or_else(|error| panic!("{error:?}"))
-            .is_empty()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        [] as [carver_domain::NoteTemplate; 0]
     );
 }
 
@@ -238,11 +238,11 @@ fn category_creation_should_rollback_when_selected_template_is_unavailable() {
         ),
         Err(StorageError::TemplateConflict)
     ));
-    assert!(
+    assert_eq!(
         library
             .list_categories()
-            .unwrap_or_else(|error| panic!("{error:?}"))
-            .is_empty()
+            .unwrap_or_else(|error| panic!("{error:?}")),
+        [] as [carver_domain::Category; 0]
     );
     assert_eq!(
         library

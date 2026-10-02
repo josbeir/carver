@@ -95,7 +95,7 @@ fn unchanged_external_library_wakeup_should_not_reload_resources() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn import_failure_should_not_change_the_active_route() {
         AppMsg::Navigation(NavigationMsg::ImportFailed(String::from("Invalid UTF-8"))),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.route, Route::Browser);
     assert_eq!(model.notice, Some(UiError::new("Invalid UTF-8")));
 }

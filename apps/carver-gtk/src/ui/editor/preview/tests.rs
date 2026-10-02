@@ -194,7 +194,7 @@ fn rendered_headings_should_carry_per_render_provenance() {
         .nth(1)
         .and_then(|tail| tail.split('"').next())
         .unwrap_or_default();
-    assert!(!token.is_empty());
+    assert_ne!(token, "");
     assert_eq!(
         html.matches(&format!("data-carver-heading=\"{token}\""))
             .count(),

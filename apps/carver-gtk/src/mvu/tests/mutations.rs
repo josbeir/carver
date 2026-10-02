@@ -54,7 +54,7 @@ fn failed_trash_mutation_should_not_discard_loaded_resources() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.trash.state, LoadState::Idle);
     assert_eq!(model.notice, Some(UiError::new("restore failed")));
 }
@@ -78,7 +78,7 @@ fn duplicate_category_rename_should_start_one_mutation() {
             name: "Renamed".to_owned(),
         }]
     );
-    assert!(second.is_empty());
+    assert_eq!(second, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model.pending_actions,
         std::collections::BTreeSet::from([ActionKey::RenameCategory(category_id)])
@@ -110,7 +110,7 @@ fn category_appearance_update_should_start_one_mutation() {
             appearance,
         }]
     );
-    assert!(second.is_empty());
+    assert_eq!(second, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(
         model.pending_actions,
         std::collections::BTreeSet::from([ActionKey::UpdateCategory(category_id)])
@@ -127,7 +127,7 @@ fn invalid_category_name_should_preserve_loaded_resources_and_surface_an_error()
         AppMsg::Action(ActionMsg::CreateCategory("  ".to_owned())),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.sidebar.state, LoadState::Loading(RequestId(1)));
     assert_eq!(
         model.notice,
@@ -154,7 +154,7 @@ fn failed_action_should_not_invalidate_loaded_resources() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.sidebar.state, LoadState::Ready(Vec::new()));
     assert_eq!(model.notice, Some(UiError::new("trash failed")));
 }
@@ -316,7 +316,7 @@ fn failed_move_undo_should_preserve_the_retryable_move_state() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.undo_move, Some(undo_move));
     assert_eq!(model.notice, Some(UiError::new("undo failed")));
 }

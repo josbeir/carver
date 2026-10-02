@@ -292,7 +292,10 @@ fn document_properties_should_default_to_disabled_with_the_floating_button() {
     let config = Config::default();
     assert!(!config.document_properties.enabled);
     assert!(config.document_properties.floating_button);
-    assert!(config.document_properties.entries.is_empty());
+    assert_eq!(
+        config.document_properties.entries,
+        [] as [DocumentProperty; 0]
+    );
 }
 
 #[test]

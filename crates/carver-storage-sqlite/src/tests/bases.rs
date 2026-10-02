@@ -98,7 +98,7 @@ fn base_search_should_intersect_full_text_with_saved_json1_filters() {
 
     assert_eq!(matching.items.len(), 1);
     assert_eq!(matching.items[0].name, "Second");
-    assert!(excluded.items.is_empty());
+    assert_eq!(excluded.items, [] as [carver_domain::BaseRow; 0]);
 }
 
 #[test]
@@ -707,8 +707,8 @@ fn legacy_columns_only_base_definitions_should_load_with_default_configuration()
         .unwrap_or_else(|error| panic!("bases failed: {error}"));
     assert_eq!(loaded[0].columns, vec![BaseColumn::Category]);
     assert_eq!(loaded[0].filter_mode, BaseFilterMode::All);
-    assert!(loaded[0].filters.is_empty());
-    assert!(loaded[0].sorts.is_empty());
+    assert_eq!(loaded[0].filters, [] as [carver_domain::BaseFilter; 0]);
+    assert_eq!(loaded[0].sorts, [] as [carver_domain::BaseSort; 0]);
 }
 
 fn date_fixture() -> (tempfile::TempDir, SqliteLibrary, BaseDefinition) {
@@ -851,7 +851,10 @@ fn json1_query_should_match_date_range_filters() {
         date_filtered_names(BaseFilterOperator::LessOrEqual, "2026-09-26T14:22:49+02:00"),
         vec!["Summer", "Winter", "Offset", "Date"]
     );
-    assert!(date_filtered_names(BaseFilterOperator::GreaterThan, "plain text").is_empty());
+    assert_eq!(
+        date_filtered_names(BaseFilterOperator::GreaterThan, "plain text"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -881,7 +884,7 @@ fn json1_query_should_ignore_non_scalar_range_filter_values() {
         .into_iter()
         .map(|row| row.name)
         .collect();
-    assert!(names.is_empty());
+    assert_eq!(names, [] as [std::string::String; 0]);
     assert_sql_projection_matches_domain(
         &library,
         &updated,

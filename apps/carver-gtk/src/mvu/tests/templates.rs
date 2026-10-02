@@ -7,7 +7,7 @@ fn template_load_should_ignore_stale_completions() {
     let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Manage));
     let previous = model.template_request.unwrap_or(RequestId(0));
     let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Manage));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::Loaded {
@@ -15,8 +15,8 @@ fn template_load_should_ignore_stale_completions() {
                 purpose: TemplatePurpose::Manage,
                 result: Ok(Vec::new())
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 #[test]
@@ -72,15 +72,15 @@ fn template_save_should_ignore_a_closed_editor() {
         &mut model,
         AppMsg::Templates(TemplatesMsg::EditorClosed(id)),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::Saved {
                 request_id: id,
                 result: Ok(())
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 #[test]
@@ -146,15 +146,15 @@ fn template_deletion_should_acknowledge_revision_without_reloading_browser_on_wa
             .iter()
             .any(|effect| matches!(effect, Effect::LoadBrowser { .. }))
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
                 request_id,
                 result: Ok(carver_sdk::LibraryRevision(11)),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     let effects = update(&mut model, AppMsg::LibraryChangedExternally);
     let request_id = effects
@@ -164,15 +164,15 @@ fn template_deletion_should_acknowledge_revision_without_reloading_browser_on_wa
             _ => None,
         })
         .unwrap_or_else(|| panic!("focus revision check"));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Library(LibraryReply::LibraryRevisionLoaded {
                 request_id,
                 result: Ok(carver_sdk::LibraryRevision(11)),
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -269,22 +269,22 @@ fn picker_should_preview_selection_and_require_explicit_creation() {
         &mut model,
         AppMsg::Templates(TemplatesMsg::PickerClosed(request_id)),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::CreateSelected(request_id))
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::SelectPreview {
                 request_id,
                 id: Some(template.id)
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 #[test]
@@ -306,15 +306,15 @@ fn draft_preview_should_ignore_a_closed_editor() {
         &mut model,
         AppMsg::Templates(TemplatesMsg::EditorClosed(request_id)),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::PreviewDraft {
                 request_id,
                 source: "# Draft".into()
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
 }
 
@@ -389,12 +389,12 @@ fn template_insertion_should_ignore_confirmation_after_the_note_changes() -> Res
         &mut model,
         AppMsg::Editor(EditorMsg::SourceChanged("Changed".into())),
     );
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::CreateSelected(request_id))
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model.editor.as_ref().map(|d| d.source.as_str()),
@@ -481,15 +481,15 @@ fn failed_note_loading_should_show_an_error_without_opening_an_editor() {
         AppMsg::Templates(TemplatesMsg::FromNote(NoteId::new())),
     );
     let request_id = model.template_request.unwrap_or(RequestId(0));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::NoteLoaded {
                 request_id,
                 result: Err(UiError::new("missing note"))
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model.notice.as_ref().map(|n| n.message.as_str()),
@@ -507,15 +507,15 @@ fn stale_note_loading_should_not_open_an_editor() {
     );
     let request_id = model.template_request.unwrap_or(RequestId(0));
     let _ = update(&mut model, AppMsg::Templates(TemplatesMsg::Manage));
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Templates(TemplatesMsg::NoteLoaded {
                 request_id,
                 result: Err(UiError::new("stale"))
             })
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert!(model.notice.is_none());
 }
@@ -549,7 +549,10 @@ fn template_picker_should_ignore_contexts_without_note_creation() {
         model.selected_category = Some(CategoryId::new());
         model.route = route;
         model.editor_return_route = return_route;
-        assert!(update(&mut model, AppMsg::Templates(TemplatesMsg::Pick)).is_empty());
+        assert_eq!(
+            update(&mut model, AppMsg::Templates(TemplatesMsg::Pick)),
+            [] as [crate::mvu::effect::Effect; 0]
+        );
         assert!(model.template_request.is_none());
     }
 }

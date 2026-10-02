@@ -74,15 +74,15 @@ fn copy_request_should_snapshot_unsaved_canonical_source_and_report_omissions() 
         .map(|request| request.request_id)
         .unwrap_or_default();
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::CopyCompleted {
                 request_id,
                 omitted_images: 2,
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(model.editor_copy_request, None);
     assert_eq!(
@@ -109,15 +109,15 @@ fn stale_copy_completion_should_not_replace_the_current_copy_request() {
         .map(|request| request.request_id)
         .unwrap_or_default();
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::CopyCompleted {
                 request_id: request_id.wrapping_add(1),
                 omitted_images: 0,
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model
@@ -189,7 +189,7 @@ fn stale_rich_selection_copy_should_be_ignored() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert_eq!(model.editor_copy_request, None);
 }
 
@@ -336,7 +336,7 @@ fn closing_print_dialog_should_clear_the_request_without_an_error_notice() {
         AppMsg::Editor(EditorMsg::PdfExportCancelled { request_id }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
     assert!(model.editor_pdf_export_request.is_none());
     assert!(model.notice.is_none());
 }
@@ -382,15 +382,15 @@ fn latest_preview_timer_should_reject_a_superseded_source_snapshot() {
         AppMsg::Editor(EditorMsg::SourceChanged("Final".to_owned())),
     );
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::PreviewElapsed {
                 session,
                 timer_id: super::TimerId(1),
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model
@@ -419,7 +419,10 @@ fn latest_preview_timer_should_reject_a_superseded_source_snapshot() {
 fn theme_change_should_request_an_editor_projection_refresh() {
     let mut model = AppModel::new(&Config::default());
 
-    assert!(update(&mut model, AppMsg::Editor(EditorMsg::ThemeChanged)).is_empty());
+    assert_eq!(
+        update(&mut model, AppMsg::Editor(EditorMsg::ThemeChanged)),
+        [] as [crate::mvu::effect::Effect; 0]
+    );
 
     assert_eq!(model.editor_theme_revision, 1);
 }
@@ -524,7 +527,7 @@ fn source_paste_for_another_session_should_be_ignored() {
         .as_ref()
         .map_or(EditorSessionId(0), |document| document.session);
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::PasteSourceText {
@@ -536,8 +539,8 @@ fn source_paste_for_another_session_should_be_ignored() {
                 text: String::from("**stale**"),
                 intent: carver_domain::PasteIntent::Auto,
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model
@@ -640,7 +643,7 @@ fn rich_paste_should_be_ignored_outside_rich_mode() {
         }),
     );
 
-    assert!(effects.is_empty());
+    assert_eq!(effects, [] as [crate::mvu::effect::Effect; 0]);
 }
 
 #[test]
@@ -663,7 +666,7 @@ fn source_paste_should_be_ignored_when_the_source_changed() {
         AppMsg::Editor(EditorMsg::SourceChanged(String::from("Edited"))),
     );
 
-    assert!(
+    assert_eq!(
         update(
             &mut model,
             AppMsg::Editor(EditorMsg::PasteSourceText {
@@ -675,8 +678,8 @@ fn source_paste_should_be_ignored_when_the_source_changed() {
                 text: String::from("**stale**"),
                 intent: carver_domain::PasteIntent::Auto,
             }),
-        )
-        .is_empty()
+        ),
+        [] as [crate::mvu::effect::Effect; 0]
     );
     assert_eq!(
         model
