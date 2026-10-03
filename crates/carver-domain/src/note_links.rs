@@ -229,6 +229,11 @@ fn collect_reference_definition(block: &BlockNode, out: &mut Vec<(Range<usize>, 
         BlockNode::BlockQuote(node) => collect_reference_definitions(&node.children, out),
         BlockNode::Admonition(node) => collect_reference_definitions(&node.children, out),
         BlockNode::Div(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::Section(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::Directive(node) => collect_reference_definitions(&node.children, out),
+        BlockNode::BlockExtension(node) => {
+            collect_reference_definitions(node.fallback_slice(), out);
+        }
         BlockNode::LineBlock(node) => collect_reference_definitions(&node.children, out),
         BlockNode::DefinitionList(node) => {
             for item in &node.items {
@@ -251,7 +256,7 @@ fn collect_reference_definition(block: &BlockNode, out: &mut Vec<(Range<usize>, 
         | BlockNode::CitationDefinition(_)
         | BlockNode::RawBlock(_)
         | BlockNode::Comment(_)
-        | BlockNode::Extension(_)
+        | BlockNode::ExtensionCarrier(_)
         | BlockNode::BlockImage(_)
         | BlockNode::ThematicBreak(_) => {}
     }
@@ -289,6 +294,12 @@ fn collect_block(block: &BlockNode, out: &mut Vec<NoteLinkRef>) {
             collect_blocks(&node.children, out);
         }
         BlockNode::Div(node) => collect_blocks(&node.children, out),
+        BlockNode::Section(node) => collect_blocks(&node.children, out),
+        BlockNode::Directive(node) => {
+            collect_optional_inlines(node.title.as_ref(), out);
+            collect_blocks(&node.children, out);
+        }
+        BlockNode::BlockExtension(node) => collect_blocks(node.fallback_slice(), out),
         BlockNode::LineBlock(node) => collect_blocks(&node.children, out),
         BlockNode::DefinitionList(node) => {
             for item in &node.items {
@@ -315,7 +326,7 @@ fn collect_block(block: &BlockNode, out: &mut Vec<NoteLinkRef>) {
         | BlockNode::CitationDefinition(_)
         | BlockNode::RawBlock(_)
         | BlockNode::Comment(_)
-        | BlockNode::Extension(_)
+        | BlockNode::ExtensionCarrier(_)
         | BlockNode::BlockImage(_)
         | BlockNode::ThematicBreak(_) => {}
     }
@@ -359,6 +370,12 @@ fn collect_inlines(nodes: &[InlineNode], out: &mut Vec<NoteLinkRef>) {
                 collect_inlines(&link.children, out);
             }
             InlineNode::Emphasis(node) => collect_inlines(&node.children, out),
+            InlineNode::Ruby(node) => {
+                for pair in &node.pairs {
+                    collect_inlines(&pair.base, out);
+                    collect_inlines(&pair.annotation, out);
+                }
+            }
             InlineNode::Span(node) => collect_inlines(&node.children, out),
             InlineNode::Extension(node) => collect_inlines(&node.children, out),
             InlineNode::CriticInsert(node) => collect_inlines(&node.children, out),
@@ -386,6 +403,7 @@ fn collect_inlines(nodes: &[InlineNode], out: &mut Vec<NoteLinkRef>) {
             | InlineNode::Tag(_)
             | InlineNode::CitationGroup(_)
             | InlineNode::Abbreviation(_)
+            | InlineNode::NonBreakingSpace(_)
             | InlineNode::SoftBreak(_)
             | InlineNode::HardBreak(_)
             | InlineNode::CriticComment(_)
@@ -404,6 +422,8 @@ fn inline_text(nodes: &[InlineNode]) -> String {
                 node.glyph.as_ref().unwrap_or(&node.value).clone()
             }
             InlineNode::Emphasis(node) => inline_text(&node.children),
+            InlineNode::Ruby(node) => inline_text(&node.flattened()),
+            InlineNode::NonBreakingSpace(_) => String::from("\u{a0}"),
             InlineNode::Span(node) => inline_text(&node.children),
             InlineNode::Link(node) => inline_text(&node.children),
             InlineNode::Image(node) => node.alt.clone(),

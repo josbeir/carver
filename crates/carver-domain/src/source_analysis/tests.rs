@@ -311,3 +311,115 @@ fn block_quote_should_preserve_heading_and_media_occurrences() {
         .unwrap_or_else(|| panic!("fixture label"));
     assert!(context(source, cursor..cursor).contains(&SourceNodeKind::BlockQuote));
 }
+
+#[test]
+fn media_should_include_directive_title_assets_before_body_assets() {
+    let source = "::: toc \"![Diagram](assets/diagram.png) [Brief](assets/brief.pdf)\"\n![Body](assets/body.png)\n:::";
+    let analysis = SourceAnalysis::parse(source);
+    let media = analysis.media();
+    assert_eq!(media.len(), 3);
+    assert_eq!(media[0].kind, MediaKind::Image);
+    assert_eq!(media[0].path, "assets/diagram.png");
+    assert_eq!(media[1].kind, MediaKind::Attachment);
+    assert_eq!(media[1].path, "assets/brief.pdf");
+    assert_eq!(media[2].path, "assets/body.png");
+    assert_eq!(
+        &source[media[0].range.clone()],
+        "![Diagram](assets/diagram.png)"
+    );
+    assert_eq!(&source[media[1].range.clone()], "[Brief](assets/brief.pdf)");
+}
+
+fn positioned_heading() -> carve::BlockNode {
+    carve::parse_with_options("# Nested", &carve::Options::default().with_positions(true))
+        .children
+        .remove(0)
+}
+
+#[test]
+fn analysis_should_find_headings_inside_interchange_sections() {
+    let section = carve::BlockNode::Section(carve::Section {
+        attrs: None,
+        level: Some(1),
+        children: vec![positioned_heading()],
+        pos: None,
+    });
+    let mut analysis = SourceAnalysis::default();
+    analysis.visit_block(&section, &mut Vec::new());
+    assert_eq!(analysis.headings()[0].label, "Nested");
+    assert_eq!(
+        analysis
+            .context_for(2..3)
+            .map(|context| context.path().to_vec()),
+        Some(vec![SourceNodeKind::Container, SourceNodeKind::Heading(1)])
+    );
+}
+
+#[test]
+fn analysis_should_find_headings_inside_extension_fallbacks() {
+    let extension = carve::BlockNode::BlockExtension(carve::BlockExtension {
+        name: "org.example.heading".into(),
+        version: None,
+        fallback: Box::new(positioned_heading()),
+        payload: None,
+        attrs: None,
+        pos: None,
+    });
+    let mut analysis = SourceAnalysis::default();
+    analysis.visit_block(&extension, &mut Vec::new());
+    assert_eq!(analysis.headings()[0].label, "Nested");
+    assert_eq!(
+        analysis
+            .context_for(2..3)
+            .map(|context| context.path().to_vec()),
+        Some(vec![SourceNodeKind::Raw, SourceNodeKind::Heading(1)])
+    );
+}
+
+#[test]
+fn analysis_should_preserve_raw_context_for_small_caps() {
+    let mut document =
+        carve::parse_with_options("/Small/", &carve::Options::default().with_positions(true));
+    let carve::BlockNode::Paragraph(paragraph) = &mut document.children[0] else {
+        panic!("paragraph fixture");
+    };
+    let carve::InlineNode::Emphasis(emphasis) = &mut paragraph.children[0] else {
+        panic!("emphasis fixture");
+    };
+    emphasis.kind = carve::EmphasisKind::SmallCaps;
+    let mut analysis = SourceAnalysis::default();
+    analysis.visit_block(&document.children[0], &mut Vec::new());
+    assert_eq!(
+        analysis
+            .context_for(2..3)
+            .map(|context| context.path().to_vec()),
+        Some(vec![SourceNodeKind::Paragraph, SourceNodeKind::Raw])
+    );
+}
+
+#[test]
+fn analysis_should_find_headings_inside_render_extension_carriers() {
+    let carrier = carve::BlockNode::ExtensionCarrier(carve::ExtensionCarrier {
+        name: "details".into(),
+        attrs: None,
+        children: vec![positioned_heading()],
+        summary: None,
+        label: None,
+        pos: None,
+    });
+    let mut analysis = SourceAnalysis::default();
+    analysis.visit_block(&carrier, &mut Vec::new());
+    assert_eq!(analysis.headings()[0].label, "Nested");
+}
+
+#[test]
+fn heading_labels_should_preserve_authored_nonbreaking_spaces() {
+    let analysis = SourceAnalysis::parse(r"# Release\ Notes");
+    assert_eq!(analysis.headings()[0].label, "Release\u{a0}Notes");
+}
+
+#[test]
+fn attachment_labels_should_preserve_authored_nonbreaking_spaces() {
+    let analysis = SourceAnalysis::parse(r"[Release\ Notes](assets/release.pdf)");
+    assert_eq!(analysis.media()[0].label, "Release\u{a0}Notes");
+}

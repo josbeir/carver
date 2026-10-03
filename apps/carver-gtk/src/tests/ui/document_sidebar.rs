@@ -1078,3 +1078,23 @@ pub(super) fn link_rows_should_render_markup() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].title().as_str(), "No linked notes yet");
 }
+
+pub(super) fn outline_should_preserve_nonbreaking_spaces_in_heading_labels() -> TestResult {
+    let fixture = fixture()?;
+    let category = fixture.client.create_category("Outline spacing")?;
+    let note = fixture.client.create_note(category.id)?;
+    fixture.runtime.dispatch(AppMsg::Editor(EditorMsg::Load {
+        note_id: note.id,
+        revision: note.revision,
+        source: r"# Release\ Notes".into(),
+    }));
+    assert!(run_main_context_until(|| {
+        widget_as::<gtk::TreeExpander>(&fixture.surface, "editor-outline-item")
+            .and_then(|expander| expander.child())
+            .and_then(|content| content.last_child())
+            .and_downcast::<gtk::Label>()
+            .is_some_and(|label| label.text() == "Release\u{a0}Notes")
+    }));
+    fixture.window.close();
+    Ok(())
+}

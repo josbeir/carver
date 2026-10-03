@@ -430,7 +430,29 @@ impl SourceAnalysis {
             }
             BlockNode::RawBlock(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Raw, path),
             BlockNode::Comment(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Comment, path),
-            BlockNode::Extension(node) => {
+            BlockNode::Section(node) => self.container(
+                node.pos.as_ref(),
+                SourceNodeKind::Container,
+                &node.children,
+                path,
+            ),
+            BlockNode::Directive(node) => {
+                self.push(node.pos.as_ref(), SourceNodeKind::Raw, path);
+                if let Some(title) = &node.title {
+                    self.visit_inlines(title, path);
+                }
+                for child in &node.children {
+                    self.visit_block(child, path);
+                }
+                Self::pop(path);
+            }
+            BlockNode::BlockExtension(node) => self.container(
+                node.pos.as_ref(),
+                SourceNodeKind::Raw,
+                node.fallback_slice(),
+                path,
+            ),
+            BlockNode::ExtensionCarrier(node) => {
                 self.container(node.pos.as_ref(), SourceNodeKind::Raw, &node.children, path);
             }
             BlockNode::ThematicBreak(node) => {
@@ -453,6 +475,7 @@ impl SourceAnalysis {
                         EmphasisKind::Sub => SourceNodeKind::Subscript,
                         EmphasisKind::Highlight => SourceNodeKind::Highlight,
                         EmphasisKind::BoldItalic => SourceNodeKind::BoldItalic,
+                        EmphasisKind::SmallCaps => SourceNodeKind::Raw,
                     };
                     self.push(node.pos.as_ref(), kind, path);
                     self.visit_inlines(&node.children, path);
@@ -607,6 +630,7 @@ fn inline_label(nodes: &[InlineNode]) -> String {
         .map(|node| match node {
             InlineNode::Text(node) => node.value.clone(),
             InlineNode::EscapedText(node) => node.value.clone(),
+            InlineNode::NonBreakingSpace(_) => String::from("\u{a0}"),
             InlineNode::Emphasis(node) => inline_label(&node.children),
             InlineNode::Span(node) => inline_label(&node.children),
             InlineNode::Link(node) => inline_label(&node.children),

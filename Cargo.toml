@@ -32,7 +32,7 @@ html-escape = "0.2"
 sanitize-filename = "0.6"
 async-channel = "2.5"
 base64 = "0.22"
-carve-lang = "0.1.6"
+carve-lang = "0.1.7"
 directories = "6.0"
 formatx = "0.4"
 gettext-rs = { version = "0.8", default-features = false, features = ["gettext-system"] }
@@ -44,7 +44,7 @@ rusqlite = { version = "0.40.2", features = ["bundled", "functions", "modern_sql
 rusqlite_migration = "=2.6.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rmcp = { version = "3.2", features = ["transport-io"] }
+rmcp = { version = "3.5", features = ["transport-io"] }
 schemars = "1.2"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "io-std"] }
 sha2 = "0.10"

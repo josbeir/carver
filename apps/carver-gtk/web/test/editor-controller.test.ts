@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
-import { CarveKit } from '@markup-carve/carve-grammars/tiptap';
+import {
+  CarveKit,
+  carveToProseMirrorWithReport,
+} from '@markup-carve/carve-grammars/tiptap';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { EditorState, type Transaction } from '@tiptap/pm/state';
 
@@ -59,6 +62,23 @@ function controllerFixture() {
 }
 
 describe('EditorController', () => {
+  it('renders the authored percentage width through the configured image schema', () => {
+    const { controller, createEditor } = controllerFixture();
+    controller.initialize();
+    const options = createEditor.mock.calls[0]?.[0] as {
+      extensions: Parameters<typeof getSchema>[0];
+    };
+    const schema = getSchema(options.extensions);
+    const source = '![First](assets/first.png){width="50%"}';
+    const doc = schema.nodeFromJSON(carveToProseMirrorWithReport(source).doc);
+    const image = doc.firstChild?.firstChild;
+    expect(image?.attrs.carveKeyValues).toEqual({ width: '50%' });
+    expect(schema.nodes.image.spec.toDOM?.(image)).toEqual([
+      'img',
+      expect.objectContaining({ style: 'width: 50%;' }),
+    ]);
+  });
+
   it('keeps runtime theme and appearance rules in the head stylesheet', () => {
     const { controller } = controllerFixture();
     const stylesheet = { tagName: 'STYLE', textContent: '' };

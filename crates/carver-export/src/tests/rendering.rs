@@ -73,3 +73,34 @@ fn portable_html_export_should_match_direct_export() {
         .unwrap_or_else(|error| panic!("{error}"));
     assert_eq!(html, direct.bytes);
 }
+
+#[test]
+fn portable_export_should_include_assets_referenced_by_directive_titles()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Read;
+
+    let source = "::: toc \"![Diagram](assets/diagram.png) [Brief](assets/brief.pdf)\"\n:::";
+    let assets = [
+        ManagedAsset {
+            path: "assets/diagram.png".into(),
+            bytes: vec![1, 2, 3],
+        },
+        ManagedAsset {
+            path: "assets/brief.pdf".into(),
+            bytes: vec![4, 5, 6],
+        },
+    ];
+    assert_eq!(
+        managed_asset_paths(source),
+        vec!["assets/brief.pdf", "assets/diagram.png"]
+    );
+    let artifact = prepare_export(source, "note", ExportFormat::Carve, true, &assets)?;
+    assert_eq!(artifact.warnings, Vec::new());
+    let mut archive = zip::ZipArchive::new(Cursor::new(artifact.bytes))?;
+    for asset in &assets {
+        let mut bytes = Vec::new();
+        archive.by_name(&asset.path)?.read_to_end(&mut bytes)?;
+        assert_eq!(bytes, asset.bytes);
+    }
+    Ok(())
+}

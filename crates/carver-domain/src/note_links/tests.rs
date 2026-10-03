@@ -163,3 +163,107 @@ fn rewriting_a_reference_definition_should_resolve_its_links() {
     assert!(rewritten.contains("[ref]: release-checklist"));
     assert!(!rewritten.contains(NOTE_LINK_SCHEME));
 }
+
+#[test]
+fn extraction_should_find_note_links_inside_generated_content_directives() {
+    let source = format!("::: toc\n[Guide]({NOTE_LINK_SCHEME}{TARGET})\n:::");
+    assert_eq!(extract_note_links(&source).len(), 1);
+}
+
+fn positioned_link_document() -> carve::Document {
+    carve::parse_with_options(
+        &format!("[Guide][ref]\n\n[ref]: {NOTE_LINK_SCHEME}{TARGET}"),
+        &carve::Options::default().with_positions(true),
+    )
+}
+
+#[test]
+fn collection_should_reach_links_and_definitions_inside_interchange_sections() {
+    let section = carve::BlockNode::Section(carve::Section {
+        attrs: None,
+        level: None,
+        children: std::mem::take(&mut positioned_link_document().children),
+        pos: None,
+    });
+    let mut links = Vec::new();
+    super::collect_blocks(std::slice::from_ref(&section), &mut links);
+    assert_eq!(links[0].target, note_id(TARGET));
+    let mut definitions = Vec::new();
+    super::collect_reference_definitions(&[section], &mut definitions);
+    assert_eq!(definitions[0].1, note_id(TARGET));
+}
+
+#[test]
+fn collection_should_reach_links_and_definitions_inside_extension_fallbacks() {
+    let fallback = carve::BlockNode::Section(carve::Section {
+        attrs: None,
+        level: None,
+        children: std::mem::take(&mut positioned_link_document().children),
+        pos: None,
+    });
+    let extension = carve::BlockNode::BlockExtension(carve::BlockExtension {
+        name: "org.example.links".into(),
+        version: None,
+        fallback: Box::new(fallback),
+        payload: None,
+        attrs: None,
+        pos: None,
+    });
+    let mut links = Vec::new();
+    super::collect_blocks(std::slice::from_ref(&extension), &mut links);
+    assert_eq!(links[0].target, note_id(TARGET));
+    let mut definitions = Vec::new();
+    super::collect_reference_definitions(&[extension], &mut definitions);
+    assert_eq!(definitions[0].1, note_id(TARGET));
+}
+
+#[test]
+fn collection_should_find_links_in_ruby_bases_and_annotations() {
+    let carve::BlockNode::Paragraph(paragraph) = positioned_link_document().children.remove(0)
+    else {
+        panic!("paragraph fixture");
+    };
+    let ruby = carve::InlineNode::Ruby(carve::Ruby {
+        attrs: None,
+        pos: None,
+        pairs: vec![carve::RubyPair {
+            base: paragraph.children.clone(),
+            annotation: paragraph.children,
+        }],
+    });
+    let mut links = Vec::new();
+    super::collect_inlines(&[ruby], &mut links);
+    assert_eq!(
+        links.iter().map(|link| link.target).collect::<Vec<_>>(),
+        vec![note_id(TARGET), note_id(TARGET)]
+    );
+}
+
+#[test]
+fn link_labels_should_flatten_ruby_and_preserve_nonbreaking_spaces() {
+    let ruby = carve::InlineNode::Ruby(carve::Ruby {
+        attrs: None,
+        pos: None,
+        pairs: vec![carve::RubyPair {
+            base: vec![carve::InlineNode::text("Base")],
+            annotation: vec![carve::InlineNode::text("Reading")],
+        }],
+    });
+    let space = carve::InlineNode::NonBreakingSpace(carve::NonBreakingSpace {
+        attrs: None,
+        pos: None,
+    });
+    let mut links = Vec::new();
+    super::collect_inlines(std::slice::from_ref(&space), &mut links);
+    assert_eq!(links, Vec::new());
+    assert_eq!(super::inline_text(&[ruby, space]), "Base(Reading)\u{a0}");
+}
+
+#[test]
+fn rewriting_should_reach_reference_definitions_in_directives() {
+    let source = format!("::: toc\n[Guide][ref]\n\n[ref]: {NOTE_LINK_SCHEME}{TARGET}\n:::");
+    let replacements = std::collections::BTreeMap::from([(note_id(TARGET), "guide".into())]);
+    let rewritten = rewrite_note_link_destinations(&source, &replacements);
+    assert!(rewritten.contains("[ref]: guide"));
+    assert!(!rewritten.contains(NOTE_LINK_SCHEME));
+}
