@@ -51,3 +51,6 @@ impl HeadingProvenance {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

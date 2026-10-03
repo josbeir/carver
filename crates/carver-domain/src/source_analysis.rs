@@ -437,7 +437,14 @@ impl SourceAnalysis {
                 path,
             ),
             BlockNode::Directive(node) => {
-                self.container(node.pos.as_ref(), SourceNodeKind::Raw, &node.children, path);
+                self.push(node.pos.as_ref(), SourceNodeKind::Raw, path);
+                if let Some(title) = &node.title {
+                    self.visit_inlines(title, path);
+                }
+                for child in &node.children {
+                    self.visit_block(child, path);
+                }
+                Self::pop(path);
             }
             BlockNode::BlockExtension(node) => self.container(
                 node.pos.as_ref(),
