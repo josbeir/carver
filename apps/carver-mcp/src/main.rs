@@ -22,7 +22,7 @@ use rmcp::{
     model::{
         ListResourcesResult, PaginatedRequestParams, PromptMessage, ReadResourceRequestParams,
         ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, Role,
-        ServerCapabilities, ServerInfo,
+        ServerCapabilities, ServerConfig,
     },
     prompt, prompt_handler, prompt_router,
     service::RequestContext,
@@ -692,8 +692,8 @@ impl CarverServer {
 #[tool_handler(router = self.tool_router)]
 #[prompt_handler(router = self.prompt_router)]
 impl ServerHandler for CarverServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_prompts()

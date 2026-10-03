@@ -39,10 +39,13 @@ impl HeadingProvenance {
                 }
                 BlockNode::BlockQuote(node) => self.annotate(&mut node.children),
                 BlockNode::Admonition(node) => self.annotate(&mut node.children),
+                BlockNode::Section(node) => self.annotate(&mut node.children),
+                BlockNode::Directive(node) => self.annotate(&mut node.children),
+                BlockNode::BlockExtension(node) => self.annotate(node.fallback_slice_mut()),
                 BlockNode::Div(node) => self.annotate(&mut node.children),
                 BlockNode::LineBlock(node) => self.annotate(&mut node.children),
                 BlockNode::FigureGroup(node) => self.annotate(&mut node.children),
-                BlockNode::Extension(node) => self.annotate(&mut node.children),
+                BlockNode::ExtensionCarrier(node) => self.annotate(&mut node.children),
                 _ => {}
             }
         }

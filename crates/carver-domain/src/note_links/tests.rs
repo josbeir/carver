@@ -163,3 +163,9 @@ fn rewriting_a_reference_definition_should_resolve_its_links() {
     assert!(rewritten.contains("[ref]: release-checklist"));
     assert!(!rewritten.contains(NOTE_LINK_SCHEME));
 }
+
+#[test]
+fn extraction_should_find_note_links_inside_generated_content_directives() {
+    let source = format!("::: toc\n[Guide]({NOTE_LINK_SCHEME}{TARGET})\n:::");
+    assert_eq!(extract_note_links(&source).len(), 1);
+}

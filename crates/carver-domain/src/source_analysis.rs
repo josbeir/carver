@@ -430,7 +430,22 @@ impl SourceAnalysis {
             }
             BlockNode::RawBlock(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Raw, path),
             BlockNode::Comment(node) => self.leaf(node.pos.as_ref(), SourceNodeKind::Comment, path),
-            BlockNode::Extension(node) => {
+            BlockNode::Section(node) => self.container(
+                node.pos.as_ref(),
+                SourceNodeKind::Container,
+                &node.children,
+                path,
+            ),
+            BlockNode::Directive(node) => {
+                self.container(node.pos.as_ref(), SourceNodeKind::Raw, &node.children, path);
+            }
+            BlockNode::BlockExtension(node) => self.container(
+                node.pos.as_ref(),
+                SourceNodeKind::Raw,
+                node.fallback_slice(),
+                path,
+            ),
+            BlockNode::ExtensionCarrier(node) => {
                 self.container(node.pos.as_ref(), SourceNodeKind::Raw, &node.children, path);
             }
             BlockNode::ThematicBreak(node) => {
@@ -453,6 +468,7 @@ impl SourceAnalysis {
                         EmphasisKind::Sub => SourceNodeKind::Subscript,
                         EmphasisKind::Highlight => SourceNodeKind::Highlight,
                         EmphasisKind::BoldItalic => SourceNodeKind::BoldItalic,
+                        EmphasisKind::SmallCaps => SourceNodeKind::Raw,
                     };
                     self.push(node.pos.as_ref(), kind, path);
                     self.visit_inlines(&node.children, path);
