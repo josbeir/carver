@@ -630,6 +630,7 @@ fn inline_label(nodes: &[InlineNode]) -> String {
         .map(|node| match node {
             InlineNode::Text(node) => node.value.clone(),
             InlineNode::EscapedText(node) => node.value.clone(),
+            InlineNode::NonBreakingSpace(_) => String::from("\u{a0}"),
             InlineNode::Emphasis(node) => inline_label(&node.children),
             InlineNode::Span(node) => inline_label(&node.children),
             InlineNode::Link(node) => inline_label(&node.children),

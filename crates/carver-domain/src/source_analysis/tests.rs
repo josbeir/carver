@@ -411,3 +411,15 @@ fn analysis_should_find_headings_inside_render_extension_carriers() {
     analysis.visit_block(&carrier, &mut Vec::new());
     assert_eq!(analysis.headings()[0].label, "Nested");
 }
+
+#[test]
+fn heading_labels_should_preserve_authored_nonbreaking_spaces() {
+    let analysis = SourceAnalysis::parse(r"# Release\ Notes");
+    assert_eq!(analysis.headings()[0].label, "Release\u{a0}Notes");
+}
+
+#[test]
+fn attachment_labels_should_preserve_authored_nonbreaking_spaces() {
+    let analysis = SourceAnalysis::parse(r"[Release\ Notes](assets/release.pdf)");
+    assert_eq!(analysis.media()[0].label, "Release\u{a0}Notes");
+}
