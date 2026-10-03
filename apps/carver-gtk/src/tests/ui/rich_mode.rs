@@ -129,19 +129,10 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
         .buffer()
         .set_text("![First](assets/first.png){width=\"50%\"}");
     editor_stack.set_visible_child_name("rich");
-    let image_width = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let image_width_callback = std::rc::Rc::clone(&image_width);
-    rich.evaluate_javascript(
-        "document.querySelector('#editor img')?.style.width ?? null",
-        None,
-        None,
-        None::<&gtk::gio::Cancellable>,
-        move |result| {
-            *image_width_callback.borrow_mut() = result.ok().map(|value| value.to_str().clone());
-        },
+    assert_web_script_should_be_true(
+        &rich,
+        "document.querySelector('#editor img')?.style.width === '50%'",
     );
-    assert!(run_main_context_until(|| image_width.borrow().is_some()));
-    assert_eq!(image_width.borrow().as_deref(), Some("50%"));
     rich.evaluate_javascript(
         "window.carverEditor.insertImage('assets/second.png')",
         None,
