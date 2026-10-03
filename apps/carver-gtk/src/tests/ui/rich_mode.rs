@@ -131,7 +131,7 @@ pub(super) fn rich_editor_should_round_trip_and_preserve_media(
     editor_stack.set_visible_child_name("rich");
     assert_web_script_should_be_true(
         &rich,
-        "document.querySelector('#editor img')?.style.width === '50%'",
+        "document.querySelector('#editor img[src]')?.style.width === '50%'",
     );
     rich.evaluate_javascript(
         "window.carverEditor.insertImage('assets/second.png')",
