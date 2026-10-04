@@ -265,14 +265,15 @@ pub(super) fn media_download_should_save_a_managed_attachment_copy() -> TestResu
             path: path.clone(),
             target_uri,
         }));
-    assert!(run_main_context_until(|| target.exists()));
-    assert_eq!(std::fs::read(&target)?, bytes);
+    // The destination can exist before GIO has finished writing its contents.
+    // The completion notice is emitted only after the asynchronous write succeeds.
     assert!(run_main_context_until(|| fixture
         .runtime
         .model()
         .notice
         .as_ref()
         .is_some_and(|notice| notice.message == "File saved")));
+    assert_eq!(std::fs::read(&target)?, bytes);
     fixture.window.close();
     Ok(())
 }
