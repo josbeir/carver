@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:35+0200\n"
+"POT-Creation-Date: 2026-10-04 12:39+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -1726,6 +1726,10 @@ msgid "Underline (Ctrl+U)"
 msgstr "Subrayado (Ctrl+U)"
 
 #: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Close image viewer"
+msgstr "Cerrar el visor de imágenes"
+
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
 msgstr "No se pudo leer la imagen pegada"
 
@@ -1733,6 +1737,11 @@ msgstr "No se pudo leer la imagen pegada"
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "Esta nota no se puede editar de forma segura{detail}. En su lugar, se muestra la vista previa."
+
+#. / Supplies escaped, localized viewing labels to both sandboxed web documents.
+#: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Zoom image"
+msgstr "Ampliar imagen"
 
 #: apps/carver-gtk/src/ui/formatting.rs
 msgid "Description (optional)"

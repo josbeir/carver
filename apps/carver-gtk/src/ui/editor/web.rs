@@ -98,6 +98,7 @@ impl RichEditor {
             .settings(&settings)
             .build();
         view.set_widget_name("rich-editor");
+        install_image_zoom_dismissal(&view);
         // WebKit paints this color behind the page before its stylesheet
         // composites, so seed it with the active scheme instead of the default
         // white. `set_theme` keeps it current on later scheme changes.
@@ -752,9 +753,30 @@ fn editor_document(allow_remote_images: bool, dark: bool) -> String {
         "data: carver-asset: blob:"
     };
     let color_scheme = if dark { "dark" } else { "light" };
+    let zoom_labels = image_zoom_labels();
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body><div id=\"editor\"></div></body></html>"
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src {image_sources}; connect-src blob:; media-src 'none'; frame-src 'none'\"><style>{EDITOR_STYLESHEET}</style><style id=\"editor-runtime-styles\"></style></head><body {zoom_labels}><div id=\"editor\"></div></body></html>"
     )
+}
+
+/// Supplies escaped, localized viewing labels to both sandboxed web documents.
+pub(super) fn image_zoom_labels() -> String {
+    let zoom = glib::markup_escape_text(&gettext("Zoom image"));
+    let close = glib::markup_escape_text(&gettext("Close image viewer"));
+    format!("data-image-zoom-label=\"{zoom}\" data-image-zoom-close-label=\"{close}\"")
+}
+
+/// Dismisses document-local viewing chrome when GTK hides an editor mode or note.
+pub(super) fn install_image_zoom_dismissal(view: &webkit6::WebView) {
+    view.connect_unmap(|view| {
+        view.evaluate_javascript(
+            "window.dispatchEvent(new Event('carver-dismiss-image-zoom'))",
+            None,
+            None,
+            None::<&gtk::gio::Cancellable>,
+            |_| {},
+        );
+    });
 }
 
 /// Translates one rich-editor mutation into the same model notifications as a source edit.

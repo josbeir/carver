@@ -14,7 +14,19 @@ pub(crate) struct SidebarFixture {
 }
 
 pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
+    fixture_with_asset_access(false)
+}
+
+/// Builds a surface that resolves managed images from its temporary library.
+pub(super) fn fixture_with_managed_assets() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
+    fixture_with_asset_access(true)
+}
+
+fn fixture_with_asset_access(
+    resolve_assets: bool,
+) -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     let (directory, client) = test_state()?;
+    let assets_dir = resolve_assets.then(|| directory.path().join("data/assets"));
     let syntax = crate::ui::editor::install_syntax_assets(directory.path())?;
     let config_path = directory.path().join("document-sidebar-settings.toml");
     let mut config = Config::default();
@@ -27,7 +39,7 @@ pub(crate) fn fixture() -> Result<SidebarFixture, Box<dyn std::error::Error>> {
     let editor = crate::ui::editor::build_editor(
         &dispatcher,
         &config,
-        None,
+        assets_dir.as_deref(),
         &syntax,
         &overlay,
         &adw::NavigationSplitView::new(),

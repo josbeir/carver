@@ -65,7 +65,9 @@ fn rendered_document_should_constrain_preview_on_the_body_content_box() {
     let html = rendered_document("![image](assets/example.png){width=\"50%\"}", false);
 
     assert!(
-        html.contains("<body data-preview data-carver-heading-token=\"") && html.contains("><img")
+        html.contains("<body data-preview")
+            && html.contains("data-carver-heading-token=\"")
+            && html.contains("><img")
     );
     assert!(!html.contains("preview-content"));
     assert!(html.contains("width=\"50%\""));

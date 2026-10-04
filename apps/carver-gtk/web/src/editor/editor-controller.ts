@@ -13,6 +13,7 @@ import { unsupportedForEditing, unsupportedForPasting } from './editability';
 import { focusEmptyEditorSurface } from './empty-surface';
 import { InertCarveFrontmatter } from './inert-frontmatter';
 import { resizeSelectedImage } from './image-resize';
+import { ImageZoom } from '../image-zoom';
 import { insertOrUpdateLink, linkContext } from './link';
 import { ClipboardPasteSanitizer } from './paste-sanitizer';
 import { mightBeMarkupText, plainTextSlice } from './paste-format';
@@ -76,6 +77,7 @@ const CarveImage = Image.extend({
 /** Owns the mutable WebKit/Tiptap editor lifecycle for one editor document. */
 export class EditorController implements RichEditorApi {
   private editor: RuntimeEditor | null = null;
+  private imageZoom: ImageZoom | null = null;
   private loading = false;
   private session = 0;
   private revision = 0;
@@ -160,10 +162,12 @@ export class EditorController implements RichEditorApi {
     this.root.addEventListener('pointerdown', (event) => {
       focusEmptyEditorSurface(event, this.editor, this.root);
     });
+    this.imageZoom = new ImageZoom(this.root);
     this.send({ type: 'ready' });
   }
 
   public load(source: string, session: number): boolean {
+    this.imageZoom?.close();
     this.session = session;
     this.revision = 0;
     this.navigationEpoch = 0;

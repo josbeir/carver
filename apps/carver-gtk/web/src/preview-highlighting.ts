@@ -1,5 +1,6 @@
 import { highlightCode } from './editor/code-highlighting';
 import { diffLineKind } from './editor/diff-line';
+import { ImageZoom } from './image-zoom';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>]/g, (character) => {
@@ -73,3 +74,4 @@ export function highlightPreviewCode(root: ParentNode = document): void {
 }
 
 highlightPreviewCode();
+if (document.body.hasAttribute('data-preview')) new ImageZoom(document.body);

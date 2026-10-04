@@ -1,4 +1,5 @@
 @import "./document.css";
+@import "./image-zoom.css";
 
 body[data-preview] pre[data-language] {
   position: relative;
