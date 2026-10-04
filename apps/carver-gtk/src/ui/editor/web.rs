@@ -759,8 +759,7 @@ fn editor_document(allow_remote_images: bool, dark: bool) -> String {
     )
 }
 
-/// Supplies escaped, localized viewing labels to both sandboxed web documents.
-
+#[doc = "Supplies escaped, localized viewing labels to both sandboxed web documents."]
 pub(super) fn image_zoom_labels() -> String {
     let zoom = glib::markup_escape_text(&gettext("Zoom image"));
     let close = glib::markup_escape_text(&gettext("Close image viewer"));
