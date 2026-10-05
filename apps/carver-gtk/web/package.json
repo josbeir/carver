@@ -5,7 +5,7 @@
   "scripts": {
     "build": "npm run typecheck && esbuild src/main.ts --bundle --format=iife --minify --target=es2022 --outfile=dist/editor.js && esbuild src/preview-highlighting.ts --supported:template-literal=false --bundle --format=iife --minify --target=es2022 --outfile=dist/preview-highlighting.js && esbuild src/styles/preview.css --bundle --outfile=dist/preview.css",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint --error-on-warnings src/main.ts src/editor src/types scripts test package.json tsconfig.json vitest.config.ts biome.json",
+    "lint": "biome lint --error-on-warnings src/main.ts src/image-zoom.ts src/editor src/types scripts test package.json tsconfig.json vitest.config.ts biome.json",
     "format:check": "biome format --error-on-warnings src scripts test package.json tsconfig.json vitest.config.ts biome.json",
     "format": "biome format --write src scripts test package.json tsconfig.json vitest.config.ts biome.json",
     "test": "vitest run",

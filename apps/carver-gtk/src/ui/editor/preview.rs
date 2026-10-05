@@ -56,8 +56,8 @@ pub(super) fn build_preview(
     ));
     let settings = webkit6::Settings::new();
     // The preview document's CSP keeps document markup scriptless. JavaScript
-    // stays enabled solely for the native split-preview scroll bridge, which
-    // invokes a fixed host script through `WebView::evaluate_javascript`.
+    // stays enabled for trusted injected highlighting, image viewing, and the
+    // native split-preview scroll bridge; note markup cannot execute scripts.
     settings.set_enable_javascript(true);
     settings.set_enable_javascript_markup(false);
     settings.set_enable_developer_extras(cfg!(debug_assertions));
@@ -78,6 +78,7 @@ pub(super) fn build_preview(
         .build();
     view.set_editable(false);
     view.set_widget_name("rendered-preview");
+    super::web::install_image_zoom_dismissal(&view);
     // Fill the view with the active scheme before the first document loads, so
     // an empty or still-loading preview never flashes `WebKit`'s default white.
     view.set_background_color(&super::editor_theme().background);
@@ -307,8 +308,9 @@ pub(super) fn rendered_document_with_profile(
     });
     let body = rewrite_preview_diff_blocks(&body);
     let stylesheet = preview_document_style(theme, appearance);
+    let zoom_labels = super::web::image_zoom_labels();
     format!(
-        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
+        "<!doctype html><html data-theme=\"{color_scheme}\"><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; {image_sources}; font-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'\"><style>{stylesheet}</style></head><body data-preview {zoom_labels} data-carver-heading-token=\"{heading_token}\">{body}</body></html>",
         heading_token = provenance.0,
         color_scheme = if theme.dark { "dark" } else { "light" },
     )

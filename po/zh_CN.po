@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:35+0200\n"
+"POT-Creation-Date: 2026-10-04 13:17+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1718,6 +1718,10 @@ msgid "Underline (Ctrl+U)"
 msgstr "下划线 (Ctrl+U)"
 
 #: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Close image viewer"
+msgstr "关闭图片查看器"
+
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
 msgstr "无法读取粘贴的图片"
 
@@ -1725,6 +1729,10 @@ msgstr "无法读取粘贴的图片"
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
 msgstr "此笔记无法安全编辑{detail}。改为显示预览。"
+
+#: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Zoom image"
+msgstr "放大图片"
 
 #: apps/carver-gtk/src/ui/formatting.rs
 msgid "Description (optional)"

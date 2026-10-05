@@ -2,6 +2,7 @@
  * inline attribute editors, definition cards, comments, and embed controls. */
 @import "@markup-carve/carve-grammars/tiptap/editor.css";
 @import "./document.css";
+@import "./image-zoom.css";
 
 /* Bridge CarveKit's --carve-* chrome tokens to Carver's own theme tokens so the
  * imported editor surfaces, text, and borders follow the active light/dark

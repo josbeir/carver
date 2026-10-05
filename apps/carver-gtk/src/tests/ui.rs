@@ -10,6 +10,7 @@ mod export;
 mod find;
 mod html;
 mod icons;
+mod image_zoom;
 pub(crate) mod interactions;
 mod library;
 mod note_flow;
@@ -118,6 +119,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
     html::document_font_should_remain_css_text_inside_the_preview_head()?;
+    image_zoom::rich_image_zoom_should_preserve_selection_source_and_saved_size()?;
+    image_zoom::preview_image_zoom_should_close_on_backdrop_and_mode_switch()?;
+    image_zoom::split_preview_image_zoom_should_close_when_split_is_hidden()?;
+    image_zoom::image_zoom_should_dismiss_when_another_note_loads()?;
     crate::ui::formatting::tests::table_picker_should_reflect_live_table_and_reset();
     crate::app::load_styles();
     trash::trash_rows_should_keep_their_card_surface()?;

@@ -9,6 +9,13 @@ import { EditorState, type Transaction } from '@tiptap/pm/state';
 
 import { EditorController } from '../src/editor/editor-controller';
 
+// These controller tests replace browser boundaries with deterministic fakes.
+vi.mock('../src/image-zoom', () => ({
+  ImageZoom: class {
+    close = vi.fn();
+  },
+}));
+
 function controllerFixture() {
   const listeners = new Map<string, EventListener>();
   const root = {

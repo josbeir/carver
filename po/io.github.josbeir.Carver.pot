@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.4.2\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-01 08:35+0200\n"
+"POT-Creation-Date: 2026-10-04 13:17+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1747,12 +1747,20 @@ msgid "Underline (Ctrl+U)"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Close image viewer"
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/web.rs
 msgid "Could not read pasted image"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/editor/web.rs
 #, rust-format
 msgid "This note cannot be edited safely{detail}. Showing Preview instead."
+msgstr ""
+
+#: apps/carver-gtk/src/ui/editor/web.rs
+msgid "Zoom image"
 msgstr ""
 
 #: apps/carver-gtk/src/ui/formatting.rs
