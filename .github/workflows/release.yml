@@ -1,14 +1,36 @@
-name: Release
+name: Release packages and assets
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*"
-
+  workflow_call:
+    inputs:
+      publish:
+        required: true
+        type: boolean
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+      release_id:
+        required: true
+        type: string
+      release_body:
+        required: true
+        type: string
+      notes_digest:
+        required: true
+        type: string
 permissions:
-  contents: read
-
+  contents: write
+  actions: read
+  id-token: write
 jobs:
   metadata:
     name: Resolve package version
@@ -17,6 +39,16 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - name: Expose the candidate tag locally
+        if: ${{ !inputs.publish }}
+        shell: bash
+        env:
+          CANDIDATE_TAG: ${{ inputs.tag }}
+        run: |
+          git tag "$CANDIDATE_TAG" "${{ inputs.source_sha }}"
       - name: Read workspace version and verify release tag
         id: version
         shell: python
@@ -25,10 +57,11 @@ jobs:
           import tomllib
           with open('Cargo.toml', 'rb') as manifest:
               version = tomllib.load(manifest)['workspace']['package']['version']
-          if os.environ['GITHUB_REF_TYPE'] == 'tag':
-              assert os.environ['GITHUB_REF_NAME'] == f'v{version}', 'Tag must match workspace version'
+          if os.environ['LANE_REF_TYPE'] == 'tag':
+              assert os.environ['LANE_TAG'] == f'v{version}', 'Tag must match workspace version'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
+    timeout-minutes: 30
   flatpak:
     needs: metadata
     name: Build x86_64 Flatpak
@@ -38,6 +71,16 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - name: Expose the candidate tag locally
+        if: ${{ !inputs.publish }}
+        shell: bash
+        env:
+          CANDIDATE_TAG: ${{ inputs.tag }}
+        run: |
+          git tag "$CANDIDATE_TAG" "${{ inputs.source_sha }}"
       - name: Validate packaging metadata
         run: |
           flatpak-builder --show-manifest packaging/flatpak/io.github.josbeir.Carver.json > /dev/null
@@ -56,29 +99,54 @@ jobs:
         run: sha256sum "$BUNDLE" > "$BUNDLE.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: carver-flatpak-x86_64
+          name: carver-flatpak-x86_64-${{ inputs.publish && 'publish' || 'check' }}
           path: |
             carver-${{ needs.metadata.outputs.version }}-x86_64.flatpak
             carver-${{ needs.metadata.outputs.version }}-x86_64.flatpak.sha256
           if-no-files-found: error
 
+    timeout-minutes: 30
   release:
     name: Publish release assets
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(format('refs/tags/{0}', inputs.tag), 'refs/tags/v')
     needs: [metadata, flatpak]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - name: Verify approval and checked tag before publishing
+        working-directory: ${{ github.workspace }}
+        if: ${{ inputs.publish }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ inputs.source_sha }}
+          RELEASE_NOTES_DIGEST: ${{ inputs.notes_digest }}
+        run: python .github/scripts/release-lane.py permit
       - uses: actions/download-artifact@v4
         with:
-          pattern: carver-*-x86_64
+          pattern: carver-*-x86_64-${{ inputs.publish && 'publish' || 'check' }}
           merge-multiple: true
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          generate_release_notes: false
           fail_on_unmatched_files: true
           files: |
             carver-${{ needs.metadata.outputs.version }}-x86_64.flatpak
             carver-${{ needs.metadata.outputs.version }}-x86_64.flatpak.sha256
+          tag_name: ${{ inputs.tag }}
+          target_commitish: ${{ inputs.source_sha }}
+          draft: true
+        if: ${{ inputs.publish }}
+    timeout-minutes: 30
+env:
+  LANE_TAG: ${{ inputs.tag }}
+  LANE_REF: ${{ format('refs/tags/{0}', inputs.tag) }}
+  LANE_REF_TYPE: tag
+  LANE_PUBLISH: ${{ inputs.publish }}

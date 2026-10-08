@@ -1,0 +1,20 @@
+{
+  "workflow": ".github/workflows/release-lane.yml",
+  "publisher": ".github/workflows/release.yml",
+  "publisher_environments": [],
+  "registries": {},
+  "assets": [
+    "carver-{version}-x86_64.flatpak",
+    "carver-{version}-x86_64.flatpak.sha256"
+  ],
+  "versions": [
+    {
+      "path": "Cargo.toml",
+      "field": [
+        "workspace",
+        "package",
+        "version"
+      ]
+    }
+  ]
+}
