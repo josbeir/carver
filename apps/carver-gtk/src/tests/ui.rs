@@ -14,6 +14,7 @@ mod image_zoom;
 pub(crate) mod interactions;
 mod library;
 mod note_flow;
+mod note_focus;
 mod preferences;
 mod printing;
 mod properties;
@@ -225,5 +226,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     templates::category_template_should_seed_notes_and_allow_blank_override()?;
     templates::template_editor_should_confirm_discard()?;
     templates::saving_as_template_should_copy_unsaved_editor_source()?;
+    note_focus::note_cards_should_keep_keyboard_focus_inside_the_card()?;
     Ok(())
 }
