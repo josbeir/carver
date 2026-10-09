@@ -726,6 +726,7 @@ fn editor_media_selection_should_track_occurrences_without_editing_source() {
     let range = document.analysis.media()[1].range.clone();
     let message = |session, mode, media| {
         AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
+            formatting: None,
             session,
             mode,
             media,
@@ -785,6 +786,7 @@ fn source_caret_should_select_media_only_inside_its_range() {
     let _ = update(
         &mut model,
         AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
+            formatting: None,
             session,
             mode: carver_config::EditorMode::Rich,
             media: None,

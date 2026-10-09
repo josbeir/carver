@@ -14,6 +14,7 @@ mod image_zoom;
 pub(crate) mod interactions;
 mod library;
 mod note_flow;
+mod palette;
 mod preferences;
 mod printing;
 mod properties;
@@ -58,6 +59,15 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
+    crate::app::load_styles();
+    palette::palette_should_search_destinations_and_preserve_note_metadata()?;
+    palette::palette_should_format_the_original_source_selection_and_restore_focus()?;
+    palette::palette_should_preserve_rich_selection_and_keep_preview_read_only()?;
+    palette::palette_should_follow_base_and_trash_context_and_keep_delete_confirmation()?;
+    palette::palette_shortcut_should_work_and_suppress_nested_dialogs()?;
+    palette::palette_icons_should_use_shared_glyphs_and_bundled_task_icon()?;
+    palette::quote_should_toggle_from_the_palette_and_toolbar_in_both_editable_modes()?;
+
     rendering::rendering_preference_should_refresh_previews_without_saving()?;
     rendering::code_fences_should_be_highlighted_in_previews_and_source()?;
     rendering::code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline()?;
@@ -125,7 +135,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     image_zoom::split_preview_image_zoom_should_close_when_split_is_hidden()?;
     image_zoom::image_zoom_should_dismiss_when_another_note_loads()?;
     crate::ui::formatting::tests::table_picker_should_reflect_live_table_and_reset();
-    crate::app::load_styles();
     trash::trash_rows_should_keep_their_card_surface()?;
     trash::trash_contents_should_use_one_page_scroller()?;
     bases::base_header_sort_should_persist_from_native_controls()?;

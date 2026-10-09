@@ -337,6 +337,33 @@ impl EditorViewRefs {
         }
     }
 
+    pub(crate) fn execute_palette(
+        &self,
+        command: crate::mvu::palette::CommandId,
+        session: EditorSessionId,
+        selection: std::ops::Range<usize>,
+    ) {
+        use crate::mvu::palette::CommandId as C;
+        if view_mode(&self.editor_stack) == EditorMode::Source {
+            self.select_source_range(session, selection);
+        }
+        match command {
+            C::Find => self.find.open(),
+            C::Attachment => {
+                let source = (view_mode(&self.editor_stack) == EditorMode::Source)
+                    .then(|| source_commands::image_target_from_buffer(&self.source_buffer));
+                super::formatting::choose_managed_files(
+                    self.rich.view(),
+                    &self.dispatcher,
+                    crate::mvu::ImportTarget { session, source },
+                );
+            }
+            _ => self
+                .toolbar
+                .execute_palette(command, self.rich.view().upcast_ref()),
+        }
+    }
+
     pub(crate) fn source_selection(&self) -> std::ops::Range<usize> {
         source_commands::selection_from_buffer(&self.source_buffer)
     }
@@ -704,7 +731,7 @@ pub(crate) fn build_editor(
     );
     let split_navigation =
         document_navigation::PreviewNavigation::new(&split_preview, dispatcher, EditorMode::Source);
-    let find = FindController::new(&source_editor, rich.view(), &view);
+    let find = FindController::new(&source_editor, rich.view(), &rendered_preview, &view);
     view.add_top_bar(find.widget());
     install_editor_window_shortcuts(&view, dispatcher);
     let toolbar = Toolbar::new(source.upcast_ref(), &rich, dispatcher, toast_overlay);

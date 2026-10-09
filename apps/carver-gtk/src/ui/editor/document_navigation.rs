@@ -62,6 +62,7 @@ impl PreviewNavigation {
                     Rc::clone(&snapshot.source)
                 };
                 let _ = dispatcher.dispatch(AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
+                    formatting: None,
                     session: EditorSessionId(session),
                     mode,
                     source,

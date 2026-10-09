@@ -42,6 +42,7 @@ function controllerFixture() {
     updateAttributes: vi.fn(() => chain),
     toggleTaskList: vi.fn(() => chain),
     toggleCodeBlock: vi.fn(() => chain),
+    toggleBlockquote: vi.fn(() => chain),
     toggleHeading: vi.fn(() => chain),
     setParagraph: vi.fn(() => chain),
     undo: vi.fn(() => chain),
@@ -254,6 +255,13 @@ describe('EditorController', () => {
     expect(controller.command('bold')).toBe(true);
     expect(chain.toggleBold).toHaveBeenCalledOnce();
     expect(controller.command('unknown-command')).toBe(false);
+  });
+
+  it('toggles quoted blocks through the existing editor chain', () => {
+    const { chain, controller } = controllerFixture();
+    controller.initialize();
+    expect(controller.command('blockquote')).toBe(true);
+    expect(chain.toggleBlockquote).toHaveBeenCalledOnce();
   });
 
   it('creates ordered lists with Carve bare-dot markers', () => {

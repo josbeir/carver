@@ -3,6 +3,8 @@
 #[cfg(test)]
 mod tests;
 
+mod palette;
+
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -489,6 +491,7 @@ fn find_toolbar_view(widget: &gtk::Widget) -> Option<adw::ToolbarView> {
 ///
 /// This type intentionally owns widgets only. Application state lives in [`AppModel`].
 pub struct ViewRefs {
+    palette: crate::ui::palette::PaletteView,
     rendered_default_property_count: Cell<Option<usize>>,
     template_category_form: RefCell<Option<Rc<crate::ui::dialogs::CategoryForm>>>,
     template_choices: RefCell<Option<Vec<carver_sdk::NoteTemplate>>>,
@@ -544,6 +547,7 @@ impl ViewRefs {
         trash_status: adw::StatusPage,
     ) -> Self {
         Self {
+            palette: crate::ui::palette::PaletteView::default(),
             template_category_form: RefCell::new(None),
             template_choices: RefCell::new(None),
             rendered_default_property_count: Cell::new(None),
@@ -722,6 +726,7 @@ impl ViewRefs {
         self.render_tabs(model);
         self.render_editor(model);
         self.render_link_dialog(model);
+        self.render_palette(model);
         self.clear_resolved_external_notice(model);
         self.render_notice(model);
         self.render_editor_save_error(model);

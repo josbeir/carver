@@ -15,7 +15,19 @@ use super::{
 /// Applies one message and returns the work a runtime must perform afterwards.
 #[must_use]
 pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
-    let effects = dispatch(model, message);
+    let refresh_palette = matches!(
+        &message,
+        AppMsg::Library(LibraryReply::SidebarLoaded { .. } | LibraryReply::BasesLoaded { .. })
+            | AppMsg::LibraryChangedExternally
+    );
+    let prior_session = model.editor.as_ref().map(|doc| doc.session);
+    let mut effects = dispatch(model, message);
+    if prior_session != model.editor.as_ref().map(|doc| doc.session) {
+        model.rich_selection = carver_editor_protocol::SelectionState::default();
+    }
+    if refresh_palette && model.palette.is_some() {
+        effects.extend(super::palette::refresh(model));
+    }
     // Keep tab titles in step with the document while it is edited.
     sync_tab_titles(model);
     effects
@@ -28,6 +40,7 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
 )]
 fn dispatch(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let mut effects = match message {
+        AppMsg::Palette(message) => super::palette::update(model, message),
         AppMsg::Templates(message) => super::templates::update(model, message),
         AppMsg::Navigation(NavigationMsg::Started) => {
             vec![Effect::EnsureDefaultCategory]
@@ -1482,6 +1495,7 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
             source_target,
         } => store_editor_asset_effect(model, extension, bytes, name, source_target, false),
         EditorMsg::DocumentSelectionChanged {
+            formatting,
             session,
             mode,
             media,
@@ -1493,6 +1507,11 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
                 && document.mode == mode
                 && document.source == source.as_ref()
             {
+                if let Some(formatting) = formatting
+                    && mode == carver_config::EditorMode::Rich
+                {
+                    model.rich_selection = formatting;
+                }
                 document.selected_heading =
                     heading.filter(|index| *index < document.analysis.headings().len());
                 document.selected_media = media.and_then(|selected| {

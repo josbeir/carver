@@ -131,6 +131,10 @@ fn install_sidebar_search_shortcut(container: &impl IsA<gtk::Widget>, dispatcher
 fn settings_menu_button() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
     menu.append(
+        Some(&gettext("Command Palette…")),
+        Some(super::palette::ACTION),
+    );
+    menu.append(
         Some(&gettext("Connect an agent")),
         Some("win.connect-agent"),
     );

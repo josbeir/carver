@@ -14,6 +14,8 @@ pub enum SourceCommand {
     },
     /// Toggle a fenced code block.
     ToggleCodeBlock,
+    /// Toggle a block quote while preserving the selected lines' authored markup.
+    ToggleBlockQuote,
     /// Toggle a list marker.
     ToggleList(String),
     /// Toggle an ordered list.
@@ -61,6 +63,7 @@ impl SourceEdit {
                 edit.toggle_inline(&opening, &closing);
             }
             SourceCommand::ToggleCodeBlock => edit.toggle_code_block(),
+            SourceCommand::ToggleBlockQuote => edit.toggle_block_quote(),
             SourceCommand::ToggleList(prefix) => edit.toggle_list(&prefix),
             SourceCommand::ToggleOrderedList => edit.toggle_ordered_list(),
             SourceCommand::SetHeading(level) => edit.set_heading(level),
@@ -148,6 +151,25 @@ impl SourceEdit {
         let range = self.selected_line_range();
         let length = replacement.chars().count();
         self.replace(range, &replacement, length);
+    }
+
+    // Reuse the source editor's line transform; a second markup formatter would
+    // normalize unrelated content instead of retaining the user's literal source.
+    fn toggle_block_quote(&mut self) {
+        let remove = self
+            .selected_lines()
+            .iter()
+            .all(|line| line.starts_with("> ") || line == ">");
+        self.transform_lines(|line| {
+            if remove {
+                line.strip_prefix("> ")
+                    .or_else(|| line.strip_prefix('>'))
+                    .unwrap_or(line)
+                    .to_owned()
+            } else {
+                format!("> {line}")
+            }
+        });
     }
 
     fn toggle_code_block(&mut self) {

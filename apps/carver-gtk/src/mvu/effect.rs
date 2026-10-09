@@ -16,6 +16,49 @@ use super::{
 /// Work that the runtime performs after rendering an updated model.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Capture focus and editor selection before opening the native palette.
+    OpenPalette,
+    /// Match localized candidates on a worker.
+    MatchPalette {
+        /// Palette lifetime.
+        id: RequestId,
+        /// Query identity.
+        request: RequestId,
+        /// Plain-data candidates and translated aliases.
+        candidates: Vec<(super::palette::Row, String)>,
+        /// User-entered search text.
+        query: String,
+    },
+    /// Debounce library searches separately from local matching.
+    SchedulePaletteSearch {
+        /// Palette lifetime.
+        id: RequestId,
+        /// Query identity.
+        request: RequestId,
+        /// Load recent notes immediately for an empty query.
+        recent: bool,
+    },
+    /// Search notes through the SDK async boundary.
+    SearchPaletteNotes {
+        /// Palette lifetime.
+        id: RequestId,
+        /// Query identity.
+        request: RequestId,
+        /// User-entered search text.
+        query: String,
+    },
+    /// Close the palette before handing off to another native surface.
+    FinishPalette {
+        /// Guarded activation, or cancellation.
+        activation: Option<super::palette::Activation>,
+    },
+    /// Execute a validated command through shared native adapters.
+    ExecutePaletteCommand {
+        /// Stable command identity.
+        command: super::palette::CommandId,
+        /// Original source selection.
+        source_selection: std::ops::Range<usize>,
+    },
     /// Capture the source selection before opening the insertion picker.
     CaptureTemplateInsert,
     /// Refresh the template names used by note-creation controls.

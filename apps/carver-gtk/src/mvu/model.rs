@@ -847,6 +847,8 @@ impl DocumentSidebarVisibility {
 /// All persistent application state, with no GTK or `WebKit` objects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppModel {
+    pub(crate) palette: Option<super::palette::PaletteModel>,
+    pub(crate) rich_selection: carver_editor_protocol::SelectionState,
     /// Cached reusable templates for creation labels.
     pub template_catalog: Resource<Vec<carver_sdk::NoteTemplate>>,
     pub(crate) template_picker: Option<super::templates::PickerState>,
@@ -936,6 +938,8 @@ impl AppModel {
     #[must_use]
     pub fn new(config: &Config) -> Self {
         Self {
+            palette: None,
+            rich_selection: carver_editor_protocol::SelectionState::default(),
             template_catalog: Resource::default(),
             template_picker: None,
             template_request: None,

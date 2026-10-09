@@ -1,4 +1,4 @@
-//! Native find-in-note controls for the editable editor surfaces.
+//! Native find-in-note controls for Source, Rich, and Preview surfaces.
 
 use std::{cell::Cell, rc::Rc};
 
@@ -24,14 +24,16 @@ pub(crate) struct FindController {
     source_settings: sourceview5::SearchSettings,
     source_context: sourceview5::SearchContext,
     rich_view: webkit6::WebView,
+    preview_view: webkit6::WebView,
     mode: Rc<Cell<EditorMode>>,
 }
 
 impl FindController {
-    /// Builds the find bar for a source and rich-text editor pair.
+    /// Builds the find bar for the source, rich-text, and read-only preview surfaces.
     pub(crate) fn new(
         source_editor: &super::SourceEditor,
         rich_view: &webkit6::WebView,
+        preview_view: &webkit6::WebView,
         capture_widget: &impl IsA<gtk::Widget>,
     ) -> Self {
         let bar = gtk::SearchBar::new();
@@ -92,6 +94,7 @@ impl FindController {
             source_settings,
             source_context,
             rich_view: rich_view.clone(),
+            preview_view: preview_view.clone(),
             mode: Rc::new(Cell::new(EditorMode::Rich)),
         };
         controller.connect_signals(capture_widget);
@@ -105,13 +108,12 @@ impl FindController {
 
     /// Synchronizes the active native search target with the visible editor mode.
     pub(crate) fn set_mode(&self, mode: EditorMode) {
-        if self.mode.replace(mode) == mode {
+        if self.mode.get() == mode {
             return;
         }
         self.finish_searches();
-        if mode == EditorMode::Rendered {
-            self.bar.set_search_mode(false);
-        } else if self.bar.is_search_mode() {
+        self.mode.set(mode);
+        if self.bar.is_search_mode() {
             self.search();
         }
     }
@@ -130,8 +132,8 @@ impl FindController {
         }
         match self.mode.get() {
             EditorMode::Source => self.set_count(self.source_context.occurrences_count()),
-            EditorMode::Rich => {
-                if let Some(context) = self.rich_view.find_controller() {
+            EditorMode::Rich | EditorMode::Rendered => {
+                if let Some(context) = self.web_view().find_controller() {
                     context.count_matches(
                         self.entry.text().as_str(),
                         FIND_OPTIONS.bits(),
@@ -139,7 +141,6 @@ impl FindController {
                     );
                 }
             }
-            EditorMode::Rendered => {}
         }
     }
 
@@ -175,19 +176,24 @@ impl FindController {
                     controller.set_count(context.occurrences_count());
                 }
             });
-        if let Some(context) = self.rich_view.find_controller() {
-            let controller = self.clone();
-            context.connect_counted_matches(move |_, count| {
-                if controller.mode.get() == EditorMode::Rich && controller.bar.is_search_mode() {
-                    controller.set_count(i32::try_from(count).unwrap_or(i32::MAX));
-                }
-            });
-            let controller = self.clone();
-            context.connect_failed_to_find_text(move |_| {
-                if controller.mode.get() == EditorMode::Rich && controller.bar.is_search_mode() {
-                    controller.set_count(0);
-                }
-            });
+        for (mode, view) in [
+            (EditorMode::Rich, &self.rich_view),
+            (EditorMode::Rendered, &self.preview_view),
+        ] {
+            if let Some(context) = view.find_controller() {
+                let controller = self.clone();
+                context.connect_counted_matches(move |_, count| {
+                    if controller.mode.get() == mode && controller.bar.is_search_mode() {
+                        controller.set_count(i32::try_from(count).unwrap_or(i32::MAX));
+                    }
+                });
+                let controller = self.clone();
+                context.connect_failed_to_find_text(move |_| {
+                    if controller.mode.get() == mode && controller.bar.is_search_mode() {
+                        controller.set_count(0);
+                    }
+                });
+            }
         }
 
         let shortcut = gtk::EventControllerKey::new();
@@ -197,7 +203,7 @@ impl FindController {
         shortcut.connect_key_pressed(move |_, key, _, modifiers| {
             let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
             let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
-            if control && key == gtk::gdk::Key::f && controller.mode.get() != EditorMode::Rendered {
+            if control && key == gtk::gdk::Key::f {
                 controller.open();
                 return glib::Propagation::Stop;
             }
@@ -221,10 +227,18 @@ impl FindController {
         capture_widget.add_controller(shortcut);
     }
 
-    fn open(&self) {
+    pub(super) fn open(&self) {
         self.bar.set_search_mode(true);
         self.entry.grab_focus();
         self.entry.select_region(0, -1);
+    }
+
+    fn web_view(&self) -> &webkit6::WebView {
+        if self.mode.get() == EditorMode::Rendered {
+            &self.preview_view
+        } else {
+            &self.rich_view
+        }
     }
 
     fn search(&self) {
@@ -232,7 +246,7 @@ impl FindController {
             return;
         }
         let query = self.entry.text();
-        if query.is_empty() || self.mode.get() == EditorMode::Rendered {
+        if query.is_empty() {
             self.finish_searches();
             return;
         }
@@ -243,15 +257,14 @@ impl FindController {
                 self.set_count(self.source_context.occurrences_count());
                 self.select_source_match(true);
             }
-            EditorMode::Rich => {
-                let Some(context) = self.rich_view.find_controller() else {
+            EditorMode::Rich | EditorMode::Rendered => {
+                let Some(context) = self.web_view().find_controller() else {
                     self.set_count(0);
                     return;
                 };
                 context.search(query.as_str(), FIND_OPTIONS.bits(), u32::MAX);
                 context.count_matches(query.as_str(), FIND_OPTIONS.bits(), u32::MAX);
             }
-            EditorMode::Rendered => {}
         }
     }
 
@@ -261,12 +274,11 @@ impl FindController {
         }
         match self.mode.get() {
             EditorMode::Source => self.select_source_match(false),
-            EditorMode::Rich => {
-                if let Some(context) = self.rich_view.find_controller() {
+            EditorMode::Rich | EditorMode::Rendered => {
+                if let Some(context) = self.web_view().find_controller() {
                     context.search_previous();
                 }
             }
-            EditorMode::Rendered => {}
         }
     }
 
@@ -276,12 +288,11 @@ impl FindController {
         }
         match self.mode.get() {
             EditorMode::Source => self.select_source_match(true),
-            EditorMode::Rich => {
-                if let Some(context) = self.rich_view.find_controller() {
+            EditorMode::Rich | EditorMode::Rendered => {
+                if let Some(context) = self.web_view().find_controller() {
                     context.search_next();
                 }
             }
-            EditorMode::Rendered => {}
         }
     }
 
@@ -312,7 +323,7 @@ impl FindController {
 
     fn finish_searches(&self) {
         self.source_settings.set_search_text(None);
-        if let Some(context) = self.rich_view.find_controller() {
+        if let Some(context) = self.web_view().find_controller() {
             context.search_finish();
         }
         self.set_count(0);
@@ -345,10 +356,9 @@ impl FindController {
             EditorMode::Source => {
                 self.source_view.grab_focus();
             }
-            EditorMode::Rich => {
-                self.rich_view.grab_focus();
+            EditorMode::Rich | EditorMode::Rendered => {
+                self.web_view().grab_focus();
             }
-            EditorMode::Rendered => {}
         }
     }
 }

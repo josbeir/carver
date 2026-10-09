@@ -460,3 +460,16 @@ popover button:checked {
   font-weight: 600;
   margin-left: 8px;
 }
+
+/* The palette uses the dialog edge for its result surface. */
+.command-palette-results {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+}
+
+.command-palette-results > row:first-child,
+.command-palette-results > row:last-child {
+    border-radius: 0;
+}

@@ -18,43 +18,10 @@ use crate::mvu::{AppDispatcher, AppMsg, EditorMsg, SourceCommand};
 
 use super::{RichEditor, focus::EditorFocusRestorer, source_commands};
 
-/// A formatting operation understood by both editor projections.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(crate) enum ToolbarCommand {
-    Bold,
-    Italic,
-    Strike,
-    Underline,
-    Highlight,
-    Superscript,
-    Subscript,
-    InlineCode,
-    CodeBlock,
-    BulletList,
-    OrderedList,
-    TaskList,
-    Link,
-}
+pub(crate) use crate::mvu::FormatCommand as ToolbarCommand;
+use crate::mvu::format_command::source_command;
 
 impl ToolbarCommand {
-    fn rich_name(self) -> &'static str {
-        match self {
-            Self::Bold => "bold",
-            Self::Italic => "italic",
-            Self::Strike => "strike",
-            Self::Underline => "underline",
-            Self::Highlight => "highlight",
-            Self::Superscript => "superscript",
-            Self::Subscript => "subscript",
-            Self::InlineCode => "inline-code",
-            Self::CodeBlock => "code-block",
-            Self::BulletList => "bullet-list",
-            Self::OrderedList => "ordered-list",
-            Self::TaskList => "task-list",
-            Self::Link => "link",
-        }
-    }
-
     fn tooltip(self) -> String {
         match self {
             Self::Bold => gettext("Bold (Ctrl+B)"),
@@ -66,6 +33,7 @@ impl ToolbarCommand {
             Self::Subscript => gettext("Subscript (Ctrl+Shift+,)"),
             Self::InlineCode => gettext("Inline code"),
             Self::CodeBlock => gettext("Code block"),
+            Self::BlockQuote => gettext("Block quote"),
             Self::BulletList => gettext("Bulleted list (Ctrl+Shift+8)"),
             Self::OrderedList => gettext("Numbered list (Ctrl+Shift+7)"),
             Self::TaskList => gettext("Task list"),
@@ -130,7 +98,7 @@ impl ToolbarState {
         }
     }
 
-    fn from_rich(selection: &SelectionState) -> Self {
+    pub(crate) fn from_rich(selection: &SelectionState) -> Self {
         let mut state = Self::default();
         for command in COMMANDS {
             if selection
@@ -162,7 +130,7 @@ struct CommandSpec {
     icon: &'static str,
 }
 
-const COMMANDS: [CommandSpec; 13] = [
+const COMMANDS: [CommandSpec; 14] = [
     CommandSpec {
         command: ToolbarCommand::Bold,
         id: "format-bold-button",
@@ -207,6 +175,11 @@ const COMMANDS: [CommandSpec; 13] = [
         command: ToolbarCommand::CodeBlock,
         id: "format-code-block-button",
         icon: "utilities-terminal-symbolic",
+    },
+    CommandSpec {
+        command: ToolbarCommand::BlockQuote,
+        id: "format-quote-button",
+        icon: "format-text-quote-symbolic",
     },
     CommandSpec {
         command: ToolbarCommand::BulletList,
@@ -349,7 +322,7 @@ impl CommandRouter {
         self.focus.restore_later();
     }
 
-    fn choose_image(&self, button: &gtk::Button) {
+    fn choose_image(&self, button: &impl IsA<gtk::Widget>) {
         let Some(session) = self.rich.document_session() else {
             return;
         };
@@ -366,48 +339,6 @@ impl CommandRouter {
             &self.focus,
         );
     }
-}
-
-fn source_command(command: ToolbarCommand) -> Option<SourceCommand> {
-    Some(match command {
-        ToolbarCommand::Bold => SourceCommand::ToggleInline {
-            opening: String::from("*"),
-            closing: String::from("*"),
-        },
-        ToolbarCommand::Italic => SourceCommand::ToggleInline {
-            opening: String::from("/"),
-            closing: String::from("/"),
-        },
-        ToolbarCommand::Strike => SourceCommand::ToggleInline {
-            opening: String::from("~"),
-            closing: String::from("~"),
-        },
-        ToolbarCommand::Underline => SourceCommand::ToggleInline {
-            opening: String::from("_"),
-            closing: String::from("_"),
-        },
-        ToolbarCommand::Highlight => SourceCommand::ToggleInline {
-            opening: String::from("="),
-            closing: String::from("="),
-        },
-        ToolbarCommand::Superscript => SourceCommand::ToggleInline {
-            opening: String::from("{^"),
-            closing: String::from("^}"),
-        },
-        ToolbarCommand::Subscript => SourceCommand::ToggleInline {
-            opening: String::from("{,"),
-            closing: String::from(",}"),
-        },
-        ToolbarCommand::InlineCode => SourceCommand::ToggleInline {
-            opening: String::from("`"),
-            closing: String::from("`"),
-        },
-        ToolbarCommand::CodeBlock => SourceCommand::ToggleCodeBlock,
-        ToolbarCommand::BulletList => SourceCommand::ToggleList(String::from("- ")),
-        ToolbarCommand::OrderedList => SourceCommand::ToggleOrderedList,
-        ToolbarCommand::TaskList => SourceCommand::ToggleList(String::from("- [ ] ")),
-        ToolbarCommand::Link => return None,
-    })
 }
 
 /// The one mounted formatting toolbar and its mode router.
@@ -530,6 +461,30 @@ impl Toolbar {
             ],
             source_path,
             source_context: Rc::new(RefCell::new(None)),
+        }
+    }
+
+    pub(crate) fn execute_palette(
+        &self,
+        command: crate::mvu::palette::CommandId,
+        anchor: &gtk::Widget,
+    ) {
+        use crate::mvu::palette::CommandId as C;
+        match command {
+            C::Format(format) => self.router.execute(format, anchor),
+            C::Heading(level) => self.router.set_heading(level),
+            C::ImageWidth(width) => self.router.image_width(width),
+            C::Link => self.router.execute(ToolbarCommand::Link, anchor),
+            C::Image => self.router.choose_image(anchor),
+            C::Table => {
+                let router = self.router.clone();
+                formatting::show_table_picker(
+                    anchor,
+                    move |rows, columns, header| router.insert_table(rows, columns, header),
+                    &self.router.focus,
+                );
+            }
+            _ => {}
         }
     }
 
@@ -715,11 +670,10 @@ fn append_image_menu(
 }
 
 fn set_toolbar_icon(button: &gtk::ToggleButton, icon_name: &str) {
-    let has_icon = gtk::gdk::Display::default()
-        .is_some_and(|display| gtk::IconTheme::for_display(&display).has_icon(icon_name));
+    let has_icon = crate::ui::icons::available(icon_name);
     if has_icon {
         button.set_icon_name(icon_name);
-    } else if let Some(glyph) = toolbar_fallback_glyph(icon_name) {
+    } else if let Some(glyph) = crate::ui::icons::formatting_glyph(icon_name) {
         let label = gtk::Label::new(Some(glyph));
         label.set_width_chars(2);
         label.set_max_width_chars(2);
@@ -729,15 +683,6 @@ fn set_toolbar_icon(button: &gtk::ToggleButton, icon_name: &str) {
         button.add_css_class("image-button");
     } else {
         button.set_icon_name(icon_name);
-    }
-}
-
-fn toolbar_fallback_glyph(icon_name: &str) -> Option<&'static str> {
-    match icon_name {
-        "format-text-highlight-symbolic" => Some("H"),
-        "format-text-superscript-symbolic" => Some("Aˣ"),
-        "format-text-subscript-symbolic" => Some("Aₓ"),
-        _ => None,
     }
 }
 

@@ -197,3 +197,31 @@ fn insert_text_should_clamp_an_out_of_range_selection() {
     assert_eq!(edit.source(), "H there");
     assert_eq!(edit.selection(), 7..7);
 }
+
+#[test]
+fn block_quote_should_preserve_blank_lines_and_authored_markup_on_round_trip() {
+    let source = "# Héading\n\n- [x] *Finished*";
+    let quoted = SourceEdit::apply(
+        source.into(),
+        0..source.chars().count(),
+        SourceCommand::ToggleBlockQuote,
+    );
+    assert_eq!(quoted.source(), "> # Héading\n> \n> - [x] *Finished*");
+    let restored = SourceEdit::apply(
+        quoted.source().into(),
+        quoted.selection(),
+        SourceCommand::ToggleBlockQuote,
+    );
+    assert_eq!(restored.source(), source);
+}
+
+#[test]
+fn block_quote_should_remove_only_one_nesting_level() {
+    let source = "> > Nested\n>\n> Tail";
+    let edit = SourceEdit::apply(
+        source.into(),
+        0..source.chars().count(),
+        SourceCommand::ToggleBlockQuote,
+    );
+    assert_eq!(edit.source(), "> Nested\n\nTail");
+}

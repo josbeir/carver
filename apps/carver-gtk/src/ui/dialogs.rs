@@ -50,10 +50,16 @@ struct ShortcutSection {
 }
 
 static GENERAL_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
-    vec![Shortcut {
-        title: gettext("Keyboard shortcuts"),
-        accelerator: "<Control>question",
-    }]
+    vec![
+        Shortcut {
+            title: gettext("Command Palette"),
+            accelerator: "<Control><Shift>p",
+        },
+        Shortcut {
+            title: gettext("Keyboard shortcuts"),
+            accelerator: "<Control>question",
+        },
+    ]
 });
 
 static NOTES_SHORTCUTS: LazyLock<Vec<Shortcut>> = LazyLock::new(|| {
@@ -293,6 +299,7 @@ pub(crate) fn install_window_actions(
     });
     window.add_action(&keyboard_shortcuts);
 
+    super::palette::install(window, dispatcher);
     install_note_actions(window, dispatcher, runtime);
     install_application_accelerators(window);
     install_window_shortcuts(window);
