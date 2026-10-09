@@ -157,7 +157,7 @@ impl SourceEdit {
     // normalize unrelated content instead of retaining the user's literal source.
     fn toggle_block_quote(&mut self) {
         let analysis = carver_domain::source_analysis::SourceAnalysis::parse(&self.source);
-        if let Some(range) = analysis.block_quote_range_for(self.selected_line_range()) {
+        if let Some(range) = analysis.block_quote_range_for(self.selection.clone()) {
             self.remove_block_quote(range);
             return;
         }

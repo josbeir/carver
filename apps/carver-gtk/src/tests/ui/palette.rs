@@ -551,12 +551,22 @@ pub(super) fn quote_should_unwrap_lazy_continuations_from_palette_and_toolbar() 
         false
     ) == "first\ncontinued"));
 
-    buffer.set_text("> Hélène\n続き");
-    buffer.place_cursor(&buffer.iter_at_offset(10));
     let root = fixture.root()?;
     let toolbar = widget_as::<gtk::Box>(&root, "formatting-toolbar-desktop").ok_or("toolbar")?;
     let quote = widget_as::<gtk::ToggleButton>(toolbar.upcast_ref(), "format-quote-button")
         .ok_or("quote button")?;
+    buffer.set_text("> > first\n> continued\n> > last");
+    buffer.place_cursor(&buffer.iter_at_offset(5));
+    assert!(run_main_context_until(|| quote.is_active()));
+    quote.emit_clicked();
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        false
+    ) == "> first\n> continued\n> last"));
+
+    buffer.set_text("> Hélène\n続き");
+    buffer.place_cursor(&buffer.iter_at_offset(10));
     assert!(run_main_context_until(|| quote.is_active()));
     quote.emit_clicked();
     assert!(run_main_context_until(|| buffer.text(

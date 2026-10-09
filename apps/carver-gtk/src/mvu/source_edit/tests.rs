@@ -253,6 +253,13 @@ fn block_quote_should_preserve_enclosing_markers_when_unwrapping_a_nested_contin
 }
 
 #[test]
+fn block_quote_should_unwrap_the_innermost_quote_from_its_first_line() {
+    let source = "> > first\n> continued\n> > last";
+    let edit = SourceEdit::apply(source.into(), 5..5, SourceCommand::ToggleBlockQuote);
+    assert_eq!(edit.source(), "> first\n> continued\n> last");
+}
+
+#[test]
 fn block_quote_should_wrap_a_selection_containing_an_unquoted_paragraph() {
     let source = "> first\n\nplain";
     let edit = SourceEdit::apply(
