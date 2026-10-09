@@ -61,6 +61,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::init()?;
     crate::app::load_styles();
     palette::palette_should_search_destinations_and_preserve_note_metadata()?;
+    palette::palette_should_remove_destinations_when_the_library_changes()?;
     palette::palette_should_format_the_original_source_selection_and_restore_focus()?;
     palette::palette_should_preserve_rich_selection_and_keep_preview_read_only()?;
     palette::palette_should_follow_base_and_trash_context_and_keep_delete_confirmation()?;

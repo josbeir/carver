@@ -129,6 +129,40 @@ pub(super) fn palette_should_search_destinations_and_preserve_note_metadata() ->
     Ok(())
 }
 
+pub(super) fn palette_should_remove_destinations_when_the_library_changes() -> TestResult {
+    let (fixture, _) = fixture("io.github.josbeir.Carver.PaletteCatalogRefresh")?;
+    let dialog = palette(&fixture.window)?;
+    query(&dialog, "Projects")?;
+    assert!(row(&dialog, "Projects").is_some());
+    fixture.client.trash_category(fixture.destination.id)?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::LibraryChangedExternally);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        dialog.upcast_ref(),
+        "palette-status"
+    )
+    .is_some_and(|status| status.text() == "No results")));
+    assert!(row(&dialog, "Projects").is_none());
+
+    query(&dialog, "Review base")?;
+    assert!(row(&dialog, "Review base").is_some());
+    glib::MainContext::default().block_on(fixture.client.delete_base_async(fixture.base.id))?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::LibraryChangedExternally);
+    assert!(run_main_context_until(|| widget_as::<gtk::Label>(
+        dialog.upcast_ref(),
+        "palette-status"
+    )
+    .is_some_and(|status| status.text() == "No results")));
+    assert!(row(&dialog, "Review base").is_none());
+    assert_eq!(dialog.widget_name(), "command-palette-dialog");
+    dialog.close();
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn palette_should_format_the_original_source_selection_and_restore_focus() -> TestResult
 {
     let (fixture, note) = fixture("io.github.josbeir.Carver.PaletteSource")?;
@@ -145,7 +179,8 @@ pub(super) fn palette_should_format_the_original_source_selection_and_restore_fo
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
         .contains("selected")));
     source.grab_focus();
-    assert!(run_main_context_until(|| source.has_focus()));
+    // A headless compositor may not grant global input focus to the window.
+    assert!(run_main_context_until(|| source.is_focus()));
     buffer.select_range(&buffer.iter_at_offset(6), &buffer.iter_at_offset(14));
     assert!(buffer.selection_bounds().is_some());
     let dialog = palette(&fixture.window)?;
@@ -159,7 +194,7 @@ pub(super) fn palette_should_format_the_original_source_selection_and_restore_fo
         .window
         .visible_dialog()
         .is_none()));
-    assert!(run_main_context_until(|| source.has_focus()));
+    assert!(run_main_context_until(|| source.is_focus()));
     assert_eq!(
         buffer
             .selection_bounds()
@@ -170,7 +205,7 @@ pub(super) fn palette_should_format_the_original_source_selection_and_restore_fo
     assert!(run_main_context_until(|| buffer
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
         .contains("*selected*")));
-    assert!(run_main_context_until(|| source.has_focus()));
+    assert!(run_main_context_until(|| source.is_focus()));
     command(&fixture.window, "Insert table")?;
     assert!(run_main_context_until(|| fixture
         .window

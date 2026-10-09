@@ -155,6 +155,104 @@ fn query_change_should_reject_previous_results() {
     assert!(matches!(palette(&model).notes, LoadState::Loading(_)));
 }
 
+fn removed_destination_should_not_activate(
+    model: &mut AppModel,
+    target: Target,
+    reply: super::super::LibraryReply,
+) {
+    let (id, _) = open(model);
+    update(
+        model,
+        PaletteMsg::QueryChanged {
+            id,
+            query: "Projects".into(),
+        },
+    );
+    matched(model);
+    let request = palette(model).request;
+    let rows = palette(model).local_rows.clone();
+    assert_eq!(palette(model).selected, Some(target));
+
+    match &reply {
+        super::super::LibraryReply::SidebarLoaded { request_id, .. } => {
+            model.sidebar.begin_reload(*request_id);
+        }
+        super::super::LibraryReply::BasesLoaded { request_id, .. } => {
+            model.bases.definitions.begin_reload(*request_id);
+        }
+        _ => panic!("expected a catalog reply"),
+    }
+    let effects = super::super::update(model, AppMsg::Library(reply));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::MatchPalette { .. }))
+    );
+    assert_eq!(palette(model).local_rows, Vec::new());
+    // A completion already queued before the catalog reply cannot restore the removed row.
+    update(model, PaletteMsg::Matched { id, request, rows });
+    assert_eq!(
+        update(
+            model,
+            PaletteMsg::Activate {
+                id,
+                target: Some(target)
+            }
+        ),
+        Vec::new()
+    );
+    assert!(model.palette.is_some());
+    matched(model);
+    assert!(palette(model).rows().iter().all(|row| row.target != target));
+    assert_eq!(palette(model).selected, None);
+}
+
+#[test]
+fn sidebar_refresh_should_reject_removed_categories_before_matching_finishes() {
+    let mut model = model();
+    let id = CategoryId::new();
+    model.sidebar.state = LoadState::Ready(vec![carver_sdk::CategorySummary {
+        category: carver_sdk::Category {
+            id,
+            name: "Projects".into(),
+            default_template_id: None,
+            appearance: carver_sdk::CategoryAppearance::default(),
+            position: 0,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+            updated_at: time::OffsetDateTime::UNIX_EPOCH,
+            trashed_at: None,
+        },
+        note_count: 0,
+    }]);
+    let request_id = model.next_request_id();
+    let reply = super::super::LibraryReply::SidebarLoaded {
+        request_id,
+        result: Ok(Vec::new()),
+    };
+    removed_destination_should_not_activate(&mut model, Target::Category(id), reply);
+}
+
+#[test]
+fn base_refresh_should_reject_removed_bases_before_matching_finishes() {
+    let mut model = model();
+    let id = BaseId::new();
+    model.bases.definitions.state = LoadState::Ready(vec![carver_sdk::BaseDefinition::defaults(
+        id,
+        "Projects".into(),
+        Vec::new(),
+        carver_sdk::Revision(1),
+    )]);
+    let request_id = model.next_request_id();
+    removed_destination_should_not_activate(
+        &mut model,
+        Target::Base(id),
+        super::super::LibraryReply::BasesLoaded {
+            request_id,
+            result: Ok(Vec::new()),
+        },
+    );
+}
+
 #[test]
 fn reopened_palette_should_reject_previous_lifetime() {
     let mut model = model();

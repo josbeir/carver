@@ -627,6 +627,8 @@ fn search(model: &mut AppModel) -> Vec<Effect> {
     };
     palette.request = request;
     palette.matched = false;
+    // Catalog refreshes must stop admitting old destinations before the worker replies.
+    palette.local_rows.clear();
     palette.notes = LoadState::Loading(request);
     palette.has_more = false;
     let id = palette.id;
