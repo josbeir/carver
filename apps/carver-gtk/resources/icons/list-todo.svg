@@ -1,0 +1,17 @@
+<!-- Lucide List Todo, https://lucide.dev/icons/list-todo, ISC License.
+Copyright (c) 2026 Lucide Icons and Contributors
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+Stroke geometry expanded into filled paths for GTK symbolic recoloring. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path fill="currentColor" d="M13 4h8a1 1 0 0 1 0 2h-8a1 1 0 0 1 0-2Zm0 7h8a1 1 0 0 1 0 2h-8a1 1 0 0 1 0-2Zm0 7h8a1 1 0 0 1 0 2h-8a1 1 0 0 1 0-2ZM2.293 17.707a1 1 0 0 1 1.414-1.414L5 17.586l3.293-3.293a1 1 0 0 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0Z"/>
+  <path fill="currentColor" fill-rule="evenodd" d="M4 3h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v4h4V5Z"/>
+</svg>

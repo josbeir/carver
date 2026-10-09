@@ -8,5 +8,6 @@
     <file alias="scalable/apps/carver-agent-copilot-symbolic.svg">agent-icons/copilot.svg</file>
     <file alias="scalable/apps/carver-agent-opencode-symbolic.svg">agent-icons/opencode.svg</file>
     <file alias="scalable/apps/carver-database-symbolic.svg">icons/database.svg</file>
+    <file alias="scalable/apps/carver-list-todo-symbolic.svg">icons/list-todo.svg</file>
   </gresource>
 </gresources>

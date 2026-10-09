@@ -19,6 +19,13 @@ pub(super) fn bundled_icons_should_be_discoverable() -> TestResult {
     assert!(database_icon.contains("fill=\"currentColor\""));
     assert!(!database_icon.contains("stroke="));
     assert!(
+        gtk::IconTheme::for_display(&display).has_icon("carver-list-todo-symbolic"),
+        "the bundled task-list icon should be available to the formatting toolbar"
+    );
+    let task_icon = include_str!("../../../resources/icons/list-todo.svg");
+    assert!(task_icon.contains("fill=\"currentColor\""));
+    assert!(!task_icon.contains("stroke="));
+    assert!(
         gtk::IconTheme::for_display(&display).has_icon("package-x-generic-symbolic"),
         "the Adwaita package icon should be available to the category picker"
     );

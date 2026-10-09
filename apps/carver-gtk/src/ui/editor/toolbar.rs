@@ -221,7 +221,7 @@ const COMMANDS: [CommandSpec; 13] = [
     CommandSpec {
         command: ToolbarCommand::TaskList,
         id: "format-task-button",
-        icon: "object-select-symbolic",
+        icon: "carver-list-todo-symbolic",
     },
     CommandSpec {
         command: ToolbarCommand::Link,
@@ -473,7 +473,12 @@ impl Toolbar {
         source_path.set_tooltip_text(Some(&gettext("Carve AST context")));
         source_path.set_visible(false);
         desktop.append(&source_path);
-        for spec in [COMMANDS[0], COMMANDS[1]] {
+        for spec in COMMANDS.into_iter().filter(|spec| {
+            matches!(
+                spec.command,
+                ToolbarCommand::Bold | ToolbarCommand::Italic | ToolbarCommand::TaskList
+            )
+        }) {
             let button = command_button(spec, &router);
             compact.append(&button);
             command_buttons.push((spec.command, button));
@@ -488,6 +493,9 @@ impl Toolbar {
         for commands in [&COMMANDS[2..8], &COMMANDS[8..]] {
             let group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
             for spec in commands {
+                if spec.command == ToolbarCommand::TaskList {
+                    continue;
+                }
                 let button = command_button(*spec, &router);
                 group.append(&button);
                 command_buttons.push((spec.command, button));
@@ -742,36 +750,4 @@ fn set_context_active(menu: &gtk::MenuButton, active: bool) {
 }
 
 #[cfg(test)]
-mod tests {
-    use carver_editor_protocol::{SelectionState, TableSelection};
-
-    use super::{ToolbarCommand, ToolbarState, source_command};
-
-    #[test]
-    fn source_command_should_reject_commands_that_require_native_input() {
-        assert!(source_command(ToolbarCommand::Link).is_none());
-    }
-
-    #[test]
-    fn rich_table_selection_should_expose_live_dimensions() {
-        let selection = SelectionState {
-            active: vec![String::from("table")],
-            table: Some(TableSelection {
-                rows: 3,
-                columns: 4,
-                header: false,
-            }),
-            ..SelectionState::default()
-        };
-        let state = ToolbarState::from_rich(&selection);
-        assert!(state.in_table);
-        assert_eq!(
-            state.table,
-            Some(TableSelection {
-                rows: 3,
-                columns: 4,
-                header: false,
-            })
-        );
-    }
-}
+mod tests;

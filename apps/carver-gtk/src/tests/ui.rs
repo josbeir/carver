@@ -22,6 +22,7 @@ mod rich_mode;
 mod screenshots;
 mod shell;
 mod source_mode;
+mod task_lists;
 mod templates;
 mod trash;
 mod window;
@@ -183,6 +184,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     library::category_switch_should_retain_previous_browser(&fixture, &note)?;
     editor_shell::source_editor_should_configure_language_and_gutter(&fixture, &note)?;
     editor_shell::responsive_editor_should_switch_compact_and_desktop_toolbars(&fixture, &note)?;
+    task_lists::task_button_should_toggle_source_lists_at_each_width(&fixture)?;
+    task_lists::task_button_should_toggle_rich_lists_and_preserve_checked_items(&fixture)?;
     editor_shell::editor_options_should_adapt_to_layout(&fixture)?;
     rich_mode::rich_table_selection_should_update_the_picker(&fixture)?;
     export::export_dialogs_should_validate_and_print(&fixture, &note)?;
