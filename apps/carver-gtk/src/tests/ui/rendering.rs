@@ -15,6 +15,11 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
     }));
     let rich =
         widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich editor")?;
+    fixture
+        .runtime
+        .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+            carver_config::EditorMode::Rich,
+        )));
     assert_web_script_should_be_true(
         &rich,
         "(() => { const panel = document.querySelector('.carve-div.details'); return panel && getComputedStyle(panel).borderRadius === '10px' && getComputedStyle(panel.querySelector('.admonition-title')).borderBottomWidth === '1px' && panel.querySelector('.carve-div-body').textContent.includes('https://example.com'); })()",
@@ -143,6 +148,11 @@ pub(super) fn code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline() 
     }));
     let rich =
         widget_as::<webkit6::WebView>(&fixture.surface, "rich-editor").ok_or("rich editor")?;
+    fixture
+        .runtime
+        .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(
+            carver_config::EditorMode::Rich,
+        )));
     // CarveKit renders the picker in `.carve-code-block-chrome` after the
     // scrollable <pre>, so it must be anchored to the block's top-right corner
     // rather than take a row of its own below the code.

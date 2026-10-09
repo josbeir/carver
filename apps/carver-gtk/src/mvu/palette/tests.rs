@@ -208,6 +208,20 @@ fn removed_destination_should_not_activate(
 }
 
 #[test]
+fn external_wakeup_should_defer_rematching_until_catalogs_reload() {
+    let mut model = model();
+    open(&mut model);
+    matched(&mut model);
+    let before = model.palette.clone();
+    let effects = super::super::update(&mut model, AppMsg::LibraryChangedExternally);
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::LoadLibraryRevision { .. }]
+    ));
+    assert_eq!(model.palette, before);
+}
+
+#[test]
 fn sidebar_refresh_should_reject_removed_categories_before_matching_finishes() {
     let mut model = model();
     let id = CategoryId::new();

@@ -18,7 +18,6 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
     let refresh_palette = matches!(
         &message,
         AppMsg::Library(LibraryReply::SidebarLoaded { .. } | LibraryReply::BasesLoaded { .. })
-            | AppMsg::LibraryChangedExternally
     );
     let prior_session = model.editor.as_ref().map(|doc| doc.session);
     let mut effects = dispatch(model, message);
