@@ -19,12 +19,16 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         &message,
         AppMsg::Library(LibraryReply::SidebarLoaded { .. } | LibraryReply::BasesLoaded { .. })
     );
+    let categories_ready = matches!(model.sidebar.state, super::LoadState::Ready(_));
     let prior_session = model.editor.as_ref().map(|doc| doc.session);
     let mut effects = dispatch(model, message);
     if prior_session != model.editor.as_ref().map(|doc| doc.session) {
         model.rich_selection = carver_editor_protocol::SelectionState::default();
     }
-    if refresh_palette && model.palette.is_some() {
+    if (refresh_palette
+        || categories_ready != matches!(model.sidebar.state, super::LoadState::Ready(_)))
+        && model.palette.is_some()
+    {
         effects.extend(super::palette::refresh(model));
     }
     // Keep tab titles in step with the document while it is edited.

@@ -22,7 +22,7 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
         )));
     assert_web_script_should_be_true(
         &rich,
-        "(() => { const panel = document.querySelector('.carve-div.details'); return panel && getComputedStyle(panel).borderRadius === '10px' && getComputedStyle(panel.querySelector('.admonition-title')).borderBottomWidth === '1px' && panel.querySelector('.carve-div-body').textContent.includes('https://example.com'); })()",
+        "(() => { const panel = document.querySelector('.carve-div.details'); const title = panel?.querySelector('.admonition-title'); const body = panel?.querySelector('.carve-div-body'); const radius = panel && getComputedStyle(panel).borderRadius; const border = title && getComputedStyle(title).borderBottomWidth; if (radius !== '10px' || border !== '1px' || !body?.textContent.includes('https://example.com')) throw new Error(JSON.stringify({radius, border, html: panel?.outerHTML, source: window.carverEditor?.source()})); return true; })()",
     );
     for (mode, name) in [
         (

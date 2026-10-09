@@ -218,6 +218,20 @@ pub(super) fn palette_should_format_the_original_source_selection_and_restore_fo
         .visible_dialog()
         .ok_or("table dialog")?
         .close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
+    command(&fixture.window, "Move note…")?;
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "move-note-dialog"
+        )));
+    let move_dialog = fixture.window.visible_dialog().ok_or("move dialog")?;
+    assert_eq!(move_dialog.widget_name(), "move-note-dialog");
+    move_dialog.close();
     fixture.window.close();
     Ok(())
 }

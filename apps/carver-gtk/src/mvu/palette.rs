@@ -419,11 +419,12 @@ fn available_at(model: &AppModel, command: CommandId, selection: Option<Range<us
 }
 
 fn disabled(model: &AppModel, command: CommandId) -> bool {
-    (command.edits()
-        && model
-            .editor
-            .as_ref()
-            .is_some_and(|doc| doc.external_change.is_some() || doc.pending_assets > 0))
+    (command == CommandId::Move && !matches!(model.sidebar.state, LoadState::Ready(_)))
+        || (command.edits()
+            && model
+                .editor
+                .as_ref()
+                .is_some_and(|doc| doc.external_change.is_some() || doc.pending_assets > 0))
         || (matches!(command, CommandId::ConfigureBase | CommandId::DeleteBase)
             && (model.bases.saving_configuration
                 || model

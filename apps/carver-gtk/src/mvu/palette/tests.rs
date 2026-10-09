@@ -367,6 +367,65 @@ fn failed_note_search_should_keep_commands_and_offer_retry() {
 }
 
 #[test]
+fn move_should_be_disabled_until_categories_are_ready() {
+    let mut model = editor(EditorMode::Source);
+    for state in [
+        LoadState::Idle,
+        LoadState::Loading(RequestId(1)),
+        LoadState::Failed(UiError::new("offline")),
+    ] {
+        model.sidebar.state = state;
+        assert!(disabled(&model, CommandId::Move));
+    }
+    model.sidebar.state = LoadState::Ready(Vec::new());
+    assert!(!disabled(&model, CommandId::Move));
+}
+
+#[test]
+fn sidebar_reload_should_refresh_and_disable_the_move_command() {
+    let mut model = editor(EditorMode::Source);
+    model.sidebar.state = LoadState::Ready(Vec::new());
+    update(
+        &mut model,
+        PaletteMsg::Opened {
+            labels: vec![label(CommandId::Move, "Move note")],
+            source_selection: 0..0,
+        },
+    );
+    matched(&mut model);
+    let id = palette(&model).id;
+    assert!(!palette(&model).local_rows[0].disabled);
+    let effects = super::super::update(
+        &mut model,
+        AppMsg::Sidebar(super::super::SidebarMsg::Reload),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::MatchPalette { .. }))
+    );
+    assert_eq!(
+        update(&mut model, PaletteMsg::Activate { id, target: None }),
+        Vec::new()
+    );
+    matched(&mut model);
+    assert!(palette(&model).local_rows[0].disabled);
+    assert_eq!(palette(&model).selected, None);
+    let LoadState::Loading(request_id) = model.sidebar.state else {
+        panic!("loading sidebar")
+    };
+    let _ = super::super::update(
+        &mut model,
+        AppMsg::Library(super::super::LibraryReply::SidebarLoaded {
+            request_id,
+            result: Ok(Vec::new()),
+        }),
+    );
+    matched(&mut model);
+    assert!(!palette(&model).local_rows[0].disabled);
+}
+
+#[test]
 fn external_change_should_disable_formatting() {
     let mut model = editor(EditorMode::Source);
     model
