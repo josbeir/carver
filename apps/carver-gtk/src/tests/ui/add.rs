@@ -205,6 +205,11 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         widget_as::<adw::ActionRow>(root, "base-visible-field-1").is_none(),
         "a new Base should not seed Category or Updated fields"
     );
+    let grid = widget_as::<gtk::CheckButton>(root, "base-view-grid").ok_or("grid radio")?;
+    let list = widget_as::<gtk::CheckButton>(root, "base-view-list").ok_or("list radio")?;
+    assert!(grid.is_active() && !list.is_active());
+    list.emit_by_name::<()>("activate", &[]);
+    assert!(list.is_active() && !grid.is_active());
     entry.set_text("  Reading list  ");
     widget_as::<gtk::Button>(root, "base-configuration-save")
         .ok_or("create Base")?
@@ -214,6 +219,9 @@ pub(super) fn add_dialog_should_create_category_and_configure_new_base() -> Test
         crate::mvu::LoadState::Ready(items) if items.len() == 1 && items[0].name == "Reading list")
     ));
     assert!(run_main_context_until(|| window.visible_dialog().is_none()));
+
+    let saved = glib::MainContext::default().block_on(client.bases_async())?;
+    assert_eq!(saved[0].view, carver_sdk::BaseView::List);
 
     // A duplicate name keeps the Add dialog open and preserves the draft.
     button.emit_clicked();

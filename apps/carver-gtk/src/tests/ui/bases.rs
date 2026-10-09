@@ -239,6 +239,50 @@ pub(super) fn base_header_sort_should_persist_from_native_controls() -> TestResu
     Ok(())
 }
 
+pub(super) fn base_view_rows_should_select_one_mode_when_activated() -> TestResult {
+    let dispatcher = AppDispatcher::default();
+    let definition = crate::ui::bases::actions::new_base_definition();
+    let form = crate::ui::bases::actions::build_base_configuration_form(
+        &dispatcher,
+        RequestId(1),
+        &definition,
+        &[],
+        &[],
+        crate::ui::bases::actions::BaseConfigurationMode::Create,
+    );
+    let window = adw::Window::new();
+    window.set_default_size(400, 700);
+    window.set_content(Some(&form.page));
+    window.present();
+    let grid = widget_as::<gtk::CheckButton>(form.page.upcast_ref(), "base-view-grid")
+        .ok_or("grid radio button")?;
+    let list = widget_as::<gtk::CheckButton>(form.page.upcast_ref(), "base-view-list")
+        .ok_or("list radio button")?;
+    assert!(run_main_context_until(
+        || grid.is_mapped() && list.is_mapped()
+    ));
+    assert!(grid.is_active() && !list.is_active());
+    let list_row = list
+        .ancestor(adw::ActionRow::static_type())
+        .and_downcast::<adw::ActionRow>()
+        .ok_or("list preferences row")?;
+    assert_eq!(list_row.activatable_widget(), Some(list.clone().upcast()));
+    assert_eq!(list_row.title(), "Notes list");
+    assert_eq!(
+        list_row.subtitle().as_deref(),
+        Some("Browse notes as read-only cards.")
+    );
+    adw::prelude::ActionRowExt::activate(&list_row);
+    assert!(list.is_active() && !grid.is_active());
+    // Activating the selected row must keep a mode selected.
+    adw::prelude::ActionRowExt::activate(&list_row);
+    assert!(list.is_active() && !grid.is_active());
+    grid.emit_by_name::<()>("activate", &[]);
+    assert!(grid.is_active() && !list.is_active());
+    window.close();
+    Ok(())
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "The display-backed scenario exercises the complete configuration flow"
@@ -347,14 +391,14 @@ pub(super) fn configure_base_should_keep_the_form_in_the_scroll_viewport() -> Te
     assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-sort-section").is_some());
     assert!(widget_as::<adw::PreferencesGroup>(dialog.upcast_ref(), "base-view-section").is_some());
     let view_list =
-        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-list").ok_or("list view")?;
+        widget_as::<gtk::CheckButton>(dialog.upcast_ref(), "base-view-list").ok_or("list view")?;
     let view_grid =
-        widget_as::<gtk::ToggleButton>(dialog.upcast_ref(), "base-view-grid").ok_or("grid view")?;
+        widget_as::<gtk::CheckButton>(dialog.upcast_ref(), "base-view-grid").ok_or("grid view")?;
     assert!(
         view_list.is_active() && !view_grid.is_active(),
         "the configuration dialog should preselect the saved list view"
     );
-    // The two cards are mutually exclusive.
+    // The radio buttons are mutually exclusive.
     view_grid.set_active(true);
     assert!(!view_list.is_active());
     view_list.set_active(true);
