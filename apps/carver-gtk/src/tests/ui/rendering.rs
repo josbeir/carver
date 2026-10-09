@@ -20,9 +20,11 @@ pub(super) fn rendering_preference_should_refresh_previews_without_saving() -> T
         .dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(
             carver_config::EditorMode::Rich,
         )));
+    // Compare computed borders in the same WebKit view: headless output scaling
+    // can quantize an authored 1px border to a different computed width.
     assert_web_script_should_be_true(
         &rich,
-        "(() => { const panel = document.querySelector('.carve-div.details'); const title = panel?.querySelector('.admonition-title'); const body = panel?.querySelector('.carve-div-body'); const radius = panel && getComputedStyle(panel).borderRadius; const border = title && getComputedStyle(title).borderBottomWidth; if (radius !== '10px' || border !== '1px' || !body?.textContent.includes('https://example.com')) throw new Error(JSON.stringify({radius, border, html: panel?.outerHTML, source: window.carverEditor?.source()})); return true; })()",
+        "(() => { const panel = document.querySelector('.carve-div.details'); const title = panel?.querySelector('.admonition-title'); const body = panel?.querySelector('.carve-div-body'); const radius = panel && getComputedStyle(panel).borderRadius; const border = title && getComputedStyle(title).borderBottomWidth; const probe = document.createElement('div'); probe.style.cssText = 'border-bottom: 1px solid; position: absolute; visibility: hidden'; document.body.append(probe); const expectedBorder = getComputedStyle(probe).borderBottomWidth; probe.remove(); if (radius !== '10px' || border !== expectedBorder || !(parseFloat(border) > 0) || !body?.textContent.includes('https://example.com')) throw new Error(JSON.stringify({radius, border, expectedBorder, html: panel?.outerHTML, source: window.carverEditor?.source()})); return true; })()",
     );
     for (mode, name) in [
         (

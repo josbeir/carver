@@ -69,6 +69,8 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     palette::palette_shortcut_should_work_and_suppress_nested_dialogs()?;
     palette::palette_icons_should_use_shared_glyphs_and_bundled_task_icon()?;
     palette::quote_should_toggle_from_the_palette_and_toolbar_in_both_editable_modes()?;
+    palette::quote_should_unwrap_lazy_continuations_from_palette_and_toolbar()?;
+    palette::palette_should_refresh_visible_commands_after_async_editor_replies()?;
 
     rendering::rendering_preference_should_refresh_previews_without_saving()?;
     rendering::code_fences_should_be_highlighted_in_previews_and_source()?;

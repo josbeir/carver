@@ -20,13 +20,15 @@ pub fn update(model: &mut AppModel, message: AppMsg) -> Vec<Effect> {
         AppMsg::Library(LibraryReply::SidebarLoaded { .. } | LibraryReply::BasesLoaded { .. })
     );
     let categories_ready = matches!(model.sidebar.state, super::LoadState::Ready(_));
+    let command_states = super::palette::command_states(model);
     let prior_session = model.editor.as_ref().map(|doc| doc.session);
     let mut effects = dispatch(model, message);
     if prior_session != model.editor.as_ref().map(|doc| doc.session) {
         model.rich_selection = carver_editor_protocol::SelectionState::default();
     }
     if (refresh_palette
-        || categories_ready != matches!(model.sidebar.state, super::LoadState::Ready(_)))
+        || categories_ready != matches!(model.sidebar.state, super::LoadState::Ready(_))
+        || (command_states.is_some() && command_states != super::palette::command_states(model)))
         && model.palette.is_some()
     {
         effects.extend(super::palette::refresh(model));

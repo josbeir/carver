@@ -437,6 +437,91 @@ fn external_change_should_disable_formatting() {
 }
 
 #[test]
+fn save_failure_should_offer_retry_without_changing_the_open_palette_query() {
+    let mut model = editor(EditorMode::Source);
+    let document = model.editor.as_mut().unwrap_or_else(|| panic!("editor"));
+    document.source_changed("Changed text".into());
+    let request = document.begin_save().unwrap_or_else(|| panic!("save"));
+    update(
+        &mut model,
+        PaletteMsg::Opened {
+            labels: vec![label(CommandId::RetrySave, "Retry save")],
+            source_selection: 0..0,
+        },
+    );
+    let id = palette(&model).id;
+    update(
+        &mut model,
+        PaletteMsg::QueryChanged {
+            id,
+            query: "retry".into(),
+        },
+    );
+    matched(&mut model);
+    assert_eq!(palette(&model).local_rows, []);
+    let effects = super::super::update(
+        &mut model,
+        AppMsg::Library(super::super::LibraryReply::EditorSaved {
+            request,
+            move_error: None,
+            result: Err(UiError::new("offline")),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::MatchPalette { .. }))
+    );
+    matched(&mut model);
+    assert_eq!(palette(&model).query, "retry");
+    assert_eq!(
+        palette(&model).local_rows[0].target,
+        Target::Command(CommandId::RetrySave)
+    );
+}
+
+#[test]
+fn asset_completion_should_enable_formatting_without_reopening_the_palette() {
+    let mut model = editor(EditorMode::Source);
+    let document = model.editor.as_mut().unwrap_or_else(|| panic!("editor"));
+    document.pending_assets = 1;
+    let session = document.session;
+    open(&mut model);
+    matched(&mut model);
+    let bold = Target::Command(CommandId::Format(FormatCommand::Bold));
+    assert!(
+        palette(&model)
+            .local_rows
+            .iter()
+            .find(|row| row.target == bold)
+            .is_some_and(|row| row.disabled)
+    );
+    let effects = super::super::update(
+        &mut model,
+        AppMsg::Library(super::super::LibraryReply::EditorAssetStored {
+            image: true,
+            session,
+            alt: String::new(),
+            source_target: None,
+            result: Ok("assets/image.png".into()),
+        }),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::MatchPalette { .. }))
+    );
+    matched(&mut model);
+    assert!(
+        palette(&model)
+            .local_rows
+            .iter()
+            .find(|row| row.target == bold)
+            .is_some_and(|row| !row.disabled)
+    );
+}
+
+#[test]
 fn source_selection_should_reflect_existing_marks() {
     let mut model = editor(EditorMode::Source);
     let _ = super::super::update(

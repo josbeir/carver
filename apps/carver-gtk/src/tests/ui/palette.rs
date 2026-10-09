@@ -524,3 +524,162 @@ pub(super) fn quote_should_toggle_from_the_palette_and_toolbar_in_both_editable_
     fixture.window.close();
     Ok(())
 }
+
+pub(super) fn quote_should_unwrap_lazy_continuations_from_palette_and_toolbar() -> TestResult {
+    let (fixture, note) = fixture("io.github.josbeir.Carver.PaletteLazyQuote")?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::Default,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok()));
+    let source = fixture.source()?;
+    let buffer = source.buffer();
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        false
+    ) == note.source));
+    source.grab_focus();
+    buffer.set_text("> first\ncontinued");
+    buffer.select_range(&buffer.start_iter(), &buffer.end_iter());
+    command(&fixture.window, "Block quote")?;
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        false
+    ) == "first\ncontinued"));
+
+    buffer.set_text("> Hélène\n続き");
+    buffer.place_cursor(&buffer.iter_at_offset(10));
+    let root = fixture.root()?;
+    let toolbar = widget_as::<gtk::Box>(&root, "formatting-toolbar-desktop").ok_or("toolbar")?;
+    let quote = widget_as::<gtk::ToggleButton>(toolbar.upcast_ref(), "format-quote-button")
+        .ok_or("quote button")?;
+    assert!(run_main_context_until(|| quote.is_active()));
+    quote.emit_clicked();
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        false
+    ) == "Hélène\n続き"
+        && !quote.is_active()));
+    fixture.editor_mode_stack()?.set_visible_child_name("rich");
+    let rich = widget_as::<webkit6::WebView>(&root, "rich-editor").ok_or("rich")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor?.source().trim() === 'Hélène\\n続き' && !document.querySelector('.ProseMirror blockquote')",
+    );
+    fixture
+        .editor_mode_stack()?
+        .set_visible_child_name("source");
+    assert!(run_main_context_until(|| buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .trim()
+        == "Hélène\n続き"));
+    fixture.window.close();
+    Ok(())
+}
+
+fn finish_palette_matches(model: &mut crate::mvu::AppModel, effects: Vec<crate::mvu::Effect>) {
+    for effect in effects {
+        if let crate::mvu::Effect::MatchPalette {
+            id,
+            request,
+            candidates,
+            query,
+        } = effect
+        {
+            let rows = crate::mvu::palette::match_rows(candidates, &query);
+            let _ = crate::mvu::update(
+                model,
+                AppMsg::Palette(crate::mvu::palette::PaletteMsg::Matched { id, request, rows }),
+            );
+        }
+    }
+}
+
+pub(super) fn palette_should_refresh_visible_commands_after_async_editor_replies() -> TestResult {
+    use crate::mvu::{
+        AppModel, EditorMsg, LibraryReply, UiError,
+        palette::{CommandId, CommandLabel, PaletteMsg},
+    };
+    let (fixture, note) = fixture("io.github.josbeir.Carver.PaletteEditorReplies")?;
+    let mut model = AppModel::new(&fixture.config);
+    let _ = crate::mvu::update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: note.id,
+            revision: note.revision,
+            source: note.source,
+        }),
+    );
+    model.editor.as_mut().ok_or("editor")?.pending_assets = 1;
+    let _ = crate::mvu::update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Changed text".into())),
+    );
+    let _ = crate::mvu::update(&mut model, AppMsg::Editor(EditorMsg::RetrySave));
+    let crate::mvu::EditorSaveState::Saving(request) =
+        model.editor.as_ref().ok_or("editor")?.save_state.clone()
+    else {
+        return Err("pending save".into());
+    };
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Palette(PaletteMsg::Opened {
+            labels: [
+                (CommandId::Format(crate::mvu::FormatCommand::Bold), "Bold"),
+                (CommandId::RetrySave, "Retry save"),
+            ]
+            .into_iter()
+            .map(|(command, title)| CommandLabel {
+                command,
+                title: title.into(),
+                aliases: String::new(),
+                icon: "document-edit-symbolic".into(),
+                shortcut: String::new(),
+            })
+            .collect(),
+            source_selection: 0..0,
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    let view = crate::ui::palette::PaletteView::default();
+    let dispatcher = crate::mvu::AppDispatcher::default();
+    view.render(&fixture.window, &dispatcher, &model);
+    let dialog = fixture.window.visible_dialog().ok_or("palette")?;
+    assert!(row(&dialog, "Bold").is_some_and(|row| !row.is_sensitive()));
+    assert!(row(&dialog, "Retry save").is_none());
+
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorSaved {
+            request: request.clone(),
+            move_error: None,
+            result: Err(UiError::new("offline")),
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    view.render(&fixture.window, &dispatcher, &model);
+    assert!(row(&dialog, "Retry save").is_some_and(|row| row.is_sensitive()));
+
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Library(LibraryReply::EditorAssetStored {
+            image: true,
+            session: request.session,
+            alt: String::new(),
+            source_target: None,
+            result: Ok("assets/image.png".into()),
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    view.render(&fixture.window, &dispatcher, &model);
+    assert!(row(&dialog, "Bold").is_some_and(|row| row.is_sensitive()));
+    assert_eq!(fixture.window.visible_dialog(), Some(dialog.clone()));
+    dialog.force_close();
+    fixture.window.close();
+    Ok(())
+}

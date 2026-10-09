@@ -423,3 +423,13 @@ fn attachment_labels_should_preserve_authored_nonbreaking_spaces() {
     let analysis = SourceAnalysis::parse(r"[Release\ Notes](assets/release.pdf)");
     assert_eq!(analysis.media()[0].label, "Release\u{a0}Notes");
 }
+#[test]
+fn block_quote_range_should_include_lazy_continuations_and_unicode_offsets() {
+    let source = "Héading\n\n> first\n続き\n\nAfter";
+    let analysis = SourceAnalysis::parse(source);
+    assert_eq!(analysis.block_quote_range_for(17..18), Some(9..19));
+    assert_eq!(
+        analysis.block_quote_range_for(9..source.chars().count()),
+        None
+    );
+}

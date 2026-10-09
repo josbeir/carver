@@ -156,6 +156,11 @@ impl SourceEdit {
     // Reuse the source editor's line transform; a second markup formatter would
     // normalize unrelated content instead of retaining the user's literal source.
     fn toggle_block_quote(&mut self) {
+        let analysis = carver_domain::source_analysis::SourceAnalysis::parse(&self.source);
+        if let Some(range) = analysis.block_quote_range_for(self.selected_line_range()) {
+            self.remove_block_quote(range);
+            return;
+        }
         let remove = self
             .selected_lines()
             .iter()
@@ -170,6 +175,36 @@ impl SourceEdit {
                 format!("> {line}")
             }
         });
+    }
+
+    fn remove_block_quote(&mut self, range: Range<usize>) {
+        let start = character_to_byte(&self.source, range.start).unwrap_or(self.source.len());
+        let end = character_to_byte(&self.source, range.end).unwrap_or(self.source.len());
+        // Nested quote ranges start after an enclosing prefix on their first line.
+        let prefix = self.source[..start].rsplit('\n').next().unwrap_or_default();
+        let replacement = self.source[start..end]
+            .split('\n')
+            .enumerate()
+            .map(|(index, line)| {
+                let (outside, content) = if index == 0 {
+                    ("", line)
+                } else if let Some(content) = line.strip_prefix(prefix) {
+                    (prefix, content)
+                } else {
+                    return line.to_owned();
+                };
+                match content
+                    .strip_prefix("> ")
+                    .or_else(|| (content == ">").then_some(""))
+                {
+                    Some(content) => format!("{outside}{content}"),
+                    None => line.to_owned(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let length = replacement.chars().count();
+        self.replace(range, &replacement, length);
     }
 
     fn toggle_code_block(&mut self) {

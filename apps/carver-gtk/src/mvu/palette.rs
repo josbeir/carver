@@ -855,7 +855,24 @@ fn execute(model: &mut AppModel, activation: Activation) -> Vec<Effect> {
     }
 }
 
-/// Rebuilds candidates after an external library/catalog change without changing the query.
+/// Captures command visibility, sensitivity, and active state for an open palette.
+pub(crate) fn command_states(model: &AppModel) -> Option<Vec<(bool, bool, bool)>> {
+    model.palette.as_ref().map(|palette| {
+        palette
+            .labels
+            .iter()
+            .map(|label| {
+                (
+                    available(model, label.command),
+                    disabled(model, label.command),
+                    active(model, label.command),
+                )
+            })
+            .collect()
+    })
+}
+
+/// Rebuilds candidates after catalog or command state changes without changing the query.
 pub(crate) fn refresh(model: &mut AppModel) -> Vec<Effect> {
     search(model)
 }
