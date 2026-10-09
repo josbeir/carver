@@ -610,6 +610,91 @@ fn finish_palette_matches(model: &mut crate::mvu::AppModel, effects: Vec<crate::
     }
 }
 
+fn command_label(
+    command: crate::mvu::palette::CommandId,
+    title: &str,
+) -> crate::mvu::palette::CommandLabel {
+    crate::mvu::palette::CommandLabel {
+        command,
+        title: title.into(),
+        aliases: String::new(),
+        icon: "document-edit-symbolic".into(),
+        shortcut: String::new(),
+    }
+}
+
+pub(super) fn palette_should_gate_base_mutations_while_definitions_reload() -> TestResult {
+    use crate::mvu::{
+        AppModel, LibraryReply, LoadState, Route, UiError,
+        palette::{CommandId, PaletteMsg},
+    };
+    let (fixture, _) = fixture("io.github.josbeir.Carver.PaletteBaseReplies")?;
+    let mut model = AppModel::new(&fixture.config);
+    model.route = Route::Base;
+    model.bases.selected = Some(fixture.base.id);
+    model.bases.definitions.state = LoadState::Ready(vec![fixture.base.clone()]);
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Palette(PaletteMsg::Opened {
+            labels: vec![
+                command_label(CommandId::ConfigureBase, "Configure Base"),
+                command_label(CommandId::DeleteBase, "Delete Base"),
+                command_label(CommandId::SearchBase, "Search Base rows"),
+                command_label(CommandId::RefreshBase, "Refresh Base"),
+            ],
+            source_selection: 0..0,
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    let view = crate::ui::palette::PaletteView::default();
+    let dispatcher = crate::mvu::AppDispatcher::default();
+    view.render(&fixture.window, &dispatcher, &model);
+    let dialog = fixture.window.visible_dialog().ok_or("palette")?;
+    assert!(row(&dialog, "Configure Base").is_some());
+    assert!(row(&dialog, "Delete Base").is_some());
+    let effects = crate::mvu::update(&mut model, AppMsg::Bases(BasesMsg::Reload));
+    finish_palette_matches(&mut model, effects);
+    view.render(&fixture.window, &dispatcher, &model);
+    assert!(row(&dialog, "Configure Base").is_none());
+    assert!(row(&dialog, "Delete Base").is_none());
+    assert!(row(&dialog, "Search Base rows").is_some());
+    assert!(row(&dialog, "Refresh Base").is_some());
+    let LoadState::Loading(request_id) = model.bases.definitions.state else {
+        return Err("loading definitions".into());
+    };
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasesLoaded {
+            request_id,
+            result: Err(UiError::new("offline")),
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    view.render(&fixture.window, &dispatcher, &model);
+    assert!(row(&dialog, "Configure Base").is_none());
+    assert!(row(&dialog, "Delete Base").is_none());
+    let effects = crate::mvu::update(&mut model, AppMsg::Bases(BasesMsg::Reload));
+    finish_palette_matches(&mut model, effects);
+    let LoadState::Loading(request_id) = model.bases.definitions.state else {
+        return Err("reloading definitions".into());
+    };
+    let effects = crate::mvu::update(
+        &mut model,
+        AppMsg::Library(LibraryReply::BasesLoaded {
+            request_id,
+            result: Ok(vec![fixture.base.clone()]),
+        }),
+    );
+    finish_palette_matches(&mut model, effects);
+    view.render(&fixture.window, &dispatcher, &model);
+    assert!(row(&dialog, "Configure Base").is_some());
+    assert!(row(&dialog, "Delete Base").is_some());
+    assert_eq!(fixture.window.visible_dialog(), Some(dialog.clone()));
+    dialog.force_close();
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn palette_should_refresh_visible_commands_after_async_editor_replies() -> TestResult {
     use crate::mvu::{
         AppModel, EditorMsg, LibraryReply, UiError,

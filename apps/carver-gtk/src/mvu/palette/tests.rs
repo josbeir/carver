@@ -84,9 +84,42 @@ fn preview_should_hide_formatting_and_keep_note_actions() {
 fn base_should_offer_configuration_without_ambiguous_creation() {
     let mut model = model();
     model.route = Route::Base;
-    model.bases.selected = Some(BaseId::new());
+    let id = BaseId::new();
+    model.bases.selected = Some(id);
+    model.bases.definitions.state = LoadState::Ready(vec![carver_sdk::BaseDefinition::defaults(
+        id,
+        "Projects".into(),
+        Vec::new(),
+        carver_sdk::Revision(1),
+    )]);
     assert!(available(&model, CommandId::ConfigureBase));
     assert!(!available(&model, CommandId::NewNote));
+}
+
+#[test]
+fn base_mutations_should_require_the_selected_definition_while_search_and_refresh_remain_available()
+{
+    let mut model = model();
+    model.route = Route::Base;
+    model.bases.selected = Some(BaseId::new());
+    for state in [
+        LoadState::Idle,
+        LoadState::Loading(RequestId(1)),
+        LoadState::Failed(UiError::new("offline")),
+        LoadState::Ready(Vec::new()),
+        LoadState::Ready(vec![carver_sdk::BaseDefinition::defaults(
+            BaseId::new(),
+            "Other".into(),
+            Vec::new(),
+            carver_sdk::Revision(1),
+        )]),
+    ] {
+        model.bases.definitions.state = state;
+        assert!(!available(&model, CommandId::ConfigureBase));
+        assert!(!available(&model, CommandId::DeleteBase));
+        assert!(available(&model, CommandId::SearchBase));
+        assert!(available(&model, CommandId::RefreshBase));
+    }
 }
 
 #[test]

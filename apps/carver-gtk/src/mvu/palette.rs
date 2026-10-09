@@ -398,8 +398,15 @@ fn available_at(model: &AppModel, command: CommandId, selection: Option<Range<us
         C::SearchNotes | C::RefreshBrowser | C::Import | C::Clipboard | C::MarkdownClipboard => {
             model.route == Route::Browser
         }
-        C::SearchBase | C::ConfigureBase | C::RefreshBase | C::DeleteBase => {
+        C::SearchBase | C::RefreshBase => {
             model.route == Route::Base && model.bases.selected.is_some()
+        }
+        C::ConfigureBase | C::DeleteBase => {
+            model.route == Route::Base
+                && model.bases.selected.is_some_and(|id| {
+                    matches!(&model.bases.definitions.state, LoadState::Ready(definitions)
+                        if definitions.iter().any(|definition| definition.id == id))
+                })
         }
         C::CloseBaseTabs => {
             model.route == Route::Base
