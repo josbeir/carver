@@ -44,32 +44,6 @@
   color: white;
 }
 
-/* Two selectable cards for the Base view mode, shown in the Configure dialog. */
-.base-view-card {
-  padding: 14px 12px;
-  border-radius: 12px;
-  border: 1px solid alpha(currentColor, 0.18);
-  background: transparent;
-}
-
-.base-view-card:hover {
-  background: alpha(currentColor, 0.06);
-}
-
-.base-view-card:checked {
-  border-color: @accent_bg_color;
-  background: alpha(@accent_bg_color, 0.16);
-}
-
-.base-view-card:checked:hover {
-  background: alpha(@accent_bg_color, 0.24);
-}
-
-/* The card sits in a toggle button, whose heavier weight should stay on the title. */
-.base-view-card-description {
-  font-weight: normal;
-}
-
 .category-count-badge.category-color-rose,
 .category-count-badge.category-color-tangerine,
 .category-count-badge.category-color-yellow,
@@ -155,16 +129,29 @@
   background: transparent;
 }
 
-/* GtkListView makes its full-width row hoverable. Keep that transparent and
- * apply the state only to the inner card, whose radius matches the surface. */
+/* GtkListView owns the full-width row for recycling and keyboard navigation.
+ * Render its hover and keyboard focus states on the rounded card instead. */
 .note-feed > row,
 .note-feed > row:hover,
-.note-feed > row:selected {
+.note-feed > row:selected,
+.note-feed > row:focus:focus-visible {
   background: transparent;
+  outline: none;
 }
 
 .note-feed > row:hover > .note-card {
   background: alpha(@accent_bg_color, 0.18);
+}
+
+.note-feed > row:focus:focus-visible > .note-card {
+  outline: 2px solid alpha(@accent_color, 0.5);
+  outline-offset: -2px;
+}
+
+@media (prefers-contrast: more) {
+  .note-feed > row:focus:focus-visible > .note-card {
+    outline-color: alpha(@accent_color, 0.8);
+  }
 }
 
 .note-feed row.note-card,

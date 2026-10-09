@@ -14,6 +14,7 @@ mod image_zoom;
 pub(crate) mod interactions;
 mod library;
 mod note_flow;
+mod note_focus;
 mod palette;
 mod preferences;
 mod printing;
@@ -144,6 +145,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     add::add_dialog_should_cancel_base_setup_when_closed_while_loading()?;
     bases::delete_base_should_require_confirmation_and_keep_notes()?;
     bases::base_search_should_open_and_clear_from_native_controls()?;
+    bases::base_view_rows_should_select_one_mode_when_activated()?;
     bases::configure_base_should_keep_the_form_in_the_scroll_viewport()?;
     bases::base_field_picker_should_add_a_valid_custom_path()?;
     bases::base_rule_controls_should_edit_rules_and_fields()?;
@@ -235,5 +237,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     templates::category_template_should_seed_notes_and_allow_blank_override()?;
     templates::template_editor_should_confirm_discard()?;
     templates::saving_as_template_should_copy_unsaved_editor_source()?;
+    note_focus::note_cards_should_keep_keyboard_focus_inside_the_card()?;
     Ok(())
 }

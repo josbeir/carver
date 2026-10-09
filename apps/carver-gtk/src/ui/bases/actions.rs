@@ -337,7 +337,7 @@ fn operator_combo(initial: Option<BaseFilterOperator>, id: u64) -> adw::ComboRow
     combo
 }
 
-/// Maps the list card's checked state to the persisted presentation.
+/// Maps the list radio button's checked state to the persisted presentation.
 fn base_view_from_active(list_active: bool) -> BaseView {
     if list_active {
         BaseView::List
@@ -346,37 +346,15 @@ fn base_view_from_active(list_active: bool) -> BaseView {
     }
 }
 
-/// Builds one selectable card describing a Base presentation.
-fn base_view_card(
-    widget_name: &str,
-    icon_name: &str,
-    title: &str,
-    description: &str,
-) -> gtk::ToggleButton {
-    let card = gtk::ToggleButton::new();
-    card.set_widget_name(widget_name);
-    card.add_css_class("flat");
-    card.add_css_class("base-view-card");
-    card.update_property(&[gtk::accessible::Property::Label(title)]);
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
-    content.set_halign(gtk::Align::Center);
-    content.set_valign(gtk::Align::Center);
-    let icon = gtk::Image::from_icon_name(icon_name);
-    icon.set_pixel_size(32);
-    icon.set_halign(gtk::Align::Center);
-    content.append(&icon);
-    let heading = gtk::Label::new(Some(title));
-    heading.add_css_class("heading");
-    content.append(&heading);
-    let body = gtk::Label::new(Some(description));
-    body.add_css_class("dim-label");
-    body.add_css_class("base-view-card-description");
-    body.set_wrap(true);
-    body.set_justify(gtk::Justification::Center);
-    body.set_max_width_chars(24);
-    content.append(&body);
-    card.set_child(Some(&content));
-    card
+/// Builds a standard preferences row with a radio button for a Base presentation.
+fn base_view_row(title: &str, description: &str, option: &gtk::CheckButton) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_title(title);
+    row.set_subtitle(description);
+    option.set_valign(gtk::Align::Center);
+    row.add_prefix(option);
+    row.set_activatable_widget(Some(option));
+    row
 }
 
 fn selected_filter_mode(combo: &adw::ComboRow) -> BaseFilterMode {
@@ -812,31 +790,26 @@ pub(crate) fn build_base_configuration_form(
     view_group.set_widget_name("base-view-section");
     view_group.set_title(&gettext("View"));
     view_group.set_description(Some(&gettext("Choose how this Base presents its notes.")));
-    let grid_option = base_view_card(
-        "base-view-grid",
-        "view-grid-symbolic",
-        &gettext("Grid"),
-        &gettext("Edit notes and properties directly in a table."),
-    );
-    let list_option = base_view_card(
-        "base-view-list",
-        "view-list-symbolic",
-        &gettext("Notes list"),
-        &gettext("Browse notes as read-only cards."),
-    );
-    // A single toggle group makes the two cards mutually exclusive.
+    let grid_option = gtk::CheckButton::new();
+    grid_option.set_widget_name("base-view-grid");
+    let list_option = gtk::CheckButton::new();
+    list_option.set_widget_name("base-view-list");
     list_option.set_group(Some(&grid_option));
     if matches!(definition.view, BaseView::List) {
         list_option.set_active(true);
     } else {
         grid_option.set_active(true);
     }
-    let view_options = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    view_options.set_widget_name("base-view-options");
-    view_options.set_homogeneous(true);
-    view_options.append(&grid_option);
-    view_options.append(&list_option);
-    view_group.add(&view_options);
+    view_group.add(&base_view_row(
+        &gettext("Grid"),
+        &gettext("Edit notes and properties directly in a table."),
+        &grid_option,
+    ));
+    view_group.add(&base_view_row(
+        &gettext("Notes list"),
+        &gettext("Browse notes as read-only cards."),
+        &list_option,
+    ));
     page.add(&view_group);
 
     let catalog = FieldCatalog::new(definition, property_descriptors, default_properties);

@@ -589,6 +589,15 @@ fn bind_browser_row(
         return;
     };
     let feed_item = object.borrow::<BrowserFeedItem>();
+    let is_note = matches!(
+        &*feed_item,
+        BrowserFeedItem::Favorite(_) | BrowserFeedItem::Note(_)
+    );
+    // Headings and empty states must not become invisible keyboard stops. Rows
+    // with controls still let GTK focus their child button directly.
+    item.set_focusable(is_note);
+    item.set_activatable(is_note);
+    item.set_selectable(false);
     let target = match &*feed_item {
         BrowserFeedItem::FavoritesHeading => "favorites-heading",
         BrowserFeedItem::Favorite(_) | BrowserFeedItem::Note(_) => "card",
