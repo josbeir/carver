@@ -58,7 +58,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     gtk::disable_portals();
     glib::set_application_name("Carver test");
     gtk::init()?;
-    note_focus::note_cards_should_keep_keyboard_focus_inside_the_card()?;
     rendering::rendering_preference_should_refresh_previews_without_saving()?;
     rendering::code_fences_should_be_highlighted_in_previews_and_source()?;
     rendering::code_blocks_should_anchor_the_picker_and_keep_diff_lines_inline()?;
@@ -224,5 +223,6 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     templates::category_template_should_seed_notes_and_allow_blank_override()?;
     templates::template_editor_should_confirm_discard()?;
     templates::saving_as_template_should_copy_unsaved_editor_source()?;
+    note_focus::note_cards_should_keep_keyboard_focus_inside_the_card()?;
     Ok(())
 }
