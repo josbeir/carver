@@ -384,11 +384,27 @@ pub(super) fn palette_shortcut_should_work_and_suppress_nested_dialogs() -> Test
     }
     let scroll = widget_as::<gtk::ScrolledWindow>(dialog.upcast_ref(), "palette-scroller")
         .ok_or("scroller")?;
-    assert!(run_main_context_until(|| scroll.vadjustment().value() > 0.0));
+    assert!(
+        run_main_context_until(|| scroll.vadjustment().value() > 0.0),
+        "selected={:?}, bounds={:?}, adjustment={}/{}, list height={}",
+        list.selected_row().map(|row| row.index()),
+        list.selected_row()
+            .and_then(|row| row.compute_bounds(&list)),
+        scroll.vadjustment().upper(),
+        scroll.vadjustment().page_size(),
+        list.height()
+    );
     let selected = list.selected_row().ok_or("selected row")?;
     let bounds = selected.compute_bounds(&list).ok_or("row bounds")?;
     let bottom = f64::from(bounds.y() + bounds.height());
     assert!(bottom <= scroll.vadjustment().value() + scroll.vadjustment().page_size() + 1.0);
+    // A viewport relayout can reset the value before publishing the new scroll range.
+    let adjustment = scroll.vadjustment();
+    adjustment.set_value(0.0);
+    assert_eq!(adjustment.value(), 0.0);
+    adjustment.emit_by_name::<()>("changed", &[]);
+    assert!(adjustment.value() > 0.0);
+    assert!(bottom <= adjustment.value() + adjustment.page_size() + 1.0);
     assert!(navigation.emit_by_name::<bool>(
         "key-pressed",
         &[

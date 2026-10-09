@@ -65,6 +65,16 @@ impl PaletteView {
             handle
         } else {
             let handle = Rc::new(build(parent, dispatcher, palette.id));
+            // The viewport updates its adjustment after allocating rebuilt rows.
+            let weak_handle = Rc::downgrade(&handle);
+            handle
+                .scroll
+                .vadjustment()
+                .connect_changed(move |adjustment| {
+                    if let Some(handle) = weak_handle.upgrade() {
+                        scroll_to_selection(&handle.list, adjustment);
+                    }
+                });
             self.handle.replace(Some(Rc::clone(&handle)));
             handle
         };
@@ -234,10 +244,10 @@ fn build(parent: &adw::ApplicationWindow, dispatcher: &AppDispatcher, id: Reques
     }
 }
 
-// A query rebuilds rows before GTK allocates them. Repeat the scroll after layout,
-// reading the latest selected row so fast arrow presses cannot scroll an old result.
+// A query rebuilds rows before GTK allocates them. Retry until both row bounds and
+// the viewport range are ready, reading the latest selection after fast arrow presses.
 fn keep_selection_visible(handle: &Rc<Handle>) {
-    scroll_to_selection(handle);
+    scroll_to_selection(&handle.list, &handle.scroll.vadjustment());
     if handle.scroll_pending.replace(true) {
         return;
     }
@@ -246,7 +256,7 @@ fn keep_selection_visible(handle: &Rc<Handle>) {
         let Some(handle) = weak_handle.upgrade() else {
             return glib::ControlFlow::Break;
         };
-        if scroll_to_selection(&handle) {
+        if scroll_to_selection(&handle.list, &handle.scroll.vadjustment()) {
             handle.scroll_pending.set(false);
             glib::ControlFlow::Break
         } else {
@@ -255,21 +265,22 @@ fn keep_selection_visible(handle: &Rc<Handle>) {
     });
 }
 
-fn scroll_to_selection(handle: &Handle) -> bool {
-    let Some(row) = handle.list.selected_row() else {
+fn scroll_to_selection(list: &gtk::ListBox, adjustment: &gtk::Adjustment) -> bool {
+    let Some(row) = list.selected_row() else {
         return true;
     };
     let Some(bounds) = row
-        .compute_bounds(&handle.list)
+        .compute_bounds(list)
         .filter(|bounds| bounds.height() > 0.0)
     else {
         return false;
     };
     let top = f64::from(bounds.y());
-    handle
-        .scroll
-        .vadjustment()
-        .clamp_page(top, top + f64::from(bounds.height()));
+    let bottom = top + f64::from(bounds.height());
+    if adjustment.page_size() <= 0.0 || adjustment.upper() < bottom {
+        return false;
+    }
+    adjustment.clamp_page(top, bottom);
     true
 }
 
