@@ -155,16 +155,29 @@
   background: transparent;
 }
 
-/* GtkListView makes its full-width row hoverable. Keep that transparent and
- * apply the state only to the inner card, whose radius matches the surface. */
+/* GtkListView owns the full-width row for recycling and keyboard navigation.
+ * Render its hover and keyboard focus states on the rounded card instead. */
 .note-feed > row,
 .note-feed > row:hover,
-.note-feed > row:selected {
+.note-feed > row:selected,
+.note-feed > row:focus:focus-visible {
   background: transparent;
+  outline: none;
 }
 
 .note-feed > row:hover > .note-card {
   background: alpha(@accent_bg_color, 0.18);
+}
+
+.note-feed > row:focus:focus-visible > .note-card {
+  outline: 2px solid alpha(@accent_color, 0.5);
+  outline-offset: -2px;
+}
+
+@media (prefers-contrast: more) {
+  .note-feed > row:focus:focus-visible > .note-card {
+    outline-color: alpha(@accent_color, 0.8);
+  }
 }
 
 .note-feed row.note-card,
