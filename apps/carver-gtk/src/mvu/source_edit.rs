@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 mod input;
-pub use input::{SourceInput, SourceInputOutcome};
+pub use input::{SourceInput, SourceInputOutcome, SourcePlaceholder};
 
 /// A source-formatting instruction supplied by a GTK adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]

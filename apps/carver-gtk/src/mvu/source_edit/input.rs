@@ -1,6 +1,8 @@
 //! Pure structural keyboard input. GTK only classifies and dispatches these instructions.
 
-use carver_domain::source_analysis::{ListPrefix, ListPrefixError, SourceAnalysis, quote_prefix};
+use carver_domain::source_analysis::{
+    ListPrefix, ListPrefixError, SourceAnalysis, quote_prefix, quote_prefix_at_depth,
+};
 
 use super::{SourceEdit, character_offset_at_byte, character_to_byte};
 use std::ops::Range;
@@ -25,6 +27,38 @@ pub enum SourceInputOutcome {
     Noop,
     /// Ordinary editing owns this input.
     Native,
+}
+
+/// Decorative guidance for the active unfinished source marker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourcePlaceholder {
+    /// An unfinished bullet or ordered list item.
+    ListItem,
+    /// An unfinished task, including Carve's custom checkbox states.
+    Task,
+}
+
+impl SourcePlaceholder {
+    /// Classifies a bare marker at the end cursor without changing canonical source.
+    #[must_use]
+    pub fn at(source: &str, analysis: &SourceAnalysis, selection: Range<usize>) -> Option<Self> {
+        if !selection.is_empty() || analysis.protects_editing(selection.clone()) {
+            return None;
+        }
+        let line = Line::at(source, selection.start)?;
+        if selection.start != line.range.end {
+            return None;
+        }
+        let prefix = ListPrefix::parse(line.text, None)?;
+        if !line.text.get(prefix.content_start..)?.trim().is_empty() {
+            return None;
+        }
+        Some(if prefix.is_task() {
+            Self::Task
+        } else {
+            Self::ListItem
+        })
+    }
 }
 
 struct Line<'a> {
@@ -390,13 +424,15 @@ fn nest(
     let mut mapping = Vec::new();
     let mut old_offset = context.range.start;
     let mut new_offset = context.range.start;
+    let quote_depth = prefix.quote.bytes().filter(|byte| *byte == b'>').count();
     for (index, line) in source[start_byte..end_byte].split('\n').enumerate() {
         if index > 0 {
             replacement.push('\n');
             old_offset += 1;
             new_offset += 1;
         }
-        let (quote, rest) = quote_prefix(line);
+        // Only enclosing quotes stay fixed; descendant block markers move with the item.
+        let (quote, rest) = quote_prefix_at_depth(line, quote_depth);
         let indent_bytes = rest.len() - rest.trim_start_matches([' ', '\t']).len();
         let old_indent = carver_domain::source_analysis::columns(&rest[..indent_bytes]);
         let new_indent = if target > prefix.indent {

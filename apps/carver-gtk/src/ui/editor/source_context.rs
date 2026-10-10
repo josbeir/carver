@@ -10,7 +10,7 @@ use super::source_commands::selection_from_buffer;
 /// Owns the current parse snapshot used by source toolbar and breadcrumb projections.
 #[derive(Clone)]
 pub(crate) struct SourceContextCache {
-    buffer: gtk::TextBuffer,
+    buffer: glib::WeakRef<gtk::TextBuffer>,
     analysis: Rc<RefCell<Arc<SourceAnalysis>>>,
 }
 
@@ -18,7 +18,7 @@ impl SourceContextCache {
     /// Creates a projection awaiting the first immutable MVU analysis snapshot.
     pub(crate) fn new(buffer: &gtk::TextBuffer) -> Self {
         Self {
-            buffer: buffer.clone(),
+            buffer: buffer.downgrade(),
             analysis: Rc::new(RefCell::new(Arc::new(SourceAnalysis::default()))),
         }
     }
@@ -30,20 +30,33 @@ impl SourceContextCache {
 
     /// Classifies input without holding a projection borrow during MVU dispatch.
     pub(crate) fn accepts(&self, input: crate::mvu::SourceInput) -> bool {
-        let source = self
-            .buffer
-            .text(&self.buffer.start_iter(), &self.buffer.end_iter(), false);
+        let Some(buffer) = self.buffer.upgrade() else {
+            return false;
+        };
+        let source = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
         input.accepts(
             &source,
             &self.analysis.borrow(),
-            selection_from_buffer(&self.buffer),
+            selection_from_buffer(&buffer),
         )
     }
 
     /// Returns the context enclosing the current cursor or complete selection.
     pub(crate) fn context(&self) -> Option<SourceContext> {
+        let buffer = self.buffer.upgrade()?;
         self.analysis
             .borrow()
-            .context_for(selection_from_buffer(&self.buffer))
+            .context_for(selection_from_buffer(&buffer))
+    }
+
+    /// Projects guidance using the structural planner's unfinished-marker rules.
+    pub(crate) fn placeholder(&self) -> Option<crate::mvu::SourcePlaceholder> {
+        let buffer = self.buffer.upgrade()?;
+        let source = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+        crate::mvu::SourcePlaceholder::at(
+            &source,
+            &self.analysis.borrow(),
+            selection_from_buffer(&buffer),
+        )
     }
 }

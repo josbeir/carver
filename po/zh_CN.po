@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-09 22:01+0200\n"
+"POT-Creation-Date: 2026-10-10 12:09+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -1633,6 +1633,14 @@ msgstr "此笔记的属性存储在其 frontmatter 中。可在“首选项”�
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Type"
 msgstr "类型"
+
+#: apps/carver-gtk/src/ui/editor/source_placeholder.rs
+msgid "List item"
+msgstr "列表项"
+
+#: apps/carver-gtk/src/ui/editor/source_placeholder.rs
+msgid "Task"
+msgstr "任务"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
 #: apps/carver-gtk/src/ui/palette/catalog.rs

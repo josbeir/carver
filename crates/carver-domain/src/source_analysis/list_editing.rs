@@ -81,20 +81,20 @@ impl<'a> ListPrefix<'a> {
         let BlockNode::List(list) = document.children.first()? else {
             return None;
         };
-        let task_end = separator_end.checked_add(4)?;
+        let task_end = separator_end.checked_add(3)?;
         let task_probe = line
             .get(separator_end..task_end)
             .filter(|prefix| {
                 prefix.starts_with('[')
-                    && prefix.as_bytes().get(2) == Some(&b']')
-                    && prefix.ends_with(' ')
+                    && prefix.ends_with(']')
+                    && (task_end == line.len() || line.as_bytes().get(task_end) == Some(&b' '))
             })
-            .map(|box_prefix| carve::parse(&format!("- {box_prefix}{PROBE}")));
+            .map(|box_prefix| carve::parse(&format!("- {box_prefix} {PROBE}")));
         let task = task_probe.as_ref().is_some_and(|document| {
             matches!(document.children.first(), Some(BlockNode::List(list)) if list.items.first().is_some_and(|item| item.checked.is_some()))
         }) && !list.ordered;
         let content_start = if task {
-            whitespace_end(line, task_end - 1)
+            whitespace_end(line, task_end)
         } else {
             separator_end
         };
@@ -117,7 +117,13 @@ impl<'a> ListPrefix<'a> {
             content_column,
             quote,
             separator,
-            task_separator: task.then(|| &line[task_end - 1..content_start]),
+            task_separator: task.then(|| {
+                if task_end == content_start {
+                    " "
+                } else {
+                    &line[task_end..content_start]
+                }
+            }),
             ordered_type: dialect,
             ordered: list.ordered,
             ordinal,
@@ -193,8 +199,17 @@ impl<'a> ListPrefix<'a> {
 /// Returns the literal quote prefix and remaining text of a physical line.
 #[must_use]
 pub fn quote_prefix(line: &str) -> (&str, &str) {
+    quote_prefix_at_depth(line, usize::MAX)
+}
+
+/// Returns at most `depth` enclosing quote markers and the remaining physical line.
+///
+/// Markers beyond this depth belong to nested content and remain in the returned body.
+/// Existing whitespace is preserved; a zero depth returns an empty prefix.
+#[must_use]
+pub fn quote_prefix_at_depth(line: &str, depth: usize) -> (&str, &str) {
     let mut end = 0;
-    loop {
+    for _ in 0..depth {
         let whitespace = whitespace_end(line, end);
         if line.as_bytes().get(whitespace) != Some(&b'>') {
             break;

@@ -1,6 +1,16 @@
 use super::*;
 
 #[test]
+fn quote_prefix_should_preserve_nested_markers_beyond_the_requested_depth() {
+    let line = " >\t>   > café";
+    assert_eq!(quote_prefix_at_depth(line, 0), ("", line));
+    assert_eq!(quote_prefix_at_depth(line, 1), (" >", "\t>   > café"));
+    assert_eq!(quote_prefix_at_depth(line, 2), (" >\t> ", "  > café"));
+    assert_eq!(quote_prefix(line), (" >\t>   > ", "café"));
+    assert_eq!(quote_prefix_at_depth("plain", 2), ("", "plain"));
+}
+
+#[test]
 fn successor_should_preserve_every_carve_list_dialect() -> Result<(), Box<dyn std::error::Error>> {
     for (source, expected) in [
         ("- text", "- "),
@@ -35,11 +45,19 @@ fn successor_should_follow_the_enclosing_roman_dialect() -> Result<(), Box<dyn s
 fn prefix_should_accept_empty_items_and_every_task_state() -> Result<(), Box<dyn std::error::Error>>
 {
     for state in [' ', 'x', 'X', '-', '_', '>', '?'] {
-        let source = format!("- [{state}] ");
-        let prefix = ListPrefix::parse(&source, None).ok_or("list prefix")?;
-        assert!(prefix.is_task());
-        assert_eq!(prefix.content_start, source.len());
-        assert_eq!(prefix.successor()?, "- [ ] ");
+        for separator in ["", " ", "  \t"] {
+            let source = format!("- [{state}]{separator}");
+            let prefix = ListPrefix::parse(&source, None).ok_or("list prefix")?;
+            assert!(prefix.is_task());
+            assert_eq!(prefix.content_start, source.len());
+            assert_eq!(
+                prefix.successor()?,
+                format!(
+                    "- [ ]{}",
+                    if separator.is_empty() { " " } else { separator }
+                )
+            );
+        }
     }
     assert!(ListPrefix::parse("- ", None).is_some());
     Ok(())

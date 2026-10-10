@@ -5,7 +5,7 @@ use std::ops::Range;
 use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_options, to_plain_text};
 
 mod list_editing;
-pub use list_editing::{ListPrefix, ListPrefixError, columns, quote_prefix};
+pub use list_editing::{ListPrefix, ListPrefixError, columns, quote_prefix, quote_prefix_at_depth};
 
 /// A semantic AST node suitable for source-editor context and syntax styling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

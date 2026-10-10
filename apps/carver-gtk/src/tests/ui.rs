@@ -89,7 +89,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::rich_changes_should_be_ignored_while_another_mode_is_active()?;
     source_input::enter_should_continue_and_exit_source_lists_with_native_undo()?;
     source_input::tab_should_move_source_subtrees_and_restore_selection()?;
+    source_input::tab_should_move_nested_quotes_and_preserve_native_undo()?;
     source_input::source_input_should_preserve_native_keys_and_ime_composition()?;
+    source_input::ghost_text_should_follow_bare_markers_without_editing_the_buffer()?;
+    source_input::ghost_text_should_keep_its_source_position_font_and_read_only_load()?;
     source_input::source_list_edits_should_round_trip_and_persist_canonical_content()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;

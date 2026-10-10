@@ -51,6 +51,7 @@ mod render;
 pub(crate) mod source;
 pub(crate) mod source_commands;
 mod source_context;
+mod source_placeholder;
 mod toolbar;
 mod web;
 
@@ -90,6 +91,7 @@ pub(crate) struct EditorViewRefs {
     source_buffer: gtk::TextBuffer,
     source_editor: SourceEditor,
     source_context: SourceContextCache,
+    source_placeholder: source_placeholder::SourcePlaceholderView,
     split_preview: webkit6::WebView,
     split_navigation: document_navigation::PreviewNavigation,
     rendered_navigation: document_navigation::PreviewNavigation,
@@ -253,6 +255,7 @@ impl EditorViewRefs {
         );
         self.find.set_mode(document.mode);
         self.rendering.set(false);
+        self.source_placeholder.refresh();
         if new_document {
             self.loaded_session.replace(Some(document.session));
         }
@@ -792,6 +795,11 @@ pub(crate) fn build_editor(
         &remote_images,
         &document_appearance,
     );
+    let source_placeholder = source_placeholder::SourcePlaceholderView::new(
+        source.upcast_ref(),
+        &pages.source_scroll,
+        &source_context,
+    );
     // Select the configured mode before the switcher notify handler is connected, so the surface
     // never flashes the default page while the first document loads.
     editor_stack.set_visible_child_name(editor_mode_page(mode));
@@ -929,6 +937,7 @@ pub(crate) fn build_editor(
         source_buffer,
         source_editor,
         source_context,
+        source_placeholder,
         split_preview,
         split_navigation,
         rendered_navigation,

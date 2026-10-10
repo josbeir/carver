@@ -1,5 +1,87 @@
 use super::*;
 
+#[test]
+fn placeholder_should_classify_bare_markers_without_changing_source() {
+    for (source, expected) in [
+        ("- ", SourcePlaceholder::ListItem),
+        ("*  ", SourcePlaceholder::ListItem),
+        ("9) ", SourcePlaceholder::ListItem),
+        (". ", SourcePlaceholder::ListItem),
+        ("iv. ", SourcePlaceholder::ListItem),
+        ("h. café\ni. ", SourcePlaceholder::ListItem),
+        ("> >   -{#item} ", SourcePlaceholder::ListItem),
+        ("# café☕\n\n- [ ]", SourcePlaceholder::Task),
+        ("- [ ] ", SourcePlaceholder::Task),
+        ("* [X]  ", SourcePlaceholder::Task),
+        ("> - [?] ", SourcePlaceholder::Task),
+        ("- [-] ", SourcePlaceholder::Task),
+        ("- [_] ", SourcePlaceholder::Task),
+        ("- [>] ", SourcePlaceholder::Task),
+    ] {
+        let analysis = SourceAnalysis::parse(source);
+        let cursor = source.chars().count();
+        assert_eq!(
+            SourcePlaceholder::at(source, &analysis, cursor..cursor),
+            Some(expected),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn placeholder_should_hide_for_content_invalid_markers_and_literal_blocks() {
+    for source in [
+        "",
+        "-",
+        "---",
+        "- café",
+        "- [ ] café",
+        "- [!] ",
+        "1. [ ] ",
+        "- [ ]x",
+        "- [ ]\t",
+        "- item\n    ",
+        "> ",
+        "```\n- [ ] ",
+    ] {
+        let analysis = SourceAnalysis::parse(source);
+        let cursor = source.chars().count();
+        assert_eq!(
+            SourcePlaceholder::at(source, &analysis, cursor..cursor),
+            None,
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn placeholder_should_follow_only_an_end_cursor_without_a_selection() {
+    let source = "- [ ] \n- ";
+    let analysis = SourceAnalysis::parse(source);
+    for selection in [0..0, 2..2, 5..5, 2..6, 0..source.chars().count(), 99..99] {
+        assert_eq!(SourcePlaceholder::at(source, &analysis, selection), None);
+    }
+    assert_eq!(
+        SourcePlaceholder::at(source, &analysis, 6..6),
+        Some(SourcePlaceholder::Task)
+    );
+}
+
+#[test]
+fn placeholder_should_hide_inside_frontmatter_and_fenced_code()
+-> Result<(), Box<dyn std::error::Error>> {
+    for source in ["---\ntitle: note\n- \n---", "```\n- \n```", "%%%\n- \n%%%"] {
+        let cursor = source.find("- \n").ok_or("fixture marker")? + 2;
+        let analysis = SourceAnalysis::parse(source);
+        assert_eq!(
+            SourcePlaceholder::at(source, &analysis, cursor..cursor),
+            None,
+            "{source}"
+        );
+    }
+    Ok(())
+}
+
 fn edit(
     source: &str,
     selection: Range<usize>,
@@ -260,6 +342,63 @@ fn nesting_should_preserve_quoted_list_prefixes() -> Result<(), Box<dyn std::err
         SourceInput::OutdentList,
     )?;
     assert_eq!(lifted.source(), source);
+    Ok(())
+}
+
+#[test]
+fn tab_should_move_nested_quote_markers_with_their_item() -> Result<(), Box<dyn std::error::Error>>
+{
+    for (source, expected) in [
+        (
+            "- prev\n- item\n  > café\n  > > nested",
+            "- prev\n  - item\n    > café\n    > > nested",
+        ),
+        (
+            "> - prev\n> - item\n>   > café",
+            "> - prev\n>   - item\n>     > café",
+        ),
+        (
+            "> > - prev\n> > - item\n> >   > café",
+            "> > - prev\n> >   - item\n> >     > café",
+        ),
+        (
+            "- prev\n- item\n  ```\n  > literal\n  ```",
+            "- prev\n  - item\n    ```\n    > literal\n    ```",
+        ),
+    ] {
+        let cursor = source.find("item").ok_or("fixture")? + 4;
+        let nested = edit(source, cursor..cursor, SourceInput::IndentList)?;
+        assert_eq!(nested.source(), expected);
+        assert_eq!(nested.selection(), cursor + 2..cursor + 2);
+    }
+    Ok(())
+}
+
+#[test]
+fn shift_tab_should_move_nested_quote_markers_with_their_item()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (source, expected) in [
+        (
+            "- prev\n  - item\n    > café\n    > > nested",
+            "- prev\n- item\n  > café\n  > > nested",
+        ),
+        (
+            "> - prev\n>   - item\n>     > café",
+            "> - prev\n> - item\n>   > café",
+        ),
+        (
+            "> > - prev\n> >   - item\n> >     > café",
+            "> > - prev\n> > - item\n> >   > café",
+        ),
+    ] {
+        let cursor = source.chars().count();
+        let lifted = edit(source, cursor..cursor, SourceInput::OutdentList)?;
+        assert_eq!(lifted.source(), expected);
+        assert_eq!(
+            lifted.selection(),
+            expected.chars().count()..expected.chars().count()
+        );
+    }
     Ok(())
 }
 
