@@ -123,7 +123,7 @@ jobs:
       - name: Rust coverage
         run: |
           mkdir -p coverage
-          ./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 85 \
+          ./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 90 \
             --lcov --output-path coverage/lcov.info -- --include-ignored --test-threads=1
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

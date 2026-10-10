@@ -158,10 +158,10 @@ git diff --check
 Run `cargo fmt --all` before `check-translations.sh`.
 
 CI's authoritative coverage tool is `cargo-llvm-cov`, not Tarpaulin. The coverage gate is
-85% line coverage and must include ignored GTK interaction tests:
+90% line coverage and must include ignored GTK interaction tests:
 
 ```sh
-./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 85 -- \
+./scripts/with-weston.sh cargo llvm-cov --workspace --all-features --locked --fail-under-lines 90 -- \
   --include-ignored --test-threads=1
 ```
 
