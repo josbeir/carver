@@ -95,6 +95,20 @@
 }
 
 @layer components {
+  /* Shared by carousel captions, the full-size link, and the lightbox caption. */
+  .screenshot-overlay {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid rgb(255 255 255 / 40%);
+    border-radius: 0.5rem;
+    background: rgb(255 255 255 / 72%);
+    color: #17352b;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-align: center;
+  }
+
   /*
     Layered, low-contrast backdrop for the hero. Several soft radial tints at
     low opacity read as depth, where a single gradient band reads as an obvious

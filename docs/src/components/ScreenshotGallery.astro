@@ -47,6 +47,7 @@ const slides = Object.entries(shots).map(([name, shot]) => ({
 </section>
 
 <script>
+  import PhotoSwipe from 'photoswipe';
   import PhotoSwipeLightbox from 'photoswipe/lightbox';
   import type Swiper from 'swiper';
 
@@ -57,7 +58,8 @@ const slides = Object.entries(shots).map(([name, shot]) => ({
   const lightbox = new PhotoSwipeLightbox({
     gallery: '#screenshots',
     children: 'a[data-gallery-item]',
-    pswpModule: () => import('photoswipe'),
+    // Load the viewer with this script rather than requesting a dev-server module on click.
+    pswpModule: PhotoSwipe,
     mainClass: 'carver-lightbox',
     returnFocus: false,
     bgOpacity: 0.94,
@@ -106,6 +108,7 @@ const slides = Object.entries(shots).map(([name, shot]) => ({
     lightbox.pswp?.element?.setAttribute('aria-modal', 'true');
     lightbox.pswp?.ui?.registerElement({
       name: 'caption',
+      className: 'pswp__caption screenshot-overlay',
       appendTo: 'root',
       isButton: false,
       onInit: (element, pswp) => {
@@ -182,14 +185,6 @@ const slides = Object.entries(shots).map(([name, shot]) => ({
     transform: translateX(-50%);
     width: max-content;
     max-width: calc(100% - 32px);
-    padding: 12px 22px;
-    border: 1px solid #fff8e726;
-    border-radius: 18px;
-    background: #17352bf2;
-    color: #fff8e7;
-    font-size: 15px;
-    line-height: 1.5;
-    text-align: center;
     pointer-events: none;
   }
 </style>

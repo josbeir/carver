@@ -124,6 +124,8 @@ buttons, Swiper keyboard arrows, and Home/End while focused.
 The gallery thumbnails follow the theme and mark the current screenshot. Without
 JavaScript, the captures remain a native scroll-snap strip with direct image links.
 
-Its PhotoSwipe lightbox loads the full-size WebP and viewer on demand, follows the
-site theme, and supports zoom, swipe, arrow keys, and Escape. Carousel and lightbox
-transitions respect reduced-motion preferences; neither advances automatically.
+Its PhotoSwipe viewer loads with the gallery script; full-size WebP images load on
+demand. It follows the site theme and supports zoom, swipe, arrow keys, and Escape.
+Carousel and lightbox captions share compact, translucent backgrounds with a subtle
+backdrop blur. Transitions respect reduced-motion preferences; neither advances
+automatically.
