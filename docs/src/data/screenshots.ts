@@ -107,8 +107,8 @@ export const shots: Partial<Record<ShotName, Shot>> = {
   },
 };
 
-/** One labelled slide in the Properties & Bases carousel. */
-export interface BaseViewSlide {
+/** One labelled screenshot in a carousel. */
+export interface ScreenshotSlide {
   label: string;
   shot: Shot;
 }
@@ -117,7 +117,7 @@ export interface BaseViewSlide {
  * The Base workflow shown in the Properties & Bases section: build a saved
  * view, choose how it presents notes, then switch between the grid and list.
  */
-export const baseViewSlides: BaseViewSlide[] = [
+export const baseViewSlides: ScreenshotSlide[] = [
   {
     label: 'A saved Base built from your frontmatter properties',
     shot: {

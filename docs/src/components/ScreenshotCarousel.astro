@@ -1,61 +1,109 @@
 ---
-import type { BaseViewSlide } from '../data/screenshots';
+import { getImage } from 'astro:assets';
+import 'swiper/css';
+import type { ScreenshotSlide } from '../data/screenshots';
 import ThemedScreenshot from './ThemedScreenshot.astro';
 
 interface Props {
-  slides: BaseViewSlide[];
+  slides: ScreenshotSlide[];
   /** Accessible name for the carousel region. */
   label: string;
   /** Responsive sizes hint handed to each screenshot. */
   sizes?: string;
+  /** Show a strip of small screenshot buttons. */
+  thumbnails?: boolean;
+  /** Link each screenshot to the gallery's full-size lightbox. */
+  zoom?: boolean;
 }
 
 const {
   slides,
   label,
   sizes = '(min-width: 1152px) 744px, (min-width: 1024px) 65vw, calc(100vw - 32px)',
+  thumbnails = false,
+  zoom = false,
 } = Astro.props;
+
+const images = await Promise.all(
+  slides.map(async (slide) => {
+    const full = zoom
+      ? await Promise.all([
+          getImage({ src: slide.shot.light, format: 'webp', quality: 90 }),
+          getImage({ src: slide.shot.dark, format: 'webp', quality: 90 }),
+        ])
+      : undefined;
+    const thumbs = thumbnails
+      ? await Promise.all([
+          getImage({ src: slide.shot.light, width: 240, format: 'webp', quality: 80 }),
+          getImage({ src: slide.shot.dark, width: 240, format: 'webp', quality: 80 }),
+        ])
+      : undefined;
+    return { ...slide, full, thumbs };
+  }),
+);
 ---
 
-<!-- Note: the root avoids daisyUI's `carousel` class on purpose. That component
-     is itself an `overflow-x: scroll` scroller whose `display: inline-flex`
-     would squash the layout. The track below is a native scroll-snap scroller
-     with just enough gap and padding for the screenshot's drop shadow. -->
 <div
   class="shot-carousel"
   data-carousel
-  role="group"
+  role="region"
   aria-roledescription="carousel"
   aria-label={label}
 >
-  <div
-    class="shot-carousel__track"
-    data-carousel-track
-    tabindex="0"
-    aria-label={`${label} screenshots`}
-  >
-    {slides.map((slide, index) => (
-      <div
-        class="shot-carousel__slide"
-        data-carousel-slide
-        role="group"
-        aria-roledescription="slide"
-        aria-label={`${index + 1} of ${slides.length}: ${slide.label}`}
-      >
-        <ThemedScreenshot shot={slide.shot} shadow="soft" sizes={sizes} loading="eager" />
-        <p class="shot-carousel__caption">{slide.label}</p>
+  <div class="shot-carousel__stage rounded-xl shadow-[0_6px_18px_rgba(0,0,0,0.12)] dark:shadow-[0_6px_18px_rgba(0,0,0,0.55)]">
+    <div class="swiper shot-carousel__main" data-carousel-main tabindex="0">
+      <div class="swiper-wrapper">
+        {images.map((slide, index) => (
+          <div
+            class="swiper-slide"
+            data-carousel-slide
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`${index + 1} of ${slides.length}: ${slide.label}`}
+          >
+            {slide.full ? (
+              <a
+                href={slide.full[0].src}
+                data-gallery-item
+                data-dark-src={slide.full[1].src}
+                data-pswp-width={slide.shot.light.width}
+                data-pswp-height={slide.shot.light.height}
+                data-dark-width={slide.shot.dark.width}
+                data-dark-height={slide.shot.dark.height}
+                aria-label={`Enlarge screenshot: ${slide.label}`}
+                class="shot-carousel__image-link"
+              >
+                <ThemedScreenshot
+                  shot={{ ...slide.shot, caption: undefined }}
+                  shadow="none"
+                  sizes={sizes}
+                />
+                <span data-gallery-caption class="sr-only">
+                  {slide.label}
+                </span>
+              </a>
+            ) : (
+              <ThemedScreenshot shot={slide.shot} shadow="none" sizes={sizes} />
+            )}
+            <p class="shot-carousel__caption">
+              {slide.label}
+              <span aria-hidden="true">
+                {index + 1} / {slides.length}
+              </span>
+            </p>
+          </div>
+        ))}
       </div>
-    ))}
-  </div>
+    </div>
 
-  {slides.length > 1 && (
-    <>
-      <button
-        type="button"
-        class="shot-carousel__button shot-carousel__button--prev"
-        data-carousel-prev
-        aria-label={`Previous: ${label}`}
-      >
+    {zoom && (
+      <button type="button" class="shot-carousel__zoom" data-gallery-zoom hidden>
+        View full size ↗
+      </button>
+    )}
+
+    <div class="shot-carousel__controls" data-carousel-controls hidden>
+      <button type="button" data-carousel-prev aria-label={`Previous: ${label}`}>
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -68,12 +116,10 @@ const {
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
-      <button
-        type="button"
-        class="shot-carousel__button shot-carousel__button--next"
-        data-carousel-next
-        aria-label={`Next: ${label}`}
-      >
+      <p data-carousel-status class="sr-only" aria-live="polite" aria-atomic="true">
+        1 / {slides.length}
+      </p>
+      <button type="button" data-carousel-next aria-label={`Next: ${label}`}>
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -86,120 +132,296 @@ const {
           <path d="M9 6l6 6-6 6" />
         </svg>
       </button>
-    </>
+    </div>
+  </div>
+
+  {thumbnails && (
+    <div
+      class="swiper shot-carousel__thumbs"
+      data-carousel-thumbs
+      hidden
+      aria-label={`${label} thumbnails`}
+    >
+      <div class="swiper-wrapper">
+        {images.map((slide, index) => (
+          <div class="swiper-slide">
+            <button
+              type="button"
+              data-carousel-thumbnail={index}
+              aria-label={`Show screenshot ${index + 1}: ${slide.label}`}
+              aria-current={index === 0 ? 'true' : undefined}
+              title={slide.label}
+            >
+              <img
+                src={slide.thumbs?.[0].src}
+                {...slide.thumbs?.[0].attributes}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                class="block dark:hidden"
+              />
+              <img
+                src={slide.thumbs?.[1].src}
+                {...slide.thumbs?.[1].attributes}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                class="hidden dark:block"
+              />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )}
 </div>
 
 <script>
-  document.querySelectorAll('[data-carousel]').forEach((carousel) => {
-    const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
+  import Swiper from 'swiper';
+  import { A11y, FreeMode, Keyboard, Navigation, Thumbs } from 'swiper/modules';
+
+  for (const carousel of document.querySelectorAll<HTMLElement>('[data-carousel]')) {
+    const main = carousel.querySelector<HTMLElement>('[data-carousel-main]');
     const prev = carousel.querySelector<HTMLButtonElement>('[data-carousel-prev]');
     const next = carousel.querySelector<HTMLButtonElement>('[data-carousel-next]');
-    if (!track || !prev || !next) return;
-    const slides = [...track.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
-    if (slides.length < 2) return;
+    const controls = carousel.querySelector<HTMLElement>('[data-carousel-controls]');
+    const status = carousel.querySelector<HTMLElement>('[data-carousel-status]');
+    const thumbsElement = carousel.querySelector<HTMLElement>('[data-carousel-thumbs]');
+    if (!main || !prev || !next || !controls || !status) continue;
+    const slides = [...main.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    const buttons = [...carousel.querySelectorAll<HTMLButtonElement>('[data-carousel-thumbnail]')];
+    if (slides.length < 2) continue;
 
-    // Distance between two slide starts, including the flex gap.
-    const step = () => slides[1].offsetLeft - slides[0].offsetLeft;
-    const nearest = () => Math.round(track.scrollLeft / step());
-
-    const update = () => {
-      prev.disabled = track.scrollLeft <= 1;
-      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+    controls.hidden = false;
+    if (thumbsElement) thumbsElement.hidden = false;
+    carousel.dataset.enhanced = '';
+    const thumbs = thumbsElement
+      ? new Swiper(thumbsElement, {
+          modules: [FreeMode],
+          slidesPerView: 'auto',
+          spaceBetween: 10,
+          freeMode: true,
+          watchSlidesProgress: true,
+        })
+      : undefined;
+    const update = (swiper: Swiper) => {
+      // Move focus before the previously active image becomes inert.
+      if (main.contains(document.activeElement) && document.activeElement !== main) {
+        main.focus({ preventScroll: true });
+      }
+      slides.forEach((slide, index) => {
+        slide.inert = index !== swiper.activeIndex;
+      });
+      buttons.forEach((button, index) => {
+        if (index === swiper.activeIndex) button.setAttribute('aria-current', 'true');
+        else button.removeAttribute('aria-current');
+      });
+      status.textContent = `${swiper.activeIndex + 1} / ${slides.length}`;
     };
-
-    const goTo = (index: number) => {
-      const target = Math.max(0, Math.min(slides.length - 1, index));
-      track.scrollTo({ left: target * step(), behavior: 'smooth' });
-    };
-
-    prev.addEventListener('click', () => goTo(nearest() - 1));
-    next.addEventListener('click', () => goTo(nearest() + 1));
-    track.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    update();
-  });
+    const swiper = new Swiper(main, {
+      modules: [Navigation, A11y, Thumbs, Keyboard],
+      slidesPerView: 1,
+      spaceBetween: 24,
+      // Keep desktop image clicks native while retaining touch swipes.
+      simulateTouch: false,
+      speed: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280,
+      navigation: { prevEl: prev, nextEl: next },
+      keyboard: { enabled: true, onlyInViewport: true, pageUpDown: false },
+      thumbs: thumbs ? { swiper: thumbs, autoScrollOffset: 1 } : undefined,
+      a11y: {
+        prevSlideMessage: prev.getAttribute('aria-label') ?? '',
+        nextSlideMessage: next.getAttribute('aria-label') ?? '',
+      },
+      on: {
+        init: update,
+        slideChange: update,
+        keyPress: (swiper) => {
+          if (document.activeElement?.hasAttribute('data-carousel-thumbnail')) {
+            buttons[swiper.activeIndex]?.focus({ preventScroll: true });
+          }
+        },
+      },
+    });
+    // Swiper's document-level keyboard handler should only control the focused carousel.
+    swiper.keyboard.disable();
+    carousel.addEventListener('focusin', () => swiper.keyboard.enable());
+    carousel.addEventListener('focusout', (event) => {
+      if (!(event.relatedTarget instanceof Node) || !carousel.contains(event.relatedTarget)) {
+        swiper.keyboard.disable();
+      }
+    });
+    buttons.forEach((button, index) => {
+      // Native button clicks also cover Enter/Space, unlike Swiper's touch tap event.
+      button.addEventListener('click', () => swiper.slideTo(index));
+    });
+    carousel.addEventListener('keydown', (event) => {
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.defaultPrevented
+      )
+        return;
+      if (!['Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      switch (event.key) {
+        case 'Home':
+          swiper.slideTo(0);
+          break;
+        case 'End':
+          swiper.slideTo(slides.length - 1);
+          break;
+      }
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest('[data-carousel-thumbnail]')
+      ) {
+        buttons[swiper.activeIndex]?.focus({ preventScroll: true });
+      } else {
+        main.focus({ preventScroll: true });
+      }
+    });
+  }
 </script>
 
 <style>
   .shot-carousel {
+    min-width: 0;
+  }
+  .shot-carousel [hidden] {
+    display: none !important;
+  }
+  .shot-carousel__stage {
     position: relative;
   }
-  /* The 1rem gap and matching padding give the drop shadow room while the clip
-   * still ends exactly where the next slide begins, so no neighbour peeks in.
-   * `margin` cancels the padding so the slides stay the width of the column. */
-  .shot-carousel__track {
-    display: flex;
-    gap: 1rem;
+  /* Without JavaScript, the same full-size image links remain a native snap scroller. */
+  .shot-carousel:not([data-enhanced]) .shot-carousel__main {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    scroll-behavior: smooth;
-    scroll-padding-inline: 1rem;
-    scrollbar-width: none;
-    padding: 1.5rem 1rem;
-    margin: -1.5rem -1rem;
   }
-  .shot-carousel__track::-webkit-scrollbar {
-    display: none;
+  .shot-carousel:not([data-enhanced]) .swiper-wrapper {
+    gap: 1.5rem;
   }
-  .shot-carousel__slide {
+  .shot-carousel:not([data-enhanced]) [data-carousel-slide] {
     flex: 0 0 100%;
     scroll-snap-align: start;
   }
+  .shot-carousel__main {
+    border-radius: inherit;
+  }
+  .shot-carousel__image-link {
+    position: relative;
+    display: block;
+    border-radius: 0.75rem;
+    cursor: zoom-in;
+  }
+  .shot-carousel__zoom {
+    position: absolute;
+    z-index: 3;
+    right: 0.75rem;
+    top: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    background: rgb(16 34 25 / 88%);
+    color: #fff8e7;
+    font-size: 0.75rem;
+    cursor: zoom-in;
+  }
   .shot-carousel__caption {
-    /* Clear the screenshot's bottom drop shadow. */
-    margin-top: 1.5rem;
+    position: absolute;
+    z-index: 1;
+    left: 50%;
+    bottom: 0.75rem;
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    padding: 0.5rem 0.875rem;
+    border: 1px solid rgb(255 255 255 / 65%);
+    border-radius: 0.75rem;
+    background: rgb(255 255 255 / 85%);
+    color: #17352b;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
+    transform: translateX(-50%);
+    pointer-events: none;
     text-align: center;
     font-size: 0.875rem;
     line-height: 1.5;
-    color: color-mix(in oklab, currentColor 70%, transparent);
   }
-  .shot-carousel__button {
+  .shot-carousel__caption span {
+    display: inline-block;
+    margin-left: 0.625rem;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.65;
+  }
+  .shot-carousel__controls {
     position: absolute;
-    top: 50%;
-    z-index: 1;
-    display: inline-flex;
+    z-index: 2;
+    inset: 0;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    padding: 0;
-    border: 1px solid rgb(255 255 255 / 22%);
-    border-radius: 9999px;
-    background: rgb(20 20 24 / 55%);
-    color: #fff;
-    box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
-    backdrop-filter: blur(8px);
-    cursor: pointer;
-    transform: translateY(-50%);
-    transition:
-      opacity 140ms ease,
-      background-color 140ms ease;
-  }
-  .shot-carousel__button:hover:not(:disabled) {
-    background: rgb(20 20 24 / 78%);
-  }
-  .shot-carousel__button:disabled {
-    opacity: 0;
+    justify-content: space-between;
+    padding: 0.75rem;
     pointer-events: none;
   }
-  .shot-carousel__button:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
+  .shot-carousel__controls button {
+    display: grid;
+    place-items: center;
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid rgb(255 255 255 / 65%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 85%);
+    color: #17352b;
+    box-shadow: 0 2px 12px rgb(0 0 0 / 12%);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+    cursor: pointer;
   }
-  .shot-carousel__button svg {
-    width: 1.5rem;
-    height: 1.5rem;
+  .shot-carousel__controls button:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
-  .shot-carousel__button--prev {
-    left: 0.75rem;
+  .shot-carousel__controls button:not(:disabled):hover {
+    background: #fff;
   }
-  .shot-carousel__button--next {
-    right: 0.75rem;
+  .shot-carousel__controls svg {
+    width: 1.25rem;
+    height: 1.25rem;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .shot-carousel__track {
-      scroll-behavior: auto;
-    }
+  .shot-carousel__thumbs {
+    margin-top: 0.75rem;
+    padding: 0.375rem;
+  }
+  .shot-carousel__thumbs .swiper-slide {
+    width: clamp(4.5rem, 8vw, 6rem);
+  }
+  .shot-carousel__thumbs button {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    opacity: 0.6;
+    cursor: pointer;
+  }
+  .shot-carousel__thumbs button[aria-current] {
+    border-color: var(--color-primary);
+    opacity: 1;
+  }
+  .shot-carousel__thumbs button:hover {
+    opacity: 1;
+  }
+  .shot-carousel__thumbs img {
+    width: 100%;
+    height: auto;
+  }
+  .shot-carousel__main:focus-visible,
+  .shot-carousel button:focus-visible,
+  .shot-carousel__image-link:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
   }
 </style>

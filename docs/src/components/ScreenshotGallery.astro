@@ -1,8 +1,7 @@
 ---
-import { getImage } from 'astro:assets';
 import 'photoswipe/style.css';
 import { shots, type ShotName } from '../data/screenshots';
-import ThemedScreenshot from './ThemedScreenshot.astro';
+import ScreenshotCarousel from './ScreenshotCarousel.astro';
 
 const captions: Record<ShotName, string> = {
   editor: 'Write and format freely',
@@ -17,15 +16,10 @@ const captions: Record<ShotName, string> = {
   settings: 'Make yourself at home',
 };
 
-const gallery = await Promise.all(
-  Object.entries(shots).map(async ([name, shot]) => {
-    const [light, dark] = await Promise.all([
-      getImage({ src: shot.light, format: 'webp', quality: 90 }),
-      getImage({ src: shot.dark, format: 'webp', quality: 90 }),
-    ]);
-    return { name, shot, light, dark };
-  }),
-);
+const slides = Object.entries(shots).map(([name, shot]) => ({
+  label: captions[name as ShotName],
+  shot,
+}));
 ---
 
 <section
@@ -37,45 +31,35 @@ const gallery = await Promise.all(
       Take a look around
     </h2>
     <p class="mx-auto mt-3 max-w-3xl text-center text-lg/8 text-base-content/75">
-      From a quiet page to a library full of ideas, explore Carver in action. Select a screenshot
-      for a closer look.
+      From a quiet page to a library full of ideas, explore Carver in action. Browse the thumbnails
+      and select the large screenshot for a closer look.
     </p>
-    <div class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {gallery.map(({ name, shot, light, dark }) => (
-        <a
-          href={light.src}
-          data-gallery-item
-          data-dark-src={dark.src}
-          data-pswp-width={shot.light.width}
-          data-pswp-height={shot.light.height}
-          data-dark-width={shot.dark.width}
-          data-dark-height={shot.dark.height}
-          aria-label={`Enlarge screenshot: ${captions[name as ShotName]}`}
-          class="group relative block cursor-zoom-in rounded-xl transition-transform motion-safe:hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-        >
-          <ThemedScreenshot
-            shot={{ ...shot, caption: undefined }}
-            shadow="none"
-            class="shadow-[0_4px_14px_rgba(0,0,0,0.10)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
-            sizes="(min-width: 1152px) 357px, (min-width: 1024px) calc((100vw - 80px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), calc(100vw - 32px)"
-          />
-          <p data-gallery-caption class="mt-2 px-1 text-center text-xs/5 text-base-content/70">
-            {captions[name as ShotName]}
-          </p>
-        </a>
-      ))}
+    <div class="mx-auto mt-8 max-w-5xl">
+      <ScreenshotCarousel
+        slides={slides}
+        label="Carver screenshots"
+        sizes="(min-width: 1088px) 1024px, calc(100vw - 32px)"
+        thumbnails
+        zoom
+      />
     </div>
   </div>
 </section>
 
 <script>
   import PhotoSwipeLightbox from 'photoswipe/lightbox';
+  import type Swiper from 'swiper';
+
+  const carousel = document.querySelector<HTMLElement & { swiper?: Swiper }>(
+    '#screenshots [data-carousel-main]',
+  );
 
   const lightbox = new PhotoSwipeLightbox({
     gallery: '#screenshots',
     children: 'a[data-gallery-item]',
     pswpModule: () => import('photoswipe'),
     mainClass: 'carver-lightbox',
+    returnFocus: false,
     bgOpacity: 0.94,
     paddingFn: (viewport) => ({
       top: 72,
@@ -138,7 +122,14 @@ const gallery = await Promise.all(
   });
 
   let previousOverflow = '';
+  lightbox.on('change', () => {
+    const index = lightbox.pswp?.currIndex;
+    if (index !== undefined) carousel?.swiper?.slideTo(index, 0);
+  });
   lightbox.on('beforeOpen', () => {
+    document
+      .querySelectorAll<HTMLElement & { swiper?: Swiper }>('[data-carousel-main]')
+      .forEach((element) => element.swiper?.keyboard.disable());
     previousOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = 'hidden';
     if (lightbox.pswp) {
@@ -148,10 +139,24 @@ const gallery = await Promise.all(
       lightbox.pswp.options.zoomAnimationDuration = reducedMotion ? 0 : 280;
     }
   });
+  lightbox.on('bindEvents', () => {
+    lightbox.pswp?.element?.focus({ preventScroll: true });
+  });
   lightbox.on('destroy', () => {
     document.documentElement.style.overflow = previousOverflow;
+    carousel
+      ?.querySelector<HTMLElement>('[data-carousel-slide]:not([inert]) [data-gallery-item]')
+      ?.focus({ preventScroll: true });
   });
   lightbox.init();
+
+  const zoom = document.querySelector<HTMLButtonElement>('#screenshots [data-gallery-zoom]');
+  if (zoom) {
+    zoom.hidden = false;
+    zoom.addEventListener('click', () => {
+      lightbox.loadAndOpen(carousel?.swiper?.activeIndex ?? 0);
+    });
+  }
 </script>
 
 <style is:global>
