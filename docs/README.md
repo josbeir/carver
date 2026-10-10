@@ -117,8 +117,15 @@ Write, Organize, and Connect, with one screenshot per group. Its tabs support ar
 keys and Home/End; without JavaScript all three sections remain readable in order.
 The existing screenshot collection is retained for future documentation.
 
-The screenshot gallery includes every captured view with a caption. Its PhotoSwipe
-lightbox loads the full-size WebP and viewer on demand, follows the site theme,
-and supports zoom, swipe, arrow keys, and Escape. Captions remain visible in the
-grid, and links open the image directly when JavaScript is unavailable. Opening
-and zoom transitions respect reduced-motion preferences.
+The screenshot gallery presents one large capture with its caption and controls
+over the image, and a strip of small thumbnails directly underneath. It shares
+the Swiper carousel with the Base examples, with touch navigation, previous/next
+buttons, Swiper keyboard arrows, and Home/End while focused.
+The gallery thumbnails follow the theme and mark the current screenshot. Without
+JavaScript, the captures remain a native scroll-snap strip with direct image links.
+
+Its PhotoSwipe viewer loads with the gallery script; full-size WebP images load on
+demand. It follows the site theme and supports zoom, swipe, arrow keys, and Escape.
+Carousel and lightbox captions share compact, translucent backgrounds with a subtle
+backdrop blur. Transitions respect reduced-motion preferences; neither advances
+automatically.

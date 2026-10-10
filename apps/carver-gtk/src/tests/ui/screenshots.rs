@@ -508,6 +508,7 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
     assert_web_script_should_be_true(&rich, "document.body.innerText.includes('Weekly review')");
     scroll_web_view_to_top(&rich);
     capture_theme_pair(fixture, directory, "editor")?;
+    capture_command_palette(fixture, directory)?;
 
     // Carve source with the live preview split.
     editor_stack.set_visible_child_name("source");
@@ -559,6 +560,31 @@ fn capture_scenes(fixture: &WindowFixture, directory: &Path, showcase: &Showcase
 
     // Leave the app in the light theme.
     apply_color_scheme(false);
+    Ok(())
+}
+
+fn capture_command_palette(fixture: &WindowFixture, directory: &Path) -> TestResult {
+    gtk::prelude::WidgetExt::activate_action(&fixture.window, crate::ui::palette::ACTION, None)?;
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_some_and(
+            |dialog| dialog.widget_name() == "command-palette-dialog"
+        )));
+    let dialog = fixture.window.visible_dialog().ok_or("command palette")?;
+    let results = widget_as::<gtk::ListBox>(dialog.upcast_ref(), "palette-results")
+        .ok_or("palette results")?;
+    let status =
+        widget_as::<gtk::Label>(dialog.upcast_ref(), "palette-status").ok_or("palette status")?;
+    assert!(run_main_context_until(|| !status.is_visible()
+        && results.row_at_index(0).is_some()
+        && results.height() > 0));
+    capture_theme_pair(fixture, directory, "palette")?;
+    dialog.close();
+    assert!(run_main_context_until(|| fixture
+        .window
+        .visible_dialog()
+        .is_none()));
     Ok(())
 }
 
@@ -755,14 +781,23 @@ fn scroll_web_view_to_top(view: &webkit6::WebView) {
 /// Renders a widget to a PNG at `SCALE`, matching the on-screen presentation.
 fn capture_widget(widget: &gtk::Widget, path: &Path) -> TestResult {
     let paintable = gtk::WidgetPaintable::new(Some(widget));
-    let snapshot = gtk::Snapshot::new();
-    snapshot.scale(SCALE, SCALE);
-    paintable.snapshot(
-        &snapshot,
-        f64::from(widget.width()),
-        f64::from(widget.height()),
-    );
-    let node = snapshot.to_node().ok_or("snapshot node")?;
+    // A theme change can invalidate GTK's cached frame even after layout settles.
+    // Keep pumping the main loop until the paintable has drawable contents.
+    let node = std::cell::RefCell::new(None);
+    let _ = run_main_context_until(|| {
+        let snapshot = gtk::Snapshot::new();
+        snapshot.scale(SCALE, SCALE);
+        paintable.snapshot(
+            &snapshot,
+            f64::from(widget.width()),
+            f64::from(widget.height()),
+        );
+        *node.borrow_mut() = snapshot.to_node();
+        node.borrow().is_some()
+    });
+    let node = node
+        .into_inner()
+        .ok_or_else(|| format!("no drawable snapshot for {}", path.display()))?;
     let renderer = widget
         .native()
         .and_then(|native| native.renderer())

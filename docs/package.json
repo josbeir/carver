@@ -21,6 +21,7 @@
     "daisyui": "^5.7.46",
     "photoswipe": "^5.4.4",
     "sharp": "^0.35.5",
+    "swiper": "^14.3.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"
   },
