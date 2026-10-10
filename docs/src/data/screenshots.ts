@@ -16,6 +16,8 @@ import libraryDark from '../assets/screenshots/library-dark.png';
 import libraryLight from '../assets/screenshots/library-light.png';
 import mediaDark from '../assets/screenshots/media-dark.png';
 import mediaLight from '../assets/screenshots/media-light.png';
+import paletteDark from '../assets/screenshots/palette-dark.png';
+import paletteLight from '../assets/screenshots/palette-light.png';
 import searchDark from '../assets/screenshots/search-dark.png';
 import searchLight from '../assets/screenshots/search-light.png';
 import settingsDark from '../assets/screenshots/settings-dark.png';
@@ -41,13 +43,27 @@ export interface Shot {
  * slot while a capture is still pending.
  */
 export type ShotName =
-  'editor' | 'media' | 'focus' | 'source' | 'bases' | 'agent' | 'library' | 'search' | 'settings';
+  | 'editor'
+  | 'palette'
+  | 'media'
+  | 'focus'
+  | 'source'
+  | 'bases'
+  | 'agent'
+  | 'library'
+  | 'search'
+  | 'settings';
 
 export const shots: Partial<Record<ShotName, Shot>> = {
   editor: {
     alt: "Editing a note in Carver's rich text editor",
     light: editorLight,
     dark: editorDark,
+  },
+  palette: {
+    alt: "Carver's command palette with writing commands and keyboard shortcuts",
+    light: paletteLight,
+    dark: paletteDark,
   },
   media: {
     alt: "A note's images and attachments in the document sidebar",

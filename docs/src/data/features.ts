@@ -23,7 +23,11 @@ export const featureAreas: FeatureArea[] = [
     title: 'Make room for your next idea.',
     summary:
       'Jot down a quick thought or settle into a longer draft. Write in rich text or edit Carve source, with images, checklists, and tables close at hand.',
-    points: ['Rich text, source, and preview', 'Adjust the tools and panels to suit your writing.'],
+    points: [
+      'Rich text, source, and preview',
+      'Adjust the tools and panels to suit your writing.',
+      'Open the command palette with Ctrl+Shift+P to find commands and jump to notes.',
+    ],
     shot: shots.source,
   },
   {
