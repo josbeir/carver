@@ -16,6 +16,39 @@ fn source_input_model(source: &str) -> AppModel {
 }
 
 #[test]
+fn mode_switch_should_preserve_the_unsaved_source_and_pending_save()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut model = source_input_model("Saved source");
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::SourceChanged("Unsaved source".into())),
+    );
+    let _ = update(&mut model, AppMsg::Editor(EditorMsg::AutosaveRequested));
+    let before = model.editor.clone().ok_or("editor")?;
+    let preview_timer = model.preview_timer;
+
+    for mode in [
+        carver_config::EditorMode::Rich,
+        carver_config::EditorMode::Rendered,
+        carver_config::EditorMode::Source,
+    ] {
+        let effects = update(
+            &mut model,
+            AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)),
+        );
+        let mut expected = before.clone();
+        expected.mode = mode;
+        assert_eq!(model.editor.as_ref(), Some(&expected));
+        assert_eq!(model.preview_timer, preview_timer);
+        assert!(!effects.iter().any(|effect| matches!(
+            effect,
+            Effect::SaveNote { .. } | Effect::ScheduleEditorSave { .. }
+        )));
+    }
+    Ok(())
+}
+
+#[test]
 fn source_enter_should_commit_one_generation_and_schedule_preview_save_and_selection()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut model = source_input_model("- item");

@@ -114,6 +114,7 @@ pub(crate) struct EditorViewRefs {
     rendered_appearance: DocumentAppearanceCache,
     loaded_session: RefCell<Option<EditorSessionId>>,
     source_generation: Cell<u64>,
+    rendered_mode: Cell<EditorMode>,
     dispatcher: AppDispatcher,
     assets_dir: Option<std::path::PathBuf>,
     asset_scope: preview::AssetScope,
@@ -148,6 +149,8 @@ impl EditorViewRefs {
         self.rendering.set(true);
         let generation_changed = self.source_generation.replace(document.source_generation)
             != document.source_generation;
+        let entering_rich = self.rendered_mode.replace(document.mode) != EditorMode::Rich
+            && document.mode == EditorMode::Rich;
         self.favorite.set_active(document.is_favorite);
         let favorite_label = if document.is_favorite {
             gettext("Remove from Favorites")
@@ -228,7 +231,7 @@ impl EditorViewRefs {
                 presentation_changed,
             );
         }
-        if new_document || remote_images_changed {
+        if new_document || remote_images_changed || entering_rich {
             if remote_images_changed {
                 self.rich.reload_with_remote_images(
                     &document.source,
@@ -863,17 +866,7 @@ pub(crate) fn build_editor(
         &editor_stack,
     );
 
-    connect_mode_stack(
-        dispatcher,
-        &editor_stack,
-        &toolbar,
-        &rich,
-        &source_buffer,
-        &split_toggle,
-        &split_preview_state.supported,
-        &rendering,
-        &find,
-    );
+    connect_mode_stack(dispatcher, &editor_stack, &rendering);
     connect_rich_fallback(dispatcher, &rich);
     connect_split_toggle(
         dispatcher,
@@ -971,6 +964,7 @@ pub(crate) fn build_editor(
         rendered_appearance: document_appearance,
         loaded_session: RefCell::new(None),
         source_generation: Cell::new(0),
+        rendered_mode: Cell::new(mode),
         dispatcher: dispatcher.clone(),
         assets_dir,
         asset_scope,
@@ -1204,55 +1198,18 @@ fn default_document_appearance() -> web::DocumentAppearance {
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one place wires the mode switcher to its shared editor surfaces"
-)]
 fn connect_mode_stack(
     dispatcher: &AppDispatcher,
     editor_stack: &adw::ViewStack,
-    toolbar: &Toolbar,
-    rich: &RichEditor,
-    source_buffer: &gtk::TextBuffer,
-    split_toggle: &gtk::ToggleButton,
-    split_supported: &Rc<Cell<bool>>,
     rendering: &Rc<Cell<bool>>,
-    find: &FindController,
 ) {
     let dispatcher = dispatcher.clone();
-    let toolbar = toolbar.clone();
-    let rich = rich.clone();
-    let source = source_buffer.clone();
-    let split_toggle = split_toggle.clone();
-    let split_supported = Rc::clone(split_supported);
     let rendering = Rc::clone(rendering);
-    let find = find.clone();
     editor_stack.connect_visible_child_name_notify(move |stack| {
         if rendering.get() {
             return;
         }
         let mode = view_mode(stack);
-        let was_rendering = rendering.replace(true);
-        match mode {
-            EditorMode::Source => {
-                toolbar.set_mode(EditorMode::Source);
-                split_toggle.set_sensitive(split_supported.get());
-            }
-            EditorMode::Rendered => {
-                toolbar.set_mode(EditorMode::Rendered);
-                split_toggle.set_active(false);
-                split_toggle.set_sensitive(false);
-            }
-            EditorMode::Rich => {
-                let source_text = source.text(&source.start_iter(), &source.end_iter(), false);
-                rich.load_source(&source_text);
-                toolbar.set_mode(EditorMode::Rich);
-                split_toggle.set_active(false);
-                split_toggle.set_sensitive(false);
-            }
-        }
-        find.set_mode(mode);
-        rendering.set(was_rendering);
         let _ = dispatcher.dispatch(AppMsg::Preferences(PreferencesMsg::SetEditorMode(mode)));
     });
 }
