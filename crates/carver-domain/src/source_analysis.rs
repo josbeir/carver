@@ -4,6 +4,9 @@ use std::ops::Range;
 
 use carve::{BlockNode, EmphasisKind, InlineNode, Options, Pos, parse_with_options, to_plain_text};
 
+mod list_editing;
+pub use list_editing::{ListPrefix, ListPrefixError, columns, quote_prefix};
+
 /// A semantic AST node suitable for source-editor context and syntax styling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceNodeKind {
@@ -157,6 +160,24 @@ pub struct SourceAnalysis {
     media: Vec<MediaOccurrence>,
     headings: Vec<HeadingOccurrence>,
     title: String,
+    list_items: Vec<SourceListItem>,
+}
+
+/// A positioned list item and the relationships needed to move its complete subtree.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceListItem {
+    /// Character range including the item's descendants and continuation content.
+    pub range: Range<usize>,
+    /// Character range of the physical line carrying this item's marker.
+    pub marker_line: Range<usize>,
+    /// Character range of the list containing this item.
+    pub list: Range<usize>,
+    /// Index of the enclosing item, when this list is nested.
+    pub parent: Option<usize>,
+    /// Index of the preceding sibling in the same list.
+    pub previous: Option<usize>,
+    /// Parsed ordered-list dialect, resolving ambiguous Roman letters.
+    pub ordered_type: Option<carve::OrderedListType>,
 }
 
 /// One positioned heading in authored document order.
@@ -215,9 +236,26 @@ impl SourceAnalysis {
             );
         }
         for block in &document.children {
-            analysis.visit_block(block, &mut path);
+            analysis.visit_block(block, &mut path, None);
         }
         let chars: Vec<char> = source.chars().collect();
+        let line_starts: Vec<usize> = std::iter::once(0)
+            .chain(
+                chars
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(offset, character)| (*character == '\n').then_some(offset + 1)),
+            )
+            .collect();
+        for item in &mut analysis.list_items {
+            let line = line_starts
+                .partition_point(|start| *start <= item.range.start)
+                .saturating_sub(1);
+            item.marker_line = line_starts[line]
+                ..line_starts
+                    .get(line + 1)
+                    .map_or(chars.len(), |start| start - 1);
+        }
         for heading in &mut analysis.headings {
             let mut start = heading.range.start;
             while start < heading.range.end && chars.get(start) == Some(&'#') {
@@ -287,6 +325,44 @@ impl SourceAnalysis {
         &self.headings
     }
 
+    /// Returns list items in document order, with parents preceding descendants.
+    #[must_use]
+    pub fn list_items(&self) -> &[SourceListItem] {
+        &self.list_items
+    }
+
+    /// Returns the innermost list item enclosing the selection, including its end cursor.
+    #[must_use]
+    pub fn list_item_for(&self, selection: Range<usize>) -> Option<usize> {
+        self.list_items
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, item)| {
+                (item.range.start <= selection.start && selection.end <= item.range.end)
+                    .then_some(index)
+            })
+    }
+
+    /// Whether structural editing must defer to ordinary source editing at this selection.
+    #[must_use]
+    pub fn protects_editing(&self, selection: Range<usize>) -> bool {
+        self.nodes.iter().any(|node| {
+            node.range.start <= selection.start
+                && selection.end <= node.range.end
+                && matches!(
+                    node.path.last(),
+                    Some(
+                        SourceNodeKind::Frontmatter
+                            | SourceNodeKind::CodeBlock
+                            | SourceNodeKind::Raw
+                            | SourceNodeKind::Comment
+                            | SourceNodeKind::Table
+                    )
+                )
+        })
+    }
+
     fn push(&mut self, pos: Option<&Pos>, kind: SourceNodeKind, path: &mut Vec<SourceNodeKind>) {
         path.push(kind);
         if let Some(range) = pos.and_then(pos_range) {
@@ -304,7 +380,12 @@ impl SourceAnalysis {
     // CONTEXT: Keeping structural variants and their child traversal together makes the
     // outermost-to-innermost path lifecycle explicit.
     #[expect(clippy::too_many_lines)]
-    fn visit_block(&mut self, block: &BlockNode, path: &mut Vec<SourceNodeKind>) {
+    fn visit_block(
+        &mut self,
+        block: &BlockNode,
+        path: &mut Vec<SourceNodeKind>,
+        list_parent: Option<usize>,
+    ) {
         match block {
             BlockNode::Heading(node) => {
                 if let Some(range) = node.pos.as_ref().and_then(pos_range) {
@@ -347,40 +428,20 @@ impl SourceAnalysis {
                             path,
                         );
                         for child in &description.children {
-                            self.visit_block(child, path);
+                            self.visit_block(child, path, list_parent);
                         }
                         Self::pop(path);
                     }
                 }
                 Self::pop(path);
             }
-            BlockNode::List(node) => {
-                let kind = if node.ordered {
-                    SourceNodeKind::OrderedList
-                } else {
-                    SourceNodeKind::UnorderedList
-                };
-                self.push(node.pos.as_ref(), kind, path);
-                for item in &node.items {
-                    self.push(
-                        item.pos.as_ref(),
-                        SourceNodeKind::ListItem {
-                            task: item.checked.is_some(),
-                        },
-                        path,
-                    );
-                    for child in &item.children {
-                        self.visit_block(child, path);
-                    }
-                    Self::pop(path);
-                }
-                Self::pop(path);
-            }
+            BlockNode::List(node) => self.visit_list(node, path, list_parent),
             BlockNode::BlockQuote(node) => self.container(
                 node.pos.as_ref(),
                 SourceNodeKind::BlockQuote,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::Table(node) => {
                 self.push(node.pos.as_ref(), SourceNodeKind::Table, path);
@@ -408,24 +469,28 @@ impl SourceAnalysis {
                 SourceNodeKind::Container,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::Div(node) => self.container(
                 node.pos.as_ref(),
                 SourceNodeKind::Container,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::LineBlock(node) => self.container(
                 node.pos.as_ref(),
                 SourceNodeKind::Container,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::FigureGroup(node) => self.container(
                 node.pos.as_ref(),
                 SourceNodeKind::Container,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::BlockImage(node) => {
                 self.record_media(
@@ -449,6 +514,7 @@ impl SourceAnalysis {
                 SourceNodeKind::Container,
                 &node.children,
                 path,
+                list_parent,
             ),
             BlockNode::Directive(node) => {
                 self.push(node.pos.as_ref(), SourceNodeKind::Raw, path);
@@ -456,7 +522,7 @@ impl SourceAnalysis {
                     self.visit_inlines(title, path);
                 }
                 for child in &node.children {
-                    self.visit_block(child, path);
+                    self.visit_block(child, path, list_parent);
                 }
                 Self::pop(path);
             }
@@ -465,15 +531,69 @@ impl SourceAnalysis {
                 SourceNodeKind::Raw,
                 node.fallback_slice(),
                 path,
+                list_parent,
             ),
             BlockNode::ExtensionCarrier(node) => {
-                self.container(node.pos.as_ref(), SourceNodeKind::Raw, &node.children, path);
+                self.container(
+                    node.pos.as_ref(),
+                    SourceNodeKind::Raw,
+                    &node.children,
+                    path,
+                    list_parent,
+                );
             }
             BlockNode::ThematicBreak(node) => {
                 self.leaf(node.pos.as_ref(), SourceNodeKind::Container, path);
             }
             _ => {}
         }
+    }
+
+    fn visit_list(
+        &mut self,
+        node: &carve::List,
+        path: &mut Vec<SourceNodeKind>,
+        parent: Option<usize>,
+    ) {
+        let kind = if node.ordered {
+            SourceNodeKind::OrderedList
+        } else {
+            SourceNodeKind::UnorderedList
+        };
+        self.push(node.pos.as_ref(), kind, path);
+        let mut previous = None;
+        for item in &node.items {
+            let index = if let (Some(range), Some(list)) = (
+                item.pos.as_ref().and_then(pos_range),
+                node.pos.as_ref().and_then(pos_range),
+            ) {
+                let index = self.list_items.len();
+                self.list_items.push(SourceListItem {
+                    marker_line: range.start..range.start,
+                    range,
+                    list,
+                    parent,
+                    previous,
+                    ordered_type: node.ol_type,
+                });
+                previous = Some(index);
+                Some(index)
+            } else {
+                parent
+            };
+            self.push(
+                item.pos.as_ref(),
+                SourceNodeKind::ListItem {
+                    task: item.checked.is_some(),
+                },
+                path,
+            );
+            for child in &item.children {
+                self.visit_block(child, path, index);
+            }
+            Self::pop(path);
+        }
+        Self::pop(path);
     }
 
     fn visit_inlines(&mut self, nodes: &[InlineNode], path: &mut Vec<SourceNodeKind>) {
@@ -597,10 +717,11 @@ impl SourceAnalysis {
         kind: SourceNodeKind,
         children: &[BlockNode],
         path: &mut Vec<SourceNodeKind>,
+        list_parent: Option<usize>,
     ) {
         self.push(pos, kind, path);
         for child in children {
-            self.visit_block(child, path);
+            self.visit_block(child, path, list_parent);
         }
         Self::pop(path);
     }

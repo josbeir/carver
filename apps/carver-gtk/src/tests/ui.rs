@@ -23,6 +23,7 @@ mod rendering;
 mod rich_mode;
 mod screenshots;
 mod shell;
+mod source_input;
 mod source_mode;
 mod task_lists;
 mod templates;
@@ -86,6 +87,10 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     interactions::source_image_paste_should_store_a_managed_asset()?;
     interactions::source_smart_paste_should_preserve_markdown_delimiters()?;
     interactions::rich_changes_should_be_ignored_while_another_mode_is_active()?;
+    source_input::enter_should_continue_and_exit_source_lists_with_native_undo()?;
+    source_input::tab_should_move_source_subtrees_and_restore_selection()?;
+    source_input::source_input_should_preserve_native_keys_and_ime_composition()?;
+    source_input::source_list_edits_should_round_trip_and_persist_canonical_content()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
     #[cfg(target_os = "linux")]

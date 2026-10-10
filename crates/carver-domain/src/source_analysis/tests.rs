@@ -2,6 +2,23 @@ use std::ops::Range;
 
 use super::{MediaKind, SourceAnalysis, SourceNodeKind};
 
+#[test]
+fn list_analysis_should_record_parents_siblings_and_complete_subtrees()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = "- first\n- parent\n  continuation\n  * child\n  * next\n- last";
+    let analysis = SourceAnalysis::parse(source);
+    let items = analysis.list_items();
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[1].previous, Some(0));
+    assert_eq!(items[2].parent, Some(1));
+    assert_eq!(items[3].previous, Some(2));
+    assert_eq!(items[4].previous, Some(1));
+    assert_eq!(analysis.list_item_for(36..36), Some(2));
+    let parent_end = source.find("\n- last").ok_or("last")?;
+    assert_eq!(items[1].range.end, parent_end);
+    Ok(())
+}
+
 fn context(source: &str, selection: Range<usize>) -> Vec<SourceNodeKind> {
     SourceAnalysis::parse(source)
         .context_for(selection)
@@ -214,6 +231,7 @@ fn empty_heading_should_have_a_navigable_fallback_label() {
             }),
         }),
         &mut Vec::new(),
+        None,
     );
     assert_eq!(analysis.headings()[0].label, "Untitled heading");
 }
@@ -345,7 +363,7 @@ fn analysis_should_find_headings_inside_interchange_sections() {
         pos: None,
     });
     let mut analysis = SourceAnalysis::default();
-    analysis.visit_block(&section, &mut Vec::new());
+    analysis.visit_block(&section, &mut Vec::new(), None);
     assert_eq!(analysis.headings()[0].label, "Nested");
     assert_eq!(
         analysis
@@ -366,7 +384,7 @@ fn analysis_should_find_headings_inside_extension_fallbacks() {
         pos: None,
     });
     let mut analysis = SourceAnalysis::default();
-    analysis.visit_block(&extension, &mut Vec::new());
+    analysis.visit_block(&extension, &mut Vec::new(), None);
     assert_eq!(analysis.headings()[0].label, "Nested");
     assert_eq!(
         analysis
@@ -388,7 +406,7 @@ fn analysis_should_preserve_raw_context_for_small_caps() {
     };
     emphasis.kind = carve::EmphasisKind::SmallCaps;
     let mut analysis = SourceAnalysis::default();
-    analysis.visit_block(&document.children[0], &mut Vec::new());
+    analysis.visit_block(&document.children[0], &mut Vec::new(), None);
     assert_eq!(
         analysis
             .context_for(2..3)
@@ -408,7 +426,7 @@ fn analysis_should_find_headings_inside_render_extension_carriers() {
         pos: None,
     });
     let mut analysis = SourceAnalysis::default();
-    analysis.visit_block(&carrier, &mut Vec::new());
+    analysis.visit_block(&carrier, &mut Vec::new(), None);
     assert_eq!(analysis.headings()[0].label, "Nested");
 }
 

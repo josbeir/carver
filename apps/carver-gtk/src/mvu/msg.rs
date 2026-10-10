@@ -453,6 +453,13 @@ pub enum EditorMsg {
         /// Character-based source selection captured at the input boundary.
         selection: Range<usize>,
     },
+    /// Apply a structural keyboard gesture to the canonical source snapshot.
+    ApplySourceInput {
+        /// Gesture translated at the GTK boundary.
+        input: super::SourceInput,
+        /// Character-based selection captured before the gesture.
+        selection: Range<usize>,
+    },
     /// Apply a rich-editor command through the runtime's GTK/WebKit adapter.
     ApplyRichCommand(EditorCommand),
     /// Open the unified link dialog for the active editor.

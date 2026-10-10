@@ -2,6 +2,9 @@
 
 use std::ops::Range;
 
+mod input;
+pub use input::{SourceInput, SourceInputOutcome};
+
 /// A source-formatting instruction supplied by a GTK adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceCommand {
@@ -129,23 +132,26 @@ impl SourceEdit {
 
     fn toggle_list(&mut self, prefix: &str) {
         let lines = self.selected_lines();
-        let remove = lines.iter().all(|line| line.starts_with(prefix));
-        self.transform_lines(|line| list_replacement(strip_list_marker(line), prefix, remove));
+        let wanted = carver_domain::source_analysis::ListPrefix::parse(prefix, None);
+        let remove = lines.iter().all(|line| {
+            carver_domain::source_analysis::ListPrefix::parse(line, None)
+                .zip(wanted.as_ref())
+                .is_some_and(|(current, wanted)| {
+                    current.marker == wanted.marker && current.is_task() == wanted.is_task()
+                })
+        });
+        self.transform_lines(|line| list_line_replacement(line, prefix, remove));
     }
 
     fn toggle_ordered_list(&mut self) {
         let lines = self.selected_lines();
-        let remove = lines.iter().all(|line| ordered_list_item(line).is_some());
+        let remove = lines.iter().all(|line| {
+            carver_domain::source_analysis::ListPrefix::parse(line, None)
+                .is_some_and(|prefix| prefix.is_ordered())
+        });
         let replacement = lines
             .iter()
-            .map(|line| {
-                let text = strip_list_marker(line);
-                if remove {
-                    text.to_owned()
-                } else {
-                    format!(". {text}")
-                }
-            })
+            .map(|line| list_line_replacement(line, ". ", remove))
             .collect::<Vec<_>>()
             .join("\n");
         let range = self.selected_line_range();
@@ -229,8 +235,11 @@ impl SourceEdit {
 
     fn insert_hard_break(&mut self) {
         let range = self.selection.clone();
-        self.replace(range.clone(), "\\\n", 0);
-        let cursor = range.start.saturating_add(2);
+        let analysis = carver_domain::source_analysis::SourceAnalysis::parse(&self.source);
+        let prefix = input::hard_break_prefix(&self.source, &analysis, &range);
+        let text = format!("\\\n{prefix}");
+        self.replace(range.clone(), &text, 0);
+        let cursor = range.start.saturating_add(text.chars().count());
         self.selection = cursor..cursor;
     }
 
@@ -349,20 +358,21 @@ fn character_to_byte(source: &str, offset: usize) -> Option<usize> {
 fn character_offset_at_byte(source: &str, offset: usize) -> Option<usize> {
     source.get(..offset).map(|prefix| prefix.chars().count())
 }
-fn strip_list_marker(line: &str) -> &str {
-    ordered_list_item(line)
-        .or_else(|| line.strip_prefix("- [ ] "))
-        .or_else(|| line.strip_prefix("- [x] "))
-        .or_else(|| line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")))
-        .unwrap_or(line)
-}
-fn ordered_list_item(line: &str) -> Option<&str> {
-    if let Some(text) = line.strip_prefix(". ") {
-        return Some(text);
+fn list_line_replacement(line: &str, wanted: &str, remove: bool) -> String {
+    let current = carver_domain::source_analysis::ListPrefix::parse(line, None);
+    let container = current.as_ref().map_or("", |prefix| prefix.container);
+    let body = current
+        .as_ref()
+        .map_or(line, |prefix| &line[prefix.content_start..]);
+    if remove {
+        return format!("{container}{body}");
     }
-    let (number, text) = line.split_once(". ")?;
-    (!number.is_empty() && number.chars().all(|character| character.is_ascii_digit()))
-        .then_some(text)
+    let Some(prefix) = current else {
+        return list_replacement(line, wanted, false);
+    };
+    let attributes = prefix.attributes;
+    let (marker, rest) = wanted.split_once(' ').unwrap_or((wanted, ""));
+    format!("{container}{marker}{attributes} {rest}{body}")
 }
 fn inline_replacement(selected: &str, opening: &str, closing: &str) -> String {
     selected

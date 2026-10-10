@@ -58,8 +58,7 @@ fn heading_command_should_replace_an_existing_level() {
 
 #[test]
 fn list_command_should_replace_existing_markers() {
-    assert_eq!(strip_list_marker("- one"), "one");
-    assert_eq!(list_replacement("one", ". ", false), ". one");
+    assert_eq!(list_line_replacement("- one", ". ", false), ". one");
 }
 
 #[test]

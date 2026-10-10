@@ -1329,6 +1329,19 @@ fn update_editor(model: &mut AppModel, message: EditorMsg) -> Vec<Effect> {
         EditorMsg::ApplySourceCommand { command, selection } => {
             update_source_command(model, command, selection)
         }
+        EditorMsg::ApplySourceInput { input, selection } => {
+            let Some(document) = model.editor.as_ref() else {
+                return Vec::new();
+            };
+            if document.mode != carver_config::EditorMode::Source {
+                return Vec::new();
+            }
+            match SourceEdit::plan_input(&document.source, &document.analysis, selection, input) {
+                Ok(super::SourceInputOutcome::Edit(edit)) => commit_source_edit(model, &edit),
+                Ok(super::SourceInputOutcome::Noop | super::SourceInputOutcome::Native)
+                | Err(_) => Vec::new(),
+            }
+        }
         EditorMsg::ApplyRichCommand(command) => update_rich_command(model, command),
         EditorMsg::LinkDialogRequested { origin } => open_link_dialog(model, origin),
         EditorMsg::LinkDialogQueryChanged(query) => update_link_dialog_query(model, query),
@@ -1897,11 +1910,19 @@ fn update_source_command(
     let Some(document) = model.editor.as_mut() else {
         return Vec::new();
     };
-    let session = document.session;
     let edit = SourceEdit::apply(document.source.clone(), selection, command);
+    commit_source_edit(model, &edit)
+}
+
+fn commit_source_edit(model: &mut AppModel, edit: &SourceEdit) -> Vec<Effect> {
+    let Some(document) = model.editor.as_mut() else {
+        return Vec::new();
+    };
+    let session = document.session;
     if !document.source_changed(edit.source().to_owned()) {
         return Vec::new();
     }
+    document.source_selection = Some(edit.selection());
     model.clear_notice();
     let mut effects = [schedule_preview(model), schedule_editor_save(model)]
         .into_iter()
