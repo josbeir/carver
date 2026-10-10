@@ -77,7 +77,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          name: ${{ github.ref_name }}
+          generate_release_notes: false
           fail_on_unmatched_files: true
           files: |
             carver-${{ needs.metadata.outputs.version }}-x86_64.flatpak
