@@ -1666,6 +1666,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/nucleo-matcher/nucleo-matcher-0.3.1.crate",
+        "sha256": "bf33f538733d1a5a3494b836ba913207f14d9d4a1d3cd67030c5061bdd2cac85",
+        "dest": "cargo/vendor/nucleo-matcher-0.3.1"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"bf33f538733d1a5a3494b836ba913207f14d9d4a1d3cd67030c5061bdd2cac85\", \"files\": {}}",
+        "dest": "cargo/vendor/nucleo-matcher-0.3.1",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/num-conv/num-conv-0.2.2.crate",
         "sha256": "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
         "dest": "cargo/vendor/num-conv-0.2.2"

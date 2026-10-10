@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 html-escape.workspace = true
-carver-domain = { path = "../carver-domain", version = "0.4.2" }
+carver-domain = { path = "../carver-domain", version = "0.5.0" }
 carve-lang.workspace = true
 thiserror.workspace = true
 zip.workspace = true
