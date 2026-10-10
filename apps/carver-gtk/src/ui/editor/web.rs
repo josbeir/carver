@@ -458,6 +458,7 @@ impl RichEditor {
                         let source = Rc::clone(&editor.canonical_source.borrow());
                         let _ = dispatcher.dispatch(AppMsg::Editor(
                             EditorMsg::DocumentSelectionChanged {
+                                formatting: Some(selection.clone()),
                                 session,
                                 mode: carver_config::EditorMode::Rich,
                                 media: selection.media.clone(),

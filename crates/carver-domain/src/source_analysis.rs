@@ -261,6 +261,20 @@ impl SourceAnalysis {
             })
     }
 
+    /// Returns the innermost block quote enclosing the complete character-based selection.
+    /// The parsed range includes lazy continuation lines without quote markers.
+    #[must_use]
+    pub fn block_quote_range_for(&self, selection: Range<usize>) -> Option<Range<usize>> {
+        self.nodes
+            .iter()
+            .filter(|node| {
+                node.path.last() == Some(&SourceNodeKind::BlockQuote)
+                    && contains_selection(&node.range, &selection)
+            })
+            .max_by_key(|node| node.path.len())
+            .map(|node| node.range.clone())
+    }
+
     /// Returns images and managed file links in authored document order.
     #[must_use]
     pub fn media(&self) -> &[MediaOccurrence] {

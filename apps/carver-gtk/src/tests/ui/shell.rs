@@ -134,10 +134,17 @@ pub(super) fn window_shortcuts_should_open_dialogs(fixture: &WindowFixture) -> T
     let settings_model = settings_menu
         .menu_model()
         .ok_or("sidebar settings menu model")?;
-    assert_eq!(settings_model.n_items(), 3);
+    assert_eq!(settings_model.n_items(), 4);
+    assert_eq!(
+        settings_model
+            .item_attribute_value(0, gtk::gio::MENU_ATTRIBUTE_ACTION, None)
+            .and_then(|value| value.get::<String>())
+            .as_deref(),
+        Some("win.command-palette")
+    );
     assert!(
         settings_model
-            .item_link(2, gtk::gio::MENU_LINK_SECTION)
+            .item_link(3, gtk::gio::MENU_LINK_SECTION)
             .is_some()
     );
     assert!(widget_as::<gtk::MenuButton>(&root, "app-menu-button").is_none());

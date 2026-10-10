@@ -75,7 +75,7 @@ pub(super) fn rich_image_zoom_should_preserve_selection_source_and_saved_size() 
         const image = document.querySelector('#editor img[src]');
         if (!image?.complete || !image.naturalWidth) return false;
         if (!window.carverEditor.focusMedia(image.getAttribute('src'), 0)) return false;
-        window.zoomSelection = window.getSelection().getRangeAt(0).cloneRange();
+        window.zoomSelection = window.carverEditor.editor.state.selection.toJSON();
         return image.style.width === '50%' && !document.querySelector('#editor button.image-zoom-button');
     })()",
     );
@@ -89,16 +89,16 @@ pub(super) fn rich_image_zoom_should_preserve_selection_source_and_saved_size() 
             && document.querySelector('#editor img[src]').style.width === '50%';
     })()",
     );
-    // WebKit clears the DOM range while a button owns focus. Tiptap keeps the
-    // selection in its model and projects it again when editing regains focus.
+    // WebKit rebuilds the DOM range when native focus changes. Tiptap's model
+    // is the stable authored selection that must survive viewing an image.
     assert_web_script_should_be_true(
         &rich,
         r"(() => {
         window.carverEditor.focus();
-        const selection = window.getSelection();
-        return selection.rangeCount > 0
-            && selection.getRangeAt(0).startContainer === window.zoomSelection.startContainer
-            && selection.getRangeAt(0).startOffset === window.zoomSelection.startOffset;
+        const selection = window.carverEditor.editor.state.selection;
+        return document.activeElement === window.carverEditor.editor.view.dom
+            && selection.node?.type.name === 'image'
+            && JSON.stringify(selection.toJSON()) === JSON.stringify(window.zoomSelection);
     })()",
     );
     assert_unchanged(&fixture, &saved)?;

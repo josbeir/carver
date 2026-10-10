@@ -360,6 +360,7 @@ pub(crate) fn activate_browser_note(list: &gtk::ListView, note_id: carver_sdk::N
 pub(crate) fn assert_web_script_should_be_true(view: &webkit6::WebView, script: &str) {
     let result = Rc::new(Cell::new(false));
     let pending = Rc::new(Cell::new(false));
+    let last_error = Rc::new(std::cell::RefCell::new(String::new()));
     // Generous bound: the web surface can be slow to answer on a loaded CI runner, and the
     // instrumented coverage build runs the whole display suite more slowly, where a shorter wait
     // shows up as a flaky failure rather than a real one.
@@ -371,19 +372,26 @@ pub(crate) fn assert_web_script_should_be_true(view: &webkit6::WebView, script: 
             if !pending.replace(true) {
                 let response = Rc::clone(&result);
                 let pending = Rc::clone(&pending);
+                let last_error = Rc::clone(&last_error);
                 view.evaluate_javascript(
                     script,
                     None,
                     None,
                     None::<&gtk::gio::Cancellable>,
                     move |value| {
-                        response.set(value.is_ok_and(|value| value.to_boolean()));
+                        match value {
+                            Ok(value) => response.set(value.to_boolean()),
+                            Err(error) => {
+                                last_error.replace(error.to_string());
+                            }
+                        }
                         pending.set(false);
                     },
                 );
             }
             false
         }),
-        "{script}"
+        "{script}\n{}",
+        last_error.borrow()
     );
 }

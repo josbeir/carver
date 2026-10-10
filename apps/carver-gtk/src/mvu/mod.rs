@@ -4,6 +4,9 @@
 //! [`AppModel`] and returns typed [`Effect`] values for the runtime to execute.
 
 mod effect;
+pub(crate) mod format_command;
+pub(crate) mod palette;
+pub(crate) use format_command::FormatCommand;
 mod media_filename;
 mod model;
 mod msg;

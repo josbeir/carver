@@ -14,6 +14,8 @@ pub enum SourceCommand {
     },
     /// Toggle a fenced code block.
     ToggleCodeBlock,
+    /// Toggle a block quote while preserving the selected lines' authored markup.
+    ToggleBlockQuote,
     /// Toggle a list marker.
     ToggleList(String),
     /// Toggle an ordered list.
@@ -61,6 +63,7 @@ impl SourceEdit {
                 edit.toggle_inline(&opening, &closing);
             }
             SourceCommand::ToggleCodeBlock => edit.toggle_code_block(),
+            SourceCommand::ToggleBlockQuote => edit.toggle_block_quote(),
             SourceCommand::ToggleList(prefix) => edit.toggle_list(&prefix),
             SourceCommand::ToggleOrderedList => edit.toggle_ordered_list(),
             SourceCommand::SetHeading(level) => edit.set_heading(level),
@@ -146,6 +149,60 @@ impl SourceEdit {
             .collect::<Vec<_>>()
             .join("\n");
         let range = self.selected_line_range();
+        let length = replacement.chars().count();
+        self.replace(range, &replacement, length);
+    }
+
+    // Reuse the source editor's line transform; a second markup formatter would
+    // normalize unrelated content instead of retaining the user's literal source.
+    fn toggle_block_quote(&mut self) {
+        let analysis = carver_domain::source_analysis::SourceAnalysis::parse(&self.source);
+        if let Some(range) = analysis.block_quote_range_for(self.selection.clone()) {
+            self.remove_block_quote(range);
+            return;
+        }
+        let remove = self
+            .selected_lines()
+            .iter()
+            .all(|line| line.starts_with("> ") || line == ">");
+        self.transform_lines(|line| {
+            if remove {
+                line.strip_prefix("> ")
+                    .or_else(|| line.strip_prefix('>'))
+                    .unwrap_or(line)
+                    .to_owned()
+            } else {
+                format!("> {line}")
+            }
+        });
+    }
+
+    fn remove_block_quote(&mut self, range: Range<usize>) {
+        let start = character_to_byte(&self.source, range.start).unwrap_or(self.source.len());
+        let end = character_to_byte(&self.source, range.end).unwrap_or(self.source.len());
+        // Nested quote ranges start after an enclosing prefix on their first line.
+        let prefix = self.source[..start].rsplit('\n').next().unwrap_or_default();
+        let replacement = self.source[start..end]
+            .split('\n')
+            .enumerate()
+            .map(|(index, line)| {
+                let (outside, content) = if index == 0 {
+                    ("", line)
+                } else if let Some(content) = line.strip_prefix(prefix) {
+                    (prefix, content)
+                } else {
+                    return line.to_owned();
+                };
+                match content
+                    .strip_prefix("> ")
+                    .or_else(|| (content == ">").then_some(""))
+                {
+                    Some(content) => format!("{outside}{content}"),
+                    None => line.to_owned(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         let length = replacement.chars().count();
         self.replace(range, &replacement, length);
     }

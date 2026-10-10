@@ -236,6 +236,8 @@ export class EditorController implements RichEditorApi {
         return chain.toggleTaskList().run();
       case 'code-block':
         return chain.toggleCodeBlock().run();
+      case 'blockquote':
+        return chain.toggleBlockquote().run();
       case 'heading':
         return typeof argument === 'number' && argument > 0
           ? chain.toggleHeading({ level: argument }).run()
@@ -531,6 +533,7 @@ export class EditorController implements RichEditorApi {
       ['ordered-list', active('orderedList')],
       ['task-list', active('taskList')],
       ['code-block', active('codeBlock')],
+      ['blockquote', active('blockquote')],
       ['table', active('table')],
       ['image', image],
     ];

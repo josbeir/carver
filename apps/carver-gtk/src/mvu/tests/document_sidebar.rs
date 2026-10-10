@@ -105,6 +105,7 @@ fn projection_selection_should_reject_stale_source_and_track_duplicate_headings(
         let _ = update(
             &mut model,
             AppMsg::Editor(EditorMsg::DocumentSelectionChanged {
+                formatting: None,
                 session: before.session,
                 mode: before.mode,
                 source: std::rc::Rc::from(source),

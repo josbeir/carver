@@ -2,59 +2,15 @@
 
 use std::ops::Range;
 
-use carver_domain::source_analysis::{SourceContext, SourceNodeKind};
+use carver_domain::source_analysis::SourceContext;
 use gtk::prelude::*;
 
 use crate::mvu::SourceImageTarget;
 
-use super::{
-    buffer_text,
-    toolbar::{ToolbarCommand, ToolbarState},
-};
+use super::{buffer_text, toolbar::ToolbarState};
 
 pub(crate) fn toolbar_state_from_context(context: Option<SourceContext>) -> ToolbarState {
-    let mut state = ToolbarState::default();
-    let Some(context) = context else {
-        return state;
-    };
-    for node in context.path() {
-        match node {
-            SourceNodeKind::Heading(level) => state.set_heading(*level),
-            SourceNodeKind::UnorderedList => state.activate(ToolbarCommand::BulletList),
-            SourceNodeKind::OrderedList => state.activate(ToolbarCommand::OrderedList),
-            SourceNodeKind::ListItem { task: true } => state.activate(ToolbarCommand::TaskList),
-            SourceNodeKind::CodeBlock => state.activate(ToolbarCommand::CodeBlock),
-            SourceNodeKind::Table => state.set_in_table(true),
-            SourceNodeKind::Image { width } => state.set_image_width(*width),
-            SourceNodeKind::Link => state.activate(ToolbarCommand::Link),
-            SourceNodeKind::Bold => state.activate(ToolbarCommand::Bold),
-            SourceNodeKind::Italic => state.activate(ToolbarCommand::Italic),
-            SourceNodeKind::BoldItalic => {
-                state.activate(ToolbarCommand::Bold);
-                state.activate(ToolbarCommand::Italic);
-            }
-            SourceNodeKind::Strike => state.activate(ToolbarCommand::Strike),
-            SourceNodeKind::Underline => state.activate(ToolbarCommand::Underline),
-            SourceNodeKind::Highlight => state.activate(ToolbarCommand::Highlight),
-            SourceNodeKind::Superscript => state.activate(ToolbarCommand::Superscript),
-            SourceNodeKind::Subscript => state.activate(ToolbarCommand::Subscript),
-            SourceNodeKind::InlineCode => state.activate(ToolbarCommand::InlineCode),
-            SourceNodeKind::Frontmatter
-            | SourceNodeKind::DefinitionList
-            | SourceNodeKind::DefinitionTerm
-            | SourceNodeKind::DefinitionDescription
-            | SourceNodeKind::Paragraph
-            | SourceNodeKind::ListItem { task: false }
-            | SourceNodeKind::BlockQuote
-            | SourceNodeKind::TableRow
-            | SourceNodeKind::TableHeader
-            | SourceNodeKind::TableCell
-            | SourceNodeKind::Raw
-            | SourceNodeKind::Comment
-            | SourceNodeKind::Container => {}
-        }
-    }
-    state
+    ToolbarState::from_rich(&crate::mvu::format_command::selection_from_context(context))
 }
 
 /// Returns the current source selection in Unicode code-point offsets.

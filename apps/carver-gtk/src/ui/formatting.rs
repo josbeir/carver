@@ -26,7 +26,7 @@ const TABLE_PICKER_COLUMNS: u8 = 6;
 /// The callback only receives asset paths created by the storage client; source
 /// and rich editing therefore cannot accidentally persist machine-local paths.
 pub(crate) fn choose_managed_image(
-    button: &gtk::Button,
+    button: &impl IsA<gtk::Widget>,
     dispatcher: &AppDispatcher,
     toast_overlay: &adw::ToastOverlay,
     source_target: ImportTarget,
@@ -441,3 +441,40 @@ pub(crate) fn show_source_link_dialog(
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+/// Presents the shared table grid independently of toolbar visibility.
+pub(crate) fn show_table_picker(
+    anchor: &gtk::Widget,
+    on_insert: impl Fn(u8, u8, bool) + 'static,
+    focus: &EditorFocusRestorer,
+) {
+    let dialog = adw::Dialog::builder()
+        .title(gettext("Insert table"))
+        .content_width(380)
+        .build();
+    dialog.set_widget_name("palette-table-dialog");
+    let weak_dialog = dialog.downgrade();
+    let holder = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let picker = append_table_picker(
+        &holder,
+        "palette-table-picker",
+        move |rows, columns, header| {
+            if let Some(dialog) = weak_dialog.upgrade() {
+                dialog.force_close();
+            }
+            on_insert(rows, columns, header);
+        },
+    );
+    if let Some(popover) = picker.widget().popover()
+        && let Some(content) = popover.child()
+    {
+        popover.set_child(None::<&gtk::Widget>);
+        let view = adw::ToolbarView::new();
+        view.add_top_bar(&adw::HeaderBar::new());
+        view.set_content(Some(&content));
+        dialog.set_child(Some(&view));
+    }
+    let focus = focus.clone();
+    dialog.connect_closed(move |_| focus.restore_later());
+    dialog.present(anchor.root().as_ref());
+}

@@ -47,6 +47,8 @@ impl EditorExportFormat {
 /// A UI event or asynchronous completion accepted by the reducer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AppMsg {
+    /// Command palette intent or asynchronous completion.
+    Palette(super::palette::PaletteMsg),
     /// Reusable template intent or completion.
     Templates(super::TemplatesMsg),
     /// Navigation intent.
@@ -352,6 +354,8 @@ pub enum EditorMsg {
     },
     /// A web projection selected an occurrence without changing source.
     DocumentSelectionChanged {
+        /// Active rich formatting, when emitted by the editable projection.
+        formatting: Option<carver_editor_protocol::SelectionState>,
         /// Editor lifetime that emitted this event.
         session: EditorSessionId,
         /// Projection that emitted this event.

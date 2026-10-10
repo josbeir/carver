@@ -25,6 +25,7 @@ use super::{
 
 mod media_import;
 mod media_preview;
+mod palette;
 mod templates;
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
@@ -212,6 +213,12 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[expect(clippy::too_many_lines)]
     fn run_effect(&self, effect: Effect) {
         match effect {
+            effect @ (Effect::OpenPalette
+            | Effect::MatchPalette { .. }
+            | Effect::SchedulePaletteSearch { .. }
+            | Effect::SearchPaletteNotes { .. }
+            | Effect::FinishPalette { .. }
+            | Effect::ExecutePaletteCommand { .. }) => self.run_palette_effect(effect),
             effect @ (Effect::LoadTemplateCatalog { .. }
             | Effect::LoadTemplates { .. }
             | Effect::LoadTemplateNote { .. }

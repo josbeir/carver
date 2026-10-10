@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-04 13:17+0200\n"
+"POT-Creation-Date: 2026-10-09 22:01+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Italian\n"
@@ -67,6 +67,7 @@ msgid "Categories"
 msgstr "Categorie"
 
 #: apps/carver-gtk/src/app.rs apps/carver-gtk/src/ui/browser.rs
+#: apps/carver-gtk/src/ui/palette.rs apps/carver-gtk/src/ui/palette/catalog.rs
 #: apps/carver-gtk/src/view/mod.rs
 msgid "Notes"
 msgstr "Note"
@@ -167,7 +168,7 @@ msgid "Close note tabs opened from this Base"
 msgstr "Chiudi le schede delle note aperte da questa base"
 
 #. Contextual tab cleanup for notes opened from this Base; rendered only when it has tabs.
-#: apps/carver-gtk/src/ui/bases.rs
+#: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Close tabs"
 msgstr "Chiudi schede"
 
@@ -176,6 +177,7 @@ msgid "Configure"
 msgstr "Configura"
 
 #: apps/carver-gtk/src/ui/bases.rs apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Delete Base"
 msgstr "Elimina base"
 
@@ -266,6 +268,7 @@ msgid "Choose the columns shown in this Base. Name is always included."
 msgstr "Scegli le colonne mostrate in questa base. Il nome è sempre incluso."
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Configure Base"
 msgstr "Configura base"
 
@@ -343,6 +346,7 @@ msgid "Name"
 msgstr "Nome"
 
 #: apps/carver-gtk/src/ui/bases/actions.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "New Base"
 msgstr "Nuova base"
 
@@ -554,6 +558,7 @@ msgid "Edit Category"
 msgstr "Modifica categoria"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Export note…"
 msgstr "Esporta nota…"
 
@@ -603,10 +608,12 @@ msgid "New from Clipboard as Markdown"
 msgstr "Nuova dagli appunti come Markdown"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "New from Template…"
 msgstr "Nuova nota da modello…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "New note"
 msgstr "Nuova nota"
 
@@ -627,10 +634,12 @@ msgid "Remove from Favorites"
 msgstr "Rimuovi dai preferiti"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Save as Template…"
 msgstr "Salva come modello…"
 
 #: apps/carver-gtk/src/ui/browser.rs apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Search notes"
 msgstr "Cerca note"
 
@@ -745,7 +754,7 @@ msgstr "Base"
 msgid "Blue"
 msgstr "Blu"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Bold"
 msgstr "Grassetto"
 
@@ -761,7 +770,7 @@ msgstr "Valigetta"
 msgid "Browser"
 msgstr "Browser"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Bulleted list"
 msgstr "Elenco puntato"
 
@@ -813,7 +822,7 @@ msgstr "Claude Code"
 msgid "Close search"
 msgstr "Chiudi ricerca"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Close tab"
 msgstr "Chiudi scheda"
 
@@ -829,6 +838,10 @@ msgstr "Colore"
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Comfortable"
 msgstr "Confortevole"
+
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette.rs
+msgid "Command Palette"
+msgstr "Tavolozza dei comandi"
 
 #: apps/carver-gtk/src/ui/dialogs.rs
 msgid "Configure VS Code's MCP server list"
@@ -900,6 +913,7 @@ msgid "Export note"
 msgstr "Esporta nota"
 
 #: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/editor/find.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Find in note"
 msgstr "Trova nella nota"
 
@@ -941,7 +955,7 @@ msgstr "L'assistente da terminale di GitHub"
 msgid "Heart"
 msgstr "Cuore"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Highlight"
 msgstr "Evidenzia"
 
@@ -970,7 +984,7 @@ msgstr "Idea"
 msgid "Import"
 msgstr "Importa"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Import note"
 msgstr "Importa nota"
 
@@ -978,7 +992,7 @@ msgstr "Importa nota"
 msgid "Insert line break"
 msgstr "Inserisci interruzione di riga"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Italic"
 msgstr "Corsivo"
 
@@ -986,7 +1000,8 @@ msgstr "Corsivo"
 msgid "JSON"
 msgstr "JSON"
 
-#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/sidebar.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
+#: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Keyboard Shortcuts"
 msgstr "Scorciatoie da tastiera"
 
@@ -1010,7 +1025,7 @@ msgstr "Configurazione MCP"
 msgid "Manage Templates…"
 msgstr "Gestisci modelli…"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Move note to Trash"
 msgstr "Sposta nota nel cestino"
 
@@ -1044,7 +1059,7 @@ msgstr "Nuova categoria"
 msgid "New Category…"
 msgstr "Nuova categoria…"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "New from clipboard"
 msgstr "Nuova dagli appunti"
 
@@ -1060,7 +1075,7 @@ msgstr "Nuova scheda"
 msgid "Next result"
 msgstr "Risultato successivo"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Next tab"
 msgstr "Scheda successiva"
 
@@ -1086,7 +1101,7 @@ msgstr "Note"
 msgid "Notes in this category will no longer appear in your library. You can restore the category from Trash later."
 msgstr "Le note in questa categoria non appariranno più nella tua libreria. Potrai ripristinare la categoria dal cestino in seguito."
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Numbered list"
 msgstr "Elenco numerato"
 
@@ -1126,7 +1141,7 @@ msgstr "Anteprime ed esportazioni"
 msgid "Previous result"
 msgstr "Risultato precedente"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Previous tab"
 msgstr "Scheda precedente"
 
@@ -1163,7 +1178,7 @@ msgctxt "dialog"
 msgid "Save"
 msgstr "Salva"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Search Base rows"
 msgstr "Cerca righe della base"
 
@@ -1228,15 +1243,15 @@ msgstr "Formattazione del sorgente"
 msgid "Star"
 msgstr "Stella"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Strikethrough"
 msgstr "Barrato"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Subscript"
 msgstr "Pedice"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Superscript"
 msgstr "Apice"
 
@@ -1268,15 +1283,15 @@ msgstr "Verde acqua"
 msgid "The selected file is not valid UTF-8 text."
 msgstr "Il file selezionato non è testo UTF-8 valido."
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Toggle document sidebar"
 msgstr "Attiva/disattiva barra laterale del documento"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Toggle favorite"
 msgstr "Attiva/disattiva preferito"
 
-#: apps/carver-gtk/src/ui/dialogs.rs
+#: apps/carver-gtk/src/ui/dialogs.rs apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Underline"
 msgstr "Sottolineato"
 
@@ -1317,6 +1332,7 @@ msgstr[1] "{count} proprietà predefinite"
 
 #: apps/carver-gtk/src/ui/editor/document_sidebar.rs
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Add files"
 msgstr "Aggiungi file"
 
@@ -1403,7 +1419,7 @@ msgstr "Nessuna corrispondenza"
 msgid "Previous match"
 msgstr "Corrispondenza precedente"
 
-#: apps/carver-gtk/src/ui/editor/find.rs
+#: apps/carver-gtk/src/ui/editor/find.rs apps/carver-gtk/src/ui/palette.rs
 msgid "Searching…"
 msgstr "Ricerca in corso…"
 
@@ -1446,6 +1462,7 @@ msgid "Carve documents"
 msgstr "Documenti Carve"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Copy note"
 msgstr "Copia nota"
 
@@ -1458,6 +1475,7 @@ msgid "Document properties"
 msgstr "Proprietà del documento"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Document properties…"
 msgstr "Proprietà del documento…"
 
@@ -1500,6 +1518,7 @@ msgid "Include managed files"
 msgstr "Includi file gestiti"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Insert Template…"
 msgstr "Inserisci modello…"
 
@@ -1529,6 +1548,7 @@ msgid "Preview"
 msgstr "Anteprima"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Print…"
 msgstr "Stampa…"
 
@@ -1537,6 +1557,7 @@ msgid "Save file"
 msgstr "Salva file"
 
 #: apps/carver-gtk/src/ui/editor/mod.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Show rendered preview"
 msgstr "Mostra anteprima renderizzata"
 
@@ -1622,6 +1643,11 @@ msgid "Type"
 msgstr "Tipo"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Block quote"
+msgstr "Citazione"
+
+#: apps/carver-gtk/src/ui/editor/toolbar.rs
 msgid "Bold (Ctrl+B)"
 msgstr "Grassetto (Ctrl+B)"
 
@@ -1634,6 +1660,7 @@ msgid "Carve AST context"
 msgstr "Contesto AST Carve"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Code block"
 msgstr "Blocco di codice"
 
@@ -1666,14 +1693,17 @@ msgid "Highlight (Ctrl+Shift+H)"
 msgstr "Evidenzia (Ctrl+Shift+H)"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Inline code"
 msgstr "Codice in linea"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Insert image…"
 msgstr "Inserisci immagine…"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Insert link"
 msgstr "Inserisci link"
 
@@ -1698,6 +1728,7 @@ msgid "Numbered list (Ctrl+Shift+7)"
 msgstr "Elenco numerato (Ctrl+Shift+7)"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Original size"
 msgstr "Dimensione originale"
 
@@ -1714,6 +1745,7 @@ msgid "Superscript (Ctrl+Shift+.)"
 msgstr "Apice (Ctrl+Shift+.)"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Task list"
 msgstr "Elenco attività"
 
@@ -1759,6 +1791,7 @@ msgid "Insert Image"
 msgstr "Inserisci immagine"
 
 #: apps/carver-gtk/src/ui/formatting.rs
+#: apps/carver-gtk/src/ui/palette/catalog.rs
 msgid "Insert table"
 msgstr "Inserisci tabella"
 
@@ -1779,6 +1812,129 @@ msgstr "{rows} righe × {columns} colonne"
 #, rust-format
 msgid "{rows} × {columns}"
 msgstr "{rows} × {columns}"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Categories and Bases"
+msgstr "Categorie e Bases"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Commands"
+msgstr "Comandi"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Could not search notes."
+msgstr "Impossibile cercare nelle note."
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "No results"
+msgstr "Nessun risultato"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Open Base"
+msgstr "Apri Base"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Open category"
+msgstr "Apri categoria"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Retry search"
+msgstr "Riprova la ricerca"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Search all notes…"
+msgstr "Cerca in tutte le note…"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Search commands and notes…"
+msgstr "Cerca comandi e note…"
+
+#: apps/carver-gtk/src/ui/palette.rs
+msgid "Temporarily unavailable"
+msgstr "Temporaneamente non disponibile"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs apps/carver-gtk/src/ui/sidebar.rs
+msgid "About Carver"
+msgstr "Informazioni su Carver"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs apps/carver-gtk/src/ui/sidebar.rs
+msgid "Connect an agent"
+msgstr "Connetti un agente"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Edit"
+msgstr "Modifica"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+#, rust-format
+msgid "Heading {level}"
+msgstr "Titolo {level}"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+#, rust-format
+msgid "Image width: {width}%"
+msgstr "Larghezza immagine: {width}%"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Move note…"
+msgstr "Sposta nota…"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "New blank note"
+msgstr "Nuova nota vuota"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "New category"
+msgstr "Nuova categoria"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "New from Markdown clipboard"
+msgstr "Crea dagli appunti Markdown"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Paragraph"
+msgstr "Paragrafo"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs apps/carver-gtk/src/ui/sidebar.rs
+msgid "Preferences"
+msgstr "Preferenze"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Preview"
+msgstr "Anteprima"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Refresh Base"
+msgstr "Aggiorna Base"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Refresh Trash"
+msgstr "Aggiorna cestino"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Refresh notes"
+msgstr "Aggiorna note"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Retry save"
+msgstr "Riprova il salvataggio"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Source"
+msgstr "Sorgente"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs apps/carver-gtk/src/ui/sidebar.rs
+msgid "Templates…"
+msgstr "Modelli…"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs apps/carver-gtk/src/ui/sidebar.rs
+#: apps/carver-gtk/src/ui/trash.rs apps/carver-gtk/src/view/mod.rs
+msgid "Trash"
+msgstr "Cestino"
+
+#: apps/carver-gtk/src/ui/palette/catalog.rs
+msgid "Undo move to Trash"
+msgstr "Annulla spostamento nel cestino"
 
 #: apps/carver-gtk/src/ui/property.rs
 msgid "AM or PM"
@@ -1812,17 +1968,13 @@ msgstr "Aumenta i minuti"
 msgid "Long text"
 msgstr "Testo lungo"
 
-#: apps/carver-gtk/src/ui/sidebar.rs
-msgid "About Carver"
-msgstr "Informazioni su Carver"
-
 #: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
 msgid "Back to notes"
 msgstr "Torna alle note"
 
 #: apps/carver-gtk/src/ui/sidebar.rs
-msgid "Connect an agent"
-msgstr "Connetti un agente"
+msgid "Command Palette…"
+msgstr "Tavolozza dei comandi…"
 
 #: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Hide Categories"
@@ -1833,25 +1985,12 @@ msgid "Open Trash"
 msgstr "Apri cestino"
 
 #: apps/carver-gtk/src/ui/sidebar.rs
-msgid "Preferences"
-msgstr "Preferenze"
-
-#: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Settings"
 msgstr "Impostazioni"
 
 #: apps/carver-gtk/src/ui/sidebar.rs
 msgid "Show Categories"
 msgstr "Mostra categorie"
-
-#: apps/carver-gtk/src/ui/sidebar.rs
-msgid "Templates…"
-msgstr "Modelli…"
-
-#: apps/carver-gtk/src/ui/sidebar.rs apps/carver-gtk/src/ui/trash.rs
-#: apps/carver-gtk/src/view/mod.rs
-msgid "Trash"
-msgstr "Cestino"
 
 #: apps/carver-gtk/src/ui/templates.rs
 msgid "Carve source"

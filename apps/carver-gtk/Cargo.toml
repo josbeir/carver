@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+nucleo-matcher.workspace = true
 cssparser.workspace = true
 atomic-write-file.workspace = true
 carver-config = { path = "../../crates/carver-config", version = "0.4.2" }

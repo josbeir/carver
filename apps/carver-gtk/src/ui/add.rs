@@ -71,55 +71,13 @@ pub(crate) fn button(dispatcher: &AppDispatcher, slot: AddDialogSlot) -> gtk::Bu
         let Some(parent) = button.root().and_downcast::<gtk::Window>() else {
             return;
         };
-        let dialog = adw::Dialog::builder()
-            .title(gettext("Add"))
-            .content_width(560)
-            .build();
-        dialog.set_widget_name("sidebar-add-dialog");
-        let stack = adw::ViewStack::new();
-        stack.set_widget_name("add-stack");
-        stack.set_hhomogeneous(true);
-        stack.set_vhomogeneous(false);
-        let host = Rc::new(AddDialogHost {
-            dialog: dialog.clone(),
-            stack: stack.clone(),
-            category: Rc::new(category_form("", CategoryAppearance::default())),
-            base_slot: gtk::Box::new(gtk::Orientation::Vertical, 0),
-            base_footer: gtk::Box::new(gtk::Orientation::Horizontal, 0),
-            base_requested: Cell::new(false),
-            base_ready: Cell::new(false),
-            base_dialog_id: Cell::new(None),
-            form: RefCell::new(None),
-        });
-        host.category.connect_template_management(&dispatcher);
-        dialog.set_child(Some(&dialog_content(&dispatcher, &host)));
-        *slot.borrow_mut() = Some(Rc::clone(&host));
-
-        let slot_for_close = Rc::clone(&slot);
-        let dispatcher_for_close = dispatcher.clone();
-        dialog.connect_closed(move |_| {
-            let host = slot_for_close.borrow_mut().take();
-            let Some(host) = host else {
-                return;
-            };
-            if let Some(dialog_id) = host.base_dialog_id.get() {
-                let _ = dispatcher_for_close
-                    .dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
-            } else if host.base_requested.get() {
-                // The Base tab was still loading; drop its pending request so it
-                // cannot reappear as the standalone dialog.
-                let _ =
-                    dispatcher_for_close.dispatch(AppMsg::Bases(BasesMsg::CancelNewConfiguration));
-            }
-        });
+        let dialog = present(&parent, &dispatcher, &slot, false);
         let weak_button = button.downgrade();
         dialog.connect_closed(move |_| {
             if let Some(button) = weak_button.upgrade() {
                 button.grab_focus();
             }
         });
-        dialog.present(Some(&parent));
-        let _ = dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::NewCategory));
     });
     button
 }
@@ -227,4 +185,60 @@ fn base_page(host: &Rc<AddDialogHost>) -> adw::ToolbarView {
     host.base_footer.set_margin_end(12);
     toolbar.add_bottom_bar(&host.base_footer);
     toolbar
+}
+
+/// Opens the existing creation form on the requested tab.
+pub(crate) fn present(
+    parent: &gtk::Window,
+    dispatcher: &AppDispatcher,
+    slot: &AddDialogSlot,
+    base: bool,
+) -> adw::Dialog {
+    let dialog = adw::Dialog::builder()
+        .title(gettext("Add"))
+        .content_width(560)
+        .build();
+    dialog.set_widget_name("sidebar-add-dialog");
+    let stack = adw::ViewStack::new();
+    stack.set_widget_name("add-stack");
+    stack.set_hhomogeneous(true);
+    stack.set_vhomogeneous(false);
+    let host = Rc::new(AddDialogHost {
+        dialog: dialog.clone(),
+        stack: stack.clone(),
+        category: Rc::new(category_form("", CategoryAppearance::default())),
+        base_slot: gtk::Box::new(gtk::Orientation::Vertical, 0),
+        base_footer: gtk::Box::new(gtk::Orientation::Horizontal, 0),
+        base_requested: Cell::new(false),
+        base_ready: Cell::new(false),
+        base_dialog_id: Cell::new(None),
+        form: RefCell::new(None),
+    });
+    host.category.connect_template_management(dispatcher);
+    dialog.set_child(Some(&dialog_content(dispatcher, &host)));
+    *slot.borrow_mut() = Some(Rc::clone(&host));
+
+    let slot_for_close = Rc::clone(slot);
+    let dispatcher_for_close = dispatcher.clone();
+    dialog.connect_closed(move |_| {
+        let host = slot_for_close.borrow_mut().take();
+        let Some(host) = host else {
+            return;
+        };
+        if let Some(dialog_id) = host.base_dialog_id.get() {
+            let _ = dispatcher_for_close
+                .dispatch(AppMsg::Bases(BasesMsg::ConfigurationDismissed(dialog_id)));
+        } else if host.base_requested.get() {
+            // The Base tab was still loading; drop its pending request so it
+            // cannot reappear as the standalone dialog.
+            let _ = dispatcher_for_close.dispatch(AppMsg::Bases(BasesMsg::CancelNewConfiguration));
+        }
+    });
+    dialog.present(Some(parent));
+    if base {
+        host.stack.set_visible_child_name("base");
+    } else {
+        let _ = dispatcher.dispatch(AppMsg::Templates(crate::mvu::TemplatesMsg::NewCategory));
+    }
+    dialog
 }
