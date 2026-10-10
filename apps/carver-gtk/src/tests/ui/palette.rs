@@ -236,6 +236,63 @@ pub(super) fn palette_should_format_the_original_source_selection_and_restore_fo
     Ok(())
 }
 
+pub(super) fn palette_should_preserve_source_edits_when_switching_to_edit() -> TestResult {
+    let (fixture, note) = fixture("io.github.josbeir.Carver.PaletteModeSwitch")?;
+    let _ = fixture
+        .dispatcher
+        .dispatch(AppMsg::Navigation(NavigationMsg::OpenNote {
+            note_id: note.id,
+            intent: crate::mvu::NoteOpenIntent::Default,
+        }));
+    assert!(run_main_context_until(|| fixture.source().is_ok()));
+    let buffer = fixture.source()?.buffer();
+    let rich = widget_as::<webkit6::WebView>(&fixture.root()?, "rich-editor").ok_or("rich")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor?.source().includes('Hello selected world') === true",
+    );
+    buffer.place_cursor(&buffer.end_iter());
+    buffer.insert_at_cursor("\n\nSource draft");
+    command(&fixture.window, "Edit")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor?.source().endsWith('Source draft') === true",
+    );
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor.editor.commands.focus('end') && window.carverEditor.editor.commands.insertContent(' and rich edit')",
+    );
+    command(&fixture.window, "Source")?;
+    let expected = format!("{}\n\nSource draft and rich edit", note.source);
+    assert!(run_main_context_until(|| buffer.text(
+        &buffer.start_iter(),
+        &buffer.end_iter(),
+        false
+    ) == expected));
+    assert!(run_main_context_until(|| fixture
+        .client
+        .note(note.id)
+        .is_ok_and(
+            |saved| saved.is_some_and(|saved| saved.source == expected)
+        )));
+    let saved = fixture.client.note(note.id)?.ok_or("saved note")?;
+    command(&fixture.window, "Preview")?;
+    command(&fixture.window, "Edit")?;
+    assert_web_script_should_be_true(
+        &rich,
+        "window.carverEditor?.source().endsWith('Source draft and rich edit') === true",
+    );
+    let after = fixture
+        .client
+        .note(note.id)?
+        .ok_or("note after mode switch")?;
+    assert_eq!(after.source, expected);
+    assert_eq!(after.revision, saved.revision);
+    assert_eq!(after.updated_at, saved.updated_at);
+    fixture.window.close();
+    Ok(())
+}
+
 pub(super) fn palette_should_preserve_rich_selection_and_keep_preview_read_only() -> TestResult {
     let (fixture, note) = fixture("io.github.josbeir.Carver.PaletteRich")?;
     let _ = fixture
