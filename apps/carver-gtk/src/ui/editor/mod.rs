@@ -51,6 +51,7 @@ mod render;
 pub(crate) mod source;
 pub(crate) mod source_commands;
 mod source_context;
+mod source_placeholder;
 mod toolbar;
 mod web;
 
@@ -89,6 +90,8 @@ pub(crate) struct EditorViewRefs {
     rich: RichEditor,
     source_buffer: gtk::TextBuffer,
     source_editor: SourceEditor,
+    source_context: SourceContextCache,
+    source_placeholder: source_placeholder::SourcePlaceholderView,
     split_preview: webkit6::WebView,
     split_navigation: document_navigation::PreviewNavigation,
     rendered_navigation: document_navigation::PreviewNavigation,
@@ -170,6 +173,7 @@ impl EditorViewRefs {
         if presentation_changed {
             invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
         }
+        self.source_context.set_analysis(&document.analysis);
         let source_changed = buffer_text(&self.source_buffer) != document.source;
         let preview = model
             .editor_preview
@@ -183,10 +187,18 @@ impl EditorViewRefs {
         if source_changed {
             if new_document {
                 self.source_buffer.set_text(&document.source);
+            } else if let Some(selection) = document.source_selection.as_ref() {
+                source_commands::replace_source_buffer_with_selection(
+                    &self.source_buffer,
+                    &document.source,
+                    selection.clone(),
+                );
             } else {
                 source_commands::replace_source_buffer(&self.source_buffer, &document.source);
             }
         }
+        self.toolbar
+            .set_source_context(self.source_context.context());
         let theme = editor_theme();
         if let Some(preview) = preview.as_ref() {
             self.render_visible_preview(
@@ -243,6 +255,7 @@ impl EditorViewRefs {
         );
         self.find.set_mode(document.mode);
         self.rendering.set(false);
+        self.source_placeholder.refresh();
         if new_document {
             self.loaded_session.replace(Some(document.session));
         }
@@ -760,7 +773,7 @@ pub(crate) fn build_editor(
     rich.connect_selection_changed(move |selection| {
         toolbar_for_selection.set_rich_selection(&selection);
     });
-    install_source_shortcuts(source.upcast_ref(), &toolbar);
+    install_source_shortcuts(source.upcast_ref(), &toolbar, &source_context, dispatcher);
     let split_preview_state = SplitPreviewState::new();
     split_preview_state
         .html_profile
@@ -781,6 +794,11 @@ pub(crate) fn build_editor(
         &split_preview_state,
         &remote_images,
         &document_appearance,
+    );
+    let source_placeholder = source_placeholder::SourcePlaceholderView::new(
+        source.upcast_ref(),
+        &pages.source_scroll,
+        &source_context,
     );
     // Select the configured mode before the switcher notify handler is connected, so the surface
     // never flashes the default page while the first document loads.
@@ -918,6 +936,8 @@ pub(crate) fn build_editor(
         rich,
         source_buffer,
         source_editor,
+        source_context,
+        source_placeholder,
         split_preview,
         split_navigation,
         rendered_navigation,
@@ -1022,12 +1042,6 @@ fn connect_source_context(
     toolbar: &Toolbar,
 ) {
     toolbar.set_source_context(context_cache.context());
-    let context_for_change = context_cache.clone();
-    let toolbar_for_change = toolbar.clone();
-    source.connect_changed(move |_| {
-        context_for_change.refresh();
-        toolbar_for_change.set_source_context(context_for_change.context());
-    });
     let context_for_mark = context_cache.clone();
     let toolbar_for_mark = toolbar.clone();
     source.connect_mark_set(move |_, _, _| {
@@ -2087,19 +2101,64 @@ fn editor_theme() -> web::EditorTheme {
 pub(crate) fn install_source_shortcuts(
     view: &gtk::TextView,
     toolbar: &Toolbar,
+    context: &SourceContextCache,
+    dispatcher: &AppDispatcher,
 ) -> gtk::EventControllerKey {
     let controller = gtk::EventControllerKey::new();
     controller.set_name(Some("source-format-shortcuts"));
+    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let preediting = Rc::new(Cell::new(false));
+    let preediting_for_signal = Rc::clone(&preediting);
+    view.connect_preedit_changed(move |_, text| preediting_for_signal.set(!text.is_empty()));
     let toolbar = toolbar.clone();
+    let context = context.clone();
+    let dispatcher = dispatcher.clone();
+    let buffer = view.buffer();
     let anchor = view.clone().upcast::<gtk::Widget>();
     controller.connect_key_pressed(move |_controller, key, _keycode, modifiers| {
+        if !toolbar.source_is_active()
+            || preediting.get()
+            || modifiers.intersects(
+                gtk::gdk::ModifierType::ALT_MASK
+                    | gtk::gdk::ModifierType::SUPER_MASK
+                    | gtk::gdk::ModifierType::META_MASK,
+            )
+        {
+            return glib::Propagation::Proceed;
+        }
         let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
         let shift = modifiers.contains(gtk::gdk::ModifierType::SHIFT_MASK);
         if shift && !control && matches!(key, gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter) {
+            buffer.begin_user_action();
             toolbar.execute_source_command(crate::mvu::SourceCommand::InsertHardBreak);
+            buffer.end_user_action();
             return glib::Propagation::Stop;
         }
         if !control {
+            let input = match key {
+                gtk::gdk::Key::Return | gtk::gdk::Key::KP_Enter if !shift => {
+                    Some(crate::mvu::SourceInput::Enter)
+                }
+                gtk::gdk::Key::Tab if !shift => Some(crate::mvu::SourceInput::IndentList),
+                gtk::gdk::Key::Tab | gtk::gdk::Key::ISO_Left_Tab if shift => {
+                    Some(crate::mvu::SourceInput::OutdentList)
+                }
+                _ => None,
+            };
+            if let Some(input) = input.filter(|input| context.accepts(*input)) {
+                let selection = source_commands::selection_from_buffer(&buffer);
+                buffer.begin_user_action();
+                let handled = dispatcher.dispatch(AppMsg::Editor(EditorMsg::ApplySourceInput {
+                    input,
+                    selection,
+                }));
+                buffer.end_user_action();
+                return if handled {
+                    glib::Propagation::Stop
+                } else {
+                    glib::Propagation::Proceed
+                };
+            }
             return glib::Propagation::Proceed;
         }
         let command = match key {

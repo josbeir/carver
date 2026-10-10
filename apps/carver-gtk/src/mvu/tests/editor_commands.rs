@@ -1,5 +1,94 @@
 use super::*;
 
+fn source_input_model(source: &str) -> AppModel {
+    let mut config = Config::default();
+    config.editor.last_mode = carver_config::EditorMode::Source;
+    let mut model = AppModel::new(&config);
+    let _ = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::Load {
+            note_id: NoteId::new(),
+            revision: Revision(7),
+            source: source.into(),
+        }),
+    );
+    model
+}
+
+#[test]
+fn source_enter_should_commit_one_generation_and_schedule_preview_save_and_selection()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut model = source_input_model("- item");
+    let before = model.editor.clone().ok_or("editor")?;
+    let effects = update(
+        &mut model,
+        AppMsg::Editor(EditorMsg::ApplySourceInput {
+            input: crate::mvu::SourceInput::Enter,
+            selection: 6..6,
+        }),
+    );
+    let after = model.editor.as_ref().ok_or("editor")?;
+    assert_eq!(after.source, "- item\n- ");
+    assert_eq!(after.source_generation, before.source_generation + 1);
+    assert_eq!(after.revision, before.revision);
+    assert!(matches!(after.save_state, EditorSaveState::Dirty));
+    assert!(
+        matches!(effects.as_slice(), [Effect::SchedulePreview { .. }, Effect::ScheduleEditorSave { .. }, Effect::SelectEditorSource { selection, .. }] if selection == &(9..9))
+    );
+    Ok(())
+}
+
+#[test]
+fn source_nesting_noop_should_leave_the_clean_model_and_timers_unchanged()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut model = source_input_model("- item");
+    let before = model.clone();
+    for input in [
+        crate::mvu::SourceInput::IndentList,
+        crate::mvu::SourceInput::OutdentList,
+    ] {
+        assert_eq!(
+            update(
+                &mut model,
+                AppMsg::Editor(EditorMsg::ApplySourceInput {
+                    input,
+                    selection: 6..6
+                })
+            ),
+            [] as [Effect; 0]
+        );
+        assert_eq!(model.editor, before.editor);
+        assert_eq!(model.preview_timer, before.preview_timer);
+    }
+    let document = model.editor.ok_or("editor")?;
+    assert!(matches!(document.save_state, EditorSaveState::Clean));
+    Ok(())
+}
+
+#[test]
+fn source_input_should_ignore_non_source_modes() -> Result<(), Box<dyn std::error::Error>> {
+    for mode in [
+        carver_config::EditorMode::Rich,
+        carver_config::EditorMode::Rendered,
+    ] {
+        let mut model = source_input_model("- item");
+        model.editor.as_mut().ok_or("editor")?.mode = mode;
+        let before = model.editor.clone();
+        assert_eq!(
+            update(
+                &mut model,
+                AppMsg::Editor(EditorMsg::ApplySourceInput {
+                    input: crate::mvu::SourceInput::Enter,
+                    selection: 6..6
+                })
+            ),
+            [] as [Effect; 0]
+        );
+        assert_eq!(model.editor, before);
+    }
+    Ok(())
+}
+
 #[test]
 fn source_format_command_should_update_only_the_reducer_model() {
     let mut model = AppModel::new(&Config::default());

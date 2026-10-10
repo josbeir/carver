@@ -35,7 +35,9 @@ pub use msg::{
     SourceImageTarget, StoredMedia, TabsMsg, TrashMsg, TrashMutation, WindowMsg,
 };
 pub use runtime::{AppDispatcher, AppRuntime};
-pub use source_edit::{SourceCommand, SourceEdit};
+pub use source_edit::{
+    SourceCommand, SourceEdit, SourceInput, SourceInputOutcome, SourcePlaceholder,
+};
 pub use update::update;
 
 pub(crate) use media_filename::safe_media_filename;

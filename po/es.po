@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Carver 0.3.1\n"
 "Report-Msgid-Bugs-To: https://github.com/josbeir/carver/issues\n"
-"POT-Creation-Date: 2026-10-09 22:01+0200\n"
+"POT-Creation-Date: 2026-10-10 12:09+0200\n"
 "PO-Revision-Date: 2026-09-26 10:48+0200\n"
 "Last-Translator: Carver contributors\n"
 "Language-Team: Spanish\n"
@@ -1641,6 +1641,14 @@ msgstr "Las propiedades de esta nota se guardan en su frontmatter. Configura las
 #: apps/carver-gtk/src/ui/editor/properties_dialog.rs
 msgid "Type"
 msgstr "Tipo"
+
+#: apps/carver-gtk/src/ui/editor/source_placeholder.rs
+msgid "List item"
+msgstr "Elemento de lista"
+
+#: apps/carver-gtk/src/ui/editor/source_placeholder.rs
+msgid "Task"
+msgstr "Tarea"
 
 #: apps/carver-gtk/src/ui/editor/toolbar.rs
 #: apps/carver-gtk/src/ui/palette/catalog.rs

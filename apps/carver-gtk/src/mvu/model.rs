@@ -490,6 +490,8 @@ pub struct EditorDocument {
     pub source: String,
     /// Currently selected editor surface.
     pub mode: EditorMode,
+    /// Selection projected atomically with the last reducer-owned source edit.
+    pub source_selection: Option<std::ops::Range<usize>>,
     /// Shared AST analysis for the current canonical document.
     pub analysis: std::sync::Arc<SourceAnalysis>,
     /// Monotonic identity of the current source snapshot.
@@ -733,6 +735,7 @@ impl EditorDocument {
             is_favorite,
             source,
             mode,
+            source_selection: None,
             analysis,
             source_generation: 0,
             origin: DocumentOrigin::Library,
@@ -755,6 +758,7 @@ impl EditorDocument {
     pub(super) fn source_changed(&mut self, source: String) -> bool {
         if self.source != source {
             self.source = source;
+            self.source_selection = None;
             self.analysis = std::sync::Arc::new(SourceAnalysis::parse(&self.source));
             self.source_generation = self.source_generation.wrapping_add(1);
             self.selected_heading = None;

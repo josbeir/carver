@@ -510,6 +510,11 @@ impl Toolbar {
         }
     }
 
+    /// Whether native source input belongs to the currently editable projection.
+    pub(crate) fn source_is_active(&self) -> bool {
+        self.router.mode.get() == EditorMode::Source
+    }
+
     pub(crate) fn set_rich_selection(&self, selection: &SelectionState) {
         if self.router.mode.get() == EditorMode::Rich {
             self.set_state(&ToolbarState::from_rich(selection));
