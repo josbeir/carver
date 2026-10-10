@@ -12,6 +12,24 @@ struct Fixture {
     note: carver_sdk::Note,
 }
 
+pub(crate) fn editor_timers_should_cancel_superseded_work_and_release_the_runtime() -> TestResult {
+    super::timers::tests::timers_should_replace_pending_work_and_preserve_other_sessions();
+    super::timers::tests::timer_callback_should_allow_rescheduling_its_own_key();
+    super::timers::tests::dropping_timers_should_cancel_callbacks();
+    let fixture = fixture("Seed")?;
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::SourceChanged("Changed".into())));
+    fixture
+        .runtime
+        .dispatch(AppMsg::Editor(EditorMsg::AutosaveRequested));
+    assert_eq!(fixture.runtime.pending_editor_timer_count(), 2);
+    let runtime = Rc::downgrade(&fixture.runtime.inner);
+    drop(fixture);
+    assert!(runtime.upgrade().is_none());
+    Ok(())
+}
+
 fn fixture(source: &str) -> Result<Fixture, Box<dyn std::error::Error>> {
     let (directory, client) = test_state()?;
     let category = client.create_category("Exports")?;

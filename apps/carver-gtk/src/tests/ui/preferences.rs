@@ -90,6 +90,7 @@ pub(super) fn document_appearance_should_persist(fixture: &WindowFixture) -> Tes
         client.clone(),
         &purist_config,
         &purist_config_path,
+        None,
     )?;
     let purist_root = purist_window.child().ok_or("purist window content")?;
     // The tab workspace builds an editor only once a note is open; open one when the browser

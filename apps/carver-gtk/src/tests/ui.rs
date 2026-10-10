@@ -4,6 +4,7 @@ mod add;
 mod bases;
 mod dialogs;
 pub(crate) mod document_sidebar;
+mod editor_responsiveness;
 mod editor_shell;
 mod excerpts;
 mod export;
@@ -62,6 +63,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     glib::set_application_name("Carver test");
     gtk::init()?;
     crate::app::load_styles();
+    editor_responsiveness::autosave_should_defer_hidden_browser_rows_and_preserve_external_refreshes()?;
     palette::palette_should_search_destinations_and_preserve_note_metadata()?;
     palette::palette_should_remove_destinations_when_the_library_changes()?;
     palette::palette_should_format_the_original_source_selection_and_restore_focus()?;
@@ -80,6 +82,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     excerpts::note_card_should_display_the_complete_final_grapheme()?;
     crate::mvu::export_runtime_should_cover_completion_cancellation_and_failures()?;
     crate::mvu::runtime_error_paths_should_surface_failures()?;
+    crate::mvu::editor_timers_should_cancel_superseded_work_and_release_the_runtime()?;
+    editor_responsiveness::source_typing_should_debounce_and_resume_after_autosave()?;
+    editor_responsiveness::rich_typing_should_resume_after_autosave_without_reloading()?;
     interactions::cancelled_source_link_should_leave_the_document_unchanged()?;
     interactions::stale_web_messages_should_not_change_the_active_document()?;
     interactions::source_link_should_keep_the_captured_selection()?;
@@ -93,6 +98,7 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     source_input::source_input_should_preserve_native_keys_and_ime_composition()?;
     source_input::ghost_text_should_follow_bare_markers_without_editing_the_buffer()?;
     source_input::ghost_text_should_keep_its_source_position_font_and_read_only_load()?;
+    source_input::ghost_text_should_pause_when_source_mode_is_hidden()?;
     source_input::source_list_edits_should_round_trip_and_persist_canonical_content()?;
     crate::ui::formatting::tests::image_description_should_import_only_after_confirmation()?;
     assert_pdf_page_setup()?;
@@ -140,6 +146,9 @@ fn mvu_window_should_keep_sidebar_and_browser_card_presentation() -> TestResult 
     )?;
     document_sidebar::link_rows_should_render_markup();
     document_sidebar::outline_should_preserve_nonbreaking_spaces_in_heading_labels()?;
+    crate::ui::editor::links_should_preserve_rows_during_same_session_reload();
+    crate::ui::editor::links_should_clear_previous_session_rows_while_loading();
+    crate::ui::editor::outline_should_reuse_rows_and_navigate_current_source()?;
     document_sidebar::heading_navigation_should_preserve_content_and_focus()?;
     html::preview_and_copy_should_preserve_source_with_quoted_image_attributes()?;
     html::document_font_should_remain_css_text_inside_the_preview_head()?;

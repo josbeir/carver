@@ -1500,6 +1500,11 @@ impl ViewRefs {
 
     fn render_browser(&self, model: &AppModel) {
         self.render_template_catalog(model);
+        // Library-monitor replies still update the model while editing. Project their cards when
+        // the Notes list becomes visible, rather than blocking keystrokes with hidden GTK layout.
+        if model.route != Route::Browser {
+            return;
+        }
         if let Some(available) = &self.browser_load_more_available {
             let needs_page = model.browser.has_more || model.browser.append_error.is_some();
             available.set(needs_page && model.browser.append_request.is_none());

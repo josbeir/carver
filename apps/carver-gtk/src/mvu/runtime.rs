@@ -20,13 +20,20 @@ use crate::view::ViewRefs;
 
 use super::{
     ActionKey, AppModel, AppMsg, EditorExportFormat, Effect, LibraryReply, RequestId,
-    TrashMutation, UiError, update,
+    TrashMutation, UiError,
 };
 
 mod media_import;
 mod media_preview;
 mod palette;
 mod templates;
+mod timers;
+
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+enum EditorTimer {
+    Save(super::EditorSessionId),
+    Preview,
+}
 
 type DispatchCallback = Rc<dyn Fn(AppMsg) -> bool>;
 type PreviewCopies = BTreeMap<(carver_sdk::NoteId, String), (tempfile::TempDir, PathBuf)>;
@@ -79,6 +86,9 @@ struct RuntimeInner<B: LibraryBackend> {
     preview_copies: RefCell<PreviewCopies>,
     prepared_exports: RefCell<BTreeMap<u64, PreparedExport>>,
     library_monitor: RefCell<Option<FileMonitor>>,
+    editor_timers: Rc<timers::Timers<EditorTimer>>,
+    #[cfg(test)]
+    render_count: std::cell::Cell<usize>,
 }
 
 struct PreparedExport {
@@ -132,6 +142,9 @@ impl<B: LibraryBackend> AppRuntime<B> {
                 preview_copies: RefCell::new(BTreeMap::new()),
                 prepared_exports: RefCell::new(BTreeMap::new()),
                 library_monitor: RefCell::new(None),
+                editor_timers: Rc::new(timers::Timers::default()),
+                #[cfg(test)]
+                render_count: std::cell::Cell::new(0),
             }),
         }
     }
@@ -184,14 +197,20 @@ impl<B: LibraryBackend> AppRuntime<B> {
         Ok(())
     }
 
-    /// Reduces a message, renders the resulting snapshot, and starts any requested effects.
+    /// Reduces a message, renders visible changes, and starts any requested effects.
     pub fn dispatch(&self, message: AppMsg) {
         let (snapshot, effects) = {
             let mut model = self.inner.model.borrow_mut();
-            let effects = update(&mut model, message);
-            (model.clone(), effects)
+            let (effects, changed) = super::update::update_for_view(&mut model, message);
+            (changed.then(|| model.clone()), effects)
         };
-        self.inner.view.render(&snapshot);
+        if let Some(snapshot) = snapshot {
+            #[cfg(test)]
+            self.inner
+                .render_count
+                .set(self.inner.render_count.get() + 1);
+            self.inner.view.render(&snapshot);
+        }
         for effect in effects {
             self.run_effect(effect);
         }
@@ -207,6 +226,18 @@ impl<B: LibraryBackend> AppRuntime<B> {
     #[must_use]
     pub fn is_rendering(&self) -> bool {
         self.inner.view.is_rendering()
+    }
+
+    /// Counts actual view passes for deterministic interaction regressions.
+    #[cfg(test)]
+    pub(crate) fn render_count(&self) -> usize {
+        self.inner.render_count.get()
+    }
+
+    /// Counts pending editor work, independent of how many keystrokes scheduled it.
+    #[cfg(test)]
+    pub(crate) fn pending_editor_timer_count(&self) -> usize {
+        self.inner.editor_timers.len()
     }
 
     // CONTEXT: Keep the exhaustive typed effect routing visible in one dispatch table.
@@ -1000,24 +1031,32 @@ impl<B: LibraryBackend> AppRuntime<B> {
         timer_id: super::TimerId,
         delay_ms: u64,
     ) {
-        let runtime = self.clone();
-        glib::spawn_future_local(async move {
-            glib::timeout_future(std::time::Duration::from_millis(delay_ms)).await;
-            runtime.dispatch(AppMsg::Editor(super::EditorMsg::AutosaveElapsed {
-                session,
-                timer_id,
-            }));
-        });
+        self.schedule_editor_timer(
+            EditorTimer::Save(session),
+            std::time::Duration::from_millis(delay_ms),
+            super::EditorMsg::AutosaveElapsed { session, timer_id },
+        );
     }
 
     fn schedule_preview(&self, session: super::EditorSessionId, timer_id: super::TimerId) {
-        let runtime = self.clone();
-        glib::spawn_future_local(async move {
-            glib::timeout_future(std::time::Duration::from_millis(120)).await;
-            runtime.dispatch(AppMsg::Editor(super::EditorMsg::PreviewElapsed {
-                session,
-                timer_id,
-            }));
+        self.schedule_editor_timer(
+            EditorTimer::Preview,
+            std::time::Duration::from_millis(120),
+            super::EditorMsg::PreviewElapsed { session, timer_id },
+        );
+    }
+
+    fn schedule_editor_timer(
+        &self,
+        key: EditorTimer,
+        delay: std::time::Duration,
+        message: super::EditorMsg,
+    ) {
+        let runtime = Rc::downgrade(&self.inner);
+        self.inner.editor_timers.schedule(key, delay, move || {
+            if let Some(inner) = runtime.upgrade() {
+                AppRuntime { inner }.dispatch(AppMsg::Editor(message));
+            }
         });
     }
 

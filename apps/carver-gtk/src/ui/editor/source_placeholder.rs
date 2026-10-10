@@ -18,6 +18,7 @@ pub(super) struct SourcePlaceholderView {
     label: glib::WeakRef<gtk::Label>,
     context: SourceContextCache,
     preediting: Rc<Cell<bool>>,
+    active: Rc<Cell<bool>>,
     pending: Rc<Cell<bool>>,
     position: Rc<Cell<Option<(i32, i32)>>>,
 }
@@ -43,12 +44,16 @@ impl SourcePlaceholderView {
             label: label.downgrade(),
             context: context.clone(),
             preediting: Rc::new(Cell::new(false)),
+            active: Rc::new(Cell::new(false)),
             pending: Rc::new(Cell::new(false)),
             position: Rc::new(Cell::new(None)),
         };
         let for_mark = projection.clone();
-        view.buffer()
-            .connect_mark_set(move |_, _, _| for_mark.refresh());
+        view.buffer().connect_mark_set(move |_, _, mark| {
+            if matches!(mark.name().as_deref(), Some("insert" | "selection_bound")) {
+                for_mark.refresh();
+            }
+        });
         let for_change = projection.clone();
         view.buffer().connect_changed(move |_| for_change.refresh());
         let for_preedit = projection.clone();
@@ -66,11 +71,21 @@ impl SourcePlaceholderView {
         projection
     }
 
+    /// Limits guidance work to the source projection selected by the model.
+    pub(super) fn set_active(&self, active: bool) {
+        self.active.set(active);
+        self.refresh();
+    }
+
     /// Coalesces layout work after GTK has applied text, font, and allocation changes.
     pub(super) fn refresh(&self) {
         let Some(label) = self.label.upgrade() else {
             return;
         };
+        if !self.active.get() {
+            label.set_visible(false);
+            return;
+        }
         // Hide immediately when real content or an IME preedit replaces the guidance.
         if self.preediting.get() || self.context.placeholder().is_none() {
             label.set_visible(false);
@@ -89,7 +104,7 @@ impl SourcePlaceholderView {
         let (Some(view), Some(label)) = (self.view.upgrade(), self.label.upgrade()) else {
             return;
         };
-        let hint = (!self.preediting.get())
+        let hint = (self.active.get() && !self.preediting.get())
             .then(|| self.context.placeholder())
             .flatten();
         let Some(hint) = hint else {

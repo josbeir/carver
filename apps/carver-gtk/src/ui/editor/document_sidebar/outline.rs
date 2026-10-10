@@ -3,6 +3,9 @@ use crate::mvu::{AppDispatcher, AppMsg, EditorDocument, EditorMsg, EditorSession
 use carver_domain::source_analysis::HeadingOccurrence;
 use carver_editor_protocol::DocumentTarget;
 use gtk::{gio, prelude::*};
+use std::cell::RefCell;
+
+type RenderedHeadings = (EditorSessionId, Vec<HeadingOccurrence>);
 
 const OUTLINE_INDENT: i32 = 12;
 
@@ -21,6 +24,8 @@ pub(super) struct Outline {
     roots: gio::ListStore,
     tree: gtk::TreeListModel,
     selection: gtk::SingleSelection,
+    rendered_headings: RefCell<Option<RenderedHeadings>>,
+    rows: RefCell<Vec<glib::BoxedAnyObject>>,
 }
 
 impl Outline {
@@ -57,12 +62,30 @@ impl Outline {
             roots,
             tree,
             selection,
+            rendered_headings: RefCell::new(None),
+            rows: RefCell::new(Vec::new()),
         }
     }
 
     pub fn rebuild(&self, document: &EditorDocument) {
-        let pending_roots = gio::ListStore::new::<glib::BoxedAnyObject>();
         let headings = document.analysis.headings();
+        let reuse = self
+            .rendered_headings
+            .borrow()
+            .as_ref()
+            .is_some_and(|(session, previous)| {
+                *session == document.session && heading_structure_matches(previous, headings)
+            });
+        if reuse {
+            // Positions are resolved through the current analysis when a row is activated. Only
+            // its generation guard changes; keeping the GTK rows avoids layout and focus churn.
+            for object in self.rows.borrow().iter() {
+                object.borrow_mut::<HeadingRow>().generation = document.source_generation;
+            }
+            return;
+        }
+        let pending_roots = gio::ListStore::new::<glib::BoxedAnyObject>();
+        let mut rows = Vec::with_capacity(headings.len());
         let mut parents: Vec<(u8, gio::ListStore)> = Vec::new();
         for (occurrence, heading) in headings.iter().enumerate() {
             while parents
@@ -73,7 +96,7 @@ impl Outline {
             }
             let children = gio::ListStore::new::<glib::BoxedAnyObject>();
             let store = parents.last().map_or(&pending_roots, |(_, store)| store);
-            store.append(&glib::BoxedAnyObject::new(HeadingRow {
+            let object = glib::BoxedAnyObject::new(HeadingRow {
                 label: heading.label.clone(),
                 level: heading.level,
                 occurrence,
@@ -81,13 +104,18 @@ impl Outline {
                 children: children.clone(),
                 session: document.session,
                 generation: document.source_generation,
-            }));
+            });
+            store.append(&object);
+            rows.push(object);
             parents.push((heading.level, children));
         }
         // Publish a complete immutable projection so GTK never observes partial child lists.
         let roots: Vec<glib::Object> = (0..pending_roots.n_items())
             .filter_map(|index| pending_roots.item(index))
             .collect();
+        self.rendered_headings
+            .replace(Some((document.session, headings.to_vec())));
+        self.rows.replace(rows);
         self.roots.splice(0, self.roots.n_items(), &roots);
     }
 
@@ -121,6 +149,19 @@ impl Outline {
         }
     }
 }
+
+fn heading_structure_matches(
+    previous: &[HeadingOccurrence],
+    current: &[HeadingOccurrence],
+) -> bool {
+    previous.len() == current.len()
+        && previous.iter().zip(current).all(|(previous, current)| {
+            previous.label == current.label && previous.level == current.level
+        })
+}
+
+#[cfg(test)]
+mod tests;
 
 fn subtree_end(headings: &[HeadingOccurrence], occurrence: usize) -> usize {
     headings[occurrence + 1..]

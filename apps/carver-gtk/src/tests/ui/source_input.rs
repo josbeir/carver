@@ -306,6 +306,31 @@ pub(super) fn ghost_text_should_keep_its_source_position_font_and_read_only_load
     Ok(())
 }
 
+pub(super) fn ghost_text_should_pause_when_source_mode_is_hidden() -> TestResult {
+    let fixture = InputFixture::new("- [ ] ")?;
+    let label = widget_as::<gtk::Label>(&fixture.window.surface, "source-marker-placeholder")
+        .ok_or("placeholder")?;
+    assert!(run_main_context_until(|| label.is_visible()));
+    fixture.window.runtime.dispatch(AppMsg::Preferences(
+        crate::mvu::PreferencesMsg::SetEditorMode(carver_config::EditorMode::Rich),
+    ));
+    assert!(run_main_context_until(|| !label.is_visible()));
+    // A queued idle callback from the visible source editor must also respect the new mode.
+    fixture
+        .source
+        .buffer()
+        .place_cursor(&fixture.source.buffer().end_iter());
+    assert!(run_main_context_until(|| !label.is_visible()));
+    fixture.window.runtime.dispatch(AppMsg::Preferences(
+        crate::mvu::PreferencesMsg::SetEditorMode(carver_config::EditorMode::Source),
+    ));
+    assert!(run_main_context_until(|| label.is_visible()));
+    assert_eq!(fixture.text(), "- [ ] ");
+    assert!(!fixture.source.buffer().can_undo());
+    fixture.window.window.close();
+    Ok(())
+}
+
 pub(super) fn tab_should_move_nested_quotes_and_preserve_native_undo() -> TestResult {
     let fixture = InputFixture::new("- prev\n- item\n  > café")?;
     let buffer = fixture.source.buffer();

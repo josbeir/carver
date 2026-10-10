@@ -52,11 +52,22 @@ impl SourceContextCache {
     /// Projects guidance using the structural planner's unfinished-marker rules.
     pub(crate) fn placeholder(&self) -> Option<crate::mvu::SourcePlaceholder> {
         let buffer = self.buffer.upgrade()?;
-        let source = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
-        crate::mvu::SourcePlaceholder::at(
-            &source,
+        let selection = selection_from_buffer(&buffer);
+        if !selection.is_empty() {
+            return None;
+        }
+        let end = buffer.iter_at_mark(&buffer.get_insert());
+        if !end.ends_line() {
+            return None;
+        }
+        let mut start = end;
+        start.set_line_offset(0);
+        let line = buffer.text(&start, &end, false);
+        crate::mvu::SourcePlaceholder::at_line(
+            &line,
             &self.analysis.borrow(),
-            selection_from_buffer(&buffer),
+            usize::try_from(start.offset()).ok()?..usize::try_from(end.offset()).ok()?,
+            selection,
         )
     }
 }

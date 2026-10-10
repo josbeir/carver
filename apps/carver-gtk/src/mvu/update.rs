@@ -2,6 +2,9 @@
 
 use gettextrs::gettext;
 
+mod render;
+pub(crate) use render::update_for_view;
+
 use super::model::{
     ExternalChange, LibraryRevisionCheckReason, LibraryRevisionRequest, PendingBaseConfiguration,
     PendingNavigation,
