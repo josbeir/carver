@@ -13,6 +13,16 @@ mod links;
 mod media;
 mod outline;
 
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+pub(crate) use tests::{
+    links_should_clear_previous_session_rows_while_loading,
+    links_should_preserve_rows_during_same_session_reload,
+    outline_should_reuse_rows_and_navigate_current_source,
+};
+
 /// Exposes the Link-page row builder to display tests.
 #[cfg(test)]
 pub(crate) use links::render_group as render_link_group;
@@ -240,6 +250,11 @@ impl DocumentSidebar {
         self.add_files
             .set_sensitive(document.mode != carver_config::EditorMode::Rendered);
         let identity = (document.session, document.source_generation);
+        let same_session = self
+            .rendered_document
+            .borrow()
+            .as_ref()
+            .is_some_and(|previous| previous.0 == document.session);
         let changed = self.rendered_document.borrow().as_ref() != Some(&identity);
         if changed {
             self.outline.rebuild(document);
@@ -265,27 +280,7 @@ impl DocumentSidebar {
                 .replace(document.media_files.clone());
         }
         self.rendered_document.replace(Some(identity));
-        let ready_links = match &document.links.state {
-            crate::mvu::LoadState::Ready(links) => Some(links.clone()),
-            _ => None,
-        };
-        if *self.rendered_links.borrow() != ready_links {
-            links::render_group(
-                &self.linked_group,
-                &mut self.linked_rows.borrow_mut(),
-                ready_links.as_ref().map(|links| links.outgoing.as_slice()),
-                &gettext("No linked notes yet"),
-                dispatcher,
-            );
-            links::render_group(
-                &self.backlinks_group,
-                &mut self.backlinks_rows.borrow_mut(),
-                ready_links.as_ref().map(|links| links.backlinks.as_slice()),
-                &gettext("No backlinks yet"),
-                dispatcher,
-            );
-            self.rendered_links.replace(ready_links.clone());
-        }
+        let ready_links = self.render_links(document, same_session, dispatcher);
 
         let headings = document.analysis.headings().len();
         let media_count = document.analysis.media().len();
@@ -311,6 +306,40 @@ impl DocumentSidebar {
             }),
             visible,
         );
+    }
+
+    fn render_links(
+        &self,
+        document: &EditorDocument,
+        same_session: bool,
+        dispatcher: &AppDispatcher,
+    ) -> Option<carver_sdk::NoteLinks> {
+        let ready_links = match &document.links.state {
+            crate::mvu::LoadState::Ready(links) => Some(links.clone()),
+            crate::mvu::LoadState::Loading(_) if same_session => {
+                self.rendered_links.borrow().clone()
+            }
+            _ => None,
+        };
+        if *self.rendered_links.borrow() != ready_links {
+            links::render_group(
+                &self.linked_group,
+                &mut self.linked_rows.borrow_mut(),
+                ready_links.as_ref().map(|links| links.outgoing.as_slice()),
+                &gettext("No linked notes yet"),
+                dispatcher,
+            );
+            links::render_group(
+                &self.backlinks_group,
+                &mut self.backlinks_rows.borrow_mut(),
+                ready_links.as_ref().map(|links| links.backlinks.as_slice()),
+                &gettext("No backlinks yet"),
+                dispatcher,
+            );
+            self.rendered_links.replace(ready_links.clone());
+        }
+
+        ready_links
     }
 
     fn update_thumbnails(

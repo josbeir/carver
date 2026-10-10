@@ -45,6 +45,13 @@ mod document_sidebar;
 /// Exposes the Link-page row builder to display tests.
 #[cfg(test)]
 pub(crate) use document_sidebar::render_link_group;
+
+#[cfg(test)]
+pub(crate) use document_sidebar::{
+    links_should_clear_previous_session_rows_while_loading,
+    links_should_preserve_rows_during_same_session_reload,
+    outline_should_reuse_rows_and_navigate_current_source,
+};
 mod preview;
 pub(crate) mod properties_dialog;
 mod render;
@@ -127,6 +134,7 @@ impl EditorViewRefs {
         self.toolbar_bar
             .set_visible(model.preferences.show_formatting_toolbar);
         let Some(document) = model.editor.as_ref() else {
+            self.source_placeholder.set_active(false);
             self.document_properties.set_visible(false);
             self.asset_scope.replace(None);
             self.split_preview_source.replace(None);
@@ -138,16 +146,25 @@ impl EditorViewRefs {
         // note-relative `assets/<filename>` markup against the right private directory.
         self.asset_scope.replace(Some(document.note_id));
         self.rendering.set(true);
-        self.source_generation.set(document.source_generation);
+        let generation_changed = self.source_generation.replace(document.source_generation)
+            != document.source_generation;
         self.favorite.set_active(document.is_favorite);
         let favorite_label = if document.is_favorite {
             gettext("Remove from Favorites")
         } else {
             gettext("Add to Favorites")
         };
-        self.favorite_options.remove(0);
-        self.favorite_options
-            .insert(0, Some(&favorite_label), Some("editor.toggle-favorite"));
+        if self
+            .favorite_options
+            .item_attribute_value(0, "label", None)
+            .and_then(|value| value.get::<String>())
+            .as_deref()
+            != Some(&favorite_label)
+        {
+            self.favorite_options.remove(0);
+            self.favorite_options
+                .insert(0, Some(&favorite_label), Some("editor.toggle-favorite"));
+        }
         self.sidebar.render(
             document,
             model.config.editor.document_sidebar_page,
@@ -174,12 +191,12 @@ impl EditorViewRefs {
             invalidate_preview_sources(&self.split_preview_source, &self.rendered_preview_source);
         }
         self.source_context.set_analysis(&document.analysis);
-        let source_changed = buffer_text(&self.source_buffer) != document.source;
+        let source_changed = (new_document || generation_changed)
+            && buffer_text(&self.source_buffer) != document.source;
         let preview = model
             .editor_preview
             .as_ref()
-            .filter(|preview| preview.session == document.session)
-            .cloned();
+            .filter(|preview| preview.session == document.session);
         if new_document {
             self.rich.set_document_session(document.session);
             self.find.reset();
@@ -255,7 +272,8 @@ impl EditorViewRefs {
         );
         self.find.set_mode(document.mode);
         self.rendering.set(false);
-        self.source_placeholder.refresh();
+        self.source_placeholder
+            .set_active(document.mode == EditorMode::Source);
         if new_document {
             self.loaded_session.replace(Some(document.session));
         }

@@ -231,6 +231,7 @@ pub(crate) fn build_window_for_test(
     client: AppLibraryClient,
     config: &Config,
     config_path: &Path,
+    database_path: Option<&Path>,
 ) -> Result<(adw::ApplicationWindow, AppDispatcher), crate::ui::editor::SourceSyntaxError> {
     load_styles();
     let data_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
@@ -242,6 +243,6 @@ pub(crate) fn build_window_for_test(
         None,
         &source_syntax_dir,
         Some(config_path),
-        None,
+        database_path,
     ))
 }

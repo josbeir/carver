@@ -68,6 +68,23 @@ where
     ) -> Result<(), Box<dyn std::error::Error>>,
     C: FnOnce(&mut Config),
 {
+    window_fixture_seeded_with_monitor(application_id, seed, configure, false)
+}
+
+/// Like [`window_fixture_seeded`], with optional real SQLite file monitoring.
+pub(crate) fn window_fixture_seeded_with_monitor<S, C>(
+    application_id: &str,
+    seed: S,
+    configure: C,
+    monitor_library: bool,
+) -> Result<WindowFixture, Box<dyn std::error::Error>>
+where
+    S: FnOnce(
+        &super::super::support::TestLibraryClient,
+        carver_sdk::CategoryId,
+    ) -> Result<(), Box<dyn std::error::Error>>,
+    C: FnOnce(&mut Config),
+{
     let (temporary_directory, client) = test_state()?;
     let category = client.create_category_with_appearance(
         "Notes",
@@ -97,8 +114,14 @@ where
     config.editor.source_highlight_current_line = true;
     config.editor.source_syntax_style = SourceSyntaxStyle::WritingFocus;
     configure(&mut config);
-    let (window, dispatcher) =
-        crate::app::build_window_for_test(&application, client.clone(), &config, &config_path)?;
+    let database = temporary_directory.path().join("data/library.sqlite3");
+    let (window, dispatcher) = crate::app::build_window_for_test(
+        &application,
+        client.clone(),
+        &config,
+        &config_path,
+        monitor_library.then_some(database.as_path()),
+    )?;
     let preferences_dispatcher = crate::mvu::AppDispatcher::default();
     let preferences_stack = gtk::Stack::new();
     for name in ["browser", "editor", "trash"] {

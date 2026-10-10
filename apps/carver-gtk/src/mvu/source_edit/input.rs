@@ -42,15 +42,26 @@ impl SourcePlaceholder {
     /// Classifies a bare marker at the end cursor without changing canonical source.
     #[must_use]
     pub fn at(source: &str, analysis: &SourceAnalysis, selection: Range<usize>) -> Option<Self> {
-        if !selection.is_empty() || analysis.protects_editing(selection.clone()) {
-            return None;
-        }
         let line = Line::at(source, selection.start)?;
-        if selection.start != line.range.end {
+        Self::at_line(line.text, analysis, line.range, selection)
+    }
+
+    /// Classifies one physical line using absolute character offsets from the shared analysis.
+    #[must_use]
+    pub(crate) fn at_line(
+        text: &str,
+        analysis: &SourceAnalysis,
+        line: Range<usize>,
+        selection: Range<usize>,
+    ) -> Option<Self> {
+        if selection.start != selection.end
+            || selection.start != line.end
+            || analysis.protects_editing(selection)
+        {
             return None;
         }
-        let prefix = ListPrefix::parse(line.text, None)?;
-        if !line.text.get(prefix.content_start..)?.trim().is_empty() {
+        let prefix = ListPrefix::parse(text, None)?;
+        if !text.get(prefix.content_start..)?.trim().is_empty() {
             return None;
         }
         Some(if prefix.is_task() {
