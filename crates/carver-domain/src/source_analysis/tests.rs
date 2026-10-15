@@ -437,6 +437,22 @@ fn heading_labels_should_preserve_authored_nonbreaking_spaces() {
 }
 
 #[test]
+fn attachment_labels_should_preserve_spaces_across_table_continuations() {
+    let source = "|= Files |\n| [First |\n+ Second](assets/brief.pdf) |";
+    let document = carve::parse(source);
+    let carve::BlockNode::Table(table) = &document.children[0] else {
+        panic!("expected a table");
+    };
+
+    // Carve omits positions for links spanning fragments, so exercise the
+    // label helper directly on the parsed cell.
+    assert_eq!(
+        super::inline_label(&table.rows[1].cells[0].children),
+        "First Second"
+    );
+}
+
+#[test]
 fn attachment_labels_should_preserve_authored_nonbreaking_spaces() {
     let analysis = SourceAnalysis::parse(r"[Release\ Notes](assets/release.pdf)");
     assert_eq!(analysis.media()[0].label, "Release\u{a0}Notes");

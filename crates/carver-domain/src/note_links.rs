@@ -437,7 +437,9 @@ fn inline_text(nodes: &[InlineNode]) -> String {
             InlineNode::Math(node) => node.content.clone(),
             InlineNode::LiteralInline(node) => node.content.clone(),
             InlineNode::Abbreviation(node) => node.abbr.clone(),
-            InlineNode::SoftBreak(_) | InlineNode::HardBreak(_) => String::from(" "),
+            InlineNode::SoftBreak(_) | InlineNode::CellWrap(_) | InlineNode::HardBreak(_) => {
+                String::from(" ")
+            }
             InlineNode::Footnote(node) => node
                 .inline
                 .as_ref()

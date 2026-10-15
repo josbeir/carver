@@ -128,6 +128,15 @@ fn table_continuations_should_keep_note_link_targets_and_ranges() {
 }
 
 #[test]
+fn note_link_labels_should_preserve_spaces_across_table_continuations() {
+    let source = format!("|= Notes |\n| [First |\n+ Second]({NOTE_LINK_SCHEME}{TARGET}) |");
+    let links = extract_note_links(&source);
+
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].label, "First Second");
+}
+
+#[test]
 fn self_and_duplicate_targets_should_collapse() {
     let source = format!("[a]({NOTE_LINK_SCHEME}{TARGET}) [b]({NOTE_LINK_SCHEME}{TARGET})");
     assert_eq!(extract_note_link_targets(&source), vec![note_id(TARGET)]);
