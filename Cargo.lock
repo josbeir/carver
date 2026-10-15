@@ -130,16 +130,18 @@ dependencies = [
 
 [[package]]
 name = "carve-lang"
-version = "0.1.7"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bade620457149d669d9e7b89c3952fa5c44fcbefac2d4de78b75f64792ef1774"
+checksum = "8747e096cacdd7097d884ffb9dd15dc70dd7e636081a31335bb786313924f341"
 dependencies = [
  "html5ever",
  "markup5ever_rcdom",
+ "memchr",
  "pulldown-cmark",
  "regex",
  "serde",
  "serde_json",
+ "smallvec",
  "unicode-normalization",
 ]
 
@@ -1651,8 +1653,15 @@ checksum = "e9f068eba8e7071c5f9511831b44f32c740d5adf574e990f946ddb53db2f314e"
 dependencies = [
  "bitflags",
  "memchr",
+ "pulldown-cmark-escape",
  "unicase",
 ]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "quote"

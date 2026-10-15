@@ -14,4 +14,12 @@ describe('highlightCode', () => {
   it('leaves an unknown fence language alone', () => {
     expect(highlightCode('unknown-fence', 'plain text')).toBeNull();
   });
+
+  it('highlights headings after a closed Carve code fence longer than 32 KB', () => {
+    const source = `\`\`\`text\n${'x'.repeat(33 * 1024)}\n\`\`\`\n\n# After`;
+
+    expect(highlightCode('carve', source)).toContain(
+      '<span class="hljs-section"># After</span>',
+    );
+  });
 });
