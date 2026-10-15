@@ -405,6 +405,7 @@ fn collect_inlines(nodes: &[InlineNode], out: &mut Vec<NoteLinkRef>) {
             | InlineNode::Abbreviation(_)
             | InlineNode::NonBreakingSpace(_)
             | InlineNode::SoftBreak(_)
+            | InlineNode::CellWrap(_)
             | InlineNode::HardBreak(_)
             | InlineNode::CriticComment(_)
             | InlineNode::Comment(_) => {}

@@ -33,7 +33,7 @@ html-escape = "0.2"
 sanitize-filename = "0.6"
 async-channel = "2.5"
 base64 = "0.22"
-carve-lang = "0.1.7"
+carve-lang = "0.1.9"
 directories = "6.0"
 formatx = "0.4"
 gettext-rs = { version = "0.8", default-features = false, features = ["gettext-system"] }

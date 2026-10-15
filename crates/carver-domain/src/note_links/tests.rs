@@ -98,6 +98,36 @@ fn nested_links_should_be_found_in_emphasis_and_lists() {
 }
 
 #[test]
+fn table_continuations_should_keep_note_link_targets_and_ranges() {
+    let source = format!(
+        "|= Notes |\n| [First]({NOTE_LINK_SCHEME}{TARGET}) |\n+ [Second]({NOTE_LINK_SCHEME}{OTHER}) |"
+    );
+    let links = extract_note_links(&source);
+    assert_eq!(
+        links
+            .iter()
+            .map(|link| (
+                link.target,
+                link.label.as_str(),
+                &source[link.range.clone()]
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                note_id(TARGET),
+                "First",
+                format!("[First]({NOTE_LINK_SCHEME}{TARGET})").as_str(),
+            ),
+            (
+                note_id(OTHER),
+                "Second",
+                format!("[Second]({NOTE_LINK_SCHEME}{OTHER})").as_str(),
+            ),
+        ]
+    );
+}
+
+#[test]
 fn self_and_duplicate_targets_should_collapse() {
     let source = format!("[a]({NOTE_LINK_SCHEME}{TARGET}) [b]({NOTE_LINK_SCHEME}{TARGET})");
     assert_eq!(extract_note_link_targets(&source), vec![note_id(TARGET)]);

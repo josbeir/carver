@@ -15,6 +15,9 @@ describe('Carve adapter', () => {
     '{from="2" to="4"}\n::: toc\n:::\n\n# Intro',
     '::: details "More"\nHidden *body*\n:::',
     'Visit https://example.com today.',
+    '```=html\n<div>Raw content</div>\n```',
+    '| Name | State |\n|----|-----|\n| Carver | Ready |',
+    '|= Notes |\n| First |\n+ continuation |',
   ])(
     'preserves authoring helpers after an unrelated rich edit: %s',
     (source) => {
@@ -41,6 +44,19 @@ describe('Carve adapter', () => {
     expect(result.preserved).toEqual({});
     expect(result.degraded).toEqual({});
     expect(serializeToCarve(result.doc)).toBe(source);
+  });
+
+  it('preserves footnote labels after an unrelated rich edit', () => {
+    const source = 'A footnote[^note].\n\n[^note]: Footnote body.';
+    const result = carveToProseMirrorWithReport(source, {
+      unsupported: 'preserve',
+    });
+    const schema = getSchema([CarveKit]);
+    const doc = schema.nodeFromJSON(result.doc);
+    const state = EditorState.create({ doc });
+    const edited = state.apply(state.tr.insertText('New ', 1));
+
+    expect(serializeToCarve(edited.doc.toJSON())).toBe(`New ${source}`);
   });
 
   it('keeps tables editable rather than flattening them into text', () => {

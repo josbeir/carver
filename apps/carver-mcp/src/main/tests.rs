@@ -58,10 +58,14 @@ async fn create_and_read_note(server: &CarverServer) -> Result<(CategoryId, Note
         created_report["report"]["source_format"],
         serde_json::json!("markdown")
     );
-    assert_eq!(
-        created_report["report"]["diagnostics"][0]["code"],
-        serde_json::json!("fidelity-unverified")
-    );
+    let diagnostics = created_report["report"]["diagnostics"]
+        .as_array()
+        .ok_or("import diagnostics")?;
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["code"] == "markdown-atx-heading"
+            && diagnostic["fidelity"] == "preserved"
+            && diagnostic["confidence"] == "exact"
+    }));
     let note_id = id(&created)?;
     let listed = server
         .list_notes(Parameters(ListNotesRequest {

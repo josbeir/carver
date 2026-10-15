@@ -18,14 +18,19 @@ fn importing_markdown_uses_the_native_carve_migration() {
 }
 
 #[test]
-fn assessing_markdown_exposes_unverified_fidelity() {
+fn assessing_markdown_should_expose_verified_strong_fidelity() {
     let result = assess_import("**strong**", DocumentImportFormat::Markdown);
     assert_eq!(result.report.schema_version, 2);
     assert_eq!(result.report.source_format, "markdown");
-    assert_eq!(result.report.diagnostics.len(), 1);
-    assert_eq!(result.report.diagnostics[0].code, "fidelity-unverified");
-    assert_eq!(result.report.diagnostics[0].fidelity, "dropped");
-    assert_eq!(result.report.diagnostics[0].confidence, "fallback");
+    let diagnostic = result
+        .report
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "markdown-strong")
+        .unwrap_or_else(|| panic!("Markdown import should assess strong formatting"));
+    assert_eq!(diagnostic.fidelity, "preserved");
+    assert_eq!(diagnostic.confidence, "exact");
+    assert_eq!(diagnostic.path.as_deref(), Some("line:1"));
 }
 
 #[test]
